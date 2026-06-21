@@ -179,18 +179,3 @@ python scripts/istina.py gpu cuda-check
 ### ADB 连接失败
 
 确保模拟器/设备已启动，且 ADB 端口正确（默认 `localhost:16512`）。
-
-## 开发计划
-
-- [ ] 完整 GUI 改造
-- [ ] 优化本地推理性能
-- [ ] 添加更多标准流配置
-- [ ] 支持更多本地模型
-
-## 许可证
-
-与原版相同。
-
-## 致谢
-
-基于 IstinaEndfieldAssistant 项目改造，感谢原作者的贡献。
