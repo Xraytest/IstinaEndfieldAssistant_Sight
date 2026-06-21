@@ -1,0 +1,104 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 9999
+  },
+  "platform": {
+    "host": "127.0.0.1",
+    "port": 16512
+  },
+  "timeout": 300,
+  "adb": {
+    "path": "3rd-party/adb/adb.exe",
+    "timeout": 10
+  },
+  "git": {
+    "path": "3rd-party/git/bin/git.exe"
+  },
+  "screen": {
+    "use_original_resolution": true
+  },
+  "touch": {
+    "maa_style": {
+      "enabled": true,
+      "press_duration_ms": 50,
+      "press_jitter_px": 2,
+      "swipe_delay_min_ms": 100,
+      "swipe_delay_max_ms": 300,
+      "use_normalized_coords": true
+    },
+    "fail_on_error": true
+  },
+  "security": {
+    "enable_safe_press": true,
+    "enable_jitter": true
+  },
+  "communication": {
+    "password": "default_password"
+  },
+  "model": {
+    "selected_model": "",
+    "auto_select": true,
+    "available_models": [],
+    "last_updated": 0
+  },
+  "client": {
+    "client_id": "",
+    "client_name": "IEA_Client",
+    "registered": false
+  },
+  "inference": {
+    "mode": "auto",
+    "local_inference_enabled": false,
+    "hardware_acceleration": "auto",
+    "cache_settings": {
+      "enabled": true,
+      "max_size_mb": 2048,
+      "ttl_hours": 24
+    },
+    "local": {
+      "enabled": false,
+      "model_name": "qwen3.5-9b-fp16",
+      "model_path": "",
+      "gpu_layers": -1,
+      "use_cache": true,
+      "temperature": 0.7,
+      "top_p": 0.9,
+      "top_k": 40,
+      "max_tokens": 4096,
+      "auto_fallback": true
+    },
+    "cloud": {
+      "preferred_model": "",
+      "auto_select": true
+    }
+  },
+  "gpu": {
+    "checked": false,
+    "cuda_available": false,
+    "cuda_version": "",
+    "driver_version": "",
+    "gpu_count": 0,
+    "gpus": [],
+    "meets_requirements": false,
+    "recommended_model": null
+  },
+  "rendering": {
+    "hardware_acceleration": true,
+    "opengl": "auto",
+    "vsync": true,
+    "animation_enabled": true
+  },
+  "first_run": {
+    "local_inference_prompt_shown": false,
+    "user_choice": "cloud"
+  },
+  "vendors": {
+    "newapi_channel": {
+      "_type": "newapi_channel_conn",
+      "key": "YOUR_API_KEY_HERE",
+      "url": "https://open.cherryin.ai",
+      "enabled": true
+    }
+  }
+}

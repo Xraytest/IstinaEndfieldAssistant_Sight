@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Client Devices - Istina Platform</title>
+</head>
+<body>
+    <h1>Connected Clients</h1>
+    <div id="clients-container"></div>
+    <div id="status-msg"></div>
+    
+    <script>
+        var clientsArray = [];
+        
+        function showStatus(message) {
+            var box = document.getElementById('status-msg');
+            if (!box) return;
+            box.textContent = message;
+        }
+        
+        function renderClientsList() {
+            try {
+                var container = document.getElementById('clients-container');
+                if (!container || !Array.isArray(clientsArray)) return;
+                
+                if (clientsArray.length === 0) {
+                    container.innerHTML = '<p>No connected clients.</p>';
+                    return;
+                }
+                
+                container.innerHTML = clientsArray.map(function(c) {
+                    return '<div class="client-item"><strong>' + (c.deviceId || 'unknown') + '</strong>';
+                }).join('');
+            } catch (e) {
+                console.error('render error:', e);
+            }
+        }
+        
+        async function loadClientsConfig() {
+            try {
+                var response = await fetch('/api/clients', {
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer default_password' }
+                });
+                const data = await response.json();
+                if (data && data.status === 'success') {
+                    clientsArray = data.clients || [];
+                }
+            } catch (parseErr) {
+                clientsArray = [];
+                console.error('JSON parse error:', parseErr);
+            } catch (error) {
+                var errorMsg = error instanceof Error 
+                    ? error.message.toString() 
+                    : String(error);
+                showStatus('加载配置错误：' + errorMsg);
+                clientsArray = [];
+            }
+            renderClientsList();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadClientsConfig();
+        });
+    </script>
+</body>
+</html>

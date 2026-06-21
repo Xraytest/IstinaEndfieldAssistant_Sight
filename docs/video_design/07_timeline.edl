@@ -1,0 +1,53 @@
+TITLE: IEA Promo Video (60s)
+FCM: NON-DROP FRAME
+
+001  AGENT_TERMINAL    V     C        00:00:00:00 00:00:08:00 00:00:00:00 00:00:08:00
+* FROM CLIP NAME: assets/raw_recordings/agent_terminal_01.mp4
+* SOURCE FILE: agent_terminal_01.mp4
+
+002  AGENT_TERMINAL    V     C        00:00:08:00 00:00:10:00 00:00:08:00 00:00:10:00
+* FROM CLIP NAME: assets/raw_recordings/agent_terminal_01.mp4
+* SOURCE FILE: agent_terminal_01.mp4
+* EFFECT: Fade In 0.5s
+
+003  CONTROL_PANEL     V     C        00:00:10:00 00:00:15:00 00:00:10:00 00:00:15:00
+* FROM CLIP NAME: assets/raw_recordings/control_panel_01.mp4
+* SOURCE FILE: control_panel_01.mp4
+* EFFECT: Cross Dissolve 0.3s
+
+004  GAME_EXPLORATION  V     C        00:00:15:00 00:00:20:00 00:00:15:00 00:00:20:00
+* FROM CLIP NAME: assets/raw_recordings/game_exploration_01.mp4
+* SOURCE FILE: game_exploration_01.mp4
+
+005  GAME_EXPLORATION  V     C        00:00:20:00 00:00:25:00 00:00:20:00 00:00:25:00
+* FROM CLIP NAME: assets/raw_recordings/game_exploration_01.mp4
+* SOURCE FILE: game_exploration_01.mp4
+
+006  GAME_EXPLORATION  V     C        00:00:25:00 00:00:30:00 00:00:25:00 00:00:30:00
+* FROM CLIP NAME: assets/raw_recordings/game_exploration_01.mp4
+* SOURCE FILE: game_exploration_01.mp4
+
+007  CONTROL_PANEL     V     C        00:00:30:00 00:00:35:00 00:00:30:00 00:00:35:00
+* FROM CLIP NAME: assets/raw_recordings/control_panel_01.mp4
+* SOURCE FILE: control_panel_01.mp4
+
+008  MODEL_MANAGER     V     C        00:00:35:00 00:00:38:00 00:00:35:00 00:00:38:00
+* FROM CLIP NAME: assets/raw_recordings/model_manager_01.mp4
+* SOURCE FILE: model_manager_01.mp4
+
+009  MODEL_MANAGER     V     C        00:00:38:00 00:00:42:00 00:00:38:00 00:00:42:00
+* FROM CLIP NAME: assets/raw_recordings/model_manager_01.mp4
+* SOURCE FILE: model_manager_01.mp4
+
+010  AGENT_TERMINAL    V     C        00:00:42:00 00:00:48:00 00:00:42:00 00:00:48:00
+* FROM CLIP NAME: assets/raw_recordings/agent_terminal_01.mp4
+* SOURCE FILE: agent_terminal_01.mp4
+
+011  GAME_EXPLORATION  V     C        00:00:48:00 00:00:55:00 00:00:48:00 00:00:55:00
+* FROM CLIP NAME: assets/raw_recordings/game_exploration_01.mp4
+* SOURCE FILE: game_exploration_01.mp4
+
+012  LOGO              V     C        00:00:55:00 00:01:00:00 00:00:55:00 00:01:00:00
+* FROM CLIP NAME: assets/iea_logo.svg
+* SOURCE FILE: iea_logo.svg
+* EFFECT: Fade In 1.0s, Fade Out 1.0s

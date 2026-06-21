@@ -1,0 +1,485 @@
+{
+  "version": "5.0",
+  "pages": {
+    "world_map": {
+      "page_name": "world_map",
+      "page_type": "Interactive Map Interface",
+      "description": "这是游戏内的世界地图界面，当前显示的区域为“武陵 / 武陵城”。地图以俯视视角展示了地形、建筑、道路以及各类兴趣点（POI）。界面底部显示了各类收集品和任务的完成进度统计。地图上有多个标记，包括传送点、任务点、资源点等。",
+      "all_buttons": [
+        {
+          "label": "事务提醒",
+          "coords_estimate": [
+            85,
+            95
+          ],
+          "function": "查看或管理游戏内的任务/事务提醒"
+        },
+        {
+          "label": "关闭地图",
+          "coords_estimate": [
+            955,
+            40
+          ],
+          "function": "关闭当前地图界面，返回游戏主画面"
+        },
+        {
+          "label": "标记显示管理",
+          "coords_estimate": [
+            95,
+            905
+          ],
+          "function": "设置地图上显示或隐藏哪些类型的标记图标"
+        },
+        {
+          "label": "地区总览",
+          "coords_estimate": [
+            880,
+            905
+          ],
+          "function": "切换到世界大地图或查看其他地区的概览"
+        },
+        {
+          "label": "能量/电池状态",
+          "coords_estimate": [
+            850,
+            40
+          ],
+          "function": "显示当前角色的能量或电池剩余量 (358/358)"
+        }
+      ],
+      "entry_coords": [
+        540,
+        960
+      ],
+      "exit_coords": [
+        955,
+        40
+      ],
+      "key_features": [
+        "区域名称：武陵 / 武陵城",
+        "子区域：集成核心区域、居民区、选剑局、技术开发局、沉山道、观测站、弃剑台",
+        "地标：O.M.V.帝江号（右上角船只）",
+        "底部统计栏：显示各类收集品进度（如223/350, 15/15等）",
+        "地图标记：包含传送锚点、任务点、资源采集点等图标"
+      ],
+      "navigable_from": [
+        "Game Main Screen",
+        "Pause Menu"
+      ],
+      "navigable_to": [
+        "Game Main Screen",
+        "Quest Interface",
+        "Region Overview"
+      ],
+      "special_elements": {
+        "map_markers": "Various icons representing points of interest, enemies, and resources scattered across the map.",
+        "progress_bars": "Bottom center area showing collection progress for different categories (e.g., 24/61, 54/198).",
+        "location_name": "Top left corner displays current location '// 武陵 / 武陵城'."
+      },
+      "ascii_layout": "  +-----------------------------+  \n  | [事务提醒]              [X] |  \n  |                             |  \n  |   [Map Area: Wuling]        |  \n  |   [Buildings & Terrain]     |  \n  |   [Markers & Icons]         |  \n  |                             |  \n  |                             |  \n  | [标记显示管理]    [地区总览]|  \n  | [Stats: 223/350 ...]        |  \n  +-----------------------------+  "
+    },
+    "quest_ui": {
+      "page_name": "地图 / 协议传送点",
+      "page_type": "Navigation / Map Interface",
+      "description": "这是游戏《终末地》(Arknights: Endfield) 中的地图界面，具体展示了“武陵城”区域的地图。界面右侧显示了当前选中的“协议传送点”的详细信息和背景故事。底部有一个红色的提示条，告知玩家需要先接取并推进任务“志同道合”才能使用传送功能。地图上标注了多个区域，如“技术开发局”、“集成核心区域”、“居民区”等，以及多个传送点和任务标记。",
+      "all_buttons": [
+        {
+          "label": "事务提醒",
+          "coords_estimate": [
+            80,
+            95
+          ],
+          "function": "打开任务或事务提醒列表"
+        },
+        {
+          "label": "关闭 (X)",
+          "coords_estimate": [
+            955,
+            45
+          ],
+          "function": "关闭地图界面"
+        },
+        {
+          "label": "标记显示管理",
+          "coords_estimate": [
+            80,
+            905
+          ],
+          "function": "管理地图上显示的标记类型"
+        },
+        {
+          "label": "传送点交互 (隐含)",
+          "coords_estimate": [
+            520,
+            430
+          ],
+          "function": "点击地图上的传送点图标进行交互（当前被任务限制）"
+        }
+      ],
+      "entry_coords": [
+        100,
+        100
+      ],
+      "exit_coords": [
+        955,
+        45
+      ],
+      "key_features": [
+        "详细的区域地图（武陵城）",
+        "传送点信息面板（右侧）",
+        "任务限制提示（底部红色横幅）",
+        "资源与状态栏（底部中央）",
+        "区域名称标注（如技术开发局、沉山道等）"
+      ],
+      "navigable_from": [
+        "主游戏界面 (HUD)"
+      ],
+      "navigable_to": [
+        "主游戏界面 (HUD)",
+        "任务列表 (通过事务提醒)"
+      ],
+      "special_elements": {
+        "quest_requirement": {
+          "text": "需接取并推进任务「志同道合」",
+          "location": "bottom_right",
+          "color": "red",
+          "meaning": "当前传送功能被锁定，需要完成前置任务"
+        },
+        "map_location": {
+          "region": "武陵",
+          "city": "武陵城"
+        }
+      },
+      "ascii_layout": "```text\n+-----------------------------------------------------------------------+\n| [武陵 / 武陵城]  [事务提醒] | [图标]                      [X] (Close) |\n|-----------------------------------------------------------------------|\n|                                                                       |\n|  [Map Area: Wuling City]           |  [Info Panel: Protocol Teleport] |\n|                                    |  ------------------------------  |\n|  (Top) 技术生产办公室              |  A 协议传送点                    |\n|       不归林                       |  武陵城                          |\n|       实验作物试点区               |                                  |\n|                                    |  结合了协议技术的实验型装置...   |\n|  (Mid) 集成核心区域 (Selected)     |  (Description of teleport tech)  |\n|       沉山道                       |                                  |\n|                                    |                                  |\n|  (Bot) 技术开发局                  |                                  |\n|       选剑局                       |                                  |\n|       居民区                       |                                  |\n|                                    |                                  |\n|-----------------------------------------------------------------------|\n| [标记显示管理] | [Res: 223/350] [Res: 15/15] [Skills/Items]           |\n|                                    |                                  |\n|                                    | [Red Banner: 需接取并推进任务...]|\n|-----------------------------------------------------------------------|\n```"
+    },
+    "base_industry": {
+      "page_name": "武陵城地图界面",
+      "page_type": "Map Interface",
+      "description": "这是游戏《终末地》中的区域地图界面，具体显示的是“武陵城”区域。界面左侧悬浮着一个“重要事务”面板，列出了三个“据点面临入侵威胁”的任务。地图主体展示了该区域的详细地形、建筑（如技术开发局、观测站、集成核心区域等）以及各类标记点（任务点、采集点、设施）。底部显示了资源状态栏和导航按钮。",
+      "all_buttons": [
+        {
+          "label": "重要事务 (Tab)",
+          "coords_estimate": [
+            90,
+            100
+          ],
+          "function": "切换至重要事务标签页"
+        },
+        {
+          "label": "采集提示 (Tab)",
+          "coords_estimate": [
+            200,
+            100
+          ],
+          "function": "切换至采集提示标签页"
+        },
+        {
+          "label": "据点面临入侵威胁 (List Item)",
+          "coords_estimate": [
+            100,
+            150
+          ],
+          "function": "查看具体入侵威胁任务详情"
+        },
+        {
+          "label": "收起菜单 (Arrow Up)",
+          "coords_estimate": [
+            145,
+            440
+          ],
+          "function": "收起左侧的任务列表面板"
+        },
+        {
+          "label": "关闭 (X)",
+          "coords_estimate": [
+            955,
+            40
+          ],
+          "function": "关闭地图界面，返回上一级"
+        },
+        {
+          "label": "标记显示管理",
+          "coords_estimate": [
+            75,
+            905
+          ],
+          "function": "管理地图上各类标记的显示/隐藏"
+        },
+        {
+          "label": "地区总览",
+          "coords_estimate": [
+            870,
+            905
+          ],
+          "function": "查看该地区的总览信息"
+        },
+        {
+          "label": "缩放/添加 (+)",
+          "coords_estimate": [
+            905,
+            40
+          ],
+          "function": "地图缩放或添加标记"
+        }
+      ],
+      "entry_coords": [
+        50,
+        50
+      ],
+      "exit_coords": [
+        955,
+        40
+      ],
+      "key_features": [
+        "区域地图 (武陵城)",
+        "左侧任务列表弹窗",
+        "地标名称 (技术开发局, 观测站, 集成核心区域等)",
+        "资源状态栏 (底部)",
+        "O.M.V. 帝江号图标 (右上角)",
+        "白色箭头光标 (指向观测站)"
+      ],
+      "navigable_from": [
+        "主界面",
+        "任务列表",
+        "基地界面"
+      ],
+      "navigable_to": [
+        "任务详情页面",
+        "采集点详情",
+        "地区总览页面",
+        "标记管理设置"
+      ],
+      "special_elements": {
+        "current_location_marker": {
+          "coords_estimate": [
+            270,
+            830
+          ],
+          "description": "黄色同心圆标记，指示玩家当前位置或焦点区域"
+        },
+        "cursor": {
+          "coords_estimate": [
+            870,
+            550
+          ],
+          "description": "白色箭头光标，当前指向'观测站'附近"
+        },
+        "resource_bar": {
+          "coords_estimate": [
+            300,
+            900
+          ],
+          "description": "底部横向排列的资源/状态指示器 (如 223/350, 15/15, 24/61 等)"
+        }
+      },
+      "ascii_layout": "```text\n+-----------------------+------------------------------------------+\n| [重要事务] [采集提示] |                                          |\n| > 据点面临入侵威胁    |           [地图区域 - 武陵城]            |\n| > 据点面临入侵威胁    |      (技术生产办公室, 不归林...)         |\n| > 据点面临入侵威胁    |                                          |\n|       [ ^ ]           |      (集成核心区域, 沉山道...)           |\n+-----------------------+      (技术开发局, 选剑局...)             |\n|                       |                                          |\n|                       |      (居民区, 观测站...)                 |\n|                       |                                          |\n| [标记显示管理]        |      [资源栏: 223/350, 15/15...]         |\n|                       |                                          |\n|                       |                       [地区总览]         |\n+-----------------------+------------------------------------------+\n```"
+    },
+    "character": {
+      "page_name": "地图 / 地区导航 (Map / Region Navigation)",
+      "page_type": "Navigation / Utility",
+      "description": "这是《明日方舟：终末地》的游戏内地图界面。显示了“武陵 / 景玉谷”区域的俯视地图。界面左侧列出了当前追踪的任务（如“墙崩因隙”），底部显示了各类收集品或资源的统计进度。地图中央显示了巨大的八边形建筑“天王坪”以及玩家当前位置（红色菱形标记）。右上角显示了载具“O.M.V. 帝江号”的位置。",
+      "all_buttons": [
+        {
+          "label": "关闭地图 (Close Map)",
+          "coords_estimate": [
+            955,
+            45
+          ],
+          "function": "退出地图界面，返回游戏主视角"
+        },
+        {
+          "label": "事务提醒 (Task Reminder)",
+          "coords_estimate": [
+            60,
+            95
+          ],
+          "function": "查看或管理事务提醒"
+        },
+        {
+          "label": "任务列表：其他地图追踪中...",
+          "coords_estimate": [
+            110,
+            160
+          ],
+          "function": "显示其他地图的追踪任务"
+        },
+        {
+          "label": "当前任务：墙崩因隙",
+          "coords_estimate": [
+            100,
+            200
+          ],
+          "function": "显示当前主要任务目标"
+        },
+        {
+          "label": "标记显示管理 (Marker Management)",
+          "coords_estimate": [
+            80,
+            905
+          ],
+          "function": "筛选或管理地图上显示的标记类型"
+        },
+        {
+          "label": "地区总览 (Region Overview)",
+          "coords_estimate": [
+            870,
+            905
+          ],
+          "function": "切换查看不同地区的地图概览"
+        },
+        {
+          "label": "放大 (Zoom In)",
+          "coords_estimate": [
+            960,
+            330
+          ],
+          "function": "放大地图视图"
+        },
+        {
+          "label": "缩小 (Zoom Out)",
+          "coords_estimate": [
+            960,
+            620
+          ],
+          "function": "缩小地图视图"
+        },
+        {
+          "label": "定位/回中 (Recenter)",
+          "coords_estimate": [
+            960,
+            370
+          ],
+          "function": "将地图视角移回玩家当前位置"
+        },
+        {
+          "label": "收集品统计栏 (Collection Stats)",
+          "coords_estimate": [
+            580,
+            890
+          ],
+          "function": "显示各类资源/收集品的当前进度（如59/210, 8/20等）"
+        }
+      ],
+      "entry_coords": [
+        500,
+        500
+      ],
+      "exit_coords": [
+        955,
+        45
+      ],
+      "key_features": [
+        "俯视战术地图",
+        "任务追踪列表（左侧）",
+        "资源收集进度条（底部）",
+        "载具位置指示（右上角）",
+        "地形与建筑标识（如天王坪）",
+        "缩放与定位控制（右侧）"
+      ],
+      "navigable_from": [
+        "游戏主界面 (Main Game View)",
+        "暂停菜单 (Pause Menu)"
+      ],
+      "navigable_to": [
+        "游戏主界面 (Main Game View)"
+      ],
+      "special_elements": {
+        "current_location": "红色菱形图标，位于地图中央偏左",
+        "vehicle": "O.M.V. 帝江号，位于右上角",
+        "landmark": "天王坪，巨大的八边形白色建筑",
+        "region_name": "武陵 / 景玉谷"
+      },
+      "ascii_layout": "  +-----------------------+-----------------------+\n  | [任务列表]            |                       |\n  | - 事务提醒            |                       |\n  | - 其他地图...         |      [地图区域]       |\n  | - 墙崩因隙 (当前)     |                       |\n  |                       |      (天王坪)         |\n  |                       |                       |\n  |                       |                       |\n  |                       |                       |\n  +-----------------------+-----------------------+\n  | [标记管理] [收集统计] [收集统计] [地区总览]   |\n  +-----------------------+-----------------------+\n  |                       | [+] (缩放)            |\n  |                       | [O] (定位)            |\n  |                       | [-] (缩放)            |\n  +-----------------------+-----------------------+"
+    },
+    "main_menu": {
+      "page_name": "大地图 (Map)",
+      "page_type": "Navigation/Information",
+      "description": "这是《明日方舟：终末地》(Arknights: Endfield) 的游戏内大地图界面。界面展示了当前所在的区域“武陵 /景玉谷”，具体位置在“天王坪”附近。地图上显示了地形、建筑物轮廓、水域以及玩家当前位置（红色菱形图标）。左上角显示了当前的任务追踪列表，包括“墙崩因隙”。右上角显示了当前载具“O.M.V.帝江号”的位置和状态。底部有一排图标，显示了各类收集品或目标的完成进度（如8/20, 22/44等）。",
+      "all_buttons": [
+        {
+          "label": "关闭地图",
+          "coords_estimate": [
+            956,
+            43
+          ],
+          "function": "关闭当前地图界面，返回游戏主视角"
+        },
+        {
+          "label": "标记显示管理",
+          "coords_estimate": [
+            86,
+            906
+          ],
+          "function": "打开菜单，管理地图上显示的各种标记和图层的可见性"
+        },
+        {
+          "label": "地区总览",
+          "coords_estimate": [
+            878,
+            906
+          ],
+          "function": "切换到更宏观的地区概览视图，可能用于快速切换大区域"
+        },
+        {
+          "label": "任务追踪: 墙崩因隙",
+          "coords_estimate": [
+            100,
+            196
+          ],
+          "function": "显示当前主要任务的目标和位置"
+        },
+        {
+          "label": "载具位置: O.M.V.帝江号",
+          "coords_estimate": [
+            900,
+            145
+          ],
+          "function": "显示玩家载具在地图上的位置，点击可能用于导航至载具"
+        }
+      ],
+      "entry_coords": [
+        540,
+        960
+      ],
+      "exit_coords": [
+        956,
+        43
+      ],
+      "key_features": [
+        "俯瞰式地图视图",
+        "任务追踪列表 (左上)",
+        "载具位置指示 (右上)",
+        "收集品/目标进度统计 (底部)",
+        "当前地点名称: 武陵 /景玉谷",
+        "地标名称: 天王坪"
+      ],
+      "navigable_from": [
+        "游戏主界面 (Game World)",
+        "任务菜单"
+      ],
+      "navigable_to": [
+        "游戏主界面",
+        "具体任务详情",
+        "载具交互界面"
+      ],
+      "special_elements": {
+        "bottom_stats_bar": {
+          "description": "底部中央的一排圆形图标，显示不同类别的收集品或探索目标的进度，例如 8/20, 22/44, 1/1, 6/6, 4/4。",
+          "coords_estimate": [
+            480,
+            900
+          ]
+        },
+        "player_marker": {
+          "description": "地图中央偏左的红色菱形图标，带有旋转箭头，指示玩家当前位置或朝向。",
+          "coords_estimate": [
+            495,
+            495
+          ]
+        }
+      },
+      "ascii_layout": "  +-----------------------+-----------------------+\n  |  // 武陵 /景玉谷      |  [资源] 358/358 [X]   |\n  |  [事务提醒]           |                       |\n  |  [其他地图追踪中...]  |  [载具图标] O.M.V.帝江号|\n  |  (O) 墙崩因隙         |                       |\n  |                       |                       |\n  |  [地图区域: 水域]     |  [地图区域: 陆地/建筑] |\n  |  [?]                  |      [天王坪]         |\n  |                       |          [玩家位置]   |\n  |                       |                       |\n  |                       |                       |\n  |                       |                       |\n  +-----------------------+-----------------------+\n  | [标记显示管理]        |  [图标] [图标] [图标]  |\n  |                       |  8/20  22/44  1/1     |\n  |                       |                       |\n  |                       |  [地区总览]           |\n  +-----------------------+-----------------------+"
+    }
+  },
+  "explored_at": 1781011446
+}

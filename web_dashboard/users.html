@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>User Management - Istina Platform</title>
+</head>
+<body>
+    <h1>Users</h1>
+    <div id="users-list"></div>
+    <div id="notification"></div>
+    
+    <script>
+        var usersData = [];
+        
+        function notify(message) {
+            var box = document.getElementById('notification');
+            if (!box) return;
+            box.textContent = message;
+        }
+        
+        function renderUsersList() {
+            try {
+                var container = document.getElementById('users-list');
+                if (!container || !Array.isArray(usersData)) return;
+                
+                if (usersData.length === 0) {
+                    container.innerHTML = '<p>No user accounts found.</p>';
+                    return;
+                }
+                
+                container.innerHTML = usersData.map(function(u) {
+                    return '<div class="user-row"><span>ID: ' + (u.id || 'N/A') + '</span> | ';
+                }).join('');
+            } catch (e) {
+                console.error('render error:', e);
+            }
+        }
+        
+        async function loadUsersConfig() {
+            try {
+                var response = await fetch('/api/users', {
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer default_password' }
+                });
+                const data = await response.json();
+                if (data && data.status === 'success') {
+                    usersData = data.users || [];
+                }
+            } catch (parseErr) {
+                usersData = [];
+                console.error('JSON parse error:', parseErr);
+            } catch (error) {
+                var errorMsg = error instanceof Error 
+                    ? error.message.toString() 
+                    : String(error);
+                notify('加载配置错误：' + errorMsg);
+                usersData = [];
+            }
+            renderUsersList();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadUsersConfig();
+        });
+    </script>
+</body>
+</html>

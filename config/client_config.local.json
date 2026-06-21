@@ -1,0 +1,51 @@
+{
+  "version": "1.0",
+  "mode": "local_only",
+  
+  "description": "IEA 纯本地版本配置 - 单用户免认证模式",
+  
+  "inference": {
+    "mode": "local_only",
+    "local": {
+      "enabled": true,
+      "model_name": "qwen3.5-2b",
+      "model_path": "../../models/qwen3.5-2b-Q8_0.gguf",
+      "llama_server_url": "http://127.0.0.1:8080",
+      "llama_server_exe": "../../3rd-party/llama-server/llama-server.exe",
+      "gpu_layers": 40,
+      "context_size": 8192,
+      "threads": 8,
+      "temperature": 0.3,
+      "max_tokens": 4096
+    }
+  },
+  
+  "device": {
+    "adb_path": "../../3rd-party/adb/adb.exe",
+    "default_host": "localhost:16512",
+    "screenshot_method": "maa",
+    "timeout": 30
+  },
+  
+  "standard_flow": {
+    "config_path": "config/standard_flows/flows_config.json",
+    "default_temperature": 0.3,
+    "max_retries": 3,
+    "screenshot_enabled": true,
+    "screenshot_dir": "cache/flow_screenshots"
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "file": "logs/iea_local.log",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "max_bytes": 10485760,
+    "backup_count": 5
+  },
+  
+  "ui": {
+    "show_llama_server_warning": true,
+    "check_llama_server_on_start": true,
+    "window_title": "IEA Local"
+  }
+}

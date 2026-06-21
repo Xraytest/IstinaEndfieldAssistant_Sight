@@ -1,0 +1,28 @@
+{
+  "enabled": true,
+  "log_dir": "logs",
+  "retention_days": 3,
+  "cleanup_interval_hours": 24,
+  "global_level": "DEBUG",
+  "handlers": {
+    "file": {
+      "enabled": true,
+      "max_size": 52428800,
+      "encoding": "utf-8"
+    },
+    "console": {
+      "enabled": true,
+      "level": "INFO"
+    },
+    "gui": {
+      "enabled": true,
+      "level": "INFO",
+      "max_lines": 1000
+    }
+  },
+  "performance": {
+    "enabled": true,
+    "log_slow_operations": true,
+    "slow_threshold_ms": 1000
+  }
+}

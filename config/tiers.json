@@ -1,0 +1,19 @@
+{
+  "tiers": {
+    "free": {
+      "daily_quota": 100,
+      "monthly_quota": 1000,
+      "description": "免费用户"
+    },
+    "basic": {
+      "daily_quota": 500,
+      "monthly_quota": 5000,
+      "description": "基础用户"
+    },
+    "premium": {
+      "daily_quota": 2000,
+      "monthly_quota": 20000,
+      "description": "高级用户"
+    }
+  }
+}
