@@ -28,6 +28,8 @@ extracted_images/
 
 # AI models (large binary GGUF files, ~10GB+)
 models/
+*.pt
+*.gguf
 
 # Generated output (video, 3D files)
 output/
