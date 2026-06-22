@@ -5,12 +5,13 @@ import time
 import hashlib
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
-import logging
+
+from core.foundation.logger import get_logger, LogCategory
 
 
 class ArknightsEndfieldExceptionDetector:
     """明日方舟终末地异常检测器"""
-    
+
     # 游戏特定异常模式
     GAME_SPECIFIC_ERRORS = {
         # 网络相关错误
@@ -61,8 +62,8 @@ class ArknightsEndfieldExceptionDetector:
         "error_screen": ["错误", "失败", "异常", "重试"]
     }
     
-    def __init__(self, logger: Optional[logging.Logger] = None):
-        self.logger = logger or logging.getLogger("ExceptionDetector")
+    def __init__(self, logger=None):
+        self.logger = logger or get_logger()
         self.screenshot_history = []  # 存储最近截图哈希
         self.state_history = []  # 存储界面状态历史
         self.error_counters = {key: 0 for key in self.GAME_SPECIFIC_ERRORS.keys()}
