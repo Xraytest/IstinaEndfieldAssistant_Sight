@@ -23,8 +23,6 @@ from datetime import datetime
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-sys.path.insert(0, str(PROJECT_ROOT / "3rd-party" / "python-packages"))
-
 from core.capability.adb_utils import ADB, adb_screencap
 from core.foundation.game_data import Coords
 from core.service.page_analyzer import HighPrecisionPageAnalyzer
