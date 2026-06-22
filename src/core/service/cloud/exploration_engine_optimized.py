@@ -21,12 +21,15 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 # ── 坐标常量（统一引用 game_coords） ────────────────────────────
+from core.foundation.logger import get_logger, LogCategory
 from core.foundation.game_data import (
     MODE_SWITCH_BUTTON as MODE_SWITCH,
     TOP_BAR, EXIT_DIALOG, SIGNIN_PAGE, EVENT_CENTER,
     OVERLAY_ROI_TUPLE as OVERLAY_ROI,
     OVERLAY_KEYWORDS, CLAIM_KEYWORDS,
 )
+
+_logger = get_logger()
 
 
 # ── 扩展页面状态 ────────────────────────────────────────────────
@@ -262,8 +265,7 @@ class OptimizedExplorationEngine:
                 [adb, "-s", "localhost:16512", "exec-out", "screencap", "-p"],
                 capture_output=True, timeout=15).stdout
         # 触控命令不再支持（已迁移至 MaaFw TouchManager）
-        import logging
-        logging.getLogger(__name__).warning(f"ADB 触控命令已弃用：{cmd}，请使用 MaaFw TouchManager")
+        _logger.warning(LogCategory.ADB, f"ADB 触控命令已弃用：{cmd}，请使用 MaaFw TouchManager")
         return b""
 
     def log(self, msg: str):
@@ -279,8 +281,7 @@ class OptimizedExplorationEngine:
         if self._click:
             self._click(x, y)
         else:
-            import logging
-            logging.getLogger(__name__).error("触控点击未配置回调函数，无法执行。请通过 MaaFw TouchManager 注入 click 回调")
+            _logger.error(LogCategory.ADB, "触控点击未配置回调函数，无法执行。请通过 MaaFw TouchManager 注入 click 回调")
             raise RuntimeError("No click callback configured. Must use MaaFw TouchManager.")
         self._stats["taps"] += 1
         self.log(f"  tap ({x},{y}) {label}")
@@ -290,8 +291,7 @@ class OptimizedExplorationEngine:
         if self._swipe:
             self._swipe(x1, y1, x2, y2, duration)
         else:
-            import logging
-            logging.getLogger(__name__).error("触控滑动未配置回调函数，无法执行。请通过 MaaFw TouchManager 注入 swipe 回调")
+            _logger.error(LogCategory.ADB, "触控滑动未配置回调函数，无法执行。请通过 MaaFw TouchManager 注入 swipe 回调")
             raise RuntimeError("No swipe callback configured. Must use MaaFw TouchManager.")
         self.log(f"  swipe ({x1},{y1})→({x2},{y2})")
 
@@ -300,8 +300,7 @@ class OptimizedExplorationEngine:
         if self._back:
             self._back()
         else:
-            import logging
-            logging.getLogger(__name__).error("返回键未配置回调函数，无法执行。请通过 MaaFw TouchManager 注入 back 回调")
+            _logger.error(LogCategory.ADB, "返回键未配置回调函数，无法执行。请通过 MaaFw TouchManager 注入 back 回调")
             raise RuntimeError("No back callback configured. Must use MaaFw TouchManager.")
         self.log("  back")
 

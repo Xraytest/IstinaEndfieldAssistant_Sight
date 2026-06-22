@@ -11,6 +11,7 @@ import os
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
+from core.foundation.logger import get_logger, LogCategory
 from core.foundation.game_data import (
     SCREEN_WIDTH, SCREEN_HEIGHT,
     TOP_BAR_Y_RANGE, OVERLAY_ROI,
@@ -387,7 +388,7 @@ class ScreenDecider:
     """屏幕决策器 - 封装 OCR 决策逻辑"""
 
     def __init__(self):
-        self.logger = __import__("logging").getLogger(__name__)
+        self.logger = get_logger()
 
     def detect_screen_state(self, ocr_results: list) -> ScreenState:
         """检测屏幕状态"""

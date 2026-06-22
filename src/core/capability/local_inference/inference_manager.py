@@ -751,11 +751,8 @@ class InferenceManager(QObject):
         return self._get_effective_mode()
     
     def get_available_modes(self) -> List[str]:
-        """获取可用推理模式列表"""
-        modes = [self.MODE_CLOUD]
-        if self._local_available:
-            modes.append(self.MODE_LOCAL)
-        modes.append(self.MODE_AUTO)
+        """获取可用推理模式列表（纯本地版仅支持 local）"""
+        modes = [self.MODE_LOCAL]
         return modes
     
     def is_local_available(self) -> bool:
@@ -896,7 +893,7 @@ class InferenceManager(QObject):
                 "top_p": self._inference_config.top_p,
                 "top_k": self._inference_config.top_k,
                 "max_tokens": self._inference_config.max_tokens,
-                "auto_fallback": self._inference_config.auto_fallback
+                "auto_fallback": getattr(self._inference_config, 'auto_fallback', False)
             }
         }
 
@@ -958,7 +955,8 @@ class InferenceManager(QObject):
             self.switch_mode(self.MODE_LOCAL)
         else:
             self._inference_config.local_enabled = False
-            self.switch_mode(self.MODE_CLOUD)
+            # 纯本地版：local 不可用时保持 local 模式
+            self.switch_mode(self.MODE_LOCAL)
         
         self._save_config()
         logger.info(LogCategory.MAIN, "首次运行配置已保存", choice=user_choice)

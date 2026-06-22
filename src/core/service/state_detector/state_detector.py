@@ -51,6 +51,9 @@ class StateDetector:
 
     def detect(self, screen_capture, device_serial: str) -> str:
         """检测设备当前状态"""
+        if screen_capture is None:
+            self.logger.warning(LogCategory.ADB, "screen_capture 为 None，返回 unknown")
+            return "unknown"
         try:
             screenshot_data = screen_capture.capture_screen(device_serial)
             if not screenshot_data:

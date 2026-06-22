@@ -9,13 +9,13 @@ OCR 管理器 - 基于 MaaFw 内置 OCR 的屏幕决策系统
 import os
 import sys
 import json
-import logging
 from typing import List, Dict, Optional, Any, Tuple
 from pathlib import Path
 
 from core.foundation.utils.paths import get_project_root, get_src_dir, ensure_src_path
 ensure_src_path(__file__)
 
+from core.foundation.logger import get_logger, LogCategory
 from core.capability.ocr.screen_decider import ScreenDecider, ScreenState
 
 
@@ -34,7 +34,7 @@ class OCRManager:
             device_manager: 设备管理器（可选）
             config_path: 配置文件路径（可选）
         """
-        self.logger = logging.getLogger(__name__)
+        self.logger = get_logger()
         self.device_manager = device_manager
         self.decider = ScreenDecider()
 
@@ -54,7 +54,7 @@ class OCRManager:
                 return json.load(f)
 
         # 默认配置路径
-        default_path = project_root / "config" / "ocr_config.json"
+        default_path = Path(get_project_root(__file__)) / "config" / "ocr_config.json"
 
         if default_path.exists():
             with open(default_path, "r", encoding="utf-8") as f:

@@ -111,14 +111,18 @@ class AgentExecutor:
 
         try:
             if action_type == "tap":
-                x = int(params["x"] * self.device_width) if abs(params.get("x", 0)) <= 1.0 else int(params["x"])
-                y = int(params["y"] * self.device_height) if abs(params.get("y", 0)) <= 1.0 else int(params["y"])
+                dw = self.device_width or 1920
+                dh = self.device_height or 1080
+                x = int(params["x"] * dw) if abs(params.get("x", 0)) <= 1.0 else int(params["x"])
+                y = int(params["y"] * dh) if abs(params.get("y", 0)) <= 1.0 else int(params["y"])
                 self.touch_executor.safe_press(x, y)
             elif action_type == "swipe":
-                x1 = int(params["x1"] * self.device_width) if abs(params.get("x1", 0)) <= 1.0 else int(params["x1"])
-                y1 = int(params["y1"] * self.device_height) if abs(params.get("y1", 0)) <= 1.0 else int(params["y1"])
-                x2 = int(params["x2"] * self.device_width) if abs(params.get("x2", 0)) <= 1.0 else int(params["x2"])
-                y2 = int(params["y2"] * self.device_height) if abs(params.get("y2", 0)) <= 1.0 else int(params["y2"])
+                dw = self.device_width or 1920
+                dh = self.device_height or 1080
+                x1 = int(params["x1"] * dw) if abs(params.get("x1", 0)) <= 1.0 else int(params["x1"])
+                y1 = int(params["y1"] * dh) if abs(params.get("y1", 0)) <= 1.0 else int(params["y1"])
+                x2 = int(params["x2"] * dw) if abs(params.get("x2", 0)) <= 1.0 else int(params["x2"])
+                y2 = int(params["y2"] * dh) if abs(params.get("y2", 0)) <= 1.0 else int(params["y2"])
                 duration = params.get("duration", 300)
                 self.touch_executor.safe_swipe(x1, y1, x2, y2, duration=duration)
             elif action_type == "back":

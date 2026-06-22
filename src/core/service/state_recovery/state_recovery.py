@@ -49,6 +49,7 @@ class StateRecoveryStrategy:
             time.sleep(2)
 
             if state_detector:
+                # 使用 state_detector 的默认检测方式
                 new_state = state_detector.detect(None, device_serial)
                 if new_state == target_state:
                     self.logger.info(LogCategory.ADB,
