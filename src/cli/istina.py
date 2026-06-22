@@ -241,7 +241,7 @@ def main():
         script_path = SCRIPTS_DIR / script_name
         if script_path.exists():
             cmd = [sys.executable, str(script_path)] + extra
-            result = subprocess.run(cmd)
+            result = subprocess.run(cmd, timeout=300)
             return result.returncode
 
     # 回退：通过 python -m 直接运行 scripts/istina.py 中的函数

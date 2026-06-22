@@ -469,14 +469,21 @@ class MaaFwTouchExecutor:
             self.logger.exception(LogCategory.MAIN, "滑动执行异常", error=str(e))
             return None
 
-    def safe_press(self, x: int, y: int) -> bool:
-        """安全点击（带等待和结果检查）"""
+    def safe_press(self, x: int, y: int, duration: int = 0) -> bool:
+        """安全点击（带等待和结果检查）
+
+        Args:
+            x: X 坐标
+            y: Y 坐标
+            duration: 按下持续时间（毫秒），0 表示使用配置默认值
+        """
         job = self.post_click(x, y)
         if job is None:
             return False
         job.wait()
-        if self.config.press_duration_ms > 0:
-            time.sleep(self.config.press_duration_ms / 1000.0)
+        actual_duration = duration if duration > 0 else self.config.press_duration_ms
+        if actual_duration > 0:
+            time.sleep(actual_duration / 1000.0)
         return job.succeeded
 
     def safe_swipe(self, x1: int, y1: int, x2: int, y2: int, duration: int = 300) -> bool:

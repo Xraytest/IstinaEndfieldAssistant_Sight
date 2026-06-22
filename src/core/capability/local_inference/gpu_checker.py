@@ -295,17 +295,19 @@ class GPUChecker:
         
         try:
             output = subprocess.check_output(
-                ["nvidia-smi", "--query-gpu=name,memory.total,memory.free,memory.used,compute_cap", 
+                ["nvidia-smi", "--query-gpu=name,memory.total,memory.free,memory.used,compute_cap",
                  "--format=csv,noheader"],
                 universal_newlines=True,
-                stderr=subprocess.DEVNULL
+                stderr=subprocess.DEVNULL,
+                timeout=30
             )
-            
+
             try:
                 driver_output = subprocess.check_output(
                     ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
                     universal_newlines=True,
-                    stderr=subprocess.DEVNULL
+                    stderr=subprocess.DEVNULL,
+                    timeout=30
                 )
                 result["driver_version"] = driver_output.strip().split('\n')[0]
             except Exception as e:

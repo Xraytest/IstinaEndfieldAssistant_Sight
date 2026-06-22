@@ -639,7 +639,7 @@ class AsyncInferenceWorker(QThread):
             except Exception as e:
                 exception = e
         
-        thread = threading.Thread(target=worker)
+        thread = threading.Thread(target=worker, daemon=True)
         thread.start()
         
         # 等待完成或超时
