@@ -228,6 +228,7 @@ def run_application(agent_executor=None, gui_client=None,
         config: Configuration dictionary
         inference_manager: InferenceManager instance for local inference
     """
+    QApplication, _, _, _ = _get_qt()
     print("[应用主进程] 创建 QApplication...")
     app = QApplication(sys.argv)
     # 防止最后一个窗口被关闭时退出（隐藏到托盘时仍保持运行）
