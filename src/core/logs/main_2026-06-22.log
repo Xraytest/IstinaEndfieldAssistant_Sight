@@ -26,3 +26,8 @@
 [2026-06-22 04:16:48.228] [INFO] [core.foundation.logger.logger:_start_cleanup_thread:455] [MainThread] [-] 日志自动清理线程已启动，清理间隔: 24小时
 [2026-06-22 04:17:21.304] [INFO] [core.foundation.logger.logger:_start_cleanup_thread:455] [MainThread] [-] 日志自动清理线程已启动，清理间隔: 24小时
 [2026-06-22 04:17:52.673] [INFO] [core.foundation.logger.logger:_start_cleanup_thread:455] [MainThread] [-] 日志自动清理线程已启动，清理间隔: 24小时
+[2026-06-22 10:45:44.052] [INFO] [core.foundation.logger.logger:_start_cleanup_thread:455] [MainThread] [-] 日志自动清理线程已启动，清理间隔: 24小时
+[2026-06-22 10:46:03.631] [INFO] [core.foundation.logger.logger:_start_cleanup_thread:455] [MainThread] [-] 日志自动清理线程已启动，清理间隔: 24小时
+[2026-06-22 10:51:59.289] [INFO] [core.foundation.logger.logger:_start_cleanup_thread:455] [MainThread] [-] 日志自动清理线程已启动，清理间隔: 24小时
+[2026-06-22 10:53:11.248] [INFO] [core.foundation.logger.logger:_start_cleanup_thread:455] [MainThread] [-] 日志自动清理线程已启动，清理间隔: 24小时
+[2026-06-22 10:56:58.429] [INFO] [core.foundation.logger.logger:_start_cleanup_thread:455] [MainThread] [-] 日志自动清理线程已启动，清理间隔: 24小时

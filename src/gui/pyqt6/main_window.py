@@ -341,7 +341,8 @@ class MainWindow(QMainWindow):
         self._cloud_page = CloudPage()
         self.add_page("cloud", "云端管理", self._cloud_page, position="bottom")
 
-        self.show_page("agent")
+        # 默认显示标准推理页
+        self.show_page("standard_reasoning")
         self._setup_tray()
 
     def _setup_connections(self) -> None:

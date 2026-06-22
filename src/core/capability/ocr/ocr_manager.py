@@ -26,13 +26,14 @@ class OCRManager:
     仅使用 MaaFramework 内建 OCR 引擎，无需额外依赖。
     """
 
-    def __init__(self, device_manager=None, config_path: str = None):
+    def __init__(self, device_manager=None, config_path: str = None, touch_executor=None):
         """
         初始化 OCR 管理器
 
         Args:
             device_manager: 设备管理器（可选）
             config_path: 配置文件路径（可选）
+            touch_executor: MaaFwTouchExecutor 实例（可选）
         """
         self.logger = get_logger()
         self.device_manager = device_manager
@@ -42,8 +43,12 @@ class OCRManager:
         self.config = self._load_config(config_path)
 
         # MaaFw OCR 相关
-        self._maafw_executor = None
+        self._maafw_executor = touch_executor
         self._controller_id = None
+
+        # 如果传入了 touch_executor，自动设置
+        if touch_executor is not None:
+            self.set_maafw_executor(touch_executor, "default")
 
         self.logger.info("OCR 管理器初始化完成（MaaFw 内置 OCR）")
 
@@ -91,16 +96,25 @@ class OCRManager:
         Returns:
             OCR 结果列表：[{"text": str, "box": [x,y,w,h], "score": float}, ...]
         """
+        # 如果执行器未设置，尝试从 device_manager 获取
         if self._maafw_executor is None:
-            self.logger.error("MaaFw 执行器未设置")
-            return []
+            if self.device_manager and hasattr(self.device_manager, 'get_touch_executor'):
+                self._maafw_executor = self.device_manager.get_touch_executor()
+                if self._maafw_executor:
+                    self.logger.info("已从 device_manager 自动获取 MaaFw 执行器")
+                    self.set_maafw_executor(self._maafw_executor, "auto")
+            
+            if self._maafw_executor is None:
+                self.logger.error("MaaFw 执行器未设置")
+                return []
 
         try:
-            # 调用 MaaFw OCR
-            # 注意：实际调用需要通过 MaaFwTouchExecutor 的 ocr 方法
+            # 调用 MaaFw OCR (5.11.1+ API)
+            # 参数转换为 tuple 格式
+            roi_tuple = tuple(roi) if roi else None
+            
             ocr_results = self._maafw_executor.ocr(
-                controller_id=self._controller_id,
-                roi=roi,
+                roi=roi_tuple,
                 expected=expected
             )
 
@@ -148,13 +162,11 @@ class OCRManager:
 
         return normalized
 
-    def capture_and_recognize(self, device_serial: str = None,
-                              roi: List[int] = None, expected: List[str] = None) -> ScreenState:
+    def capture_and_recognize(self, roi: List[int] = None, expected: List[str] = None) -> ScreenState:
         """
         OCR + 决策一站式流程
 
         Args:
-            device_serial: 设备序列号（可选，MaaFw 模式下不使用）
             roi: 识别区域 [x, y, w, h]
             expected: 期望匹配的文本列表
 
