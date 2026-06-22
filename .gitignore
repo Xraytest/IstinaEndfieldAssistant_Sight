@@ -1,107 +1,33 @@
-# 3rd-party tools (binaries, not source code)
-3rd-party/
-
-# MAA Integration DLLs and resources
-maa_integration/*.dll
-maa_integration/resource/
-maa_integration/config/
-
-# Cache files
-cache/
-**/cache/
-
-# Logs
-logs/
-core/logs/
-**/logs/
-*.log
-
-# Debug outputs
-debug_output/
-debug/
-**/debug_output/
-**/debug/
-.auto_debug/screenshots
-
-# Extracted UI images
-extracted_images/
-
-# AI models (large binary GGUF files, ~10GB+)
-models/
-*.pt
-*.gguf
-
-# Generated output (video, 3D files)
-output/
-
-# Page layout exploration data (screenshots, graphs)
-page_layouts/
-
-# Training data
-training_data/
-training_data_augmented/
-
-# Large asset files
-assets/audio/
-assets/raw_recordings/
-assets/screenshots/
-
-# Runtime data (timestamped snapshots)
-data/analysis/
-data/elements/
-data/tasks/
-data/events/
-
-# Test files and scripts output
-test_screenshot.png
-test_tap.png
-test_scripts/diagnostic_screenshot.png
-**/test_*.png
-
-# Test directories and all test files
-tests/
-test_scripts/
-
-# Pytest cache
-.pytest_cache/
-**/.pytest_cache/
-
-# Sensitive files
-*.arkpass
-config/client_config.json
-
-# Ignore legacy config location (use root only)
-IstinaEndfieldAssistant/config/client_config.json
-
-# Session and chat exports
-chat_export_*.md
-session_*.json
-
-# Temp/experimental scripts
-_check_*.py
-_navigate_*.py
-_recovery.py
-
-# macOS resource fork files
-._*
-
-# Miscellaneous temp
-test_module_integrity.py
-
-# Kilo temp and worktree files
-.kilo/tmp/
-.kilo/worktrees/
-
-# Python virtual environment
-venv/
-.venv/
-env/
-
-# Python compiled files
+```
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# IDE files
-.idea/
-.vscode/
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+.env.*
+```

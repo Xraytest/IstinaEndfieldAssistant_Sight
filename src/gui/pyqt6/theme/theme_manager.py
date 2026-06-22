@@ -4,7 +4,15 @@ Endfield 风格主题管理器
 """
 
 from typing import Dict, Optional, Any
-from PyQt6.QtWidgets import QApplication
+
+
+def _get_qt_app():
+    """Lazy import QApplication to allow testing without PyQt6 installed."""
+    try:
+        from PyQt6.QtWidgets import QApplication
+        return QApplication
+    except ImportError:
+        raise ImportError("PyQt6 is not installed. Run: pip install PyQt6")
 
 
 # ============================================================================
@@ -1286,7 +1294,7 @@ QFrame[frameShape="5"] {
 
         return stylesheet
     
-    def apply_theme(self, app: QApplication) -> None:
+    def apply_theme(self, app) -> None:
         try:
             stylesheet = self.get_stylesheet()
             app.setStyleSheet(stylesheet)
@@ -1306,7 +1314,7 @@ def get_theme() -> ThemeManager:
     return ThemeManager.get_instance()
 
 
-def apply_theme(app: QApplication) -> None:
+def apply_theme(app) -> None:
     ThemeManager.get_instance().apply_theme(app)
 
 

@@ -15,7 +15,7 @@ GPU CLI 模块 — GPU 检测、CUDA 诊断、显存监控、推荐模型
 import sys, os, json, time, argparse
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field, asdict
-from utils.paths import ensure_src_path, get_project_root
+from core.foundation.utils.paths import ensure_src_path, get_project_root
 
 # ── 项目路径 ──────────────────────────────────────────────────
 ensure_src_path(__file__)

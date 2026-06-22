@@ -16,7 +16,7 @@ Device CLI 模块 — 设备检测、截图、触控操作
 
 import sys, os, json, time, subprocess, platform, argparse
 from typing import Optional, List
-from utils.paths import ensure_src_path, get_project_root
+from core.foundation.utils.paths import ensure_src_path, get_project_root
 
 ensure_src_path(__file__)
 PROJECT_ROOT = get_project_root(__file__)
