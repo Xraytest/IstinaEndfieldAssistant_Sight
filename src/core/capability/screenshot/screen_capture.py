@@ -1,14 +1,4 @@
-"""
-屏幕捕获模块 - 负责设备屏幕截图和图像处理
-优先使用 MAA Framework（通过 TouchManager），ADB 作为回退
-"""
-import base64
-import io
-import sys
-import os
-import subprocess
-import time
-from typing import Optional
+"""\n屏幕捕获模块 - 负责设备屏幕截图和图像处理\n优先使用 MAA Framework（通过 TouchManager），ADB 作为回退\n"""\nimport base64\nimport io\nimport sys\nimport os\nimport subprocess\nimport time\nfrom typing import Optional\nfrom core.foundation.utils.paths import ensure_src_path\nensure_src_path(__file__)\n\nfrom core.capability.device.adb_manager import ADBDeviceManager\nnal
 
 from core.capability.device.adb_manager import ADBDeviceManager
 from core.foundation.logger import get_logger, LogCategory, LogLevel

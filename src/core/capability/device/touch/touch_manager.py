@@ -107,7 +107,42 @@ class TouchManager:
     
     # ==================== Pipeline优先执行方法 ====================
     
-    def run_pipeline_task(self, entry: str, pipeline_override: Dict = None) -> bool:
+
+    def _send_keyevent(self, key_code: int) -> bool:
+        """
+        发送键码事件 - 使用 ADB shell input keyevent
+
+        Args:
+            key_code: Android 键码（如 4=返回，3=Home，26=电源）
+
+        Returns:
+            bool: 是否执行成功
+        """
+        if not hasattr(self, '_device_serial') or not self._device_serial:
+            self.logger.exception(LogCategory.MAIN, "按键失败：设备序列号未设置")
+            return False
+
+        import subprocess
+        from pathlib import Path
+        PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+        adb_path = str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe")
+
+        self.logger.debug(LogCategory.MAIN, f"发送键码：{key_code}")
+        cmd = [adb_path, "-s", self._device_serial, "shell", "input", "keyevent", str(key_code)]
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=10)
+            ok = result.returncode == 0
+            if ok:
+                self.logger.debug(LogCategory.MAIN, f"按键执行成功：{key_code}")
+            else:
+                self.logger.exception(LogCategory.MAIN, "按键执行失败", error=result.stderr.decode('utf-8', errors='replace'))
+            return ok
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "按键执行异常", error=str(e))
+            return False
+
+
+    def run_pipeline_task( entry: str, pipeline_override: Dict = None) -> bool:
         """
         执行Pipeline任务（优先推荐）
         
@@ -443,6 +478,10 @@ class TouchManager:
         elif tool_name == "wake_device":
             # 设备唤醒 - 发送 KEYCODE_POWER (26)
             return self.wake_device()
+        elif tool_name == "press_key":
+            # 按键 - 使用 ADB shell input keyevent
+            key_code = params.get("key", 4)  # 默认返回键
+            return self._send_keyevent(key_code)
         else:
             self.logger.exception(LogCategory.MAIN, "未知工具名称", tool_name=tool_name)
             return False
