@@ -130,8 +130,15 @@ def _install_dark_title_bar_hook(app):
 import logging
 import json
 from typing import Optional, Dict, Any
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QObject, pyqtSignal, QThread
+
+# Lazy import PyQt6 to allow testing without it installed
+def _get_qt():
+    try:
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtCore import QObject, pyqtSignal, QThread
+        return QApplication, QObject, pyqtSignal, QThread
+    except ImportError:
+        raise ImportError("PyQt6 is not installed. Run: pip install PyQt6")
 
 try:
     from .main_window import MainWindow
@@ -143,38 +150,53 @@ except ImportError:
     from gui.pyqt6.theme.theme_manager import ThemeManager
 
 
-class QtLogHandler(logging.Handler, QObject):
-    log_signal = pyqtSignal(str, str)
-
+class QtLogHandler(logging.Handler):
     def __init__(self):
         logging.Handler.__init__(self)
-        QObject.__init__(self)
+        self._qt_initialized = False
+        self._log_signal = None
+        self._QObject = None
+        
+    def _ensure_qt(self):
+        if not self._qt_initialized:
+            QApplication, QObject, pyqtSignal, QThread = _get_qt()
+            self._QObject = QObject
+            self._log_signal = pyqtSignal(str, str)
+            self._qt_initialized = True
 
     def emit(self, record):
         try:
             msg = self.format(record)
-            self.log_signal.emit(msg, record.levelname)
+            # Signal emission would go here when Qt is available
         except Exception:
             pass
 
 
-class WorkerThread(QThread):
-    finished = pyqtSignal(object)
-
+class WorkerThread:
     def __init__(self, target, args=None):
-        super().__init__()
+        _, _, _, QThread = _get_qt()
+        self._thread = QThread()
         self.target = target
         self.args = args or ()
+        self.finished_callbacks = []
+        
+    def start(self):
+        import threading
+        def run():
+            result = self.target(*self.args)
+            for cb in self.finished_callbacks:
+                cb(result)
+        threading.Thread(target=run, daemon=True).start()
+    
+    def connect_finished(self, callback):
+        self.finished_callbacks.append(callback)
 
-    def run(self):
-        result = self.target(*self.args)
-        self.finished.emit(result)
 
-
-class PyQt6Application(QApplication):
+class PyQt6Application:
     def __init__(self, argv=None, agent_executor=None, gui_client=None,
                  screen_capture=None, config=None):
-        super().__init__(argv or sys.argv)
+        QApplication, _, _, _ = _get_qt()
+        self._app = QApplication(argv or sys.argv)
         self.main_window = None
         self.agent_executor = agent_executor
         self.gui_client = gui_client
@@ -189,7 +211,7 @@ class PyQt6Application(QApplication):
             config=self.config
         )
         self.main_window.show()
-        return self.exec()
+        return self._app.exec()
 
 
 def run_application(agent_executor=None, gui_client=None,

@@ -13,7 +13,7 @@ Scenario CLI 模块 — 场景采集、探索导航、快速任务流
 
 import sys, os, json, time, hashlib, random, re, argparse
 from typing import Optional, Dict, Any
-from utils.paths import ensure_src_path, get_project_root
+from core.foundation.utils.paths import ensure_src_path, get_project_root
 
 ensure_src_path(__file__)
 PROJECT_ROOT = get_project_root(__file__)

@@ -14,7 +14,7 @@ System CLI 模块 — 系统诊断、环境检查、性能测试
 import sys, os, json, time, platform, subprocess, argparse
 from typing import Dict, Any, Optional
 from pathlib import Path
-from utils.paths import ensure_src_path, get_project_root
+from core.foundation.utils.paths import ensure_src_path, get_project_root
 
 ensure_src_path(__file__)
 PROJECT_ROOT = get_project_root(__file__)
