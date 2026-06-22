@@ -2,8 +2,6 @@
 
 《明日方舟：终末地》游戏自动化工具 - **纯本地推理版本**
 
-> 本版本移除了所有云端依赖，使用本地 llama-cpp-python 进行 VLM 推理，无需 IstinaPlatform 服务器。
-
 ## 特性
 
 - ✅ **纯本地推理** - 使用 llama-cpp-python，无需网络连接
