@@ -1,4 +1,16 @@
-"""\n屏幕捕获模块 - 负责设备屏幕截图和图像处理\n优先使用 MAA Framework（通过 TouchManager），ADB 作为回退\n"""\nimport base64\nimport io\nimport sys\nimport os\nimport subprocess\nimport time\nfrom typing import Optional\nfrom core.foundation.utils.paths import ensure_src_path\nensure_src_path(__file__)\n\nfrom core.capability.device.adb_manager import ADBDeviceManager\nnal
+"""
+屏幕捕获模块 - 负责设备屏幕截图和图像处理
+优先使用 MAA Framework（通过 TouchManager），ADB 作为回退
+"""
+import base64
+import io
+import sys
+import os
+import subprocess
+import time
+from typing import Optional
+from core.foundation.utils.paths import ensure_src_path
+ensure_src_path(__file__)
 
 from core.capability.device.adb_manager import ADBDeviceManager
 from core.foundation.logger import get_logger, LogCategory, LogLevel
@@ -6,7 +18,7 @@ from core.foundation.logger import get_logger, LogCategory, LogLevel
 try:
     from PIL import Image
 except ImportError:
-    print("警告: PIL库未安装，屏幕捕获功能将不可用")
+    print("警告：PIL 库未安装，屏幕捕获功能将不可用")
     Image = None
 
 try:
@@ -49,27 +61,27 @@ class ScreenCapture:
         """通过 ADB screencap 截屏，返回 base64 编码的 PNG 字节"""
         adb_path = getattr(self.adb_manager, 'adb_path', 'adb')
         cmd = [adb_path, "-s", device_serial, "exec-out", "screencap", "-p"]
-        self.logger.debug(LogCategory.MAIN, "执行ADB截图命令", device_serial=device_serial)
+        self.logger.debug(LogCategory.MAIN, "执行 ADB 截图命令", device_serial=device_serial)
 
         result = subprocess.run(cmd, capture_output=True, timeout=self.adb_manager.timeout)
         if result.returncode != 0:
-            self.logger.exception(LogCategory.MAIN, "ADB截图命令执行异常",
+            self.logger.exception(LogCategory.MAIN, "ADB 截图命令执行异常",
                                   device_serial=device_serial, return_code=result.returncode)
             return None
 
         png_data = result.stdout
         if not png_data.startswith(b'\x89PNG\r\n\x1a\n'):
-            self.logger.exception(LogCategory.MAIN, "PNG数据完整性验证异常",
+            self.logger.exception(LogCategory.MAIN, "PNG 数据完整性验证异常",
                                   device_serial=device_serial, size_bytes=len(png_data))
             return None
 
         image = Image.open(io.BytesIO(png_data))
         return self._image_to_base64(image)
-        
+
     def capture_screen(self, device_serial: str) -> Optional[bytes]:
         """捕获设备屏幕截图 —— 优先 MAA，回退 ADB"""
         if Image is None:
-            self.logger.exception(LogCategory.MAIN, "PIL库未初始化")
+            self.logger.exception(LogCategory.MAIN, "PIL 库未初始化")
             return None
 
         current_time = time.time()
@@ -102,7 +114,7 @@ class ScreenCapture:
         self.logger.log_performance("screen_capture", total_duration_ms, device_serial=device_serial)
         self.last_capture_time = time.time()
         return base64_data
-            
+
     def _process_image(self, image):
         """处理图像 - 不再缩放，保持原始分辨率以支持归一化坐标"""
         start_time = time.time()
@@ -117,26 +129,26 @@ class ScreenCapture:
         duration_ms = (time.time() - start_time) * 1000
         self.logger.log_performance("image_process", duration_ms)
 
-        # 转换为RGB（如果需要）
+        # 转换为 RGB（如果需要）
         if image.mode != 'RGB':
             image = image.convert('RGB')
 
         return image
-        
+
     def _image_to_base64(self, image) -> bytes:
-        """将PIL图像转换为Base64编码的PNG"""
+        """将 PIL 图像转换为 Base64 编码的 PNG"""
         start_time = time.time()
-        
+
         buffer = io.BytesIO()
         image.save(buffer, format='PNG')
         png_data = buffer.getvalue()
         base64_data = base64.b64encode(png_data)
-        
+
         duration_ms = (time.time() - start_time) * 1000
         self.logger.log_performance("image_to_base64", duration_ms, format="PNG")
-        
+
         return base64_data
-        
+
     def get_device_info(self, device_serial: str) -> dict:
         """获取设备信息"""
         self.logger.debug(LogCategory.MAIN, "获取设备信息", device_serial=device_serial)

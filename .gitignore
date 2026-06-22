@@ -24,10 +24,19 @@ MANIFEST
 
 # Logs
 *.log
-logs/
+src/core/logs/
 
 # Environment
 .env
 .env.local
 .env.*
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 ```

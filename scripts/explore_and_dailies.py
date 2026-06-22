@@ -10,7 +10,6 @@ ensure_path()
 project_root = os.path.dirname(os.path.dirname(__file__))
 
 from core.foundation.logger import init_logger, get_logger, LogCategory
-from core.service.cloud.communication.communicator import ClientCommunicator
 from core.capability.device.adb_manager import ADBDeviceManager
 from core.capability.screenshot.screen_capture import ScreenCapture
 from core.capability.device.touch.touch_manager import TouchManager
@@ -104,44 +103,10 @@ def adb_screencap():
 
 
 def analyze_page(raw_bytes) -> dict:
-    """分析当前游戏画面
+    """分析当前游戏画面（本地模式）"""
+    log("[WARN] VLM not available in local mode, returning empty analysis")
+    return {"page_name": "local_mode", "page_type": "unknown", "elements": []}
 
-    优先使用 VLM。如果 OCR 模块可用，会在 VLM 返回后增加 OCR 后处理，
-    修正 page_type（特别是 overlay 检测修正）。
-    """
-    b64 = base64.b64encode(raw_bytes).decode("utf-8") if isinstance(raw_bytes, bytes) else raw_bytes
-    payload = {
-        "instruction": "分析当前游戏画面，识别所有可交互UI元素。特别注意任务、奖励、签到相关按钮。",
-        "screenshot": b64, "history": [], "session_id": session_id,
-        "user_id": "explorer", "model_tag": MODEL_TAG,
-        "device_width": 1080, "device_height": 1920,
-        "system_prompt": TASK_SYSTEM_PROMPT,
-    }
-    try:
-        result = communicator.send_request("agent_chat", payload)
-    except Exception as e:
-        log(f"[ERROR] VLM call failed: {e}")
-        result = None
-
-    # VLM 成功 → 解析
-    if result and result.get("status") == "success":
-        reply = result.get("reply", "")
-        json_match = re.search(r'\{[\s\S]*\}', reply)
-        if json_match:
-            try:
-                return json.loads(json_match.group())
-            except json.JSONDecodeError:
-                pass
-        return {"page_name": "unknown", "page_type": "other", "elements": []}
-
-    # VLM 失败 + OCR 模块可用 → 使用 OCR 基础检测
-    if OCR_MODULE_AVAILABLE:
-        log("[OCR] VLM调用失败，使用OCR基础检测")
-        # 此处需要 MaaMCP OCR 结果，如果没有则返回空
-        return {"page_name": "OCR_fallback", "page_type": "unknown", "elements": [],
-                "ocr_fallback": True}
-
-    return None
 
 
 def record_page(raw_bytes, page_info, action_taken=None):
@@ -260,15 +225,11 @@ try:
 except Exception as e:
     log(f"[WARN] Maa controller init skipped ({e}), using direct ADB commands")
 
-communicator = ClientCommunicator(host="127.0.0.1", port=9999, password="default_password", timeout=300)
-log("Logging in as explorer...")
-login_r = communicator.send_request("login", {"user_id": "explorer", "key": API_KEY})
-status = login_r.get("status", "?") if login_r else "NO RESPONSE"
-log(f"Login result: {status}")
-session_id = login_r.get("session_id", "") if login_r else ""
-communicator.set_logged_in(True)
+# 本地模式：无需登录认证
+log("Running in local mode (no server authentication required)")
+session_id = "local_session_" + str(int(time.time()))
 
-arkpass_data = {"user_id": "explorer", "api_key": API_KEY, "server_host": "127.0.0.1", "server_port": 9999}
+arkpass_data = {"user_id": "local_user", "api_key": API_KEY, "server_host": "127.0.0.1", "server_port": 9999}
 with open(os.path.join(CACHE_DIR, "explorer.arkpass"), "w") as f:
     json.dump(arkpass_data, f)
 

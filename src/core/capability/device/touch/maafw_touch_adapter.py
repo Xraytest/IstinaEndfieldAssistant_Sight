@@ -9,7 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 
 from core.foundation.logger import get_logger, LogCategory, LogLevel
@@ -692,31 +692,173 @@ class MaaFwTouchExecutor:
                 pass
         return self._resolution
     
-    def ocr(self, controller_id: str = None, roi: list = None, expected: list = None) -> list:
-        """OCR 识别（通过 MaaFw Resource 内置 OCR）"""
-        if not self._connected or not self._controller:
+    def post_ocr_model(self, model_path: str) -> bool:
+        """
+        加载 OCR 模型（MaaFw 5.11.1+）
+        
+        Args:
+            model_path: OCR 模型目录路径
+            
+        Returns:
+            bool: 是否加载成功
+        """
+        if not self._connected or not self._resource:
+            self.logger.exception(LogCategory.MAIN, "设备未连接，无法加载 OCR 模型")
+            return False
+        
+        try:
+            job = self._resource.post_ocr_model(Path(model_path))
+            job.wait()
+            
+            if job.succeeded:
+                self.logger.info(LogCategory.MAIN, "OCR 模型加载成功", path=model_path)
+                return True
+            else:
+                self.logger.warning(LogCategory.MAIN, "OCR 模型加载失败", path=model_path)
+                return False
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "OCR 模型加载异常", error=str(e))
+            return False
+    
+    def ocr(self, roi: tuple = None, expected: list = None, threshold: float = 0.3,
+            only_rec: bool = True, model: str = '') -> list:
+        """
+        OCR 识别（通过 MaaFw Tasker.post_recognition + JOCR）
+        
+        MaaFw 5.11.1+ 使用 post_recognition 执行 OCR 识别
+        
+        Args:
+            roi: 识别区域 (x, y, w, h)，None 表示全屏
+            expected: 期望匹配的文本列表
+            threshold: 识别阈值（默认 0.3）
+            only_rec: 仅识别不匹配（默认 True，返回所有识别结果）
+            model: OCR 模型名称（可选）
+            
+        Returns:
+            OCR 结果列表：[{\"text\": str, \"box\": [x,y,w,h], \"score\": float}, ...]
+        """
+        if not self._connected or not self._tasker or not self._controller:
             self.logger.exception(LogCategory.MAIN, "设备未连接，无法执行 OCR")
             return []
+        
         try:
+            # 获取截图
             image = self.screencap()
             if image is None:
+                self.logger.warning(LogCategory.MAIN, "截图失败，无法执行 OCR")
                 return []
-            if hasattr(self._resource, 'post_ocr') and callable(self._resource.post_ocr):
-                ocr_job = self._resource.post_ocr(image, roi=roi, expected=expected)
-                ocr_job.wait()
-                if ocr_job.succeeded:
-                    results = ocr_job.get()
-                    if isinstance(results, list):
-                        return results
-            elif hasattr(self._resource, 'ocr') and callable(self._resource.ocr):
-                results = self._resource.ocr(image, roi=roi, expected=expected)
-                if isinstance(results, list):
-                    return results
-            self.logger.warning(LogCategory.MAIN, "OCR 不可用：MaaFw Resource 不支持直接 OCR")
+            
+            # 导入 JOCR（延迟导入，避免循环依赖）
+            from maa.pipeline import JOCR
+            
+            # 构建 ROI 参数
+            if roi is None:
+                # 使用控制器缓存图像的完整尺寸
+                cached_image = self._controller.cached_image
+                if cached_image is not None:
+                    h, w = cached_image.shape[:2]
+                    roi_tuple = (0, 0, w, h)
+                else:
+                    roi_tuple = (0, 0, 0, 0)
+            else:
+                roi_tuple = tuple(roi) if len(roi) == 4 else (0, 0, 0, 0)
+            
+            # 构建 JOCR 参数
+            jocr_param = JOCR(
+                expected=expected or [],
+                roi=roi_tuple,
+                threshold=threshold,
+                only_rec=only_rec,
+                model=model
+            )
+            
+            # 执行识别
+            from maa.pipeline import JRecognitionType
+            job = self._tasker.post_recognition(JRecognitionType.OCR, jocr_param, image)
+            job.wait()
+            
+            if job.succeeded:
+                results = job.get()
+                # 解析结果
+                return self._parse_ocr_results(results)
+            else:
+                self.logger.warning(LogCategory.MAIN, "OCR 识别任务失败")
+                return []
+                
+        except ImportError as e:
+            self.logger.exception(LogCategory.MAIN, "JOCR 导入失败", error=str(e))
             return []
         except Exception as e:
             self.logger.exception(LogCategory.MAIN, "OCR 执行异常", error=str(e))
             return []
+    
+    def _parse_ocr_results(self, results: Any) -> list:
+        """
+        解析 OCR 识别结果
+        
+        Args:
+            results: post_recognition 返回的结果
+            
+        Returns:
+            标准化 OCR 结果列表
+        """
+        if not results:
+            return []
+        
+        normalized = []
+        
+        # 结果可能是单个识别结果或列表
+        if not isinstance(results, list):
+            results = [results]
+        
+        for item in results:
+            try:
+                # MaaFw 识别结果格式：
+                # - matched: bool - 是否匹配到 expected
+                # - text: str - 识别到的文本
+                # - box: tuple - [x, y, w, h]
+                # - score: float - 置信度（可能没有）
+                
+                text = getattr(item, 'text', '') or ''
+                if not text.strip():
+                    continue
+                
+                box_attr = getattr(item, 'box', None)
+                if box_attr:
+                    if isinstance(box_attr, (tuple, list)) and len(box_attr) >= 4:
+                        box = [int(box_attr[0]), int(box_attr[1]), 
+                               int(box_attr[2]), int(box_attr[3])]
+                    else:
+                        box = [0, 0, 0, 0]
+                else:
+                    box = [0, 0, 0, 0]
+                
+                score = getattr(item, 'score', 1.0)
+                if score is None:
+                    score = 1.0
+                
+                # 过滤低置信度结果
+                if score < 0.3:
+                    continue
+                
+                x, y, w, h = box
+                cx = x + w // 2
+                cy = y + h // 2
+                
+                normalized.append({
+                    "text": text.strip(),
+                    "box": box,
+                    "cx": cx,
+                    "cy": cy,
+                    "score": float(score),
+                    "matched": getattr(item, 'matched', False)
+                })
+                
+            except Exception as e:
+                self.logger.debug(LogCategory.MAIN, f"解析单个 OCR 结果失败：{e}")
+                continue
+        
+        return normalized
     
     def start_app(self, package_name: str) -> bool:
         """
