@@ -20,11 +20,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 
 from standard_flow_engine import FlowConfig, FlowRecorder, Local2BEngine
-from core.adb_utils import ADB, adb_screencap, list_devices
+from core.capability.adb_utils import ADB, adb_screencap, list_devices
 
 # MaaFw è§¦æŽ§
 try:
-    from device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
+    from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
     MAAFW_AVAILABLE = True
 except ImportError:
     MaaFwTouchExecutor = None
@@ -32,7 +32,7 @@ except ImportError:
 
 # OCR ??ŒçŠ¶????œº
 try:
-    from core.ocr.ocr_manager import OCRManager
+    from core.capability.ocr.ocr_manager import OCRManager
     OCR_MANAGER_AVAILABLE = True
 except ImportError:
     OCRManager = None

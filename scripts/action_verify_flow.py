@@ -20,7 +20,7 @@ ensure_path()
 
 PROJECT = PROJECT_ROOT
 
-from core.adb_utils import ADB
+from core.capability.adb_utils import ADB
 
 ADB_EXE = PROJECT / '3rd-party' / 'adb' / 'adb.exe'
 SER = 'localhost:16512'

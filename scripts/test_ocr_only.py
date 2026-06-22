@@ -17,8 +17,8 @@ from pathlib import Path
 
 from _path_setup import ensure_path; ensure_path()
 
-from core.ocr.ocr_manager import OCRManager
-from core.adb_utils import ADB, list_devices
+from core.capability.ocr.ocr_manager import OCRManager
+from core.capability.adb_utils import ADB, list_devices
 
 
 def test_logout_detection(device_serial: str):

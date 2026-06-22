@@ -3,7 +3,7 @@
 import subprocess, time, cv2, numpy as np, sys
 from pathlib import Path
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path; ensure_path()
-from core.page_analyzer import HighPrecisionPageAnalyzer
+from core.service.page_analyzer import HighPrecisionPageAnalyzer
 
 ADB = Path(__file__).resolve().parent.parent / '3rd-party' / 'adb' / 'adb.exe'
 SER = 'localhost:16512'

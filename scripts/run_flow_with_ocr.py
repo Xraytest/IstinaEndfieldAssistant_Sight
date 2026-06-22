@@ -20,7 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 
 from standard_flow_engine import FlowConfig, StandardFlowExecutor, FlowRecorder, Local2BEngine
-from core.adb_utils import ADB, list_devices
+from core.capability.adb_utils import ADB, list_devices
 
 
 def main():

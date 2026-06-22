@@ -6,7 +6,7 @@ from pathlib import Path
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-from core.page_analyzer import HighPrecisionPageAnalyzer
+from core.service.page_analyzer import HighPrecisionPageAnalyzer
 
 PROJECT = Path(__file__).resolve().parent.parent
 ADB = PROJECT / '3rd-party' / 'adb' / 'adb.exe'

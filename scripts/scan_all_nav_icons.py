@@ -8,7 +8,7 @@ ensure_path()
 PROJECT_ROOT = r'C:\Users\xray\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant'
 SRC_DIR = os.path.join(PROJECT_ROOT, 'src')
 
-from device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
+from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
 
 ADB_PATH = os.path.join(PROJECT_ROOT, "3rd-party", "adb", "adb.exe")
 DEVICE = "localhost:16512"

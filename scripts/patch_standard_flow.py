@@ -47,7 +47,7 @@ OLD_COUNT_FUNC = '''    def _count_gold_elements(cv_img):
 
 NEW_ANALYZER_INIT = '''    # 初始化高精度页面分析器（替换旧的金色元素计数）
     _page_analyzer = HighPrecisionPageAnalyzer()
-    _vlm_client = VLMClient({"vlm_mode": "local"})
+    _vlm_client = GUIClient({"vlm_mode": "local"})
 
     def _classify_page(cv_img):
         """使用多特征分析器判断页面类型"""
@@ -58,7 +58,7 @@ NEW_ANALYZER_INIT = '''    # 初始化高精度页面分析器（替换旧的金
     def _classify_with_vlm(cv_img, expected_page="world", step_desc=""):
         """OpenCV 优先，不确定时 VLM 介入决策"""
         result = _classify_page(cv_img)
-        if VLMClient.should_invoke_vlm(result, expected_page):
+        if GUIClient.should_invoke_vlm(result, expected_page):
             context = {
                 "expected_page": expected_page,
                 "step_desc": step_desc,

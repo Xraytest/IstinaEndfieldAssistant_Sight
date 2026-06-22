@@ -17,7 +17,7 @@ print(r.stdout.decode())
 # 初始化 MaaFw
 _maafw = None
 try:
-    from device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
+    from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
     if MAAFW_AVAILABLE:
         cfg = MaaFwTouchConfig(
             adb_path=str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe"),

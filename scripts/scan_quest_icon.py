@@ -5,7 +5,7 @@ import sys, os, time, cv2, numpy as np, subprocess
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-from device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
+from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
 
 ADB_PATH = os.path.join(str(PROJECT_ROOT), "3rd-party", "adb", "adb.exe")
 DEVICE = "localhost:16512"

@@ -6,8 +6,8 @@ from pathlib import Path
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-from core.adb_utils import ADB, init_logger
-from core.logger import init_logger as core_init_logger
+from core.capability.adb_utils import ADB
+from core.foundation.logger import init_logger
 
 # 初始化日志
 core_init_logger()

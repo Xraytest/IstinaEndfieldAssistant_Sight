@@ -23,7 +23,7 @@ ensure_path()
 import warnings
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", DeprecationWarning)
-    from core.screen_analysis.advanced_analyzer import (
+    from core.capability.screen_analysis.advanced_analyzer import (
         GameScreenAnalyzer, PageType, PageAnalysisResult
     )
 

@@ -2,6 +2,8 @@
 Page component module - 本地版
 """
 
+from .auth_page import AuthPage
+from .cloud_page import CloudPage
 from .settings_page import SettingsPage
 from .device_settings_page import DeviceSettingsPage
 from .agent_page import AgentPage
@@ -12,6 +14,8 @@ from .iea_page import IeaPage
 
 
 __all__ = [
+    'AuthPage',
+    'CloudPage',
     'SettingsPage',
     'DeviceSettingsPage',
     'AgentPage',

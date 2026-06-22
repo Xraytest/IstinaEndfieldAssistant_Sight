@@ -9,11 +9,11 @@ ensure_path()
 
 project_root = os.path.dirname(os.path.dirname(__file__))
 
-from core.logger import init_logger, get_logger, LogCategory
-from core.communication.communicator import ClientCommunicator
-from device.adb_manager import ADBDeviceManager
-from screenshot.screen_capture import ScreenCapture
-from device.touch.touch_manager import TouchManager
+from core.foundation.logger import init_logger, get_logger, LogCategory
+from core.service.cloud.communication.communicator import ClientCommunicator
+from core.capability.device.adb_manager import ADBDeviceManager
+from core.capability.screenshot.screen_capture import ScreenCapture
+from core.capability.device.touch.touch_manager import TouchManager
 
 # 尝试导入 OCR 优先决策模块
 try:

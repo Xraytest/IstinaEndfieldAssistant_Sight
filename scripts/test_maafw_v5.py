@@ -1,7 +1,7 @@
 import sys, os, time, json, numpy as np
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path; ensure_path()
-from core.logger import init_logger, get_logger, LogCategory
+from core.foundation.logger import init_logger, get_logger, LogCategory
 init_logger()
 
 adb_path = os.path.join(project_root, "3rd-party", "adb", "adb.exe")

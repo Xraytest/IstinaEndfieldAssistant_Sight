@@ -43,7 +43,7 @@ def find_9b_model():
     
     # 如果没有找到 9b，尝试使用 ModelManager
     try:
-        from core.local_inference.model_manager import ModelManager
+        from core.capability.local_inference.model_manager import ModelManager
         manager = ModelManager()
         available = manager.get_available_models()
         for info in available:

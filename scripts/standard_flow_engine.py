@@ -25,13 +25,13 @@ ensure_path()
 
 sys.path.insert(0, str(PROJECT_ROOT / "3rd-party" / "python-packages"))
 
-from core.adb_utils import ADB, adb_screencap
-from core.game_coords import Coords
-from core.page_analyzer import HighPrecisionPageAnalyzer
-from core.vlm_client import VLMClient
+from core.capability.adb_utils import ADB, adb_screencap
+from core.foundation.game_data import Coords
+from core.service.page_analyzer import HighPrecisionPageAnalyzer
+from core.service.gui_client import GUIClient
 
 # MaaFramework 触控适配器
-from device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
+from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -372,7 +372,7 @@ def close_exit_dialog_with_verify(adb, screen_analyzer, tap_func):
         (success, best_coord, best_diff)
     """
     import cv2, numpy as np, time
-    from core.adb_utils import adb_screencap
+    from core.capability.adb_utils import adb_screencap
     
     # 候选坐标：基于 1920x1080 分辨率，覆盖取消按钮的可能位置
     cancel_candidates = [
@@ -608,7 +608,7 @@ class Local2BEngine:
         return "llama-server"
 
     def _find_model(self) -> tuple[Optional[str], Optional[str]]:
-        from core.local_inference.model_manager import ModelManager
+        from core.capability.local_inference.model_manager import ModelManager
         manager = ModelManager()
         available = manager.get_available_models()
         if not available:
@@ -994,7 +994,7 @@ class StandardFlowExecutor:
         # 初始化画面分析器
         self.screen_analyzer = ScreenAnalyzer(maafw_executor=self._maafw)
         self.page_analyzer = HighPrecisionPageAnalyzer()
-        self.vlm_client = VLMClient({"vlm_mode": "local"})
+        self.vlm_client = GUIClient({"vlm_mode": "local"})
 
     def stop(self):
         self._stop_requested = True
@@ -1018,7 +1018,7 @@ class StandardFlowExecutor:
         """触控滑动：优先 MaaFw，回退 ADB"""
         if self._maafw and self._maafw.connected:
             return self._maafw.swipe(x1, y1, x2, y2, duration)
-        from core.adb_utils import adb_swipe
+        from core.capability.adb_utils import adb_swipe
         return adb_swipe(x1, y1, x2, y2, duration)
 
     def _back(self) -> bool:
@@ -1271,7 +1271,7 @@ class StandardFlowExecutor:
                     self._maafw.long_press(coords[0], coords[1], duration_ms)
                 else:
                     # ADB 回退：原地 swipe 模拟长按
-                    from core.adb_utils import adb_swipe
+                    from core.capability.adb_utils import adb_swipe
                     adb_swipe(coords[0], coords[1], coords[0], coords[1], duration_ms)
                 self.adb.wait(1)
                 self._verify_screen_change()
@@ -1784,7 +1784,7 @@ def main():
 
     # 初始化高精度页面分析器（替换旧的金色元素计数）
     _page_analyzer = HighPrecisionPageAnalyzer()
-    _vlm_client = VLMClient({"vlm_mode": "local"})
+    _vlm_client = GUIClient({"vlm_mode": "local"})
 
     def _classify_page(cv_img):
         """使用多特征分析器判断页面类型"""
@@ -1795,7 +1795,7 @@ def main():
     def _classify_with_vlm(cv_img, expected_page="world", step_desc=""):
         """OpenCV 优先，不确定时 VLM 介入决策"""
         result = _classify_page(cv_img)
-        if VLMClient.should_invoke_vlm(result, expected_page):
+        if GUIClient.should_invoke_vlm(result, expected_page):
             context = {
                 "expected_page": expected_page,
                 "step_desc": step_desc,

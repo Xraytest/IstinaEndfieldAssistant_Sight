@@ -20,7 +20,7 @@ from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
 from scripts.standard_flow_engine import FlowConfig, FlowRecorder, Local2BEngine
-from core.cloud.agent_executor import AgentExecutor
+from core.service.cloud.agent_executor import AgentExecutor
 
 
 class AgentStandardFlowRunner:

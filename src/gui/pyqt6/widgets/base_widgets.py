@@ -19,9 +19,9 @@ try:
     from ..theme.theme_manager import ThemeManager
     
 except ImportError:
-    from utils.paths import ensure_src_path
+    from core.foundation.utils.paths import ensure_src_path
     ensure_src_path(__file__)
-    
+
     from gui.pyqt6.theme.theme_manager import ThemeManager
 
 

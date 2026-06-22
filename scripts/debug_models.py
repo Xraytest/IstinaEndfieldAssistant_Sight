@@ -10,7 +10,7 @@ logging.disable(logging.CRITICAL)
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-from core.communication.communicator import ClientCommunicator
+from core.service.cloud.communication.communicator import ClientCommunicator
 
 comm = ClientCommunicator(host="127.0.0.1", port=9999, password="default_password", timeout=30)
 r = comm.send_request("login", {"user_id": "explorer", "key": "aa7d3551ab7fdb975c2eed5251df53ade38aa12cd6161475221d774f27026763"})

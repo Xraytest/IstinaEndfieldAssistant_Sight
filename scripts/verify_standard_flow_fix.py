@@ -19,7 +19,7 @@ ensure_path()
 
 PROJECT = Path(__file__).resolve().parent.parent
 
-from core.adb_utils import ADB, adb_screencap
+from core.capability.adb_utils import ADB, adb_screencap
 
 # 导入标准流引擎的函数
 try:

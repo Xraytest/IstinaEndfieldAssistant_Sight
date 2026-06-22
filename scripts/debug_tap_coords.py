@@ -58,14 +58,14 @@ def test_scan_script_tap():
 def test_adb_utils_tap():
     """测试 adb_utils 方式的 tap"""
     print("\n[测试 2] adb_utils 方式：ADB().tap(860, 80)")
-    from core.adb_utils import ADB
+    from core.capability.adb_utils import ADB
     adb = ADB()
     return adb.tap(860, 80)
 
 def test_adb_utils_tap_direct():
     """测试 adb_utils 底层函数的 tap"""
     print("\n[测试 3] adb_utils 底层：adb_tap(860, 80)")
-    from core.adb_utils import adb_tap
+    from core.capability.adb_utils import adb_tap
     return adb_tap(860, 80)
 
 def main():

@@ -76,7 +76,7 @@ class AgentPage(QWidget):
         header_layout.addSpacing(8)
 
         # 本地推理状态指示
-        self._local_inference_label = QLabel("CLOUD")
+        self._local_inference_label = QLabel("LOCAL")
         self._local_inference_label.setStyleSheet("""
             QLabel {
                 color: rgba(144, 144, 168, 0.50);
@@ -205,7 +205,7 @@ class AgentPage(QWidget):
                 }
             """)
         else:
-            self._local_inference_label.setText("CLOUD")
+            self._local_inference_label.setText("LOCAL")
             self._local_inference_label.setStyleSheet("""
                 QLabel {
                     color: rgba(144, 144, 168, 0.50);
@@ -263,6 +263,6 @@ class AgentPage(QWidget):
 
     def _on_reset(self):
         if self.agent_executor:
-            self.agent_executor.reset_conversation()
+            self.agent_executor.reset()
         self.chat_widget.clear()
         self.input_field.clear()

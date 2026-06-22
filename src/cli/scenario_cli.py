@@ -20,15 +20,15 @@ PROJECT_ROOT = get_project_root(__file__)
 
 
 def _get_adb():
-    from core.adb_utils import ADB
+    from core.capability.adb_utils import ADB
     return ADB()
 
 
 def _get_touch_manager():
     """获取 TouchManager 实例（用于 CLI 触控操作）"""
     try:
-        from device.touch.touch_manager import TouchManager
-        from device.touch.maafw_touch_adapter import MaaFwTouchConfig
+        from core.capability.device.touch.touch_manager import TouchManager
+        from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchConfig
         tm = TouchManager()
         config = MaaFwTouchConfig(
             adb_path=os.path.join(PROJECT_ROOT, "3rd-party", "adb", "adb.exe"),
@@ -51,7 +51,7 @@ def _get_touch_manager():
 def _get_inference_manager():
     """获取 InferenceManager 实例（用于本地 VLM 推理）"""
     try:
-        from core.logger import init_logger
+        from core.foundation.logger import init_logger
         init_logger()
         from core.local_inference.inference_manager import InferenceManager
         
@@ -130,7 +130,7 @@ def cmd_capture(args) -> int:
         attempts += 1
 
         # 截图
-        from core.adb_utils import adb_screencap_unique
+        from core.capability.adb_utils import adb_screencap_unique
         img, h = adb_screencap_unique(last_hash=last_hash)
         if img is not None:
             last_hash = h
@@ -166,7 +166,7 @@ def cmd_capture(args) -> int:
 
 def cmd_nav(args) -> int:
     """导航到页面"""
-    from core.game_coords import NAVIGATION_MAP, PAGE_TYPE_KEYWORDS
+    from core.foundation.game_data import NAVIGATION_MAP, PAGE_TYPE_KEYWORDS
 
     tm = _get_touch_manager()
     if not tm:
@@ -226,7 +226,7 @@ def cmd_analyze(args) -> int:
         print('{"error":"截图失败"}')
         return 1
 
-    from core.adb_utils import vlm_analyze, VLMOptions
+    from core.capability.vlm import vlm_analyze, VLMOptions
     opts = VLMOptions(
         model_tag=args.model or "exploration_deep",
         timeout=args.timeout or 120,
@@ -248,7 +248,7 @@ def cmd_analyze(args) -> int:
 def cmd_ocr(args) -> int:
     """快速 OCR 检测画面（通过本地引擎）"""
     try:
-        from core.adb_utils import ADB
+        from core.capability.adb_utils import ADB
         adb = ADB()
         img = adb.screencap(dedup=False)
         if img is None:
@@ -260,7 +260,7 @@ def cmd_ocr(args) -> int:
         print(f"截图哈希：{hashlib.md5(img).hexdigest()[:8]}")
 
         # 关键词匹配（简单版）
-        from core.game_coords import OVERLAY_KEYWORDS
+        from core.foundation.game_data import OVERLAY_KEYWORDS
         detected = []
         # 这里可以调用 MaaMCP OCR 或本地 OCR
         # 目前仅输出截图信息

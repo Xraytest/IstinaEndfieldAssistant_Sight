@@ -4,24 +4,27 @@ IstinaEndfieldAssistant Client GUI - PyQt6 Version
 import sys
 import os
 import json
-from utils.paths import ensure_src_path
+
+# 先将 src/ 加入 sys.path，确保内部模块可导入
+_src_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
+from core.foundation.utils.paths import ensure_src_path
 
 # Force stdio to be unbuffered for immediate output
 sys.stdout.reconfigure(line_buffering=True)
 
 ensure_src_path(__file__)
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 print("[导入] 正在导入依赖模块...")
 
 # Import business logic modules
-from core.logger import init_logger, get_logger, LogCategory, LogLevel
-from device.adb_manager import ADBDeviceManager
-from screenshot.screen_capture import ScreenCapture
-from device.touch import TouchManager, TouchDeviceType
-from core.communication.communicator import ClientCommunicator
-from core.cloud.managers.auth_manager import AuthManager
-from core.cloud.managers.device_manager import DeviceManager
+from core.foundation.logger import init_logger, get_logger, LogCategory, LogLevel
+from core.capability.device.adb_manager import ADBDeviceManager
+from core.capability.screenshot.screen_capture import ScreenCapture
+from core.capability.device.touch import TouchManager, TouchDeviceType
 
 print("[导入] 所有依赖模块导入成功")
 
@@ -44,8 +47,8 @@ def load_config(config_file: str) -> dict:
     # 默认配置包含所有必需字段，确保配置完整性
     return {
             "server": {"host": "127.0.0.1", "port": 9999},
-            "adb": {"path": "IstinaEndfieldAssistant/3rd-party/adb/adb.exe", "timeout": 10},
-            "git": {"path": "IstinaEndfieldAssistant/3rd-party/git/bin/git.exe"},
+            "adb": {"path": "3rd-party/adb/adb.exe", "timeout": 10},
+            "git": {"path": "3rd-party/git/bin/git.exe"},
             "screen": {"use_original_resolution": True},
             "touch": {
                 "maa_style": {
@@ -110,19 +113,20 @@ def main():
     try:
         # 初始化核心功能模块
 
-        # ADB 路径 - 使用 normpath 处理混合路径分隔符
-        adb_path = os.path.normpath(os.path.join(project_root, config['adb']['path']))
+        # ADB 路径 - 使用 core.foundation.utils.paths 统一管理
+        from core.foundation.utils.paths import get_adb_path
+        adb_path = get_adb_path()
 
         if not os.path.exists(adb_path):
             logger.error(LogCategory.MAIN, f"ADB 可执行文件不存在: {adb_path}")
             print(f"[错误] ADB 可执行文件不存在: {adb_path}")
             return 1
-        
+
         print("[主进程] 初始化核心模块（ADB、截屏、触控管理器）...")
         logger.debug(LogCategory.MAIN, "初始化 ADB 设备管理器", adb_path=adb_path)
         adb_manager = ADBDeviceManager(
             adb_path=adb_path,
-            timeout=config['adb']['timeout']
+            timeout=config.get('adb', {}).get('timeout', 10)
         )
         
         logger.debug(LogCategory.MAIN, "初始化截屏模块")
@@ -134,68 +138,50 @@ def main():
         logger.debug(LogCategory.MAIN, "关联截屏模块和 MAA 触控管理器")
         screen_capture.set_touch_manager(touch_executor)
 
-        logger.debug(LogCategory.MAIN, "初始化通信模块")
-        communicator = ClientCommunicator(
-            host=config['server']['host'],
-            port=config['server']['port'],
-            password=config.get('communication', {}).get('password', 'default_password'),
-            timeout=300
-        )
-
-        # 初始化推理管理器（端侧优先）
+        # 初始化推理管理器（纯本地模式，无通信模块）
         logger.debug(LogCategory.MAIN, "初始化推理管理器")
-        from core.local_inference.inference_manager import InferenceManager
+        from core.capability.local_inference.inference_manager import InferenceManager
+        from core.foundation.utils.paths import get_project_root
         inference_manager = InferenceManager(
             config=config,
-            communicator=communicator,
-            models_dir=os.path.join(project_root, "models")
+            models_dir=os.path.join(get_project_root(), "models")
         )
         logger.info(LogCategory.MAIN, "推理管理器初始化完成",
                    local_available=inference_manager.is_local_available())
 
-        # 初始化业务逻辑组件
-        logger.debug(LogCategory.MAIN, "初始化认证管理模块")
-        auth_manager = AuthManager(communicator, config)
-        
-        logger.debug(LogCategory.MAIN, "初始化设备管理模块")
-        device_manager = DeviceManager(adb_manager, config)
-        
-        last_device = device_manager.get_last_connected_device()
-        if last_device:
-            logger.info(LogCategory.MAIN, f"尝试自动连接上次设备：{last_device}")
-            device_manager.connect_device(last_device)
-        
         logger.info(LogCategory.MAIN, "所有组件初始化成功")
         print("[主进程] 核心模块全部初始化成功")
-        
+
     except Exception as e:
         logger.exception(LogCategory.MAIN, "管理器初始化失败", exc_info=True)
         print(f"[错误] 管理器初始化失败: {e}")
         return 1
-    
+
     # 启动 PyQt6 应用
     from gui.pyqt6.app_main import run_application
     
     print(f"\n[主进程] 启动 PyQt6 应用程序...")
     
     try:
-        from core.cloud.agent_executor import AgentExecutor
-        
-        logger.debug(LogCategory.MAIN, "初始化代理执行器")
-        agent_executor = AgentExecutor(
-            communicator=communicator,
+        # 通过 InferenceManager 创建 AgentExecutor
+        logger.debug(LogCategory.MAIN, "通过推理管理器初始化代理执行器")
+        agent_executor = inference_manager.create_agent_executor(
             screen_capture=screen_capture,
             touch_executor=touch_executor,
             config=config,
-            inference_manager=inference_manager
+        )
+
+        # 创建 GUIClient（GUI 层唯一推理入口，纯本地模式）
+        from core.service.gui_client import GUIClient
+        gui_client = GUIClient(
+            config=config,
+            inference_manager=inference_manager,
         )
 
         print(f"[主进程] 调用 run_application() - 窗口即将显示...")
         exit_code = run_application(
-            auth_manager=auth_manager,
-            device_manager=device_manager,
             agent_executor=agent_executor,
-            communicator=communicator,
+            gui_client=gui_client,
             screen_capture=screen_capture,
             touch_executor=touch_executor,
             config=config,

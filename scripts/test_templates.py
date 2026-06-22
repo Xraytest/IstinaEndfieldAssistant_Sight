@@ -3,8 +3,8 @@
 import sys, cv2, numpy as np
 from pathlib import Path
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path; ensure_path()
-from core.recognition import RecognitionEngine, PREDEFINED_STATES
-from core.adb_utils import ADB
+from core.capability.recognition import RecognitionEngine, PREDEFINED_STATES
+from core.capability.adb_utils import ADB
 import os; os.environ['PYTHONUNBUFFERED'] = '1'
 
 adb = ADB()

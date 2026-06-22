@@ -56,7 +56,7 @@ def verify_stop_hook():
     print(f'  _vlm_verify_result (行为结束判定): {"✅" if has_verify else "❌"}')
     
     # 3. 验证 VLM 决策器
-    vlm_file = PROJECT_ROOT / 'src' / 'core' / 'vlm_client.py'
+    vlm_file = PROJECT_ROOT / 'src' / 'core' / 'gui_client.py'
     with open(vlm_file, 'r', encoding='utf-8') as f:
         vlm_content = f.read()
 

@@ -18,7 +18,7 @@ import sys
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-from core.page_analyzer import HighPrecisionPageAnalyzer
+from core.service.page_analyzer import HighPrecisionPageAnalyzer
 
 PROJECT = PROJECT_ROOT
 

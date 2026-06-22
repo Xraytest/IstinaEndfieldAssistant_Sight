@@ -34,7 +34,7 @@ try:
         MessageBubble,
     )
 except ImportError as e:
-    from utils.paths import ensure_src_path
+    from core.foundation.utils.paths import ensure_src_path
     ensure_src_path(__file__)
     from gui.pyqt6.theme.theme_manager import ThemeManager
     from gui.pyqt6.main_window import MainWindow
@@ -66,20 +66,20 @@ __all__ = [
 
 
 def create_application(
-    auth_manager=None, device_manager=None,
-    execution_manager=None, task_queue_manager=None,
-    communicator=None, config=None
+    agent_executor=None, gui_client=None,
+    screen_capture=None, touch_executor=None,
+    config=None, inference_manager=None
 ):
     return PyQt6Application()
 
 
 def start_gui(
-    auth_manager=None, device_manager=None,
-    execution_manager=None, task_queue_manager=None,
-    communicator=None, config=None
+    agent_executor=None, gui_client=None,
+    screen_capture=None, touch_executor=None,
+    config=None, inference_manager=None
 ):
     return run_application(
-        auth_manager=auth_manager, device_manager=device_manager,
-        execution_manager=execution_manager, task_queue_manager=task_queue_manager,
-        communicator=communicator, config=config
+        agent_executor=agent_executor, gui_client=gui_client,
+        screen_capture=screen_capture, touch_executor=touch_executor,
+        config=config, inference_manager=inference_manager
     )

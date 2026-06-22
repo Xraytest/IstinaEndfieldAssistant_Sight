@@ -101,7 +101,7 @@ class FlowStateMachine:
                 # 使用 MaaFw OCR 识别
                 screenshot = context.get("current_screenshot", None)
                 if screenshot is None:
-                    from core.adb_utils import adb_screencap
+                    from core.capability.adb_utils import adb_screencap
                     screenshot = adb_screencap()
 
                 # 通过 OCRManager 调用 MaaFw OCR
@@ -151,7 +151,7 @@ class FlowStateMachine:
                 # OCR 查找文本 - 使用 MaaFw OCR
                 screenshot = context.get("current_screenshot", None)
                 if screenshot is None:
-                    from core.adb_utils import adb_screencap
+                    from core.capability.adb_utils import adb_screencap
                     screenshot = adb_screencap()
 
                 # 通过 OCRManager 调用 MaaFw OCR
@@ -207,7 +207,7 @@ def main():
     print("=" * 60)
 
     # 创建状态机（使用 MaaFw OCR）
-    from core.ocr.ocr_manager import OCRManager
+    from core.capability.ocr.ocr_manager import OCRManager
     ocr_manager = OCRManager()
     state_machine = FlowStateMachine(ocr_manager=ocr_manager)
 

@@ -12,11 +12,11 @@ import json
 import re
 from pathlib import Path
 
-from utils.paths import ensure_src_path
+from core.foundation.utils.paths import ensure_src_path
 ensure_src_path(__file__)
 
 try:
-    from core.local_inference.gpu_checker import GPUChecker
+    from core.capability.local_inference.gpu_checker import GPUChecker
 except ImportError:
     GPUChecker = None
 
@@ -26,7 +26,6 @@ class SettingsPage(QWidget):
     local_inference_toggled = pyqtSignal(bool)
     check_update_requested = pyqtSignal()
     refresh_gpu_status = pyqtSignal()
-    model_tag_changed = pyqtSignal(str, str)  # (mode, tag)
     model_download_requested = pyqtSignal(str)  # model_name
     model_remove_requested = pyqtSignal(str)    # model_name
     minimize_to_tray_changed = pyqtSignal(bool)
@@ -52,14 +51,12 @@ class SettingsPage(QWidget):
     """
 
     def __init__(self, config: Optional[Dict[str, Any]] = None, parent=None,
-                 agent_executor=None, communicator=None):
+                 agent_executor=None):
         super().__init__(parent)
         self._config = config or {}
         self._gpu_checker = None
         self._gpu_info = None
         self._agent_executor = agent_executor
-        self._communicator = communicator
-        self._model_tags_loaded = False
         self._setup_ui()
         self._start_gpu_check()
 
@@ -242,17 +239,6 @@ class SettingsPage(QWidget):
         inference_layout.addWidget(self._large_vlm_container)
         layout.addWidget(inference_group)
 
-        # ======== 云端模型标签 ========
-        cloud_group = self._make_card_widget("CLOUD MODEL TAGS")
-        cloud_layout = QVBoxLayout(cloud_group)
-        cloud_layout.setContentsMargins(20, 16, 20, 16)
-        cloud_layout.setSpacing(8)
-
-        self._std_tag_combo = self._make_tag_row(cloud_layout, "标准推理:", "standard_reasoning")
-        self._prts_tag_combo = self._make_tag_row(cloud_layout, "PRTS 全智能:", "prts_full_intelligence")
-
-        layout.addWidget(cloud_group)
-
         # ======== 本地模型管理 ========
         local_models_group = self._make_card_widget("LOCAL MODELS")
         lm_layout = QVBoxLayout(local_models_group)
@@ -375,7 +361,6 @@ class SettingsPage(QWidget):
         self._load_config()
 
     def _load_config(self):
-        self._load_model_tags()
         local_config = self._config.get("inference", {}).get("local", {})
         enabled = local_config.get("enabled", False)
         self._enable_checkbox.setEnabled(True)
@@ -565,62 +550,6 @@ class SettingsPage(QWidget):
             }
         """)
         return w
-
-    def _make_tag_row(self, parent_layout, label_text: str, mode: str) -> QComboBox:
-        row = QHBoxLayout()
-        lbl = QLabel(label_text)
-        lbl.setStyleSheet("color: #9090a8; font-size: 12px; font-family: Consolas; padding: 3px 0;")
-        row.addWidget(lbl)
-        combo = QComboBox()
-        combo.setMinimumWidth(200)
-        combo.setStyleSheet(self.COMBO_STYLE)
-        combo.addItems(["exploration_deep", "exploration_fast", "standard", "premium"])
-        combo.currentTextChanged.connect(lambda tag: self._on_model_tag_changed(mode, tag))
-        row.addWidget(combo)
-        row.addStretch()
-        parent_layout.addLayout(row)
-        return combo
-
-    def _get_cache_dir(self) -> str:
-        current = os.path.dirname(os.path.abspath(__file__))
-        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current))))
-        cache = os.path.join(root, "cache")
-        os.makedirs(cache, exist_ok=True)
-        return cache
-
-    def _load_tag_config(self) -> dict:
-        path = os.path.join(self._get_cache_dir(), "model_tag.json")
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            return {}
-
-    def _save_tag_config(self, data: dict):
-        path = os.path.join(self._get_cache_dir(), "model_tag.json")
-        try:
-            existing = {}
-            if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
-                    existing = json.load(f)
-            existing.update(data)
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(existing, f, indent=2, ensure_ascii=False)
-        except Exception:
-            pass
-
-    def _load_model_tags(self):
-        data = self._load_tag_config()
-        std_tag = data.get("standard_reasoning", "exploration_deep")
-        prts_tag = data.get("prts_full_intelligence", "exploration_deep")
-        if std_tag in ["exploration_deep", "exploration_fast", "standard", "premium"]:
-            self._std_tag_combo.setCurrentText(std_tag)
-        if prts_tag in ["exploration_deep", "exploration_fast", "standard", "premium"]:
-            self._prts_tag_combo.setCurrentText(prts_tag)
-
-    def _on_model_tag_changed(self, mode: str, tag: str):
-        self._save_tag_config({mode: tag})
-        self.model_tag_changed.emit(mode, tag)
 
     # ── 本地模型管理 ──────────────────────────────────────────────
 
@@ -845,30 +774,6 @@ class SettingsPage(QWidget):
         self._config['system']['minimize_to_tray'] = enabled
         self.settings_changed.emit(self._config)
         self.minimize_to_tray_changed.emit(enabled)
-
-    def refresh_model_tags_from_server(self):
-        """从服务端刷新可用模型标签列表"""
-        if self._model_tags_loaded or not self._communicator:
-            return
-        try:
-            response = self._communicator.get_available_models(
-                getattr(self._agent_executor, 'session_id', None) or ''
-            )
-            if response and response.get('status') == 'success':
-                models = response.get('models', [])
-                if models:
-                    tags = [m.get('name', '') for m in models if m.get('name')]
-                    if tags:
-                        for combo in [self._std_tag_combo, self._prts_tag_combo]:
-                            current = combo.currentText()
-                            combo.clear()
-                            combo.addItems(tags)
-                            if current in tags:
-                                combo.setCurrentText(current)
-                        self._model_tags_loaded = True
-                        return
-        except Exception:
-            pass
 
     def _scan_local_models(self):
         """

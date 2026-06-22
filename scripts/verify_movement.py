@@ -9,7 +9,7 @@ import subprocess, time, sys, os, base64, hashlib, json, urllib.request, re
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-from core.adb_utils import adb_screencap
+from core.capability.adb_utils import adb_screencap
 
 ADB = ['3rd-party/adb/adb.exe', '-s', 'localhost:16512']
 

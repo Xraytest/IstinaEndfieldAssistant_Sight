@@ -23,15 +23,15 @@ PROJECT_ROOT = get_project_root(__file__)
 
 
 def _get_adb():
-    from core.adb_utils import ADB
+    from core.capability.adb_utils import ADB
     return ADB()
 
 
 def _get_touch_manager():
     """获取 TouchManager 实例（用于 CLI 触控操作）"""
     try:
-        from device.touch.touch_manager import TouchManager
-        from device.touch.maafw_touch_adapter import MaaFwTouchConfig
+        from core.capability.device.touch.touch_manager import TouchManager
+        from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchConfig
         tm = TouchManager()
         config = MaaFwTouchConfig(
             adb_path=os.path.join(PROJECT_ROOT, "3rd-party", "adb", "adb.exe"),
@@ -53,7 +53,7 @@ def _get_touch_manager():
 
 def _get_capture():
     try:
-        from screenshot.screen_capture import ScreenCapture
+        from core.capability.screenshot.screen_capture import ScreenCapture
         return ScreenCapture()
     except Exception as e:
         import logging
@@ -63,7 +63,7 @@ def _get_capture():
 
 def cmd_status(args) -> int:
     """ADB 连接状态"""
-    from core.adb_utils import check_device, list_devices
+    from core.capability.adb_utils import check_device, list_devices
     ok = check_device()
     devices = list_devices()
     print(json.dumps({
@@ -96,7 +96,7 @@ def cmd_screenshot(args) -> int:
 
 def cmd_info(args) -> int:
     """设备详细信息"""
-    from core.adb_utils import list_devices, _adb_cmd
+    from core.capability.adb_utils import list_devices, _adb_cmd
 
     devices = list_devices()
 
@@ -145,7 +145,7 @@ def cmd_info(args) -> int:
 
     # 截图能力
     try:
-        from core.adb_utils import adb_screencap
+        from core.capability.adb_utils import adb_screencap
         t0 = time.time()
         img = adb_screencap(timeout=10)
         t1 = time.time()
@@ -231,7 +231,7 @@ def cmd_monitor(args) -> int:
     try:
         while True:
             ts = time.strftime("%H:%M:%S")
-            from core.adb_utils import check_device, adb_screencap
+            from core.capability.adb_utils import check_device, adb_screencap
             ok = check_device()
             status = "OK" if ok else "OFF"
             t0 = time.time()

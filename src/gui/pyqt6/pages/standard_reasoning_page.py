@@ -78,11 +78,10 @@ CHECK_STYLE = """
 class StandardReasoningPage(QWidget):
     """Standard Reasoning - select and execute standard flow tasks"""
 
-    def __init__(self, communicator=None, agent_executor=None, parent=None,
+    def __init__(self, agent_executor=None, parent=None,
                  screen_capture=None, touch_executor=None, config=None,
                  inference_manager=None):
         super().__init__(parent)
-        self.communicator = communicator
         self.agent_executor = agent_executor
         self.screen_capture = screen_capture
         self.touch_executor = touch_executor
@@ -104,14 +103,14 @@ class StandardReasoningPage(QWidget):
         header.addStretch()
 
         # 本地推理状态指示
-        self._local_inference_label = QLabel("CLOUD")
+        self._local_inference_label = QLabel("LOCAL")
         self._local_inference_label.setStyleSheet("""
             QLabel {
-                color: rgba(144, 144, 168, 0.50);
+                color: #00ffa2;
                 font-size: 10px;
                 font-family: Consolas;
                 padding: 2px 8px;
-                border: 1px solid rgba(144, 144, 168, 0.15);
+                border: 1px solid rgba(0, 255, 162, 0.40);
                 border-radius: 3px;
                 margin-left: 8px;
             }
@@ -231,14 +230,14 @@ class StandardReasoningPage(QWidget):
                 }
             """)
         else:
-            self._local_inference_label.setText("CLOUD")
+            self._local_inference_label.setText("LOCAL")
             self._local_inference_label.setStyleSheet("""
                 QLabel {
-                    color: rgba(144, 144, 168, 0.50);
+                    color: #00ffa2;
                     font-size: 10px;
                     font-family: Consolas;
                     padding: 2px 8px;
-                    border: 1px solid rgba(144, 144, 168, 0.15);
+                    border: 1px solid rgba(0, 255, 162, 0.40);
                     border-radius: 3px;
                     margin-left: 8px;
                 }
@@ -306,9 +305,6 @@ class StandardReasoningPage(QWidget):
         import datetime
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         self._log_text.append(f"[{ts}] {text}")
-
-    def set_communicator(self, communicator):
-        self.communicator = communicator
 
     def set_agent_executor(self, agent_executor):
         self.agent_executor = agent_executor

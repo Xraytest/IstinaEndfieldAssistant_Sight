@@ -7,7 +7,7 @@ maa_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.
 if os.path.isdir(maa_path):
     sys.path.insert(0, maa_path)
 
-from core.logger import init_logger, get_logger, LogCategory
+from core.foundation.logger import init_logger, get_logger, LogCategory
 init_logger()
 
 adb_path = os.path.join(project_root, "3rd-party", "adb", "adb.exe")

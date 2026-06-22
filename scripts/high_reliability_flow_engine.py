@@ -20,9 +20,9 @@ from typing import Dict, Any, Optional, Tuple
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-from core.adb_utils import adb_screencap
-from core.recognition.recognition_engine import RecognitionEngine
-from core.page_analyzer import HighPrecisionPageAnalyzer
+from core.capability.adb_utils import adb_screencap
+from core.capability.recognition.recognition_engine import RecognitionEngine
+from core.service.page_analyzer import HighPrecisionPageAnalyzer
 
 DEVICE_ADDR = "192.168.1.12:16512"
 ADB_PATH = str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe")

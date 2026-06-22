@@ -16,7 +16,7 @@ _SRC_DIR = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
-from utils.paths import get_project_root, get_src_dir, ensure_src_path
+from core.foundation.utils.paths import get_project_root, get_src_dir, ensure_src_path
 
 PROJECT_ROOT = Path(get_project_root())
 SRC_DIR = Path(get_src_dir())

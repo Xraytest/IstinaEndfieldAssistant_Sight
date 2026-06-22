@@ -12,9 +12,9 @@ PROJECT = Path(__file__).resolve().parent.parent
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path; ensure_path()
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-from core.adb_utils import ADB, adb_screencap
-from core.page_analyzer import HighPrecisionPageAnalyzer
-from core.vlm_client import VLMClient
+from core.capability.adb_utils import ADB, adb_screencap
+from core.service.page_analyzer import HighPrecisionPageAnalyzer
+from core.service.gui_client import GUIClient
 import cv2, numpy as np
 
 
@@ -47,7 +47,7 @@ def run_flow(flow_name: str):
     steps = flow.get("steps", [])
     adb = ADB()
     analyzer = HighPrecisionPageAnalyzer()
-    vlm = VLMClient({"vlm_mode": "local"})
+    vlm = GUIClient({"vlm_mode": "local"})
 
     print(f"\n{'='*60}")
     print(f"执行: {flow_name} ({flow.get('description','')})")

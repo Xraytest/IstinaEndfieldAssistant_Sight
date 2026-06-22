@@ -20,7 +20,7 @@ def run_adb(cmd, timeout=10):
     return r.stdout.decode(errors='replace'), r.stderr.decode(errors='replace'), r.returncode
 
 # ── 初始化 MaaFw ──
-from device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
+from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
 cfg = MaaFwTouchConfig(
     adb_path=str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe"),
     address="localhost:16512",

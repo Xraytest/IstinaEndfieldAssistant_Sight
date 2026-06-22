@@ -1,11 +1,9 @@
-"""IEA Management page - IstinaEndfieldAssistant server-coordinated features"""
+"""IEA Management page - local agent orchestration features"""
 import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                QPushButton, QGroupBox, QScrollArea,
                                QTextEdit, QMessageBox, QSpinBox)
-from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from typing import Optional, Dict, Any, List
-import json
+from PyQt6.QtCore import pyqtSignal, QThread
 
 INFO_STYLE = "color: #9090a8; font-size: 12px; font-family: Consolas; padding: 3px 0;"
 VAL_STYLE = "color: #e8e8ee; font-size: 12px; font-family: Consolas; padding: 3px 0;"
@@ -48,27 +46,6 @@ BTN_DEFAULT = """
 """
 
 
-class IeaFetchThread(QThread):
-    result = pyqtSignal(str, object)
-    error = pyqtSignal(str)
-
-    def __init__(self, communicator, endpoint: str, data: dict = None):
-        super().__init__()
-        self.communicator = communicator
-        self.endpoint = endpoint
-        self.data = data or {}
-
-    def run(self):
-        if not self.communicator:
-            self.error.emit("通信器未初始化")
-            return
-        try:
-            response = self.communicator.send_request(self.endpoint, self.data)
-            self.result.emit(self.endpoint, response)
-        except Exception as e:
-            self.error.emit(str(e))
-
-
 class IeaExploreThread(QThread):
     progress = pyqtSignal(str, object)
     finished = pyqtSignal()
@@ -88,17 +65,11 @@ class IeaPage(QWidget):
 
     refresh_requested = pyqtSignal()
 
-    def __init__(self, communicator=None, agent_executor=None, parent=None, screen_capture=None, touch_executor=None, device_manager=None):
+    def __init__(self, agent_executor=None, parent=None, screen_capture=None, touch_executor=None):
         super().__init__(parent)
-        self.communicator = communicator
         self.agent_executor = agent_executor
         self.screen_capture = screen_capture
         self.touch_executor = touch_executor
-        self.device_manager = device_manager
-        self._fetch_threads: List[IeaFetchThread] = []
-        self._server_status = "unknown"
-        self._state_templates = {}
-        self._user_info = {}
         self._exploration_engine = None
         self._exploration_thread = None
         self._setup_ui()
@@ -114,26 +85,6 @@ class IeaPage(QWidget):
         title.setStyleSheet(HEADER_STYLE)
         header.addWidget(title)
         header.addStretch()
-
-        self._refresh_btn = QPushButton("REFRESH")
-        self._refresh_btn.setFixedSize(100, 32)
-        self._refresh_btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(24, 209, 255, 0.10);
-                color: #18d1ff;
-                border: 1px solid rgba(24, 209, 255, 0.30);
-                border-radius: 4px;
-                font-size: 11px;
-                font-family: Consolas;
-                font-weight: bold;
-                letter-spacing: 1px;
-            }
-            QPushButton:hover {
-                background-color: rgba(24, 209, 255, 0.20);
-            }
-        """)
-        self._refresh_btn.clicked.connect(self._refresh_all)
-        header.addWidget(self._refresh_btn)
         layout.addLayout(header)
 
         # 滚动区域
@@ -145,17 +96,7 @@ class IeaPage(QWidget):
         scroll_layout.setContentsMargins(0, 0, 0, 0)
         scroll_layout.setSpacing(16)
 
-        # ---- 1. 服务端连接状态 ----
-        conn_group = self._make_card("SERVER CONNECTION")
-        self._conn_layout = QVBoxLayout()
-        conn_group.layout().addLayout(self._conn_layout)
-        self._make_kv_row(self._conn_layout, "STATUS:", "DISCONNECTED", RED_STYLE)
-        self._make_kv_row(self._conn_layout, "HOST:", "127.0.0.1:9999", VAL_STYLE)
-        self._make_kv_row(self._conn_layout, "USER:", "NULL", VAL_STYLE)
-        self._make_kv_row(self._conn_layout, "TIER:", "NULL", VAL_STYLE)
-        scroll_layout.addWidget(conn_group)
-
-        # ---- 2. Agent 编排器状态 ----
+        # ---- 1. Agent 编排器状态 ----
         agent_group = self._make_card("AGENT ORCHESTRATOR")
         self._agent_layout = QVBoxLayout()
         agent_group.layout().addLayout(self._agent_layout)
@@ -183,28 +124,7 @@ class IeaPage(QWidget):
         self._ref_layout.addWidget(self._ref_status)
         scroll_layout.addWidget(ref_group)
 
-        # ---- 5. 模型供应商 ----
-        provider_group = self._make_card("MODEL PROVIDERS")
-        self._provider_layout = QVBoxLayout()
-        provider_group.layout().addLayout(self._provider_layout)
-        self._provider_text = QTextEdit()
-        self._provider_text.setReadOnly(True)
-        self._provider_text.setMaximumHeight(120)
-        self._provider_text.setStyleSheet("""
-            QTextEdit {
-                background-color: rgba(10, 10, 15, 0.90);
-                color: #e0e0e8;
-                border: 1px solid rgba(24, 209, 255, 0.10);
-                border-radius: 4px;
-                font-size: 11px;
-                font-family: Consolas;
-                padding: 8px;
-            }
-        """)
-        self._provider_layout.addWidget(self._provider_text)
-        scroll_layout.addWidget(provider_group)
-
-        # ---- 6. 页面探索 ----
+        # ---- 5. 页面探索 ----
         explore_group = self._make_card("PAGE EXPLORATION")
         self._explore_layout = QVBoxLayout()
         explore_group.layout().addLayout(self._explore_layout)
@@ -325,9 +245,6 @@ class IeaPage(QWidget):
 
     # ==================== 公共接口 ====================
 
-    def set_communicator(self, communicator):
-        self.communicator = communicator
-
     def set_agent_executor(self, agent_executor):
         self.agent_executor = agent_executor
 
@@ -337,112 +254,24 @@ class IeaPage(QWidget):
     def set_touch_executor(self, touch_executor):
         self.touch_executor = touch_executor
 
-    def _refresh_all(self):
-        """刷新所有数据"""
-        self._refresh_btn.setEnabled(False)
-        if not self.communicator:
-            self._refresh_btn.setEnabled(True)
-            return
-
-        # 并行请求
-        endpoints = [
-            ("get_user_info", {"user_id": "", "session_id": ""}),
-            ("get_state_templates", {}),
-            ("get_available_models", {"session_id": ""}),
-        ]
-        for endpoint, data in endpoints:
-            thread = IeaFetchThread(self.communicator, endpoint, data)
-            thread.result.connect(self._on_data_arrived)
-            thread.error.connect(self._on_fetch_error)
-            thread.finished.connect(self._on_thread_finished)
-            self._fetch_threads.append(thread)
-            thread.start()
-
-    def _on_data_arrived(self, endpoint: str, response: dict):
-        if not response or response.get('status') != 'success':
-            return
-
-        if endpoint == "get_user_info":
-            self._user_info = response.get('user_info', {})
-            self._update_connection_ui()
-        elif endpoint == "get_state_templates":
-            templates = response.get('templates', {})
-            self._state_templates = templates
-            count = len(templates)
-            self._template_status.setText(f"已加载 {count} 个状态模板: {', '.join(templates.keys()) if templates else '无'}")
-        elif endpoint == "get_available_models":
-            models = response.get('models', [])
-            self._provider_text.clear()
-            if models:
-                lines = [f"  {m.get('name', '?')} | tier={m.get('tier','?')} | providers={m.get('provider_count',0)}"
-                         for m in models]
-                self._provider_text.setText("\n".join(lines))
-            else:
-                self._provider_text.setText("  无可用模型")
-
-    def _on_fetch_error(self, error_msg: str):
-        print(f"[IEA Page] 请求失败: {error_msg}")
-
-    def _on_thread_finished(self):
-        self._fetch_threads = [t for t in self._fetch_threads if t.isRunning()]
-        if not self._fetch_threads:
-            self._refresh_btn.setEnabled(True)
-
-    def _update_connection_ui(self):
-        """根据 user_info 和 communicator 状态更新连接面板"""
-        self._clear_layout(self._conn_layout)
-
-        if self.communicator and self.communicator.is_authenticated():
-            self._make_kv_row(self._conn_layout, "STATUS:", "AUTHENTICATED", GREEN_STYLE)
-        else:
-            self._make_kv_row(self._conn_layout, "STATUS:", "CONNECTED", BLUE_STYLE)
-
-        host = f"{getattr(self.communicator, 'host', '?')}:{getattr(self.communicator, 'port', '?')}"
-        self._make_kv_row(self._conn_layout, "HOST:", host, VAL_STYLE)
-
-        user_id = self._user_info.get('user_id', 'NULL')
-        self._make_kv_row(self._conn_layout, "USER:", user_id, VAL_STYLE)
-
-        tier = self._user_info.get('tier', 'NULL')
-        self._make_kv_row(self._conn_layout, "TIER:", tier, VAL_STYLE)
-
-        # 更新 agent 面板
-        self._clear_layout(self._agent_layout)
-        if self.agent_executor:
-            state = self.agent_executor.state.value if hasattr(self.agent_executor, 'state') else 'IDLE'
-            session = getattr(self.agent_executor, 'session_id', 'NULL') or 'NULL'
-            self._make_kv_row(self._agent_layout, "STATE:", state.upper(), BLUE_STYLE if state != 'error' else RED_STYLE)
-            self._make_kv_row(self._agent_layout, "SESSION:", session[:16] + "..." if len(session) > 16 else session, VAL_STYLE)
-        else:
-            self._make_kv_row(self._agent_layout, "STATE:", "NOT INITIALIZED", RED_STYLE)
-            self._make_kv_row(self._agent_layout, "SESSION:", "NULL", VAL_STYLE)
-
-        provider = "N/A"
-        model_tag = "N/A"
-        self._make_kv_row(self._agent_layout, "PROVIDER:", provider, VAL_STYLE)
-        self._make_kv_row(self._agent_layout, "MODEL TAG:", model_tag, VAL_STYLE)
-
-    def refresh(self):
-        self._refresh_all()
-
     # ==================== 页面探索 ====================
 
     def _start_exploration(self):
-        if not self.communicator or not self.screen_capture or not self.touch_executor:
-            QMessageBox.warning(self, "Exploration", "Missing dependencies: communicator, screen_capture, or touch_executor")
+        if not self.screen_capture or not self.touch_executor:
+            QMessageBox.warning(self, "Exploration", "Missing dependencies: screen_capture or touch_executor")
             return
 
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
-            from core.cloud.exploration_engine import ExplorationEngine, ExplorationConfig
+            from core.service.cloud.exploration_engine import ExplorationEngine, ExplorationConfig
 
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
         cache_dir = os.path.join(project_root, "cache")
         os.makedirs(cache_dir, exist_ok=True)
 
         config = ExplorationConfig(
-            device_serial=self._get_device_serial(),
+            device_serial="localhost:16512",
             verification_passes=self._verify_spin.value(),
             max_depth=self._depth_spin.value(),
             output_file=os.path.join(cache_dir, "game_map.md"),
@@ -450,7 +279,7 @@ class IeaPage(QWidget):
         )
 
         self._exploration_engine = ExplorationEngine(
-            communicator=self.communicator,
+            communicator=None,
             screen_capture=self.screen_capture,
             touch_executor=self.touch_executor,
             agent_executor=self.agent_executor,
@@ -531,13 +360,3 @@ class IeaPage(QWidget):
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         self._explore_log.append(f"[{ts}] {text}")
 
-    def _get_device_serial(self) -> str:
-        if self.agent_executor:
-            serial = getattr(self.agent_executor, 'device_serial', None)
-            if serial:
-                return serial
-        if self.device_manager:
-            serial = self.device_manager.get_last_connected_device()
-            if serial:
-                return serial
-        return "localhost:16512"

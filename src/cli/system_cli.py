@@ -41,7 +41,7 @@ def _check_server():
     """本地推理状态检测"""
     try:
         from core.local_inference.inference_manager import InferenceManager
-        from core.logger import init_logger
+        from core.foundation.logger import init_logger
         init_logger()
         
         # 检查本地推理是否可用
@@ -224,7 +224,7 @@ def cmd_perf(args) -> int:
     # 1. 截图速度
     print(f"\n[1] 截图速度:")
     try:
-        from core.adb_utils import ADB
+        from core.capability.adb_utils import ADB
         adb = ADB()
         t0 = time.time()
         img = adb.screencap(dedup=False)

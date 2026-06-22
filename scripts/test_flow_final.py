@@ -18,11 +18,11 @@ from datetime import datetime
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 from _path_setup import ensure_path; ensure_path()
 
-from core.adb_utils import ADB, list_devices, adb_screencap
+from core.capability.adb_utils import ADB, list_devices, adb_screencap
 
 # MaaFw 触控
 try:
-    from device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
+    from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
     MAAFW_AVAILABLE = True
 except ImportError:
     MaaFwTouchExecutor = None

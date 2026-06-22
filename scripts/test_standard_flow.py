@@ -24,8 +24,8 @@ from _path_setup import ensure_path; ensure_path()
 sys.path.insert(0, str(PROJECT_ROOT / "3rd-party" / "python-packages"))  # 本地安装的包
 
 # ── 导入本地模块 ──
-from core.adb_utils import ADB, vlm_analyze, VLMOptions, adb_screencap
-from core.game_coords import Coords, NAVIGATION_MAP
+from core.capability.adb_utils import ADB, vlm_analyze, VLMOptions, adb_screencap
+from core.foundation.game_data import Coords, NAVIGATION_MAP
 
 
 # ══════════════════════════════════════════════════════════════════

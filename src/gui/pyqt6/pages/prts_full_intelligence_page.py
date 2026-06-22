@@ -160,10 +160,9 @@ class ParticleWidget(QWidget):
 class PrtsFullIntelligencePage(QWidget):
     """PRTS Full Intelligence - full game takeover, auto-find completable content"""
 
-    def __init__(self, communicator=None, agent_executor=None, parent=None,
+    def __init__(self, agent_executor=None, parent=None,
                  screen_capture=None, touch_executor=None, config=None, inference_manager=None):
         super().__init__(parent)
-        self.communicator = communicator
         self.agent_executor = agent_executor
         self.screen_capture = screen_capture
         self.touch_executor = touch_executor
@@ -212,14 +211,14 @@ class PrtsFullIntelligencePage(QWidget):
         header.addStretch()
 
         # 本地推理状态指示
-        self._local_inference_label = QLabel("CLOUD")
+        self._local_inference_label = QLabel("LOCAL")
         self._local_inference_label.setStyleSheet("""
             QLabel {
-                color: rgba(144, 144, 168, 0.50);
+                color: #00ffa2;
                 font-size: 10px;
                 font-family: Consolas;
                 padding: 2px 8px;
-                border: 1px solid rgba(144, 144, 168, 0.15);
+                border: 1px solid rgba(0, 255, 162, 0.40);
                 border-radius: 3px;
                 margin-left: 8px;
             }
@@ -366,8 +365,8 @@ class PrtsFullIntelligencePage(QWidget):
         return group
 
     def _start_takeover(self):
-        if not self.agent_executor or not self.communicator:
-            QMessageBox.warning(self, "Not Ready", "Agent executor and communicator required.")
+        if not self.agent_executor:
+            QMessageBox.warning(self, "Not Ready", "Agent executor required.")
             return
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
@@ -410,11 +409,6 @@ class PrtsFullIntelligencePage(QWidget):
         # 更新推理模式指示
         self._update_inference_mode_indicator()
 
-        from core.cloud.realtime_combat_controller import VLMController, CombatState
-        vlm_ctrl = VLMController(
-            self.communicator, self.touch_executor, self.screen_capture,
-            large_vlm_config={"model_tag": self._selected_model_tag, "session_id": ""}
-        )
         while self._running:
             screenshot = self.screen_capture.capture_screen(
                 getattr(self.agent_executor, 'device_serial', '')
@@ -430,89 +424,37 @@ class PrtsFullIntelligencePage(QWidget):
             vlm_calls += 1
             self._vlm_calls_label.setText(str(vlm_calls))
 
-            # === 本地推理优先路径 ===
+            # === 本地推理路径 ===
             if self.inference_manager and self.inference_manager.is_local_available():
                 try:
                     self._takeover_loop_local(b64)
-                    continue
                 except Exception as e:
-                    self._log(f"[LOCAL FALLBACK] {e}")
-
-            # === 云端推理路径（默认/降级） ===
-            try:
-                response = self.communicator.send_request("agent_chat", {
-                    "instruction": (
-                        "You are PRTS full intelligence system for Arknights Endfield. "
-                        "Analyze the current screen and determine what task can be completed. "
-                        "Auto-navigate to find completable content: main story, side missions, world quests, events. "
-                        + ("Bypass special commission tasks." if self._bypass_special else "")
-                        + " Output JSON: {\\\"action\\\": \\\"tap/swipe/wait\\\", "
-                        "\\\"params\\\": {\\\"x\\\": 0.5, \\\"y\\\": 0.5}, "
-                        "\\\"task_type\\\": \\\"main/side/world/event/unknown\\\", "
-                        "\\\"task_name\\\": \\\"...\\\", \\\"completed\\\": bool}"
-                    ),
-                    "screenshot": b64,
-                    "model_tag": self._selected_model_tag,
-                    "session_id": getattr(self.agent_executor, 'session_id', '') or ''
-                })
-                if response and response.get("status") == "success":
-                    reply = response.get("reply", "")
-                    try:
-                        import json as _json
-                        parsed = _json.loads(reply)
-                        if parsed.get("completed"):
-                            completed += 1
-                            self._completed_label.setText(str(completed))
-                            self._log(f"Completed: {parsed.get('task_name', 'Unknown')}")
-                            self._update_status(f"Task done: {parsed.get('task_name', '')}")
-                        actions = response.get("actions", [])
-                        if actions:
-                            for act in actions:
-                                self.agent_executor._execute_action(act)
-                    except json.JSONDecodeError:
-                        actions = response.get("actions", [])
-                        if actions:
-                            for act in actions:
-                                self.agent_executor._execute_action(act)
-                else:
                     failed += 1
                     self._failed_label.setText(str(failed))
-            except Exception as e:
+                    self._log(f"[LOCAL ERROR] {e}")
+                    self._sleep(2.0)
+            else:
                 failed += 1
                 self._failed_label.setText(str(failed))
-                self._log(f"[ERROR] {e}")
+                self._log("[ERROR] Local inference not available")
                 self._sleep(2.0)
             self._sleep(1.0)
         self._log("PRTS takeover ended.")
 
     def _update_inference_mode_indicator(self):
-        """更新本地/云端推理模式指示器"""
-        if self.inference_manager and self.inference_manager.is_local_available():
-            self._local_inference_label.setText("LOCAL")
-            self._local_inference_label.setStyleSheet("""
-                QLabel {
-                    color: #00ffa2;
-                    font-size: 10px;
-                    font-family: Consolas;
-                    padding: 2px 8px;
-                    border: 1px solid rgba(0, 255, 162, 0.40);
-                    border-radius: 3px;
-                    margin-left: 8px;
-                }
-            """)
-        else:
-            self._local_inference_label.setText("CLOUD")
-            self._local_inference_label.setStyleSheet("""
-                QLabel {
-                    color: rgba(144, 144, 168, 0.50);
-                    font-size: 10px;
-                    font-family: Consolas;
-                    padding: 2px 8px;
-                    border: 1px solid rgba(144, 144, 168, 0.15);
-                    border-radius: 3px;
-                    margin-left: 8px;
-                }
-            """)
+        """更新本地推理模式指示器（纯本地模式，始终显示 LOCAL）"""
+        self._local_inference_label.setText("LOCAL")
+        self._local_inference_label.setStyleSheet("""
+            QLabel {
+                color: #00ffa2;
+                font-size: 10px;
+                font-family: Consolas;
+                padding: 2px 8px;
+                border: 1px solid rgba(0, 255, 162, 0.40);
+                border-radius: 3px;
+                margin-left: 8px;
+            }
+        """)
 
     def _takeover_loop_local(self, b64: str):
         """使用本地推理的接管循环（单步）"""
@@ -575,9 +517,6 @@ class PrtsFullIntelligencePage(QWidget):
         import datetime
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         self._log_text.append(f"[{ts}] {text}")
-
-    def set_communicator(self, communicator):
-        self.communicator = communicator
 
     def set_agent_executor(self, agent_executor):
         self.agent_executor = agent_executor

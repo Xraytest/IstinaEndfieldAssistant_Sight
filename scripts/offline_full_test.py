@@ -15,8 +15,8 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parent.parent
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path; ensure_path()
 
-from core.page_analyzer import HighPrecisionPageAnalyzer
-from core.recognition import RecognitionEngine, PREDEFINED_STATES
+from core.service.page_analyzer import HighPrecisionPageAnalyzer
+from core.capability.recognition import RecognitionEngine, PREDEFINED_STATES
 
 analyzer = HighPrecisionPageAnalyzer()
 engine = RecognitionEngine()

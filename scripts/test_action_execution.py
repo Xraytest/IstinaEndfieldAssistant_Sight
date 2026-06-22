@@ -10,7 +10,7 @@ from pathlib import Path
 from _path_setup import ensure_path; ensure_path()
 
 from scripts.standard_flow_engine import FlowConfig, Local2BEngine, FlowRecorder, StandardFlowExecutor
-from core.adb_utils import ADB
+from core.capability.adb_utils import ADB
 
 def test_adb_connection():
     """测试ADB连接"""

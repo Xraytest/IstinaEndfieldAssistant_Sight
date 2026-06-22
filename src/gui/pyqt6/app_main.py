@@ -137,7 +137,7 @@ try:
     from .main_window import MainWindow
     from .theme.theme_manager import ThemeManager
 except ImportError:
-    from utils.paths import ensure_src_path
+    from core.foundation.utils.paths import ensure_src_path
     ensure_src_path(__file__)
     from gui.pyqt6.main_window import MainWindow
     from gui.pyqt6.theme.theme_manager import ThemeManager
@@ -172,24 +172,19 @@ class WorkerThread(QThread):
 
 
 class PyQt6Application(QApplication):
-    def __init__(self, argv=None, auth_manager=None, device_manager=None,
-                 agent_executor=None, communicator=None, screen_capture=None,
-                 config=None):
+    def __init__(self, argv=None, agent_executor=None, gui_client=None,
+                 screen_capture=None, config=None):
         super().__init__(argv or sys.argv)
         self.main_window = None
-        self.auth_manager = auth_manager
-        self.device_manager = device_manager
         self.agent_executor = agent_executor
-        self.communicator = communicator
+        self.gui_client = gui_client
         self.screen_capture = screen_capture
         self.config = config
 
     def run(self):
         self.main_window = MainWindow(
-            auth_manager=self.auth_manager,
-            device_manager=self.device_manager,
             agent_executor=self.agent_executor,
-            communicator=self.communicator,
+            gui_client=self.gui_client,
             screen_capture=self.screen_capture,
             config=self.config
         )
@@ -197,22 +192,19 @@ class PyQt6Application(QApplication):
         return self.exec()
 
 
-def run_application(auth_manager=None, device_manager=None,
-                    agent_executor=None, communicator=None,
+def run_application(agent_executor=None, gui_client=None,
                     screen_capture=None, touch_executor=None,
                     config=None, inference_manager=None):
     """
-    Run the PyQt6 application with business logic components
-    
+    Run the PyQt6 application with business logic components（纯本地版）
+
     Args:
-        auth_manager: AuthManager instance for authentication
-        device_manager: DeviceManager instance for device management  
         agent_executor: AgentExecutor instance for agent execution
-        communicator: ClientCommunicator instance for server communication
+        gui_client: GUIClient instance (GUI layer's only inference entry)
         screen_capture: ScreenCapture instance for screenshots
         touch_executor: TouchManager instance for touch operations
         config: Configuration dictionary
-        inference_manager: InferenceManager instance for local-first inference
+        inference_manager: InferenceManager instance for local inference
     """
     print("[应用主进程] 创建 QApplication...")
     app = QApplication(sys.argv)
@@ -260,10 +252,8 @@ def run_application(auth_manager=None, device_manager=None,
     # 创建主窗口
     print("[应用主进程] 创建主窗口...")
     main_window = MainWindow(
-        auth_manager=auth_manager,
-        device_manager=device_manager,
         agent_executor=agent_executor,
-        communicator=communicator,
+        gui_client=gui_client,
         screen_capture=screen_capture,
         touch_executor=touch_executor,
         config=config,
@@ -282,7 +272,7 @@ def run_application(auth_manager=None, device_manager=None,
         """统一保存到项目根目录的配置文件"""
         # 确定唯一配置文件路径：项目根目录
         _f = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_f))))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(_f)))
         config_path = os.path.join(project_root, "config", "client_config.json")
 
         try:
@@ -340,17 +330,12 @@ def run_application(auth_manager=None, device_manager=None,
 
             # 原子写入
             fd, tmp_path = tempfile.mkstemp(prefix="client_config_", suffix=".tmp", dir=_os.path.dirname(config_path))
-            with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            with _os.fdopen(fd, 'w', encoding='utf-8') as f:
                 json.dump(existing, f, indent=2, ensure_ascii=False)
             _os.replace(tmp_path, config_path)
-            print(f"[配置] 已保存配置到 {config_path}")
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).exception("保存配置失败: %s", e)
-            try:
-                print(f"[配置] 保存配置失败: {e}")
-            except Exception:
-                pass
+            from core.foundation.logger import get_logger, LogCategory
+            get_logger().exception(LogCategory.MAIN, "保存配置失败", error=str(e))
     main_window.settings_changed.connect(_save_config)
 
     print("[应用主进程] 显示窗口...")

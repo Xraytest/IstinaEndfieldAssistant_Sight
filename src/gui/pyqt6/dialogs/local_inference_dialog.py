@@ -7,11 +7,11 @@ from typing import Optional, Dict, Any
 import sys
 import os
 
-from utils.paths import ensure_src_path
+from core.foundation.utils.paths import ensure_src_path
 ensure_src_path(__file__)
 
 try:
-    from core.local_inference.gpu_checker import GPUChecker
+    from core.capability.local_inference.gpu_checker import GPUChecker
 except ImportError:
     GPUChecker = None
 

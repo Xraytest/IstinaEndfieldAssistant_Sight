@@ -1,9 +1,10 @@
-"""安卓核心模块"""
+"""安卓核心模块 — 三层架构
 
-from .logger import get_logger, LogCategory, LogLevel
-from .device_state_manager import DeviceStateManager
+- foundation: 基础层（无内部依赖的底层模块）
+- capability: 能力层（可独立使用的功能模块）
+- service: 服务层（组合能力层模块实现业务逻辑）
+"""
 
-__all__ = [
-    'get_logger', 'LogCategory', 'LogLevel',
-    'DeviceStateManager'
-]
+from .foundation import *
+from .capability import *
+from .service import *
