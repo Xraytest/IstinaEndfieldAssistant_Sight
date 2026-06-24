@@ -1,0 +1,601 @@
+{
+  "version": "4.0",
+  "_note": "2026-06-14 基于 MaaEnd 设计模式完善。✓=world 验证有效 ?=面板内未验证 →=需通过菜单间接到达",
+  "variables": {
+    "nav_coords": {
+      "_comment": "ADB原生1080x1920物理坐标 (MaaFw 1280x720 x1.5)",
+      "quest_icon": [
+        860,
+        80
+      ],
+      "_quest_icon_note": "✓ ADB tap 扫描最佳 (860,80) 59.9% — 棋盘格：y=40/60/80 有效，y=50/70 无效",
+      "event_icon": [
+        928,
+        53
+      ],
+      "_event_icon_note": "✓ MID 352K — 从world打开活动面板",
+      "menu_icon": [
+        1392,
+        79
+      ],
+      "_menu_icon_note": "✓ BIG 1.72M — 从world打开系统菜单",
+      "city_map": [
+        150,
+        150
+      ],
+      "_city_map_note": "✓ MID 88K — 从world打开城市地图",
+      "industry_panel": [
+        300,
+        80
+      ],
+      "_industry_panel_note": "✓ BIG — 从world打开工业计划面板",
+      "region_building": [
+        400,
+        35
+      ],
+      "_region_building_note": "✓ BIG — 从world打开地区建设面板",
+      "industry_brief": [
+        90,
+        120
+      ],
+      "_industry_brief_note": "✓ MID 85K — 从world打开工业简报面板",
+      "claim_all": [
+        810,
+        900
+      ],
+      "_claim_note": "? 面板内通用领取按钮 (非world使用)",
+      "daily_claim": [
+        975,
+        288
+      ],
+      "_daily_note": "? 任务面板内每日领取按钮",
+      "weekly_tab": [
+        810,
+        300
+      ],
+      "_weekly_note": "? 任务面板内周常标签页",
+      "event_sub": [
+        900,
+        200
+      ],
+      "_event_note": "? 活动面板内子区域",
+      "mid_action": [
+        540,
+        400
+      ],
+      "_mid_note": "? 通用面板中部操作按钮",
+      "production_btn": [
+        540,
+        600
+      ],
+      "_prod_note": "? 基建内生产队列按钮",
+      "confirm_btn": [
+        540,
+        690
+      ],
+      "_confirm_note": "? 基建内确认按钮",
+      "confirm_dialog": [
+        810,
+        1035
+      ],
+      "_dialog_note": "? 弹窗确认按钮",
+      "base_entry_menu": [
+        960,
+        400
+      ],
+      "_base_menu_note": "→ 菜单内基建入口 (待验证, 基于金色元素估计)",
+      "char_entry_menu": [
+        1200,
+        330
+      ],
+      "_char_menu_note": "→ 菜单内角色入口 (待验证, 基于金色元素估计)",
+      "back_btn": [
+        90,
+        120
+      ],
+      "_back_note": "备用: 打开工业简报面板",
+      "exit_cancel": [
+        600,
+        750
+      ],
+      "_exit_cancel_note": "退出对话框取消按钮 (估计)"
+    },
+    "pages": {
+      "world_map": "world_map",
+      "main_menu": "main_menu",
+      "quest_ui": "quest_ui",
+      "base_industry": "base_industry",
+      "character": "character",
+      "explore": "explore",
+      "loading": "loading",
+      "exit_dialog": "exit_dialog",
+      "delivery": "delivery",
+      "dungeon": "dungeon"
+    }
+  },
+  "flows": {
+    "daily_quest": {
+      "enabled": true,
+      "description": "完成每日任务并领取奖励（参考 MaaEnd DijiangRewards 导航模式）",
+      "_status": "基于 MaaEnd 设计模式完善：导航分离 + 状态检测 + 滑动查找 + 错误恢复",
+      "_design": "MaaEnd 模式：Navigation(打开面板)→StatusCheck(确认页面)→ScrollFind(滑动查找)→Claim(领取)→Back(返回)",
+      "steps": [
+        {
+          "id": "open_quest_panel",
+          "action": "tap",
+          "coords": "{{nav_coords.quest_icon}}",
+          "wait": 3,
+          "desc": "打开任务面板 (860,80) ✓ 已验证"
+        },
+        {
+          "id": "claim_daily_rewards",
+          "action": "claim",
+          "target": "claim_all",
+          "wait": 2,
+          "desc": "一键领取每日任务奖励"
+        },
+        {
+          "id": "close_quest_panel",
+          "action": "back",
+          "wait": 2,
+          "desc": "返回探索界面"
+        }
+      ]
+    },
+    "weekly_quest": {
+      "enabled": true,
+      "description": "完成周常任务并领取奖励（参考 MaaEnd BAKER 筛选模式）",
+      "_status": "基于 MaaEnd BAKER 设计：Tab 切换→滑动查找→筛选未读→领取",
+      "_design": "MaaEnd BAKER 模式：SwitchTab(切换标签)→SwipeFilter(滑动筛选)→FilterUnread(查找可领取)→Claim(领取)",
+      "steps": [
+        {
+          "id": "ensure_world",
+          "action": "check",
+          "expect": "world",
+          "desc": "确保在探索界面"
+        },
+        {
+          "id": "open_quest_panel",
+          "action": "tap",
+          "coords": "{{nav_coords.quest_icon}}",
+          "wait": 4,
+          "desc": "打开任务面板 (860,80) ✓",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认画面右上角有任务图标 (黄色感叹号或任务按钮)",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证任务面板已打开（画面中有任务列表或任务相关 UI 元素）"
+        },
+        {
+          "id": "verify_quest_panel",
+          "action": "check",
+          "expect": "quest_panel",
+          "desc": "验证任务面板已打开"
+        },
+        {
+          "id": "switch_to_weekly",
+          "action": "tap",
+          "coords": "{{nav_coords.weekly_tab}}",
+          "wait": 3,
+          "desc": "切换到周常标签页 (810,300)",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认任务面板内有周常/每周事务标签页",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证已切换到周常标签页（画面中显示周常任务列表）"
+        },
+        {
+          "id": "scroll_weekly_list",
+          "action": "swipe",
+          "start": [
+            540,
+            900
+          ],
+          "end": [
+            540,
+            500
+          ],
+          "duration": 600,
+          "desc": "滑动查找周常任务列表（参考 MaaEnd BakerSwipeFilter）"
+        },
+        {
+          "id": "check_weekly_status",
+          "action": "check",
+          "desc": "检查周常任务状态（参考 MaaEnd BakerFilterUnread）"
+        },
+        {
+          "id": "claim_weekly_rewards",
+          "action": "claim",
+          "target": "claim_all",
+          "desc": "一键领取周常任务奖励"
+        },
+        {
+          "id": "verify_claim",
+          "action": "wait",
+          "wait": 2,
+          "desc": "等待领取动画完成"
+        },
+        {
+          "id": "return_world",
+          "action": "back",
+          "wait": 2,
+          "desc": "返回探索界面"
+        },
+        {
+          "id": "verify_world_return",
+          "action": "check",
+          "expect": "world",
+          "desc": "验证已返回世界地图"
+        }
+      ]
+    },
+    "resource_collection": {
+      "enabled": true,
+      "description": "从基建收集资源 (通过菜单→基建)",
+      "_status": "menu_icon已验证; base_entry_menu待验证",
+      "steps": [
+        {
+          "id": "open_menu",
+          "action": "tap",
+          "coords": "{{nav_coords.menu_icon}}",
+          "wait": 3,
+          "desc": "打开系统菜单 (1392,79) ✓",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认画面右上角有菜单图标 (三条横线或汉堡菜单)",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证系统菜单已打开（画面中有菜单选项列表）"
+        },
+        {
+          "id": "enter_base",
+          "action": "tap",
+          "coords": "{{nav_coords.base_entry_menu}}",
+          "wait": 3,
+          "desc": "点击基建入口 (960,400) →待验证"
+        },
+        {
+          "id": "check_production",
+          "action": "check",
+          "desc": "检查生产队列"
+        },
+        {
+          "id": "collect_resources",
+          "action": "claim",
+          "target": "claim_all",
+          "desc": "收集完成的资源"
+        },
+        {
+          "id": "return_world",
+          "action": "back",
+          "wait": 2,
+          "desc": "返回探索界面"
+        }
+      ]
+    },
+    "base_management": {
+      "enabled": true,
+      "description": "管理基建设施和生产 (通过菜单→基建)",
+      "_status": "menu_icon已验证; base_entry_menu/production_btn待验证",
+      "steps": [
+        {
+          "id": "open_menu",
+          "action": "tap",
+          "coords": "{{nav_coords.menu_icon}}",
+          "wait": 3,
+          "desc": "打开系统菜单 (1392,79) ✓",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认画面右上角有菜单图标 (三条横线或汉堡菜单)",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证系统菜单已打开（画面中有菜单选项列表）"
+        },
+        {
+          "id": "enter_base",
+          "action": "tap",
+          "coords": "{{nav_coords.base_entry_menu}}",
+          "wait": 3,
+          "desc": "点击基建入口 (960,400) →待验证"
+        },
+        {
+          "id": "check_facilities",
+          "action": "check",
+          "desc": "检查设施状态"
+        },
+        {
+          "id": "restart_queue",
+          "action": "tap",
+          "coords": "{{nav_coords.production_btn}}",
+          "wait": 2,
+          "desc": "重启生产队列 (540,600) ?面板内"
+        },
+        {
+          "id": "return_world",
+          "action": "back",
+          "desc": "返回探索界面"
+        }
+      ]
+    },
+    "character_ascension": {
+      "enabled": true,
+      "description": "角色突破 (通过菜单→角色)",
+      "_status": "menu_icon已验证; char_entry_menu待验证",
+      "steps": [
+        {
+          "id": "open_menu",
+          "action": "tap",
+          "coords": "{{nav_coords.menu_icon}}",
+          "wait": 3,
+          "desc": "打开系统菜单 (1392,79) ✓",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认画面右上角有菜单图标 (三条横线或汉堡菜单)",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证系统菜单已打开（画面中有菜单选项列表）"
+        },
+        {
+          "id": "enter_character",
+          "action": "tap",
+          "coords": "{{nav_coords.char_entry_menu}}",
+          "wait": 3,
+          "desc": "点击角色入口 (1200,330) →待验证"
+        },
+        {
+          "id": "find_candidate",
+          "action": "check",
+          "desc": "查找可突破角色"
+        },
+        {
+          "id": "perform_ascension",
+          "action": "tap",
+          "coords": "{{nav_coords.mid_action}}",
+          "wait": 2,
+          "desc": "执行突破 (540,400) ?面板内"
+        },
+        {
+          "id": "return_world",
+          "action": "back",
+          "desc": "返回探索界面"
+        }
+      ]
+    },
+    "weapon_crafting": {
+      "enabled": true,
+      "description": "锻造武器 (通过菜单→基建→工坊)",
+      "_status": "menu_icon已验证; 菜单内坐标待验证",
+      "steps": [
+        {
+          "id": "open_menu",
+          "action": "tap",
+          "coords": "{{nav_coords.menu_icon}}",
+          "wait": 3,
+          "desc": "打开系统菜单 (1392,79) ✓",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认画面右上角有菜单图标 (三条横线或汉堡菜单)",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证系统菜单已打开（画面中有菜单选项列表）"
+        },
+        {
+          "id": "enter_base",
+          "action": "tap",
+          "coords": "{{nav_coords.base_entry_menu}}",
+          "wait": 3,
+          "desc": "点击基建入口 (960,400) →待验证"
+        },
+        {
+          "id": "open_workshop",
+          "action": "tap",
+          "coords": "{{nav_coords.mid_action}}",
+          "wait": 2,
+          "desc": "打开工坊 (540,400) ?面板内"
+        },
+        {
+          "id": "craft",
+          "action": "claim",
+          "target": "claim_all",
+          "desc": "开始锻造"
+        },
+        {
+          "id": "return_world",
+          "action": "back",
+          "desc": "返回探索界面"
+        }
+      ]
+    },
+    "event_rewards": {
+      "enabled": true,
+      "description": "领取活动奖励",
+      "_status": "event_icon已验证 (928,53); event_sub面板内待确认",
+      "steps": [
+        {
+          "id": "open_events",
+          "action": "tap",
+          "coords": "{{nav_coords.event_icon}}",
+          "wait": 2,
+          "desc": "点击活动图标 (928,53) ✓",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认画面右上角有活动图标",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证活动面板已打开（画面中有活动相关 UI 元素）"
+        },
+        {
+          "id": "navigate_event_panel",
+          "action": "tap",
+          "coords": "{{nav_coords.event_sub}}",
+          "wait": 2,
+          "desc": "活动面板子区域 (900,200) ?面板内"
+        },
+        {
+          "id": "claim_events",
+          "action": "claim",
+          "target": "claim_all",
+          "desc": "一键领取活动奖励"
+        },
+        {
+          "id": "return_world",
+          "action": "back",
+          "desc": "返回探索界面"
+        }
+      ]
+    },
+    "delivery_mission": {
+      "enabled": true,
+      "description": "执行送货/物流任务 (通过菜单→基建)",
+      "_status": "menu_icon已验证; 菜单内坐标待验证",
+      "steps": [
+        {
+          "id": "open_menu",
+          "action": "tap",
+          "coords": "{{nav_coords.menu_icon}}",
+          "wait": 3,
+          "desc": "打开系统菜单 (1392,79) ✓",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认画面右上角有菜单图标 (三条横线或汉堡菜单)",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证系统菜单已打开（画面中有菜单选项列表）"
+        },
+        {
+          "id": "enter_base",
+          "action": "tap",
+          "coords": "{{nav_coords.base_entry_menu}}",
+          "wait": 3,
+          "desc": "点击基建入口 (960,400) →待验证"
+        },
+        {
+          "id": "check_delivery",
+          "action": "check",
+          "desc": "检查送货/物流选项"
+        },
+        {
+          "id": "select_delivery",
+          "action": "tap",
+          "coords": "{{nav_coords.production_btn}}",
+          "wait": 2,
+          "desc": "选择送货任务 (540,600) ?面板内"
+        },
+        {
+          "id": "confirm_delivery",
+          "action": "tap",
+          "coords": "{{nav_coords.confirm_btn}}",
+          "wait": 2,
+          "desc": "确认执行 (540,690) ?面板内"
+        },
+        {
+          "id": "return_world",
+          "action": "back",
+          "desc": "返回探索界面"
+        }
+      ]
+    },
+    "dungeon_grinding": {
+      "enabled": true,
+      "description": "自动刷副本/关卡 (通过城市地图)",
+      "_status": "city_map已验证 (150,150); 地图内坐标待验证",
+      "steps": [
+        {
+          "id": "open_map",
+          "action": "tap",
+          "coords": "{{nav_coords.city_map}}",
+          "wait": 3,
+          "desc": "打开城市地图 (150,150) ✓",
+          "vlm_confirm": true,
+          "vlm_prompt": "确认画面左上角有城市地图按钮",
+          "vlm_verify": true,
+          "vlm_verify_prompt": "验证城市地图已打开（画面中显示地图界面）"
+        },
+        {
+          "id": "check_stages",
+          "action": "check",
+          "desc": "检查可用关卡节点"
+        },
+        {
+          "id": "select_stage",
+          "action": "tap",
+          "coords": "{{nav_coords.mid_action}}",
+          "wait": 2,
+          "desc": "选择关卡节点 (540,400) ?地图内"
+        },
+        {
+          "id": "start_battle",
+          "action": "claim",
+          "target": "claim_all",
+          "desc": "开始作战"
+        },
+        {
+          "id": "collect_rewards",
+          "action": "claim",
+          "target": "claim_all",
+          "desc": "领取结算奖励"
+        },
+        {
+          "id": "return_world",
+          "action": "back",
+          "desc": "返回探索界面"
+        }
+      ]
+    },
+    "auto_move": {
+      "enabled": true,
+      "description": "3D角色移动测试",
+      "_status": "swipe动作, 无需坐标验证",
+      "steps": [
+        {
+          "id": "ensure_world",
+          "action": "navigate",
+          "target": "explore",
+          "wait": 2,
+          "desc": "确保在探索界面 (回退到city_map 150,150)"
+        },
+        {
+          "id": "move_forward",
+          "action": "swipe",
+          "start": [
+            200,
+            1700
+          ],
+          "end": [
+            200,
+            1400
+          ],
+          "duration": 2000,
+          "desc": "向前移动2秒"
+        },
+        {
+          "id": "long_press_interact",
+          "action": "long_press",
+          "coords": [
+            540,
+            960
+          ],
+          "duration": 1500,
+          "desc": "长按交互"
+        },
+        {
+          "id": "check_position",
+          "action": "check",
+          "desc": "检查位置是否改变"
+        },
+        {
+          "id": "return_world",
+          "action": "navigate",
+          "target": "explore",
+          "wait": 2,
+          "desc": "返回探索界面"
+        }
+      ]
+    }
+  },
+  "execution": {
+    "default_temperature": 0.3,
+    "max_retries": 3,
+    "_verification_todo": [
+      "✅ COMPLETED: daily_quest 基于 MaaEnd DijiangRewards 模式完善 (9 步骤)",
+      "✅ COMPLETED: weekly_quest 基于 MaaEnd BAKER 模式完善 (11 步骤)",
+      "TODO: 运行 verify_menu_entries.py 验证菜单内 base/character 精确坐标",
+      "TODO: 确认 claim_all (810,900) 在各面板内有效",
+      "TODO: 菜单内 base_entry_menu 当前用 (960,400) 估计值，需精确验证",
+      "TODO: 菜单内 char_entry_menu 当前用 (1200,330) 估计值，需精确验证",
+      "TODO: 参考 MaaEnd AutoCollect 模式完善 resource_collection 流程",
+      "TODO: 参考 MaaEnd DeliveryJobs 模式完善 delivery_mission 流程"
+    ],
+    "vlm_confirm_mode": "enabled",
+    "vlm_confirm_timeout": 30,
+    "_vlm_note": "所有 tap 动作执行前需通过 VLM 确认目标元素可见",
+    "vlm_start_end_mode": "enabled",
+    "_vlm_start_end_note": "所有关键导航 tap 动作的起始和结束均由 VLM 判定"
+  }
+}

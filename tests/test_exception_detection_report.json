@@ -1,0 +1,242 @@
+{
+  "test_time": "2026-04-13 23:11:20",
+  "total_tests": 39,
+  "passed": 39,
+  "failed": 0,
+  "details": [
+    {
+      "test_name": "异常检测器初始化",
+      "status": "PASS",
+      "message": "所有初始化状态正确",
+      "details": {}
+    },
+    {
+      "test_name": "网络错误检测",
+      "status": "PASS",
+      "message": "正确检测到 network_error",
+      "details": {}
+    },
+    {
+      "test_name": "登录错误检测",
+      "status": "PASS",
+      "message": "正确检测到 login_error",
+      "details": {}
+    },
+    {
+      "test_name": "游戏错误检测",
+      "status": "PASS",
+      "message": "正确检测到 game_error",
+      "details": {}
+    },
+    {
+      "test_name": "维护公告检测",
+      "status": "PASS",
+      "message": "正确检测到 maintenance",
+      "details": {}
+    },
+    {
+      "test_name": "加载错误检测",
+      "status": "PASS",
+      "message": "正确检测到 loading_error",
+      "details": {}
+    },
+    {
+      "test_name": "正常文本不触发异常",
+      "status": "PASS",
+      "message": "正常文本未触发异常",
+      "details": {}
+    },
+    {
+      "test_name": "界面卡死检测",
+      "status": "PASS",
+      "message": "变化率 0.07",
+      "details": {}
+    },
+    {
+      "test_name": "状态卡死检测",
+      "status": "PASS",
+      "message": "检测到状态卡死: {'stuck_state': 'loading_screen', 'duration': 1.8835067749023438e-05}",
+      "details": {}
+    },
+    {
+      "test_name": "异常检测器重置",
+      "status": "PASS",
+      "message": "所有历史记录已清空",
+      "details": {}
+    },
+    {
+      "test_name": "任务监控器初始化",
+      "status": "PASS",
+      "message": "参数设置正确",
+      "details": {}
+    },
+    {
+      "test_name": "迭代次数限制检测",
+      "status": "PASS",
+      "message": "第25次触发停止: 达到最大迭代次数 (20)",
+      "details": {}
+    },
+    {
+      "test_name": "变化率检测",
+      "status": "PASS",
+      "message": "变化率 0.10",
+      "details": {}
+    },
+    {
+      "test_name": "执行超时检测",
+      "status": "PASS",
+      "message": "检测到超时: 310.0秒",
+      "details": {}
+    },
+    {
+      "test_name": "任务监控器重置",
+      "status": "PASS",
+      "message": "任务记录已清空",
+      "details": {}
+    },
+    {
+      "test_name": "任务链卡死自动推进",
+      "status": "PASS",
+      "message": "任务链成功推进，最终索引: 2",
+      "details": {}
+    },
+    {
+      "test_name": "open_app参数格式",
+      "status": "PASS",
+      "message": "包名: com.hypergryph.endfield",
+      "details": {}
+    },
+    {
+      "test_name": "execute_tool_call方法存在",
+      "status": "PASS",
+      "message": "方法已实现",
+      "details": {}
+    },
+    {
+      "test_name": "open_app模拟执行",
+      "status": "PASS",
+      "message": "工具调用接口验证成功",
+      "details": {}
+    },
+    {
+      "test_name": "设备连接",
+      "status": "PASS",
+      "message": "分辨率: (1280, 720)",
+      "details": {}
+    },
+    {
+      "test_name": "open_app真实执行",
+      "status": "PASS",
+      "message": "游戏启动命令发送成功",
+      "details": {}
+    },
+    {
+      "test_name": "坐标转换(0.5->640)",
+      "status": "PASS",
+      "message": "基准1920→设备1280",
+      "details": {}
+    },
+    {
+      "test_name": "坐标转换(960->640)",
+      "status": "PASS",
+      "message": "基准1920→设备1280",
+      "details": {}
+    },
+    {
+      "test_name": "坐标转换(540->360)",
+      "status": "PASS",
+      "message": "基准1080→设备720",
+      "details": {}
+    },
+    {
+      "test_name": "坐标转换(0.3->384)",
+      "status": "PASS",
+      "message": "基准1920→设备1280",
+      "details": {}
+    },
+    {
+      "test_name": "完整参数转换",
+      "status": "PASS",
+      "message": "x=640, y=360",
+      "details": {}
+    },
+    {
+      "test_name": "滑动坐标转换",
+      "status": "PASS",
+      "message": "起点(133,333)→终点(1146,333)",
+      "details": {}
+    },
+    {
+      "test_name": "点击动作",
+      "status": "PASS",
+      "message": "解析动作: ['click']",
+      "details": {}
+    },
+    {
+      "test_name": "滑动动作",
+      "status": "PASS",
+      "message": "解析动作: ['swipe']",
+      "details": {}
+    },
+    {
+      "test_name": "启动应用",
+      "status": "PASS",
+      "message": "解析动作: ['open_app']",
+      "details": {}
+    },
+    {
+      "test_name": "多动作序列",
+      "status": "PASS",
+      "message": "解析动作: ['click', 'swipe']",
+      "details": {}
+    },
+    {
+      "test_name": "click参数验证",
+      "status": "PASS",
+      "message": "参数完整: {'x': 640, 'y': 360}",
+      "details": {}
+    },
+    {
+      "test_name": "swipe参数验证",
+      "status": "PASS",
+      "message": "参数完整: {'x1': 133, 'y1': 333, 'x2': 1147, 'y2': 333, 'duration': 300}",
+      "details": {}
+    },
+    {
+      "test_name": "long_press参数验证",
+      "status": "PASS",
+      "message": "参数完整: {'x': 640, 'y': 360, 'duration': 1000}",
+      "details": {}
+    },
+    {
+      "test_name": "open_app参数验证",
+      "status": "PASS",
+      "message": "参数完整: {'app_name': 'com.hypergryph.endfield'}",
+      "details": {}
+    },
+    {
+      "test_name": "网络失败检测",
+      "status": "PASS",
+      "message": "网络失败返回None时触发错误处理",
+      "details": {}
+    },
+    {
+      "test_name": "服务端错误检测",
+      "status": "PASS",
+      "message": "服务端错误响应被正确处理",
+      "details": {}
+    },
+    {
+      "test_name": "正常任务执行",
+      "status": "PASS",
+      "message": "5次迭代正常完成，变化率: 1.00",
+      "details": {}
+    },
+    {
+      "test_name": "卡死任务跳过并继续",
+      "status": "PASS",
+      "message": "任务1完成(3次), 任务2跳过(20次), 任务3完成(3次)",
+      "details": {}
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200" width="400" height="200">
+  <defs>
+    <!-- 发光效果滤镜 -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feComponentTransfer in="blur" result="glowcol">
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="glowcol"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- 渐变 -->
+    <linearGradient id="tealGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#18D1FF"/>
+      <stop offset="100%" stop-color="#0099CC"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00FFA2"/>
+      <stop offset="100%" stop-color="#00CC82"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="400" height="200" fill="#0A0A0F"/>
+
+  <!-- 装饰线 - 顶部 -->
+  <line x1="0" y1="2" x2="400" y2="2" stroke="#18D1FF" stroke-width="1" opacity="0.3"/>
+  <!-- 装饰线 - 底部 -->
+  <line x1="0" y1="198" x2="400" y2="198" stroke="#18D1FF" stroke-width="1" opacity="0.3"/>
+
+  <!-- 左上角装饰 -->
+  <line x1="20" y1="20" x2="60" y2="20" stroke="#18D1FF" stroke-width="1" opacity="0.5"/>
+  <line x1="20" y1="20" x2="20" y2="50" stroke="#18D1FF" stroke-width="1" opacity="0.5"/>
+
+  <!-- IEA Logo -->
+  <g filter="url(#softGlow)">
+    <!-- I - 竖线 -->
+    <rect x="50" y="40" width="12" height="100" rx="2" fill="url(#tealGrad)"/>
+    <!-- I - 顶部横线 -->
+    <rect x="40" y="40" width="32" height="8" rx="2" fill="url(#tealGrad)"/>
+    <!-- I - 底部横线 -->
+    <rect x="40" y="132" width="32" height="8" rx="2" fill="url(#tealGrad)"/>
+
+    <!-- E -->
+    <g transform="translate(95, 40)">
+      <!-- 主竖线 -->
+      <rect x="0" y="0" width="10" height="100" rx="2" fill="url(#tealGrad)"/>
+      <!-- 顶部横线 -->
+      <rect x="0" y="0" width="55" height="8" rx="2" fill="url(#tealGrad)"/>
+      <!-- 中间横线 -->
+      <rect x="0" y="46" width="40" height="8" rx="2" fill="url(#tealGrad)"/>
+      <!-- 底部横线 -->
+      <rect x="0" y="92" width="55" height="8" rx="2" fill="url(#tealGrad)"/>
+    </g>
+
+    <!-- A -->
+    <g transform="translate(185, 40)">
+      <!-- 左斜线 -->
+      <rect x="25" y="0" width="10" height="100" rx="2" fill="url(#tealGrad)" transform="rotate(30, 30, 50)"/>
+      <!-- 右斜线 -->
+      <rect x="25" y="0" width="10" height="100" rx="2" fill="url(#tealGrad)" transform="rotate(-30, 30, 50)"/>
+      <!-- 横线 -->
+      <rect x="12" y="55" width="36" height="8" rx="2" fill="url(#tealGrad)"/>
+    </g>
+  </g>
+
+  <!-- 底部文字 (完全智能 · 解放双手) -->
+  <text x="200" y="175" text-anchor="middle"
+        font-family="'Noto Sans SC', 'Source Han Sans', sans-serif"
+        font-size="16" font-weight="300"
+        fill="#9090A8" letter-spacing="6">
+    完全智能 · 解放双手
+  </text>
+
+  <!-- 底部装饰线 -->
+  <line x1="120" y1="160" x2="280" y2="160" stroke="#18D1FF" stroke-width="0.5" opacity="0.2"/>
+</svg>

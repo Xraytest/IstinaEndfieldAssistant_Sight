@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "istina-endfield-assistant"
+version = "1.0.0"
+description = "Arknights Endfield automation client with cloud task management"
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.5.0",
+    "Pillow>=10.0.0",
+    "cryptography>=41.0.0",
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "requests>=2.31.0",
+    "aiohttp>=3.9.0",
+    "av>=10.0.0",
+    "adbutils>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

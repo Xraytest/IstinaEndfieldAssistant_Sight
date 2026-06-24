@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>IEA Settings - Istina Platform</title>
+</head>
+<body>
+    <h1>Inference Engine Settings (IEA)</h1>
+    <div id="iea-settings-container"></div>
+    <div id="alert-box"></div>
+    
+    <script>
+        var ieaSettings = {};
+        
+        function showAlert(message) {
+            var box = document.getElementById('alert-box');
+            if (!box) return;
+            box.textContent = message;
+            box.style.display = 'block';
+        }
+        
+        function renderIeaSettings() {
+            try {
+                var container = document.getElementById('iea-settings-container');
+                if (!container || !ieaSettings) return;
+                
+                if (!ieaSettings.engine || Object.keys(ieaSettings).length === 0) {
+                    container.innerHTML = '<p>No IEA settings configured.</p>';
+                    return;
+                }
+                
+                container.innerHTML = Object.keys(ieaSettings).map(function(key) {
+                    var val = ieaSettings[key];
+                    return '<div class="setting-row"><label>' + key + '</label>: <span>' + String(val) + '</span></div>';
+                }).join('');
+            } catch (e) {
+                console.error('render error:', e);
+            }
+        }
+        
+        async function loadIeaSettingsConfig() {
+            try {
+                var response = await fetch('/api/ia/settings', {
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer default_password' }
+                });
+                const data = await response.json();
+                if (data && data.status === 'success') {
+                    ieaSettings = data.settings || {};
+                }
+            } catch (parseErr) {
+                ieaSettings = {};
+                console.error('JSON parse error:', parseErr);
+            } catch (error) {
+                var errorMsg = error instanceof Error 
+                    ? error.message.toString() 
+                    : String(error);
+                showAlert('加载配置错误：' + errorMsg);
+                ieaSettings = {};
+            }
+            renderIeaSettings();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadIeaSettingsConfig();
+        });
+    </script>
+</body>
+</html>

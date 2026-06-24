@@ -1,0 +1,17 @@
+{
+    "FindClaimButton": {
+        "recognition": "TemplateMatch",
+        "roi": [60, 100, 640, 300],
+        "template": "cache/gold_button_template.png",
+        "threshold": 0.7,
+        "action": "Click",
+        "order_by": "Area"
+    },
+    "FindAllGoldButtons": {
+        "recognition": "TemplateMatch",
+        "roi": [60, 100, 640, 300],
+        "template": "cache/gold_button_template.png",
+        "threshold": 0.5,
+        "action": "DoNothing"
+    }
+}

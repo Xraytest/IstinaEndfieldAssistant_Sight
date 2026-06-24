@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Provider Settings - Istina Platform</title>
+</head>
+<body>
+    <h1>Provider Settings</h1>
+    <div id="providers-container"></div>
+    <div id="toast"></div>
+    
+    <script>
+        var providersConfig = {};
+        
+        function showToast(message, type) {
+            var toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.textContent = message;
+            toast.style.color = type === 'error' ? 'red' : 'green';
+        }
+        
+        function renderProvidersList() {
+            try {
+                var container = document.getElementById('providers-container');
+                if (!container || !providersConfig) return;
+                
+                if (Object.keys(providersConfig).length === 0) {
+                    container.innerHTML = '<p>No providers configured.</p>';
+                    return;
+                }
+                
+                container.innerHTML = Object.keys(providersConfig).map(function(name) {
+                    var provider = providersConfig[name];
+                    return '<div class="provider-item"><strong>' + name + '</strong><br/>';
+                }).join('');
+            } catch (e) {
+                console.error('render error:', e);
+            }
+        }
+        
+        async function loadProvidersConfig() {
+            try {
+                var response = await fetch('/api/providers/list', {
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer default_password' }
+                });
+                const data = await response.json();
+                if (data && data.status === 'success') {
+                    providersConfig = data.providers || {};
+                }
+            } catch (parseErr) {
+                providersConfig = {};
+                console.error('JSON parse error:', parseErr);
+            } catch (error) {
+                var errorMsg = error instanceof Error 
+                    ? error.message.toString() 
+                    : String(error);
+                showToast('加载配置错误：' + errorMsg, 'error');
+                providersConfig = {};
+            }
+            renderProvidersList();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadProvidersConfig();
+        });
+    </script>
+</body>
+</html>

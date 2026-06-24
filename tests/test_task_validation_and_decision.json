@@ -1,0 +1,98 @@
+{
+  "test_time": "2026-04-15 00:13:28",
+  "total_tests": 15,
+  "passed": 15,
+  "failed": 0,
+  "details": [
+    {
+      "test_name": "客户端验证器执行",
+      "status": "PASS",
+      "message": "置信度：0.58, 完成：False",
+      "details": {}
+    },
+    {
+      "test_name": "渐进式验证器执行",
+      "status": "PASS",
+      "message": "置信度：0.61, 完成：True",
+      "details": {}
+    },
+    {
+      "test_name": "业务规则验证器执行",
+      "status": "PASS",
+      "message": "规则得分：1.00",
+      "details": {}
+    },
+    {
+      "test_name": "任务验证引擎执行",
+      "status": "PASS",
+      "message": "融合置信度：0.25, 完成：False",
+      "details": {}
+    },
+    {
+      "test_name": "低置信度触发检测",
+      "status": "PASS",
+      "message": "触发原因：['low_confidence']",
+      "details": {}
+    },
+    {
+      "test_name": "超时风险触发检测",
+      "status": "PASS",
+      "message": "触发原因：['resource_constraints', 'timeout_risk']",
+      "details": {}
+    },
+    {
+      "test_name": "决策请求生成",
+      "status": "PASS",
+      "message": "任务 ID: test_task, 选项数：6, 紧急度：medium",
+      "details": {}
+    },
+    {
+      "test_name": "决策响应处理",
+      "status": "PASS",
+      "message": "动作：continue, 优先级：1",
+      "details": {}
+    },
+    {
+      "test_name": "决策转回判断",
+      "status": "PASS",
+      "message": "需要转回：True, 原因：['low_confidence', 'conflicting_validations', 'ambiguous_state']",
+      "details": {}
+    },
+    {
+      "test_name": "验证间隔触发",
+      "status": "PASS",
+      "message": "第3次迭代触发验证",
+      "details": {}
+    },
+    {
+      "test_name": "迭代信息记录",
+      "status": "PASS",
+      "message": "迭代次数：5",
+      "details": {}
+    },
+    {
+      "test_name": "迭代限制触发",
+      "status": "PASS",
+      "message": "第5次迭代触发停止：达到最大迭代次数 (5)",
+      "details": {}
+    },
+    {
+      "test_name": "低变化率检测",
+      "status": "PASS",
+      "message": "变化率：0.17",
+      "details": {}
+    },
+    {
+      "test_name": "截图哈希计算",
+      "status": "PASS",
+      "message": "不同截图产生不同哈希",
+      "details": {}
+    },
+    {
+      "test_name": "变化率计算",
+      "status": "PASS",
+      "message": "变化率：0.60",
+      "details": {}
+    }
+  ]
+}

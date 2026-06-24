@@ -1,0 +1,161 @@
+[2026-04-12 23:19:51] [INFO] [test] 
+============================================================
+[2026-04-12 23:19:51] [INFO] [test] 开始长任务链执行与鲁棒性测试
+[2026-04-12 23:19:51] [INFO] [test] ============================================================
+[2026-04-12 23:19:51] [INFO] [setup] 初始化测试组件...
+[2026-04-12 23:19:52] [PASS] [test] PASS: 组件初始化 - 所有组件初始化成功
+[2026-04-12 23:19:52] [INFO] [auth] 执行用户登录...
+[2026-04-12 23:19:52] [INFO] [auth] 登录成功: None
+[2026-04-12 23:19:52] [PASS] [test] PASS: 用户登录 - 登录成功
+[2026-04-12 23:19:52] [INFO] [device] 连接设备: 127.0.0.1:16512
+[2026-04-12 23:19:52] [INFO] [device] 尝试连接 (第1次)...
+[2026-04-12 23:19:55] [INFO] [device] 设备连接成功, 分辨率: (1280, 720)
+[2026-04-12 23:19:55] [INFO] [device] DeviceManager设备记录已设置
+[2026-04-12 23:19:55] [PASS] [test] PASS: 设备连接 - 分辨率: (1280, 720)
+[2026-04-12 23:19:55] [INFO] [test] 
+>>> 执行测试: 长任务链执行
+[2026-04-12 23:19:55] [INFO] [test] 
+=== 测试1: 长任务链执行 ===
+[2026-04-12 23:19:55] [INFO] [task] 设置任务链 (长度: 2)...
+[2026-04-12 23:19:55] [INFO] [task] 真实任务测试模式: 启动游戏 + 售卖物品
+[2026-04-12 23:19:55] [INFO] [task] 添加任务: 游戏登录确认
+[2026-04-12 23:19:55] [INFO] [task] 添加任务: 出售产品
+[2026-04-12 23:19:55] [INFO] [task] 任务队列: {'tasks': [{'id': 'task_game_login', 'name': '游戏登录确认'}, {'id': 'task_sell_product', 'name': '出售产品'}], 'count': 2, 'current_index': 0}
+[2026-04-12 23:19:55] [PASS] [test] PASS: 任务链设置 - 队列长度: 2, 执行次数: 1
+[2026-04-12 23:19:55] [INFO] [execution] 启动任务执行...
+[2026-04-12 23:19:55] [INFO] [execution] 开始自动化执行...
+[2026-04-12 23:19:55] [INFO] [execution] 执行启动结果: success=True, message=执行已开始
+[2026-04-12 23:19:55] [INFO] [execution] 执行第 1/1 次
+[2026-04-12 23:19:55] [INFO] [execution] 执行启动成功
+[2026-04-12 23:19:55] [INFO] [ui] UI事件: current_task
+[2026-04-12 23:19:55] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:19:55] [INFO] [ui] UI事件: progress
+[2026-04-12 23:19:55] [INFO] [execution] 执行任务: 游戏登录确认
+[2026-04-12 23:20:00] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:05] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:10] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:15] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:20] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:25] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:30] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:35] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:40] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:45] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:50] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:20:55] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:00] [INFO] [status] 运行中操作: 0, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:03] [INFO] [execution] 服务端响应状态: success
+[2026-04-12 23:21:03] [INFO] [execution] 服务端响应keys: ['status', 'result']
+[2026-04-12 23:21:03] [INFO] [execution] 服务端响应touch_actions: [{'action': 'click', 'coordinates': [0.57, 0.21]}]
+[2026-04-12 23:21:04] [INFO] [ui] UI事件: current_task
+[2026-04-12 23:21:04] [INFO] [ui] UI事件: progress
+[2026-04-12 23:21:04] [INFO] [execution] 执行任务: 游戏登录确认
+[2026-04-12 23:21:05] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:10] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:15] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:20] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:25] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:30] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:35] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:40] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:45] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:50] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:21:55] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:00] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:05] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:10] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:15] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:20] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:25] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:30] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:35] [INFO] [status] 运行中操作: 1, 队列状态: current_index=0, is_running=True
+[2026-04-12 23:22:40] [INFO] [execution] 服务端响应状态: success
+[2026-04-12 23:22:40] [INFO] [execution] 服务端响应keys: ['status', 'result']
+[2026-04-12 23:22:40] [INFO] [execution] 服务端响应touch_actions: [{'action': 'open_app', 'parameters': {'app_name': 'com.hypergryph.endfield'}}]
+[2026-04-12 23:22:40] [ERROR] [execution] 自动化执行异常: 'AdbController' object has no attribute 'start_app'
+[2026-04-12 23:22:40] [ERROR] [execution] 异常详情: Traceback (most recent call last):
+  File "c:\Users\xray\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant\安卓相关\core\cloud\managers\execution_manager.py", line 361, in run_automation
+    success = self.touch_executor.execute_tool_call(
+        action_type, params
+    )
+  File "c:\Users\xray\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant\安卓相关\控制\touch\touch_manager.py", line 449, in execute_tool_call
+    return self._controller.start_app(app_name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'AdbController' object has no attribute 'start_app'
+
+[2026-04-12 23:22:40] [INFO] [status] 运行中操作: 2, 队列状态: current_index=0, is_running=False
+[2026-04-12 23:22:40] [INFO] [execution] 执行已停止（is_running=False）
+[2026-04-12 23:22:40] [PASS] [test] PASS: 长任务链执行 - 任务链长度: 2
+[2026-04-12 23:22:40] [INFO] [test] 
+>>> 执行测试: 设备断开重连
+[2026-04-12 23:22:40] [INFO] [test] 
+=== 测试2: 设备断开重连 ===
+[2026-04-12 23:22:40] [INFO] [device] 断开设备连接...
+[2026-04-12 23:22:40] [INFO] [device] 设备断开: True
+[2026-04-12 23:22:42] [INFO] [device] 连接设备: 127.0.0.1:16512
+[2026-04-12 23:22:42] [INFO] [device] 尝试连接 (第1次)...
+[2026-04-12 23:22:43] [INFO] [device] 设备连接成功, 分辨率: (1280, 720)
+[2026-04-12 23:22:43] [INFO] [device] DeviceManager设备记录已设置
+[2026-04-12 23:22:43] [PASS] [test] PASS: 设备连接 - 分辨率: (1280, 720)
+[2026-04-12 23:22:43] [INFO] [device] 重连后截图成功: (720, 1280, 3)
+[2026-04-12 23:22:43] [PASS] [test] PASS: 设备断开重连 - 重连后截图验证成功
+[2026-04-12 23:22:43] [INFO] [test] 
+>>> 执行测试: 异常处理
+[2026-04-12 23:22:43] [INFO] [test] 
+=== 测试3: 异常处理 ===
+[2026-04-12 23:22:43] [INFO] [test] 测试场景1: 无效任务ID...
+[2026-04-12 23:22:43] [INFO] [test] 无效任务添加成功 (预期行为)
+[2026-04-12 23:22:43] [PASS] [test] PASS: 异常处理-无效任务 - 无效任务添加处理正确
+[2026-04-12 23:22:43] [INFO] [test] 测试场景2: 空队列执行...
+[2026-04-12 23:22:43] [WARN] [test] 空队列执行启动 (需检查是否正确处理)
+[2026-04-12 23:22:43] [PASS] [test] PASS: 异常处理-空队列 - 空队列执行启动
+[2026-04-12 23:22:43] [INFO] [test] 测试场景3: 设备未连接执行...
+[2026-04-12 23:22:43] [INFO] [device] 断开设备连接...
+[2026-04-12 23:22:43] [INFO] [device] 设备断开: True
+[2026-04-12 23:22:44] [INFO] [test] 无设备执行结果: success=True, message=执行已开始
+[2026-04-12 23:22:44] [PASS] [test] PASS: 异常处理-无设备 - 无设备执行处理: 执行已开始
+[2026-04-12 23:22:44] [INFO] [execution] 执行第 1/1 次
+[2026-04-12 23:22:44] [INFO] [execution] 执行任务: 游戏登录
+[2026-04-12 23:22:44] [INFO] [device] 连接设备: 127.0.0.1:16512
+[2026-04-12 23:22:44] [INFO] [device] 尝试连接 (第1次)...
+[2026-04-12 23:22:45] [INFO] [device] 设备连接成功, 分辨率: (1280, 720)
+[2026-04-12 23:22:45] [INFO] [device] DeviceManager设备记录已设置
+[2026-04-12 23:22:45] [PASS] [test] PASS: 设备连接 - 分辨率: (1280, 720)
+[2026-04-12 23:22:45] [INFO] [test] 
+>>> 执行测试: 多轮执行循环
+[2026-04-12 23:22:45] [INFO] [test] 
+=== 测试4: 多轮执行循环 ===
+[2026-04-12 23:22:45] [INFO] [test] 多轮执行设置: 2任务, 1轮
+[2026-04-12 23:22:45] [INFO] [test] 多轮执行启动结果: success=False, message=执行已在进行中
+[2026-04-12 23:22:45] [FAIL] [test] FAIL: 多轮执行循环 - 执行启动失败
+[2026-04-12 23:22:45] [INFO] [cleanup] 
+清理测试环境...
+[2026-04-12 23:22:45] [WARN] [cleanup] 清理异常: 'ExecutionManager' object has no attribute 'stop_llm_execution'
+[2026-04-12 23:22:45] [INFO] [summary] 
+============================================================
+[2026-04-12 23:22:45] [INFO] [summary] 测试总结
+[2026-04-12 23:22:45] [INFO] [summary] ============================================================
+[2026-04-12 23:22:45] [INFO] [summary] 测试开始: 2026-04-12T23:19:51.525350
+[2026-04-12 23:22:45] [INFO] [summary] 测试结束: 2026-04-12T23:22:45.770294
+[2026-04-12 23:22:45] [INFO] [summary] 测试时长: 174.2秒
+[2026-04-12 23:22:45] [INFO] [summary] 总测试数: 12
+[2026-04-12 23:22:45] [INFO] [summary] 通过: 11
+[2026-04-12 23:22:45] [INFO] [summary] 失败: 1
+[2026-04-12 23:22:45] [WARN] [summary] 
+失败详情:
+[2026-04-12 23:22:45] [INFO] [summary] 
+测试结果详情:
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 组件初始化: 所有组件初始化成功
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 用户登录: 登录成功
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 设备连接: 分辨率: (1280, 720)
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 任务链设置: 队列长度: 2, 执行次数: 1
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 长任务链执行: 任务链长度: 2
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 设备连接: 分辨率: (1280, 720)
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 设备断开重连: 重连后截图验证成功
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 异常处理-无效任务: 无效任务添加处理正确
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 异常处理-空队列: 空队列执行启动
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 异常处理-无设备: 无设备执行处理: 执行已开始
+[2026-04-12 23:22:45] [INFO] [summary]   [PASS] 设备连接: 分辨率: (1280, 720)
+[2026-04-12 23:22:45] [INFO] [summary]   [FAIL] 多轮执行循环: 执行启动失败
+[2026-04-12 23:22:45] [INFO] [summary] 
+结果已保存: c:\Users\xray\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant\tests\test_robustness_results.json

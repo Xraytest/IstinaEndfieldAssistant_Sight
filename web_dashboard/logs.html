@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>System Logs - Istina Platform</title>
+</head>
+<body>
+    <h1>System Logs</h1>
+    <pre id="logs-output"></pre>
+    <div id="log-error"></div>
+    
+    <script>
+        var logsArray = [];
+        
+        function showLogError(message) {
+            var box = document.getElementById('log-error');
+            if (!box) return;
+            box.textContent = message;
+        }
+        
+        function renderLogsList() {
+            try {
+                var container = document.getElementById('logs-output');
+                if (!container || !Array.isArray(logsArray)) return;
+                
+                if (logsArray.length === 0) {
+                    container.textContent = 'No log entries.';
+                    return;
+                }
+                
+                container.textContent = logsArray.map(function(log) {
+                    var ts = new Date(log.timestamp || Date.now()).toISOString();
+                    return '[' + ts + '] [' + (log.level || 'INFO') + '] ' + log.message;
+                }).join('\n');
+            } catch (e) {
+                console.error('render error:', e);
+            }
+        }
+        
+        async function loadLogsConfig() {
+            try {
+                var response = await fetch('/api/logs', {
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer default_password' }
+                });
+                const data = await response.json();
+                if (data && data.status === 'success') {
+                    logsArray = data.logs || [];
+                }
+            } catch (parseErr) {
+                logsArray = [];
+                console.error('JSON parse error:', parseErr);
+            } catch (error) {
+                var errorMsg = error instanceof Error 
+                    ? error.message.toString() 
+                    : String(error);
+                showLogError('加载配置错误：' + errorMsg);
+                logsArray = [];
+            }
+            renderLogsList();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadLogsConfig();
+        });
+    </script>
+</body>
+</html>

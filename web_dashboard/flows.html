@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>标准流程 - Istina Endfield Assistant</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="dashboard-v2.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="nav-interactions.js" defer></script>
+    <script src="app-utils.js" defer></script>
+    <style>
+        .flow-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-md);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .flow-card:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-card-hover);
+        }
+        .flow-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-sm);
+        }
+        .flow-name {
+            font-size: var(--font-size-large);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .flow-category {
+            font-size: var(--font-size-small);
+            color: var(--text-muted);
+        }
+        .flow-preview {
+            font-family: var(--font-family-mono);
+            font-size: var(--font-size-small);
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            padding: var(--spacing-md);
+            border-radius: var(--radius-sm);
+            margin-top: var(--spacing-sm);
+            max-height: 100px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .flow-meta {
+            display: flex;
+            gap: var(--spacing-md);
+            margin-top: var(--spacing-sm);
+            font-size: var(--font-size-small);
+            color: var(--text-muted);
+        }
+        .category-filter {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
+            flex-wrap: wrap;
+        }
+        .category-btn {
+            padding: var(--spacing-sm) var(--spacing-md);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .category-btn:hover,
+        .category-btn.active {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            border-color: var(--accent-primary);
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: var(--spacing-lg);
+            border-bottom: 1px solid var(--border-primary);
+        }
+        .modal-title {
+            font-size: var(--font-size-h3);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .modal-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 24px;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+        }
+        .modal-body {
+            padding: var(--spacing-lg);
+            overflow-y: auto;
+            flex: 1;
+        }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: var(--spacing-md);
+            padding: var(--spacing-lg);
+            border-top: 1px solid var(--border-primary);
+        }
+        .form-group {
+            margin-bottom: var(--spacing-lg);
+        }
+        .form-label {
+            display: block;
+            font-size: var(--font-size-small);
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: var(--spacing-sm);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .form-control {
+            width: 100%;
+            padding: var(--spacing-md);
+            background: var(--bg-input);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: var(--font-size-base);
+            font-family: var(--font-family-mono);
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+        textarea.form-control {
+            min-height: 300px;
+            resize: vertical;
+        }
+        .template-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+            margin-top: var(--spacing-md);
+        }
+        .empty-state {
+            text-align: center;
+            padding: var(--spacing-xxl);
+            color: var(--text-muted);
+        }
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: var(--spacing-md);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <canvas id="particles-canvas" class="particles-canvas" role="img" aria-label="动画背景"></canvas>
+
+        <!-- 顶部导航栏 -->
+        <header class="app-header" role="banner">
+            <div class="header-left">
+                <button class="mobile-menu-toggle" id="mobileMenuToggle" aria-label="打开菜单" aria-expanded="false">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="app-brand">
+                    <a href="/" class="brand-link" title="返回首页">
+                        <div class="brand-logo">IEA</div>
+                        <span class="brand-text">Istina Endfield Assistant</span>
+                    </a>
+                </div>
+            </div>
+
+            <nav class="app-nav" role="navigation" aria-label="主菜单" id="mainNav">
+                <a href="/" class="nav-link">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="14" y="14" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    </svg>
+                    <span>仪表板</span>
+                </a>
+
+                <a href="/flows" class="nav-link nav-link-active" aria-current="page">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    <span>标准流程</span>
+                </a>
+
+                <a href="/users" class="nav-link">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                    </svg>
+                    <span>用户</span>
+                </a>
+
+                <a href="/clients" class="nav-link">
+                    <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                    <span>客户端</span>
+                </a>
+            </nav>
+
+            <div class="header-right">
+                <button class="header-icon-btn" id="themeToggle" aria-label="切换主题">
+                    <svg class="theme-icon-light" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <svg class="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- 页面主体内容 -->
+        <main class="app-main" role="main">
+            <div class="page-content">
+                <!-- 主内容区 -->
+                <div class="main-column">
+                    <div class="page-header">
+                        <div class="page-title-area">
+                            <h1 class="page-title">标准流程模板</h1>
+                            <p class="page-subtitle">管理 IEA 任务执行的预设流程模板</p>
+                        </div>
+                        <div class="page-actions">
+                            <button class="btn btn-primary" onclick="openCreateModal()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                                新建流程
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 分类筛选 -->
+                    <div class="category-filter" id="categoryFilter">
+                        <button class="category-btn active" data-category="all">全部</button>
+                        <button class="category-btn" data-category="combat">战斗</button>
+                        <button class="category-btn" data-category="gathering">采集</button>
+                        <button class="category-btn" data-category="daily">日常</button>
+                        <button class="category-btn" data-category="event">活动</button>
+                        <button class="category-btn" data-category="custom">自定义</button>
+                    </div>
+
+                    <!-- 流程列表 -->
+                    <div id="flows-container">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-title">加载中...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 侧边栏面板 -->
+                <aside class="side-panel" role="complementary">
+                    <div class="panel-section">
+                        <h3 class="panel-title">快速统计</h3>
+                        <div class="quick-stat">
+                            <span class="quick-stat-label">总流程数</span>
+                            <span class="quick-stat-value" id="stat-total">-</span>
+                        </div>
+                        <div class="quick-stat">
+                            <span class="quick-stat-label">战斗流程</span>
+                            <span class="quick-stat-value" id="stat-combat">-</span>
+                        </div>
+                        <div class="quick-stat">
+                            <span class="quick-stat-label">日常流程</span>
+                            <span class="quick-stat-value" id="stat-daily">-</span>
+                        </div>
+                    </div>
+
+                    <div class="panel-section info-box">
+                        <h4 class="info-box-title">💡 提示</h4>
+                        <p class="info-box-text">流程模板是预设的任务执行步骤，可以快速应用到任务中。</p>
+                    </div>
+
+                    <div class="panel-section">
+                        <h3 class="panel-title">操作</h3>
+                        <div class="quick-links">
+                            <button class="quick-link" onclick="exportFlows()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                导出流程
+                            </button>
+                            <button class="quick-link" onclick="importFlows()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="17 8 12 3 7 8"/>
+                                    <line x1="12" y1="3" x2="12" y2="15"/>
+                                </svg>
+                                导入流程
+                            </button>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </main>
+
+        <!-- 页脚 -->
+        <footer class="app-footer" role="contentinfo">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <span class="footer-text">© 2026 IstinaPlatform. All rights reserved.</span>
+                </div>
+                <div class="footer-section">
+                    <span class="footer-version">v2.0.0</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 移动端覆盖层 -->
+    <div class="nav-overlay" id="navOverlay"></div>
+
+    <!-- 创建/编辑模态框 -->
+    <div class="modal-overlay" id="flowModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">新建流程</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="flow-id">
+                <div class="form-group">
+                    <label class="form-label">流程名称</label>
+                    <input type="text" id="flow-name" class="form-control" placeholder="例如：日常战斗流程">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">分类</label>
+                    <select id="flow-category" class="form-control">
+                        <option value="combat">战斗</option>
+                        <option value="gathering">采集</option>
+                        <option value="daily">日常</option>
+                        <option value="event">活动</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <textarea id="flow-description" class="form-control" style="min-height: 80px;" placeholder="流程描述..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">流程内容 (JSON 格式)</label>
+                    <textarea id="flow-content" class="form-control" placeholder='{"steps": [{"action": "move", "target": "enemy"}, {"action": "attack"}]}'></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveFlow()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 查看模态框 -->
+    <div class="modal-overlay" id="viewModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="viewTitle">流程详情</h3>
+                <button class="modal-close" onclick="closeViewModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="viewBody">
+                <!-- 动态内容 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeViewModal()">关闭</button>
+                <button class="btn btn-primary" onclick="editCurrentFlow()">编辑</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        let flowsList = [];
+        let currentCategory = 'all';
+        let currentFlowId = null;
+
+        // 加载流程列表
+        async function loadFlows() {
+            try {
+                const response = await fetch('/api/flows/list');
+                const data = await response.json();
+                if (data.status === 'success') {
+                    flowsList = data.flows || [];
+                    renderFlows();
+                    updateStats();
+                } else {
+                    showToast('加载流程失败：' + (data.message || '未知错误'), 'error');
+                    flowsList = [];
+                    renderFlows();
+                }
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                showToast('加载流程错误：' + errorMsg, 'error');
+                flowsList = [];
+                renderFlows();
+            }
+        }
+
+        // 渲染流程列表
+        function renderFlows() {
+            const container = document.getElementById('flows-container');
+            if (!container) return;
+
+            let filtered = flowsList;
+            if (currentCategory !== 'all') {
+                filtered = flowsList.filter(f => f.category === currentCategory);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <div class="empty-state-title">暂无流程</div>
+                        <div class="empty-state-desc">点击上方"新建流程"按钮创建第一个流程模板</div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(flow => {
+                const contentPreview = typeof flow.content === 'string' 
+                    ? flow.content.substring(0, 100) + (flow.content.length > 100 ? '...' : '')
+                    : JSON.stringify(flow.content).substring(0, 100) + '...';
+                
+                return `
+                    <div class="flow-card" onclick="viewFlow('${flow.id}')">
+                        <div class="flow-card-header">
+                            <span class="flow-name">${escapeHtml(flow.name || '未命名')}</span>
+                            <span class="badge badge-${getCategoryBadge(flow.category)}">${getCategoryName(flow.category)}</span>
+                        </div>
+                        <div class="flow-category">${escapeHtml(flow.description || '无描述')}</div>
+                        <div class="flow-preview">${escapeHtml(contentPreview)}</div>
+                        <div class="flow-meta">
+                            <span>更新于: ${formatDate(flow.updated_at)}</span>
+                            <span>使用次数：${flow.usage_count || 0}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 更新统计
+        function updateStats() {
+            document.getElementById('stat-total').textContent = flowsList.length;
+            document.getElementById('stat-combat').textContent = flowsList.filter(f => f.category === 'combat').length;
+            document.getElementById('stat-daily').textContent = flowsList.filter(f => f.category === 'daily').length;
+        }
+
+        // 分类筛选
+        document.getElementById('categoryFilter').addEventListener('click', (e) => {
+            if (e.target.classList.contains('category-btn')) {
+                document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentCategory = e.target.dataset.category;
+                renderFlows();
+            }
+        });
+
+        // 打开创建模态框
+        function openCreateModal() {
+            document.getElementById('modalTitle').textContent = '新建流程';
+            document.getElementById('flow-id').value = '';
+            document.getElementById('flow-name').value = '';
+            document.getElementById('flow-category').value = 'custom';
+            document.getElementById('flow-description').value = '';
+            document.getElementById('flow-content').value = '';
+            document.getElementById('flowModal').classList.add('active');
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('flowModal').classList.remove('active');
+        }
+
+        // 保存流程
+        async function saveFlow() {
+            const id = document.getElementById('flow-id').value;
+            const name = document.getElementById('flow-name').value;
+            const category = document.getElementById('flow-category').value;
+            const description = document.getElementById('flow-description').value;
+            const content = document.getElementById('flow-content').value;
+
+            if (!name) {
+                showToast('请输入流程名称', 'warning');
+                return;
+            }
+
+            let parsedContent;
+            try {
+                parsedContent = JSON.parse(content);
+            } catch (e) {
+                parsedContent = content;
+            }
+
+            const payload = {
+                name,
+                category,
+                description,
+                content: parsedContent
+            };
+
+            try {
+                const url = id ? `/api/flows/update/${id}` : '/api/flows/create';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showToast(id ? '流程已更新' : '流程已创建', 'success');
+                    closeModal();
+                    loadFlows();
+                } else {
+                    showToast('保存失败：' + data.message, 'error');
+                }
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                showToast('保存错误：' + errorMsg, 'error');
+            }
+        }
+
+        // 查看流程
+        function viewFlow(flowId) {
+            const flow = flowsList.find(f => f.id === flowId);
+            if (!flow) return;
+
+            currentFlowId = flowId;
+            document.getElementById('viewTitle').textContent = flow.name;
+            
+            let contentDisplay = typeof flow.content === 'string' 
+                ? flow.content 
+                : JSON.stringify(flow.content, null, 2);
+
+            document.getElementById('viewBody').innerHTML = `
+                <div class="form-group">
+                    <label class="form-label">名称</label>
+                    <div class="form-control" style="background: var(--bg-secondary);">${escapeHtml(flow.name)}</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">分类</label>
+                    <div class="form-control" style="background: var(--bg-secondary);">${getCategoryName(flow.category)}</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <div class="form-control" style="background: var(--secondary); min-height: 60px;">${escapeHtml(flow.description || '无描述')}</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">流程内容</label>
+                    <pre class="form-control" style="background: var(--bg-secondary); overflow-x: auto;">${escapeHtml(contentDisplay)}</pre>
+                </div>
+                <div class="flow-meta">
+                    <span>创建时间：${formatDate(flow.created_at)}</span>
+                    <span>更新时间：${formatDate(flow.updated_at)}</span>
+                    <span>使用次数：${flow.usage_count || 0}</span>
+                </div>
+            `;
+            
+            document.getElementById('viewModal').classList.add('active');
+        }
+
+        // 关闭查看模态框
+        function closeViewModal() {
+            document.getElementById('viewModal').classList.remove('active');
+        }
+
+        // 编辑当前流程
+        function editCurrentFlow() {
+            const flow = flowsList.find(f => f.id === currentFlowId);
+            if (!flow) return;
+
+            closeViewModal();
+            
+            document.getElementById('modalTitle').textContent = '编辑流程';
+            document.getElementById('flow-id').value = flow.id;
+            document.getElementById('flow-name').value = flow.name;
+            document.getElementById('flow-category').value = flow.category;
+            document.getElementById('flow-description').value = flow.description || '';
+            document.getElementById('flow-content').value = typeof flow.content === 'string' 
+                ? flow.content 
+                : JSON.stringify(flow.content, null, 2);
+            
+            document.getElementById('flowModal').classList.add('active');
+        }
+
+        // 导出流程
+        function exportFlows() {
+            const dataStr = JSON.stringify(flowsList, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `flows_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('流程已导出', 'success');
+        }
+
+        // 导入流程
+        function importFlows() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const imported = JSON.parse(event.target.result);
+                        const response = await fetch('/api/flows/import', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ flows: imported })
+                        });
+                        const data = await response.json();
+                        if (data.status === 'success') {
+                            showToast('流程已导入', 'success');
+                            loadFlows();
+                        } else {
+                            showToast('导入失败：' + data.message, 'error');
+                        }
+                    } catch (error) {
+                        const errorMsg = error instanceof Error ? error.message : String(error);
+                        showToast('导入错误：' + errorMsg, 'error');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        // 工具函数
+        function getCategoryBadge(cat) {
+            const map = { combat: 'error', gathering: 'success', daily: 'info', event: 'warning', custom: 'secondary' };
+            return map[cat] || 'secondary';
+        }
+
+        function getCategoryName(cat) {
+            const map = { combat: '战斗', gathering: '采集', daily: '日常', event: '活动', custom: '自定义' };
+            return map[cat] || cat;
+        }
+
+        function formatDate(timestamp) {
+            if (!timestamp) return '-';
+            const date = new Date(timestamp);
+            return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFlows();
+        });
+    </script>
+</body>
+</html>

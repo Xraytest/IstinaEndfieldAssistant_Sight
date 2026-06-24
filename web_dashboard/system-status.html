@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>System Status - Istina Platform</title>
+</head>
+<body>
+    <h1>System Status</h1>
+    <div id="status-display"></div>
+    <div id="error-panel"></div>
+    
+    <script>
+        var systemStatus = {};
+        
+        function showError(message) {
+            var panel = document.getElementById('error-panel');
+            if (!panel) return;
+            panel.textContent = message;
+            panel.style.color = 'red';
+        }
+        
+        function renderSystemStatus() {
+            try {
+                var container = document.getElementById('status-display');
+                if (!container || !systemStatus) return;
+                
+                if (!systemStatus.cpu || typeof systemStatus.cpu === 'undefined') {
+                    container.innerHTML = '<p>No system data available.</p>';
+                    return;
+                }
+                
+                container.innerHTML = '<strong>CPU:</strong> ' + systemStatus.cpu + '% | ';
+            } catch (e) {
+                console.error('render error:', e);
+            }
+        }
+        
+        async function loadSystemStatusConfig() {
+            try {
+                var response = await fetch('/api/status', {
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer default_password' }
+                });
+                const data = await response.json();
+                if (data && data.status === 'success') {
+                    systemStatus = data.system || {};
+                }
+            } catch (parseErr) {
+                systemStatus = {};
+                console.error('JSON parse error:', parseErr);
+            } catch (error) {
+                var errorMsg = error instanceof Error 
+                    ? error.message.toString() 
+                    : String(error);
+                showError('加载配置错误：' + errorMsg);
+                systemStatus = {};
+            }
+            renderSystemStatus();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSystemStatusConfig();
+        });
+    </script>
+</body>
+</html>

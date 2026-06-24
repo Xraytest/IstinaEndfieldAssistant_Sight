@@ -1,0 +1,99 @@
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+logs/
+src/core/logs/
+
+# Local Python environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+
+# Qwen Agent
+.qwen/
+
+# PyTorch models
+*.pt
+
+# Runtime data (gitignored per project context)
+cache/
+src/cache/
+models/
+output/
+debug_output/
+extracted_images/
+page_layouts/
+training_data/
+data/analysis/
+data/elements/
+data/tasks/
+
+# Config with secrets
+config/client_config.json
+
+# Scripts runtime
+scripts/cache/
+scripts/debug/
+
+# Third-party reference code (should not be committed)
+Sample_Code_NoChange_NoDelete/
+sample_code/
+reference_code/
+
+# Temporary documentation files
+*_files.txt
+*_list.txt
+*_summary.txt
+docs_to_fix.txt
+
+# PyTorch models in root
+*.pt
+*.pth
+*.weights
+
+# Data files
+*.csv
+*.xlsx
+*.jsonl
+
+# Third-party tools (local only)
+3rd-part/
+```

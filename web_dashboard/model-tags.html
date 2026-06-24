@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Tags - IstinaEndfieldAssistant</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="dashboard-v2.css">
+    <style>
+        .model-tag-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .model-tag-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        
+        .model-tag-title {
+            color: var(--text-primary);
+            font-size: 18px;
+            font-family: Consolas, monospace;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        
+        .model-tag-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--surface-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .model-tag-table th {
+            background-color: var(--surface-primary);
+            color: var(--text-primary);
+            font-size: 12px;
+            font-weight: bold;
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .model-tag-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+        
+        .model-tag-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .model-tag-table tr:hover {
+            background-color: var(--surface-hover);
+        }
+        
+        .tag-name {
+            color: var(--text-primary);
+            font-family: Consolas, monospace;
+            font-weight: bold;
+        }
+        
+        .tag-description {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        .tag-models {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+        
+        .btn-add-tag {
+            background-color: var(--success);
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-add-tag:hover {
+            background-color: var(--success-hover);
+        }
+        
+        .btn-delete {
+            background-color: var(--error);
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-delete:hover {
+            background-color: var(--error-hover);
+        }
+        
+        .btn-edit {
+            background-color: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 8px;
+        }
+        
+        .btn-edit:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background-color: var(--surface-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            width: 500px;
+            max-width: 90%;
+        }
+        
+        .modal-title {
+            color: var(--text-primary);
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            font-family: Consolas, monospace;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-label {
+            display: block;
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: var(--surface-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        .btn-cancel {
+            background-color: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        .btn-cancel:hover {
+            background-color: var(--surface-hover);
+        }
+        
+        .btn-save {
+            background-color: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        .btn-save:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .empty-state-text {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="navOverlay"></div>
+    <nav id="mainNav" class="nav-collapsed">
+        <div class="nav-header">
+            <button id="mobileMenuToggle" class="mobile-menu-toggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+            <div class="nav-logo">
+                <span style="color: var(--primary);">ISTINA</span><span style="color: var(--text-muted);">//ENDFIELD</span>
+            </div>
+        </div>
+        <div class="nav-divider"></div>
+        <div class="nav-section">
+            <a href="dashboard.html" class="nav-item">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">Dashboard</span>
+            </a>
+            <a href="clients.html" class="nav-item">
+                <span class="nav-icon">💻</span>
+                <span class="nav-text">Clients</span>
+            </a>
+            <a href="users.html" class="nav-item">
+                <span class="nav-icon">👥</span>
+                <span class="nav-text">Users</span>
+            </a>
+            <a href="tasks.html" class="nav-item">
+                <span class="nav-icon">📋</span>
+                <span class="nav-text">Tasks</span>
+            </a>
+            <a href="flows.html" class="nav-item">
+                <span class="nav-icon">🔄</span>
+                <span class="nav-text">Flows</span>
+            </a>
+            <a href="providers.html" class="nav-item">
+                <span class="nav-icon">🔌</span>
+                <span class="nav-text">Providers</span>
+            </a>
+            <a href="tiers.html" class="nav-item">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">Tiers</span>
+            </a>
+            <a href="model-tags.html" class="nav-item active">
+                <span class="nav-icon">🏷️</span>
+                <span class="nav-text">Model Tags</span>
+            </a>
+            <a href="iea-settings.html" class="nav-item">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-text">IEA Settings</span>
+            </a>
+            <a href="logs.html" class="nav-item">
+                <span class="nav-icon">📝</span>
+                <span class="nav-text">Logs</span>
+            </a>
+            <a href="system-status.html" class="nav-item">
+                <span class="nav-icon">🔍</span>
+                <span class="nav-text">System Status</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="main-content">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <button id="navToggle" class="nav-toggle-btn" aria-label="Toggle navigation">
+                    <span></span><span></span><span></span>
+                </button>
+                <h1 class="page-title">Model Tags</h1>
+            </div>
+            <div class="top-bar-right">
+                <div class="user-menu">
+                    <button class="user-menu-btn" id="userMenuBtn">
+                        <span class="user-avatar">A</span>
+                        <div class="user-info">
+                            <span class="user-name">Admin</span>
+                            <span class="user-email">admin@istina.ai</span>
+                        </div>
+                    </button>
+                </div>
+                <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+                    <span class="theme-icon">🌙</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="content">
+            <div class="model-tag-container">
+                <div class="model-tag-header">
+                    <h2 class="model-tag-title">MODEL TAGS</h2>
+                    <button class="btn-add-tag" onclick="openAddModal()">+ ADD TAG</button>
+                </div>
+
+                <table class="model-tag-table">
+                    <thead>
+                        <tr>
+                            <th>Tag Name</th>
+                            <th>Description</th>
+                            <th>Associated Models</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modelTagTableBody">
+                        <!-- Data will be loaded here -->
+                    </tbody>
+                </table>
+
+                <div id="emptyState" class="empty-state" style="display: none;">
+                    <div class="empty-state-icon">🏷️</div>
+                    <div class="empty-state-text">No model tags configured yet</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Modal -->
+    <div id="tagModal" class="modal-overlay">
+        <div class="modal">
+            <h3 class="modal-title" id="modalTitle">ADD MODEL TAG</h3>
+            <div class="form-group">
+                <label class="form-label">Tag Name</label>
+                <input type="text" id="tagName" class="form-input" placeholder="e.g., exploration_deep">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Description</label>
+                <input type="text" id="tagDescription" class="form-input" placeholder="e.g., Deep exploration with large VLM">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Associated Models (comma-separated)</label>
+                <input type="text" id="tagModels" class="form-input" placeholder="e.g., qwen3.5-35b,a3b-vlm">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" onclick="closeModal()">CANCEL</button>
+                <button class="btn-save" onclick="saveTag()">SAVE</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app-utils.js"></script>
+    <script src="nav-interactions.js"></script>
+    <script>
+        let modelTags = [];
+        let editingTagId = null;
+
+        // Fetch model tags on page load
+        async function fetchModelTags() {
+            try {
+                const response = await fetch('/api/model-tags/list', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer default_password',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    modelTags = data.tags || [];
+                    renderTable();
+                } else {
+                    console.error('Failed to fetch model tags');
+                    showError('Failed to load model tags');
+                }
+            } catch (error) {
+                console.error('Error fetching model tags:', error);
+                showError('Connection error');
+            }
+        }
+
+        // Render the table
+        function renderTable() {
+            const tbody = document.getElementById('modelTagTableBody');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (modelTags.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            tbody.innerHTML = modelTags.map(tag => `
+                <tr>
+                    <td class="tag-name">${escapeHtml(tag.name)}</td>
+                    <td class="tag-description">${escapeHtml(tag.description || '-')}</td>
+                    <td class="tag-models">${escapeHtml(tag.models?.join(', ') || '-')}</td>
+                    <td>
+                        <button class="btn-edit" onclick="editTag('${tag.id}')">EDIT</button>
+                        <button class="btn-delete" onclick="deleteTag('${tag.id}')">DELETE</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Open add modal
+        function openAddModal() {
+            editingTagId = null;
+            document.getElementById('modalTitle').textContent = 'ADD MODEL TAG';
+            document.getElementById('tagName').value = '';
+            document.getElementById('tagDescription').value = '';
+            document.getElementById('tagModels').value = '';
+            document.getElementById('tagModal').classList.add('active');
+        }
+
+        // Open edit modal
+        function editTag(tagId) {
+            const tag = modelTags.find(t => t.id === tagId);
+            if (!tag) return;
+            
+            editingTagId = tagId;
+            document.getElementById('modalTitle').textContent = 'EDIT MODEL TAG';
+            document.getElementById('tagName').value = tag.name;
+            document.getElementById('tagDescription').value = tag.description || '';
+            document.getElementById('tagModels').value = tag.models?.join(', ') || '';
+            document.getElementById('tagModal').classList.add('active');
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('tagModal').classList.remove('active');
+        }
+
+        // Save tag (add or update)
+        async function saveTag() {
+            const name = document.getElementById('tagName').value.trim();
+            const description = document.getElementById('tagDescription').value.trim();
+            const models = document.getElementById('tagModels').value.trim()
+                .split(',')
+                .map(m => m.trim())
+                .filter(m => m);
+            
+            if (!name) {
+                showToast('Tag name is required', 'error');
+                return;
+            }
+            
+            const tagData = {
+                name,
+                description,
+                models
+            };
+            
+            try {
+                let response;
+                if (editingTagId) {
+                    // Update existing tag
+                    response = await fetch(`/api/model-tags/update/${editingTagId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': 'Bearer default_password',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(tagData)
+                    });
+                } else {
+                    // Add new tag
+                    response = await fetch('/api/model-tags/create', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer default_password',
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(tagData)
+                    });
+                }
+                
+                if (response.ok) {
+                    showToast(editingTagId ? 'Tag updated successfully' : 'Tag created successfully', 'success');
+                    closeModal();
+                    fetchModelTags();
+                } else {
+                    const error = await response.json();
+                    showToast(error.message || 'Failed to save tag', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving tag:', error);
+                showToast('Connection error', 'error');
+            }
+        }
+
+        // Delete tag
+        async function deleteTag(tagId) {
+            if (!confirm('Are you sure you want to delete this tag?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/model-tags/delete/${tagId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': 'Bearer default_password'
+                    }
+                });
+                
+                if (response.ok) {
+                    showToast('Tag deleted successfully', 'success');
+                    fetchModelTags();
+                } else {
+                    const error = await response.json();
+                    showToast(error.message || 'Failed to delete tag', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting tag:', error);
+                showToast('Connection error', 'error');
+            }
+        }
+
+        // Utility: Escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Utility: Show error
+        function showError(message) {
+            showToast(message, 'error');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initSharedFeatures();
+            fetchModelTags();
+        });
+
+        // Close modal on overlay click
+        document.getElementById('tagModal').addEventListener('click', (e) => {
+            if (e.target.id === 'tagModal') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

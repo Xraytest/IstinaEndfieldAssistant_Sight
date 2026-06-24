@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Task Management - Istina Platform</title>
+</head>
+<body>
+    <h1>Tasks</h1>
+    <div id="tasks-container"></div>
+    <div id="toast"></div>
+    
+    <script>
+        var tasksList = [];
+        
+        function showToast(message, type) {
+            var toast = document.getElementById('toast');
+            if (!toast) return;
+            toast.textContent = message;
+            toast.style.color = type === 'error' ? 'red' : 'green';
+        }
+        
+        function renderTasksList() {
+            try {
+                var container = document.getElementById('tasks-container');
+                if (!container || !Array.isArray(tasksList)) return;
+                
+                if (tasksList.length === 0) {
+                    container.innerHTML = '<p>No tasks available.</p>';
+                    return;
+                }
+                
+                container.innerHTML = tasksList.map(function(task) {
+                    return '<div class="task-item"><strong>' + (task.name || 'Unknown') + '</strong>: ' + (task.status || 'pending') + '</div>';
+                }).join('');
+            } catch (e) {
+                console.error('render error:', e);
+            }
+        }
+        
+        async function loadTasksConfig() {
+            try {
+                var response = await fetch('/api/tasks/list', {
+                    method: 'GET',
+                    headers: { 'Authorization': 'Bearer default_password' }
+                });
+                const data = await response.json();
+                if (data && data.status === 'success') {
+                    tasksList = data.tasks || [];
+                }
+            } catch (parseErr) {
+                tasksList = [];
+                console.error('JSON parse error:', parseErr);
+            } catch (error) {
+                var errorMsg = error instanceof Error 
+                    ? error.message.toString() 
+                    : String(error);
+                showToast('加载配置错误：' + errorMsg, 'error');
+                tasksList = [];
+            }
+            renderTasksList();
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            loadTasksConfig();
+        });
+    </script>
+</body>
+</html>

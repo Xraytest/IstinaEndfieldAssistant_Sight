@@ -1,0 +1,82 @@
+{
+  "start_time": "2026-04-12T23:19:51.525350",
+  "end_time": "2026-04-12T23:22:45.770294",
+  "total_tests": 12,
+  "passed": 11,
+  "failed": 1,
+  "errors": [],
+  "details": [
+    {
+      "test": "组件初始化",
+      "passed": true,
+      "details": "所有组件初始化成功",
+      "timestamp": "2026-04-12T23:19:52.818754"
+    },
+    {
+      "test": "用户登录",
+      "passed": true,
+      "details": "登录成功",
+      "timestamp": "2026-04-12T23:19:52.866737"
+    },
+    {
+      "test": "设备连接",
+      "passed": true,
+      "details": "分辨率: (1280, 720)",
+      "timestamp": "2026-04-12T23:19:55.336073"
+    },
+    {
+      "test": "任务链设置",
+      "passed": true,
+      "details": "队列长度: 2, 执行次数: 1",
+      "timestamp": "2026-04-12T23:19:55.338272"
+    },
+    {
+      "test": "长任务链执行",
+      "passed": true,
+      "details": "任务链长度: 2",
+      "timestamp": "2026-04-12T23:22:40.370848"
+    },
+    {
+      "test": "设备连接",
+      "passed": true,
+      "details": "分辨率: (1280, 720)",
+      "timestamp": "2026-04-12T23:22:43.522577"
+    },
+    {
+      "test": "设备断开重连",
+      "passed": true,
+      "details": "重连后截图验证成功",
+      "timestamp": "2026-04-12T23:22:43.541304"
+    },
+    {
+      "test": "异常处理-无效任务",
+      "passed": true,
+      "details": "无效任务添加处理正确",
+      "timestamp": "2026-04-12T23:22:43.542786"
+    },
+    {
+      "test": "异常处理-空队列",
+      "passed": true,
+      "details": "空队列执行启动",
+      "timestamp": "2026-04-12T23:22:43.543485"
+    },
+    {
+      "test": "异常处理-无设备",
+      "passed": true,
+      "details": "无设备执行处理: 执行已开始",
+      "timestamp": "2026-04-12T23:22:44.549504"
+    },
+    {
+      "test": "设备连接",
+      "passed": true,
+      "details": "分辨率: (1280, 720)",
+      "timestamp": "2026-04-12T23:22:45.768489"
+    },
+    {
+      "test": "多轮执行循环",
+      "passed": false,
+      "details": "执行启动失败",
+      "timestamp": "2026-04-12T23:22:45.769754"
+    }
+  ]
+}

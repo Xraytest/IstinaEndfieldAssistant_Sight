@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComponentTransfer in="blur" result="glowcol">
+        <feFuncA type="linear" slope="0.5"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="glowcol"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <linearGradient id="tealGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#18D1FF"/>
+      <stop offset="100%" stop-color="#0099CC"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0A0A0F"/>
+      <stop offset="50%" stop-color="#0E0E1A"/>
+      <stop offset="100%" stop-color="#0A0A0F"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 背景 -->
+  <rect width="1920" height="1080" fill="url(#bgGrad)"/>
+
+  <!-- 装饰网格 -->
+  <g opacity="0.03" stroke="#18D1FF" stroke-width="0.5">
+    <line x1="0" y1="0" x2="1920" y2="0"/>
+    <line x1="0" y1="216" x2="1920" y2="216"/>
+    <line x1="0" y1="432" x2="1920" y2="432"/>
+    <line x1="0" y1="648" x2="1920" y2="648"/>
+    <line x1="0" y1="864" x2="1920" y2="864"/>
+    <line x1="0" y1="1080" x2="1920" y2="1080"/>
+    <line x1="0" y1="0" x2="0" y2="1080"/>
+    <line x1="384" y1="0" x2="384" y2="1080"/>
+    <line x1="768" y1="0" x2="768" y2="1080"/>
+    <line x1="1152" y1="0" x2="1152" y2="1080"/>
+    <line x1="1536" y1="0" x2="1536" y2="1080"/>
+    <line x1="1920" y1="0" x2="1920" y2="1080"/>
+  </g>
+
+  <!-- 顶部装饰线 -->
+  <line x1="0" y1="3" x2="1920" y2="3" stroke="#18D1FF" stroke-width="1" opacity="0.15"/>
+  <line x1="0" y1="1077" x2="1920" y2="1077" stroke="#18D1FF" stroke-width="1" opacity="0.15"/>
+
+  <!-- 左上角 Terminal 标识 -->
+  <rect x="40" y="40" width="8" height="8" fill="#00FFA2" opacity="0.8"/>
+  <text x="56" y="48" font-family="Consolas, monospace" font-size="12" fill="#00FFA2" opacity="0.5">
+    iea_video_promo_01
+  </text>
+
+  <!-- 右下角版本号 -->
+  <text x="1870" y="1060" font-family="Consolas, monospace" font-size="11" fill="#9090A8" opacity="0.4" text-anchor="end">
+    IEA_001 // 60fps // 1920x1080
+  </text>
+
+  <!-- 中央 IEA Logo -->
+  <g transform="translate(960, 440)" filter="url(#glow)">
+    <!-- I -->
+    <rect x="-145" y="-80" width="20" height="160" rx="4" fill="url(#tealGrad)"/>
+    <rect x="-165" y="-80" width="60" height="12" rx="3" fill="url(#tealGrad)"/>
+    <rect x="-165" y="68" width="60" height="12" rx="3" fill="url(#tealGrad)"/>
+
+    <!-- E -->
+    <rect x="-95" y="-80" width="16" height="160" rx="4" fill="url(#tealGrad)"/>
+    <rect x="-95" y="-80" width="90" height="12" rx="3" fill="url(#tealGrad)"/>
+    <rect x="-95" y="34" width="65" height="12" rx="3" fill="url(#tealGrad)"/>
+    <rect x="-95" y="68" width="90" height="12" rx="3" fill="url(#tealGrad)"/>
+
+    <!-- A -->
+    <rect x="45" y="-80" width="16" height="160" rx="4" fill="url(#tealGrad)" transform="rotate(30, 53, 0)"/>
+    <rect x="45" y="-80" width="16" height="160" rx="4" fill="url(#tealGrad)" transform="rotate(-30, 53, 0)"/>
+    <rect x="15" y="8" width="72" height="12" rx="3" fill="url(#tealGrad)"/>
+  </g>
+
+  <!-- Slogan -->
+  <text x="960" y="620" text-anchor="middle"
+        font-family="'Noto Sans SC', 'Source Han Sans SC', sans-serif"
+        font-size="32" font-weight="300" fill="#E0E0E8" letter-spacing="8"
+        opacity="0.9">
+    完全智能 · 解放双手
+  </text>
+
+  <!-- 副标题 -->
+  <text x="960" y="660" text-anchor="middle"
+        font-family="Consolas, monospace"
+        font-size="14" fill="#9090A8" letter-spacing="4"
+        opacity="0.6">
+    IstinaEndfieldAssistant — 智能自动化助手
+  </text>
+
+  <!-- 底部装饰线 -->
+  <line x1="660" y1="700" x2="1260" y2="700" stroke="#18D1FF" stroke-width="0.5" opacity="0.3"/>
+
+  <!-- 底部小点装饰 -->
+  <circle cx="800" cy="720" r="2" fill="#18D1FF" opacity="0.4"/>
+  <circle cx="960" cy="720" r="3" fill="#18D1FF" opacity="0.6"/>
+  <circle cx="1120" cy="720" r="2" fill="#18D1FF" opacity="0.4"/>
+
+  <!-- 底部三个小 Terminal 方块 -->
+  <g opacity="0.15">
+    <rect x="100" y="920" width="520" height="120" rx="2" fill="none" stroke="#18D1FF" stroke-width="0.5"/>
+    <text x="120" y="950" font-family="Consolas" font-size="10" fill="#18D1FF">│ AGENT TERMINAL ── ONLINE</text>
+    <text x="120" y="975" font-family="Consolas" font-size="10" fill="#9090A8">│ >>> Go to crafting menu</text>
+    <text x="120" y="1000" font-family="Consolas" font-size="10" fill="#00FFA2">│ ✓ tap(450, 320)</text>
+
+    <rect x="700" y="920" width="520" height="120" rx="2" fill="none" stroke="#18D1FF" stroke-width="0.5"/>
+    <text x="720" y="950" font-family="Consolas" font-size="10" fill="#18D1FF">│ SYSTEM STATUS ── ACTIVE</text>
+    <text x="720" y="975" font-family="Consolas" font-size="10" fill="#9090A8">│ Pages: 12 | Elements: 47</text>
+    <text x="720" y="1000" font-family="Consolas" font-size="10" fill="#00FFA2">│ VLM Calls: 89 | Taps: 234</text>
+
+    <rect x="1300" y="920" width="520" height="120" rx="2" fill="none" stroke="#18D1FF" stroke-width="0.5"/>
+    <text x="1320" y="950" font-family="Consolas" font-size="10" fill="#18D1FF">│ INFERENCE ── LOCAL MODE</text>
+    <text x="1320" y="975" font-family="Consolas" font-size="10" fill="#9090A8">│ Model: qwen3.5-35b-a3b</text>
+    <text x="1320" y="1000" font-family="Consolas" font-size="10" fill="#00FFA2">│ GPU: CUDA 12.4 | 8GB VRAM</text>
+  </g>
+</svg>

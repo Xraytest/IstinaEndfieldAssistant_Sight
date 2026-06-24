@@ -1,0 +1,73 @@
+{
+  "version": "1.0",
+  "ocr_mode": "paddleocr",
+  "screen_resolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "top_bar": {
+    "y_range": [10, 80],
+    "buttons": {
+      "exploration": {"label": "探索", "x_range": [30, 120], "y_range": [10, 45]},
+      "back": {"label": "返回", "x_range": [420, 480], "y_range": [10, 45]},
+      "shop": {"label": "商店", "x_range": [450, 510], "y_range": [10, 45]},
+      "event": {"label": "活动", "x_range": [480, 540], "y_range": [10, 45]},
+      "signin": {"label": "签到", "x_range": [510, 570], "y_range": [10, 45]},
+      "tasks": {"label": "任务", "x_range": [540, 600], "y_range": [10, 45]},
+      "inventory": {"label": "背包", "x_range": [570, 630], "y_range": [10, 45]},
+      "settings": {"label": "设置", "x_range": [630, 690], "y_range": [10, 45]}
+    }
+  },
+  "overlay": {
+    "roi": {
+      "x_start": 950,
+      "x_end": 1280,
+      "y_start": 60,
+      "y_end": 700
+    },
+    "keywords": [
+      "每日", "每周", "任务", "日程", "签到", "作战汇报",
+      "领取", "收取", "一键领取", "完成", "提交", "领奖",
+      "进行中", "已完成", "可领取", "奖励",
+      "活跃度", "经验", "信用", "合成玉"
+    ]
+  },
+  "claim_keywords": [
+    "领取", "收取", "一键领取", "完成", "提交", "领奖",
+    "CLAIM", "collect"
+  ],
+  "known_coords": {
+    "tasks_button": [570, 22],
+    "event_button": [510, 22],
+    "back_button": [450, 22],
+    "close_overlay_x": [1170, 22],
+    "claim_all": [1035, 323],
+    "reward_confirm": [640, 500],
+    "signin_entry": [112, 296],
+    "exit_confirm": [793, 478],
+    "exit_cancel": [556, 478]
+  },
+  "page_detection": {
+    "title_screen": {
+      "keywords": ["明日方舟", "终末地", "点击任意位置继续", "账户登出", "公告", "设置", "修复", "适龄提示"],
+      "min_matches": 3
+    },
+    "loading_screen": {
+      "keywords": ["LOADING", "加载", "TIPS", "提示", "UID"],
+      "patterns": [
+        {"has_loading": true, "has_tips": true},
+        {"has_loading": true, "has_uid": true, "has_version": false}
+      ]
+    },
+    "logout_dialog": {
+      "keywords": ["登出", "超时", "重新登录", "会话过期"]
+    }
+  },
+  "llm_config": {
+    "default_model_tag": "text",
+    "temperature": 0.3,
+    "max_tokens": 2048,
+    "use_vision_fallback": true,
+    "vision_fallback_threshold": 0.6
+  }
+}
