@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-标准流完整测试 - 最终版
+鏍囧噯娴佸畬鏁存祴璇?- 鏈€缁堢増
 
-功能:
-1. 登出对话框检测和自动处理
-2. 完整的每日任务流程
-3. 截图记录
-4. 执行报告
+鍔熻兘:
+1. 鐧诲嚭瀵硅瘽妗嗘娴嬪拰鑷姩澶勭悊
+2. 瀹屾暣鐨勬瘡鏃ヤ换鍔℃祦绋?
+3. 鎴浘璁板綍
+4. 鎵ц鎶ュ憡
 """
 
 import sys
@@ -20,24 +20,24 @@ from _path_setup import ensure_path; ensure_path()
 
 from core.capability.adb_utils import ADB, list_devices, adb_screencap
 
-# MaaFw 触控
+# MaaFw 瑙︽帶
 try:
     from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
     MAAFW_AVAILABLE = True
 except ImportError:
     MaaFwTouchExecutor = None
     MAAFW_AVAILABLE = False
-    print("[WARN] MaaFramework 未安装")
+    print("[WARN] MaaFramework 鏈畨瑁?)
 
 
 class FlowExecutor:
-    """标准流执行器"""
+    """鏍囧噯娴佹墽琛屽櫒"""
     
     def __init__(self, device_serial: str):
         self.device_serial = device_serial
         self.adb = ADB(serial=device_serial)
         
-        # 初始化 MaaFw 触控
+        # 鍒濆鍖?MaaFw 瑙︽帶
         self._maafw = None
         if MAAFW_AVAILABLE:
             try:
@@ -49,24 +49,24 @@ class FlowExecutor:
                 )
                 self._maafw = MaaFwTouchExecutor(maafw_config)
                 if self._maafw.connect():
-                    print(f"[MaaFw] 触控初始化成功")
+                    print(f"[MaaFw] 瑙︽帶鍒濆鍖栨垚鍔?)
             except Exception as e:
-                print(f"[MaaFw] 初始化失败：{e}")
+                print(f"[MaaFw] 鍒濆鍖栧け璐ワ細{e}")
         
         self.session_dir = None
         self.screenshots = []
         self.steps_log = []
         
     def start_session(self, flow_name: str):
-        """开始执行会话"""
+        """寮€濮嬫墽琛屼細璇?""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_dir = PROJECT_ROOT / "cache" / f"flow_{flow_name}_final_{timestamp}"
         self.session_dir.mkdir(parents=True, exist_ok=True)
         (self.session_dir / "screenshots").mkdir(exist_ok=True)
-        print(f"[会话] {self.session_dir}")
+        print(f"[浼氳瘽] {self.session_dir}")
         
     def capture(self, label: str) -> bytes:
-        """截图并保存"""
+        """鎴浘骞朵繚瀛?""
         screenshot = adb_screencap(self.device_serial)
         if screenshot:
             timestamp = datetime.now().strftime("%Y%m%S")
@@ -75,11 +75,11 @@ class FlowExecutor:
             with open(path, "wb") as f:
                 f.write(screenshot)
             self.screenshots.append(str(path))
-            print(f"[截图] {filename}")
+            print(f"[鎴浘] {filename}")
         return screenshot
     
     def check_logout_dialog(self) -> bool:
-        """检查是否显示登出对话框"""
+        """妫€鏌ユ槸鍚︽樉绀虹櫥鍑哄璇濇"""
         try:
             import cv2
             import numpy as np
@@ -96,29 +96,29 @@ class FlowExecutor:
             
             height, width = cv_img.shape[:2]
             
-            # 检测黄色元素（确认按钮）
+            # 妫€娴嬮粍鑹插厓绱狅紙纭鎸夐挳锛?
             hsv = cv2.cvtColor(cv_img, cv2.COLOR_BGR2HSV)
             lower_yellow = np.array([20, 100, 100])
             upper_yellow = np.array([35, 255, 255])
             yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
             yellow_ratio = cv2.countNonZero(yellow_mask) / (width * height)
             
-            # 检测白色区域（对话框背景）
+            # 妫€娴嬬櫧鑹插尯鍩燂紙瀵硅瘽妗嗚儗鏅級
             gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
             white_mask = cv2.inRange(gray, 200, 255)
             white_ratio = cv2.countNonZero(white_mask) / (width * height)
             
-            # 登出对话框特征：白色背景 + 黄色按钮
+            # 鐧诲嚭瀵硅瘽妗嗙壒寰侊細鐧借壊鑳屾櫙 + 榛勮壊鎸夐挳
             return white_ratio > 0.3 and yellow_ratio > 0.001
             
         except Exception as e:
-            print(f"[ERROR] 登出检测失败：{e}")
+            print(f"[ERROR] 鐧诲嚭妫€娴嬪け璐ワ細{e}")
             return False
     
     def click_logout_confirm(self):
-        """点击登出确认按钮"""
-        print(f"\n[点击] 登出确认按钮")
-        # 登出对话框确认按钮位置（1280x720 逻辑坐标）
+        """鐐瑰嚮鐧诲嚭纭鎸夐挳"""
+        print(f"\n[鐐瑰嚮] 鐧诲嚭纭鎸夐挳")
+        # 鐧诲嚭瀵硅瘽妗嗙‘璁ゆ寜閽綅缃紙1280x720 閫昏緫鍧愭爣锛?
         confirm_x, confirm_y = 640, 580
         
         if self._maafw and self._maafw.connected:
@@ -131,8 +131,8 @@ class FlowExecutor:
         self.capture("logout_confirm")
     
     def tap(self, x: int, y: int, label: str):
-        """点击"""
-        print(f"\n[点击] {label} @ ({x}, {y})")
+        """鐐瑰嚮"""
+        print(f"\n[鐐瑰嚮] {label} @ ({x}, {y})")
         
         if self._maafw and self._maafw.connected:
             self._maafw.safe_press(x, y)
@@ -145,8 +145,8 @@ class FlowExecutor:
         self.steps_log.append({"step": label, "action": "tap", "coords": [x, y], "status": "OK"})
     
     def back(self):
-        """返回"""
-        print(f"\n[返回]")
+        """杩斿洖"""
+        print(f"\n[杩斿洖]")
         
         if self._maafw and self._maafw.connected:
             try:
@@ -164,12 +164,12 @@ class FlowExecutor:
         self.steps_log.append({"step": "back", "action": "back", "status": "OK"})
     
     def wait(self, seconds: int):
-        """等待"""
-        print(f"\n[等待] {seconds}s")
+        """绛夊緟"""
+        print(f"\n[绛夊緟] {seconds}s")
         self.adb.wait(seconds)
     
     def export_report(self):
-        """导出执行报告"""
+        """瀵煎嚭鎵ц鎶ュ憡"""
         report = {
             "device": self.device_serial,
             "session_dir": str(self.session_dir),
@@ -184,74 +184,74 @@ class FlowExecutor:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
         
-        print(f"\n[报告] {report_path}")
+        print(f"\n[鎶ュ憡] {report_path}")
         return report
 
 
 def run_daily_quest(executor: FlowExecutor):
-    """执行每日任务流程"""
+    """鎵ц姣忔棩浠诲姟娴佺▼"""
     
     print("\n" + "="*60)
-    print("标准流测试 - 每日任务")
+    print("鏍囧噯娴佹祴璇?- 姣忔棩浠诲姟")
     print("="*60)
     
-    # 步骤 0: 检查并处理登出对话框
-    print("\n--- 步骤 0: 检查登出对话框 ---")
+    # 姝ラ 0: 妫€鏌ュ苟澶勭悊鐧诲嚭瀵硅瘽妗?
+    print("\n--- 姝ラ 0: 妫€鏌ョ櫥鍑哄璇濇 ---")
     if executor.check_logout_dialog():
-        print("[警告] 检测到登出对话框！")
+        print("[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紒")
         executor.click_logout_confirm()
         executor.wait(3)
-        print("[OK] 已处理登出对话框")
+        print("[OK] 宸插鐞嗙櫥鍑哄璇濇")
     
-    # 步骤 1: 点击任务图标
-    print("\n--- 步骤 1: 打开任务面板 ---")
+    # 姝ラ 1: 鐐瑰嚮浠诲姟鍥炬爣
+    print("\n--- 姝ラ 1: 鎵撳紑浠诲姟闈㈡澘 ---")
     executor.tap(860, 80, "task_icon")
     
-    # 步骤 2: 领取每日任务奖励
-    print("\n--- 步骤 2: 领取每日任务奖励 ---")
+    # 姝ラ 2: 棰嗗彇姣忔棩浠诲姟濂栧姳
+    print("\n--- 姝ラ 2: 棰嗗彇姣忔棩浠诲姟濂栧姳 ---")
     executor.tap(810, 900, "claim_daily")
     executor.wait(2)
     
-    # 步骤 3: 返回
-    print("\n--- 步骤 3: 返回探索界面 ---")
+    # 姝ラ 3: 杩斿洖
+    print("\n--- 姝ラ 3: 杩斿洖鎺㈢储鐣岄潰 ---")
     executor.back()
     
     print("\n" + "="*60)
-    print("流程完成")
+    print("娴佺▼瀹屾垚")
     print("="*60)
 
 
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="标准流完整测试 - 最终版")
-    parser.add_argument("--device", type=str, default=None, help="设备序列号")
-    parser.add_argument("--flow", type=str, default="daily_quest", help="流程名称")
+    parser = argparse.ArgumentParser(description="鏍囧噯娴佸畬鏁存祴璇?- 鏈€缁堢増")
+    parser.add_argument("--device", type=str, default=None, help="璁惧搴忓垪鍙?)
+    parser.add_argument("--flow", type=str, default="daily_quest", help="娴佺▼鍚嶇О")
     args = parser.parse_args()
     
-    # 确定设备
+    # 纭畾璁惧
     device_serial = args.device or list_devices()[0]
-    print(f"[设备] {device_serial}")
+    print(f"[璁惧] {device_serial}")
     
-    # 创建执行器
+    # 鍒涘缓鎵ц鍣?
     executor = FlowExecutor(device_serial)
     executor.start_session(args.flow)
     
-    # 执行流程
+    # 鎵ц娴佺▼
     if args.flow == "daily_quest":
         run_daily_quest(executor)
     else:
-        print(f"[ERROR] 未知流程：{args.flow}")
+        print(f"[ERROR] 鏈煡娴佺▼锛歿args.flow}")
         return 1
     
-    # 导出报告
+    # 瀵煎嚭鎶ュ憡
     executor.export_report()
     
     print("\n" + "="*60)
-    print("测试完成")
-    print(f"步骤数量：{len(executor.steps_log)}")
-    print(f"截图数量：{len(executor.screenshots)}")
-    print(f"会话目录：{executor.session_dir}")
+    print("娴嬭瘯瀹屾垚")
+    print(f"姝ラ鏁伴噺锛歿len(executor.steps_log)}")
+    print(f"鎴浘鏁伴噺锛歿len(executor.screenshots)}")
+    print(f"浼氳瘽鐩綍锛歿executor.session_dir}")
     print("="*60)
     
     return 0
@@ -259,3 +259,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

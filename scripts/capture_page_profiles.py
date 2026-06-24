@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-页面特征采集工具
+椤甸潰鐗瑰緛閲囬泦宸ュ叿
 
-用于采集各类页面的特征样本，构建页面特征数据库。
-
-用法:
+鐢ㄤ簬閲囬泦鍚勭被椤甸潰鐨勭壒寰佹牱鏈紝鏋勫缓椤甸潰鐗瑰緛鏁版嵁搴撱€?
+鐢ㄦ硶:
     python scripts/capture_page_profiles.py --type world --count 10
     python scripts/capture_page_profiles.py --type quest_panel --count 5
 """
@@ -27,7 +26,7 @@ with warnings.catch_warnings():
         GameScreenAnalyzer, PageType, PageAnalysisResult
     )
 
-# 注意: advanced_analyzer 已废弃，新代码请使用 core.page_analyzer.HighPrecisionPageAnalyzerV2
+# 娉ㄦ剰: advanced_analyzer 宸插簾寮冿紝鏂颁唬鐮佽浣跨敤 core.page_analyzer.HighPrecisionPageAnalyzerV2
 
 ADB_PATH = PROJECT_ROOT / "3rd-part" / "adb" / "adb.exe"
 DEVICE = "localhost:16512"
@@ -35,7 +34,7 @@ DEVICE = "localhost:16512"
 
 @dataclass
 class PageSample:
-    """页面样本"""
+    """椤甸潰鏍锋湰"""
     page_type: str
     timestamp: str
     screenshot_path: str
@@ -46,7 +45,7 @@ class PageSample:
 
 
 class PageProfileCollector:
-    """页面特征采集器"""
+    """椤甸潰鐗瑰緛閲囬泦鍣?""
     
     def __init__(self, output_dir: str = None):
         self.output_dir = output_dir or str(PROJECT_ROOT / "data" / "page_profiles")
@@ -55,21 +54,20 @@ class PageProfileCollector:
         self.samples: list = []
     
     def capture_screenshot(self) -> np.ndarray:
-        """截取屏幕"""
+        """鎴彇灞忓箷"""
         result = subprocess.run(
             [str(ADB_PATH), "-s", DEVICE, "exec-out", "screencap", "-p"],
             capture_output=True, timeout=10
         )
         if result.returncode == 0 and len(result.stdout) > 1000:
             img = cv2.imdecode(np.frombuffer(result.stdout, dtype=np.uint8), cv2.IMREAD_COLOR)
-            # 旋转到横屏
-            img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            # 鏃嬭浆鍒版í灞?            img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
             img = cv2.resize(img, (1280, 720))
             return img
         return None
     
     def save_screenshot(self, image: np.ndarray, page_type: str, index: int) -> str:
-        """保存截图"""
+        """淇濆瓨鎴浘"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{page_type}_{index:03d}_{timestamp}.png"
         path = os.path.join(self.output_dir, filename)
@@ -79,49 +77,48 @@ class PageProfileCollector:
     def collect_samples(self, page_type: PageType, count: int = 5, 
                        ocr_text: str = "", yolo_classes: list = None) -> list:
         """
-        采集页面样本
+        閲囬泦椤甸潰鏍锋湰
         
         Args:
-            page_type: 页面类型
-            count: 采集数量
-            ocr_text: OCR 文本 (可选)
-            yolo_classes: YOLO 检测结果 (可选)
+            page_type: 椤甸潰绫诲瀷
+            count: 閲囬泦鏁伴噺
+            ocr_text: OCR 鏂囨湰 (鍙€?
+            yolo_classes: YOLO 妫€娴嬬粨鏋?(鍙€?
             
         Returns:
-            采集的样本列表
-        """
+            閲囬泦鐨勬牱鏈垪琛?        """
         if yolo_classes is None:
             yolo_classes = []
             
         samples = []
-        print(f"\n[采集] 开始采集 {page_type.value} 页面样本 ({count} 个)")
+        print(f"\n[閲囬泦] 寮€濮嬮噰闆?{page_type.value} 椤甸潰鏍锋湰 ({count} 涓?")
         print("="*60)
         
         for i in range(count):
-            print(f"\n[样本 {i+1}/{count}] 请按 Enter 截取当前画面...")
+            print(f"\n[鏍锋湰 {i+1}/{count}] 璇锋寜 Enter 鎴彇褰撳墠鐢婚潰...")
             input("> ")
             
-            # 截图
+            # 鎴浘
             image = self.capture_screenshot()
             if image is None:
-                print("[错误] 截图失败")
+                print("[閿欒] 鎴浘澶辫触")
                 continue
             
-            # 保存截图
+            # 淇濆瓨鎴浘
             screenshot_path = self.save_screenshot(image, page_type.value, i)
-            print(f"  截图已保存：{screenshot_path}")
+            print(f"  鎴浘宸蹭繚瀛橈細{screenshot_path}")
             
-            # 分析
+            # 鍒嗘瀽
             result = self.analyzer.analyze(image, ocr_text=ocr_text, yolo_classes=yolo_classes)
-            print(f"  分析结果：{result.predicted_type.value} (置信度={result.confidence:.3f})")
+            print(f"  鍒嗘瀽缁撴灉锛歿result.predicted_type.value} (缃俊搴?{result.confidence:.3f})")
             
-            # 打印特征摘要
-            print(f"  金色元素：{result.color_features.golden_count}个")
-            print(f"  边缘密度：{result.texture_features.edge_density:.3f}")
-            print(f"  亮度：{result.color_features.brightness_mean:.1f}")
-            print(f"  导航栏密度：{result.spatial_features.nav_bar_density:.3f}")
+            # 鎵撳嵃鐗瑰緛鎽樿
+            print(f"  閲戣壊鍏冪礌锛歿result.color_features.golden_count}涓?)
+            print(f"  杈圭紭瀵嗗害锛歿result.texture_features.edge_density:.3f}")
+            print(f"  浜害锛歿result.color_features.brightness_mean:.1f}")
+            print(f"  瀵艰埅鏍忓瘑搴︼細{result.spatial_features.nav_bar_density:.3f}")
             
-            # 保存样本
+            # 淇濆瓨鏍锋湰
             sample = PageSample(
                 page_type=page_type.value,
                 timestamp=datetime.now().isoformat(),
@@ -150,14 +147,13 @@ class PageProfileCollector:
             )
             samples.append(sample)
             
-            # 小停顿
-            time.sleep(1)
+            # 灏忓仠椤?            time.sleep(1)
         
         return samples
     
     def save_profiles(self, samples: list, page_type: str):
-        """保存页面特征配置文件"""
-        # 计算特征统计
+        """淇濆瓨椤甸潰鐗瑰緛閰嶇疆鏂囦欢"""
+        # 璁＄畻鐗瑰緛缁熻
         golden_counts = [s.analysis_result["color"]["golden_count"] for s in samples]
         edge_densities = [s.analysis_result["texture"]["edge_density"] for s in samples]
         brightness_means = [s.analysis_result["color"]["brightness_mean"] for s in samples]
@@ -196,24 +192,23 @@ class PageProfileCollector:
             "samples": [s.to_dict() for s in samples],
         }
         
-        # 保存配置文件
+        # 淇濆瓨閰嶇疆鏂囦欢
         profile_path = os.path.join(self.output_dir, f"{page_type}_profile.json")
         with open(profile_path, "w", encoding="utf-8") as f:
             json.dump(profile, f, ensure_ascii=False, indent=2)
         
-        print(f"\n[保存] 特征配置文件：{profile_path}")
-        print(f"  样本数：{len(samples)}")
-        print(f"  金色元素范围：[{profile['statistics']['golden_count']['min']}, {profile['statistics']['golden_count']['max']}]")
-        print(f"  边缘密度范围：[{profile['statistics']['edge_density']['min']:.3f}, {profile['statistics']['edge_density']['max']:.3f}]")
+        print(f"\n[淇濆瓨] 鐗瑰緛閰嶇疆鏂囦欢锛歿profile_path}")
+        print(f"  鏍锋湰鏁帮細{len(samples)}")
+        print(f"  閲戣壊鍏冪礌鑼冨洿锛歔{profile['statistics']['golden_count']['min']}, {profile['statistics']['golden_count']['max']}]")
+        print(f"  杈圭紭瀵嗗害鑼冨洿锛歔{profile['statistics']['edge_density']['min']:.3f}, {profile['statistics']['edge_density']['max']:.3f}]")
         
         return profile_path
     
     def update_analyzer_profiles(self):
-        """更新分析器的页面特征数据库"""
-        # 扫描所有已采集的配置文件
-        profile_files = list(Path(self.output_dir).glob("*_profile.json"))
+        """鏇存柊鍒嗘瀽鍣ㄧ殑椤甸潰鐗瑰緛鏁版嵁搴?""
+        # 鎵弿鎵€鏈夊凡閲囬泦鐨勯厤缃枃浠?        profile_files = list(Path(self.output_dir).glob("*_profile.json"))
         
-        print(f"\n[更新] 找到 {len(profile_files)} 个配置文件")
+        print(f"\n[鏇存柊] 鎵惧埌 {len(profile_files)} 涓厤缃枃浠?)
         
         updated_profiles = {}
         for profile_file in profile_files:
@@ -223,7 +218,7 @@ class PageProfileCollector:
             page_type = profile["page_type"]
             stats = profile["statistics"]
             
-            # 转换为 PAGE_PROFILES 格式
+            # 杞崲涓?PAGE_PROFILES 鏍煎紡
             updated_profiles[page_type] = {
                 "golden_count": (
                     int(stats["golden_count"]["mean"] - 2 * stats["golden_count"]["std"]),
@@ -239,36 +234,36 @@ class PageProfileCollector:
                 ),
             }
             
-            print(f"  {page_type}: 金色=[{updated_profiles[page_type]['golden_count']}], "
-                  f"边缘=[{updated_profiles[page_type]['edge_density'][0]:.3f}, {updated_profiles[page_type]['edge_density'][1]:.3f}]")
+            print(f"  {page_type}: 閲戣壊=[{updated_profiles[page_type]['golden_count']}], "
+                  f"杈圭紭=[{updated_profiles[page_type]['edge_density'][0]:.3f}, {updated_profiles[page_type]['edge_density'][1]:.3f}]")
         
-        # 保存更新后的配置文件
+        # 淇濆瓨鏇存柊鍚庣殑閰嶇疆鏂囦欢
         updated_path = os.path.join(self.output_dir, "updated_page_profiles.json")
         with open(updated_path, "w", encoding="utf-8") as f:
             json.dump(updated_profiles, f, ensure_ascii=False, indent=2)
         
-        print(f"\n[保存] 更新后的特征数据库：{updated_path}")
-        print("[提示] 请将此配置复制到 advanced_analyzer.py 的 PAGE_PROFILES 中")
+        print(f"\n[淇濆瓨] 鏇存柊鍚庣殑鐗瑰緛鏁版嵁搴擄細{updated_path}")
+        print("[鎻愮ず] 璇峰皢姝ら厤缃鍒跺埌 advanced_analyzer.py 鐨?PAGE_PROFILES 涓?)
         
         return updated_path
 
 
 def main():
-    parser = argparse.ArgumentParser(description="页面特征采集工具")
+    parser = argparse.ArgumentParser(description="椤甸潰鐗瑰緛閲囬泦宸ュ叿")
     parser.add_argument("--type", "-t", type=str, required=True,
                        choices=["world", "quest_panel", "exit_dialog", "title", 
                                "loading", "menu", "settings", "event_panel"],
-                       help="页面类型")
+                       help="椤甸潰绫诲瀷")
     parser.add_argument("--count", "-c", type=int, default=5,
-                       help="采集样本数量 (默认：5)")
+                       help="閲囬泦鏍锋湰鏁伴噺 (榛樿锛?)")
     parser.add_argument("--ocr", type=str, default="",
-                       help="OCR 文本 (可选)")
+                       help="OCR 鏂囨湰 (鍙€?")
     parser.add_argument("--update", action="store_true",
-                       help="更新分析器的特征数据库")
+                       help="鏇存柊鍒嗘瀽鍣ㄧ殑鐗瑰緛鏁版嵁搴?)
     
     args = parser.parse_args()
     
-    # 映射页面类型
+    # 鏄犲皠椤甸潰绫诲瀷
     type_mapping = {
         "world": PageType.WORLD,
         "quest_panel": PageType.QUEST_PANEL,
@@ -283,22 +278,22 @@ def main():
     collector = PageProfileCollector()
     
     if args.update:
-        # 更新特征数据库
-        collector.update_analyzer_profiles()
+        # 鏇存柊鐗瑰緛鏁版嵁搴?        collector.update_analyzer_profiles()
     else:
-        # 采集样本
+        # 閲囬泦鏍锋湰
         page_type = type_mapping[args.type]
         samples = collector.collect_samples(page_type, args.count, args.ocr)
         
         if samples:
-            # 保存配置文件
+            # 淇濆瓨閰嶇疆鏂囦欢
             collector.save_profiles(samples, args.type)
             
             print("\n" + "="*60)
-            print("采集完成!")
-            print(f"共采集 {len(samples)} 个样本")
+            print("閲囬泦瀹屾垚!")
+            print(f"鍏遍噰闆?{len(samples)} 涓牱鏈?)
             print("="*60)
 
 
 if __name__ == "__main__":
     main()
+

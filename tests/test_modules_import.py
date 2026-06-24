@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 # -*- coding: utf-8 -*-
 """Client Module Import Test Script"""
 
@@ -53,16 +53,16 @@ def test_modules_import():
     
     # Modules with Chinese directory names
     modules_to_test = [
-        ('安卓相关.core.logger', 'Logger', 'Logger Module'),
-        ('安卓相关.core.communication.communicator', 'ClientCommunicator', 'Communication Module'),
-        ('安卓相关.core.cloud.managers.auth_manager', 'AuthManager', 'Auth Manager'),
-        ('安卓相关.core.cloud.managers.device_manager', 'DeviceManager', 'Device Manager'),
-        ('安卓相关.core.cloud.managers.task_queue_manager', 'TaskQueueManager', 'Task Queue Manager'),
-        ('安卓相关.core.cloud.managers.execution_manager', 'ExecutionManager', 'Execution Manager'),
-        ('安卓相关.core.cloud.task_manager', 'TaskManager', 'Task Manager'),
-        ('安卓相关.控制.adb_manager', 'ADBDeviceManager', 'ADB Manager'),
-        ('安卓相关.控制.touch.touch_manager', 'TouchManager', 'Touch Manager'),
-        ('安卓相关.图像传递.screen_capture', 'ScreenCapture', 'Screen Capture'),
+        ('瀹夊崜鐩稿叧.core.logger', 'Logger', 'Logger Module'),
+        ('瀹夊崜鐩稿叧.core.communication.communicator', 'ClientCommunicator', 'Communication Module'),
+        ('瀹夊崜鐩稿叧.core.cloud.managers.auth_manager', 'AuthManager', 'Auth Manager'),
+        ('瀹夊崜鐩稿叧.core.cloud.managers.device_manager', 'DeviceManager', 'Device Manager'),
+        ('瀹夊崜鐩稿叧.core.cloud.managers.task_queue_manager', 'TaskQueueManager', 'Task Queue Manager'),
+        ('瀹夊崜鐩稿叧.core.cloud.managers.execution_manager', 'ExecutionManager', 'Execution Manager'),
+        ('瀹夊崜鐩稿叧.core.cloud.task_manager', 'TaskManager', 'Task Manager'),
+        ('瀹夊崜鐩稿叧.鎺у埗.adb_manager', 'ADBDeviceManager', 'ADB Manager'),
+        ('瀹夊崜鐩稿叧.鎺у埗.touch.touch_manager', 'TouchManager', 'Touch Manager'),
+        ('瀹夊崜鐩稿叧.鍥惧儚浼犻€?screen_capture', 'ScreenCapture', 'Screen Capture'),
     ]
     
     passed = 0
@@ -91,7 +91,7 @@ def test_communicator_connection():
     print("=" * 50)
     
     try:
-        from 安卓相关.core.communication.communicator import ClientCommunicator
+        from 瀹夊崜鐩稿叧.core.communication.communicator import ClientCommunicator
         
         # Create communicator instance
         communicator = ClientCommunicator(
@@ -121,7 +121,7 @@ def test_adb_manager():
     print("=" * 50)
     
     try:
-        from 安卓相关.控制.adb_manager import ADBDeviceManager
+        from 瀹夊崜鐩稿叧.鎺у埗.adb_manager import ADBDeviceManager
         
         # Create ADB manager instance
         adb_path = "3rd-part/ADB/adb.exe"

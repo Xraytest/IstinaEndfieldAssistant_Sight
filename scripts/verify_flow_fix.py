@@ -1,11 +1,8 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-标准流修复验证脚本
-
-验证内容：
-1. 新页面分析器能否正确识别世界页面和任务面板
-2. 标准流引擎前置页面验证逻辑是否正常工作
-3. 退出对话框处理是否可靠
+鏍囧噯娴佷慨澶嶉獙璇佽剼鏈?
+楠岃瘉鍐呭锛?1. 鏂伴〉闈㈠垎鏋愬櫒鑳藉惁姝ｇ‘璇嗗埆涓栫晫椤甸潰鍜屼换鍔￠潰鏉?2. 鏍囧噯娴佸紩鎿庡墠缃〉闈㈤獙璇侀€昏緫鏄惁姝ｅ父宸ヤ綔
+3. 閫€鍑哄璇濇澶勭悊鏄惁鍙潬
 """
 
 import subprocess
@@ -27,7 +24,7 @@ SERIAL = 'localhost:16512'
 
 
 def adb_cmd(args):
-    """执行 ADB 命令"""
+    """鎵ц ADB 鍛戒护"""
     return subprocess.run(
         [str(ADB_EXE), '-s', SERIAL] + args,
         capture_output=True, timeout=15
@@ -35,7 +32,7 @@ def adb_cmd(args):
 
 
 def screencap():
-    """截图"""
+    """鎴浘"""
     r = adb_cmd(['exec-out', 'screencap', '-p'])
     if len(r.stdout) < 1000:
         return None
@@ -43,29 +40,29 @@ def screencap():
 
 
 def tap(x, y):
-    """点击"""
+    """鐐瑰嚮"""
     adb_cmd(['shell', 'input', 'tap', str(int(x)), str(int(y))])
 
 
 def keyevent(key):
-    """按键"""
+    """鎸夐敭"""
     adb_cmd(['shell', 'input', 'keyevent', str(key)])
 
 
 def test_page_analyzer():
-    """测试页面分析器"""
+    """娴嬭瘯椤甸潰鍒嗘瀽鍣?""
     print("\n" + "="*70)
-    print("测试 1: 页面分析器")
+    print("娴嬭瘯 1: 椤甸潰鍒嗘瀽鍣?)
     print("="*70)
     
     analyzer = HighPrecisionPageAnalyzer()
     correct = 0
     total = 0
     
-    # 测试世界页面
-    print("\n[测试] 世界页面识别...")
+    # 娴嬭瘯涓栫晫椤甸潰
+    print("\n[娴嬭瘯] 涓栫晫椤甸潰璇嗗埆...")
     for i in range(3):
-        # 按返回键直到世界页面（最多 10 次）
+        # 鎸夎繑鍥為敭鐩村埌涓栫晫椤甸潰锛堟渶澶?10 娆★級
         for attempt in range(10):
             keyevent(4)
             time.sleep(0.3)
@@ -80,7 +77,7 @@ def test_page_analyzer():
         
         img = screencap()
         if img is None:
-            print(f"  样本 {i+1}: 截图失败")
+            print(f"  鏍锋湰 {i+1}: 鎴浘澶辫触")
             continue
         
         result = analyzer.analyze(img)
@@ -91,22 +88,22 @@ def test_page_analyzer():
         total += 1
         if page_type == "world":
             correct += 1
-            status = "✅"
+            status = "鉁?
         else:
-            status = "❌"
+            status = "鉂?
         
-        print(f"  {status} 样本 {i+1}: {page_type} (置信度 {confidence:.2f})")
+        print(f"  {status} 鏍锋湰 {i+1}: {page_type} (缃俊搴?{confidence:.2f})")
         print(f"       left_bar={features['left_bar_brightness']:.1f} green={features['green_pixels_top_right']:.0f}")
     
-    # 测试任务面板
-    print("\n[测试] 任务面板识别...")
-    tap(860, 80)  # 任务图标
+    # 娴嬭瘯浠诲姟闈㈡澘
+    print("\n[娴嬭瘯] 浠诲姟闈㈡澘璇嗗埆...")
+    tap(860, 80)  # 浠诲姟鍥炬爣
     time.sleep(2)
     
     for i in range(3):
         img = screencap()
         if img is None:
-            print(f"  样本 {i+1}: 截图失败")
+            print(f"  鏍锋湰 {i+1}: 鎴浘澶辫触")
             continue
         
         result = analyzer.analyze(img)
@@ -114,49 +111,46 @@ def test_page_analyzer():
         confidence = result['confidence']
         features = result['features']
         
-        # 验证是否真的在任务面板（left_bar > 120）
-        actual_quest_panel = features['left_bar_brightness'] > 120 and features['green_pixels_top_right'] < 30
+        # 楠岃瘉鏄惁鐪熺殑鍦ㄤ换鍔￠潰鏉匡紙left_bar > 120锛?        actual_quest_panel = features['left_bar_brightness'] > 120 and features['green_pixels_top_right'] < 30
         
         total += 1
         if actual_quest_panel:
-            # 确实在任务面板，检查识别是否正确
-            if page_type == "quest_panel":
+            # 纭疄鍦ㄤ换鍔￠潰鏉匡紝妫€鏌ヨ瘑鍒槸鍚︽纭?            if page_type == "quest_panel":
                 correct += 1
-                status = "✅"
+                status = "鉁?
             else:
-                status = "❌(识别错误)"
+                status = "鉂?璇嗗埆閿欒)"
         else:
-            # 不在任务面板，识别为其他页面是正确的
+            # 涓嶅湪浠诲姟闈㈡澘锛岃瘑鍒负鍏朵粬椤甸潰鏄纭殑
             if page_type != "quest_panel":
                 correct += 1
-                status = "✅(正确识别为非任务面板)"
+                status = "鉁?姝ｇ‘璇嗗埆涓洪潪浠诲姟闈㈡澘)"
             else:
-                status = "❌(错误识别为任务面板)"
+                status = "鉂?閿欒璇嗗埆涓轰换鍔￠潰鏉?"
         
-        print(f"  {status} 样本 {i+1}: {page_type} (置信度 {confidence:.2f})")
-        print(f"       left_bar={features['left_bar_brightness']:.1f} green={features['green_pixels_top_right']:.0f} 实际在任务面板={actual_quest_panel}")
+        print(f"  {status} 鏍锋湰 {i+1}: {page_type} (缃俊搴?{confidence:.2f})")
+        print(f"       left_bar={features['left_bar_brightness']:.1f} green={features['green_pixels_top_right']:.0f} 瀹為檯鍦ㄤ换鍔￠潰鏉?{actual_quest_panel}")
     
-    # 返回世界
+    # 杩斿洖涓栫晫
     for _ in range(3):
         keyevent(4)
         time.sleep(0.3)
     
     accuracy = correct / total if total > 0 else 0
-    print(f"\n[结果] 准确率：{correct}/{total} ({accuracy*100:.1f}%)")
+    print(f"\n[缁撴灉] 鍑嗙‘鐜囷細{correct}/{total} ({accuracy*100:.1f}%)")
     
     return accuracy > 0.8
 
 
 def test_exit_dialog_handling():
-    """测试退出对话框处理"""
+    """娴嬭瘯閫€鍑哄璇濇澶勭悊"""
     print("\n" + "="*70)
-    print("测试 2: 退出对话框处理")
+    print("娴嬭瘯 2: 閫€鍑哄璇濇澶勭悊")
     print("="*70)
     
     analyzer = HighPrecisionPageAnalyzer()
     
-    # 确保在世界页面
-    print("\n[步骤 1] 确保在世界页面...")
+    # 纭繚鍦ㄤ笘鐣岄〉闈?    print("\n[姝ラ 1] 纭繚鍦ㄤ笘鐣岄〉闈?..")
     for _ in range(5):
         keyevent(4)
         time.sleep(0.3)
@@ -164,79 +158,78 @@ def test_exit_dialog_handling():
     
     img = screencap()
     if img is None:
-        print("  [失败] 截图失败")
+        print("  [澶辫触] 鎴浘澶辫触")
         return False
     
     result = analyzer.analyze(img)
-    print(f"  当前页面：{result['page_type']} (置信度 {result['confidence']:.2f})")
+    print(f"  褰撳墠椤甸潰锛歿result['page_type']} (缃俊搴?{result['confidence']:.2f})")
     
     if result['page_type'] != "world":
-        print("  [警告] 不在世界页面，测试可能不准确")
+        print("  [璀﹀憡] 涓嶅湪涓栫晫椤甸潰锛屾祴璇曞彲鑳戒笉鍑嗙‘")
     
-    # 触发退出对话框
-    print("\n[步骤 2] 触发退出对话框...")
+    # 瑙﹀彂閫€鍑哄璇濇
+    print("\n[姝ラ 2] 瑙﹀彂閫€鍑哄璇濇...")
     keyevent(4)
     time.sleep(1)
     
     img = screencap()
     if img is None:
-        print("  [失败] 截图失败")
+        print("  [澶辫触] 鎴浘澶辫触")
         return False
     
     result = analyzer.analyze(img)
-    print(f"  当前页面：{result['page_type']} (置信度 {result['confidence']:.2f})")
+    print(f"  褰撳墠椤甸潰锛歿result['page_type']} (缃俊搴?{result['confidence']:.2f})")
     
-    # 尝试点击取消按钮
-    print("\n[步骤 3] 尝试关闭对话框...")
+    # 灏濊瘯鐐瑰嚮鍙栨秷鎸夐挳
+    print("\n[姝ラ 3] 灏濊瘯鍏抽棴瀵硅瘽妗?..")
     tap(600, 750)
     time.sleep(1.5)
     
     img = screencap()
     if img is None:
-        print("  [失败] 截图失败")
+        print("  [澶辫触] 鎴浘澶辫触")
         return False
     
     result = analyzer.analyze(img)
-    print(f"  当前页面：{result['page_type']} (置信度 {result['confidence']:.2f})")
+    print(f"  褰撳墠椤甸潰锛歿result['page_type']} (缃俊搴?{result['confidence']:.2f})")
     
     if result['page_type'] == "world":
-        print("  [成功] 对话框已关闭，回到世界页面")
+        print("  [鎴愬姛] 瀵硅瘽妗嗗凡鍏抽棴锛屽洖鍒颁笘鐣岄〉闈?)
         return True
     else:
-        print("  [失败] 对话框未关闭或页面识别错误")
+        print("  [澶辫触] 瀵硅瘽妗嗘湭鍏抽棴鎴栭〉闈㈣瘑鍒敊璇?)
         return False
 
 
 def main():
     print("\n" + "="*70)
-    print("标准流修复验证")
+    print("鏍囧噯娴佷慨澶嶉獙璇?)
     print("="*70)
     
     results = {}
     
-    # 测试 1: 页面分析器
-    results['page_analyzer'] = test_page_analyzer()
+    # 娴嬭瘯 1: 椤甸潰鍒嗘瀽鍣?    results['page_analyzer'] = test_page_analyzer()
     
-    # 测试 2: 退出对话框处理
+    # 娴嬭瘯 2: 閫€鍑哄璇濇澶勭悊
     results['exit_dialog'] = test_exit_dialog_handling()
     
-    # 总结
+    # 鎬荤粨
     print("\n" + "="*70)
-    print("验证总结")
+    print("楠岃瘉鎬荤粨")
     print("="*70)
     
     all_passed = True
     for test_name, passed in results.items():
-        status = "✅ 通过" if passed else "❌ 失败"
+        status = "鉁?閫氳繃" if passed else "鉂?澶辫触"
         print(f"  {test_name}: {status}")
         if not passed:
             all_passed = False
     
     if all_passed:
-        print("\n[结论] 所有测试通过，标准流修复有效")
+        print("\n[缁撹] 鎵€鏈夋祴璇曢€氳繃锛屾爣鍑嗘祦淇鏈夋晥")
         return 0
     else:
-        print("\n[结论] 部分测试失败，需要进一步调试")
+        print("\n[缁撹] 閮ㄥ垎娴嬭瘯澶辫触锛岄渶瑕佽繘涓€姝ヨ皟璇?)
         return 1
 
 
@@ -244,7 +237,8 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as e:
-        print(f"\n[错误] 验证失败：{e}")
+        print(f"\n[閿欒] 楠岃瘉澶辫触锛歿e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+

@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""检查设备实际分辨率"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""妫€鏌ヨ澶囧疄闄呭垎杈ㄧ巼"""
 import sys, subprocess
 from pathlib import Path
 
@@ -24,3 +24,4 @@ out = run(["shell", "dumpsys", "display"])
 for l in out.split("\n"):
     if "mDisplayWidth" in l or "mDisplayHeight" in l or "DisplayDeviceInfo" in l:
         print(l.strip())
+

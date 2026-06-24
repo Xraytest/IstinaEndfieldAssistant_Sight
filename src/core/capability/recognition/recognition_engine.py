@@ -1,14 +1,14 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-识别引擎 - MaaEnd 式多源融合识别系统
+璇嗗埆寮曟搸 - MaaEnd 寮忓婧愯瀺鍚堣瘑鍒郴缁?
 
-实现 MaaEnd 的核心识别能力：
-1. 模板匹配（TemplateMatch）- OpenCV SIFT 特征匹配
-2. 颜色匹配（ColorMatch）- OpenCV HSV 颜色轮廓检测
-3. 组合识别（And/Or）
-4. OCR 识别 - MaaFw Pipeline 内建 OCR 引擎
+瀹炵幇 MaaEnd 鐨勬牳蹇冭瘑鍒兘鍔涳細
+1. 妯℃澘鍖归厤锛圱emplateMatch锛? OpenCV SIFT 鐗瑰緛鍖归厤
+2. 棰滆壊鍖归厤锛圕olorMatch锛? OpenCV HSV 棰滆壊杞粨妫€娴?
+3. 缁勫悎璇嗗埆锛圓nd/Or锛?
+4. OCR 璇嗗埆 - MaaFw Pipeline 鍐呭缓 OCR 寮曟搸
 
-参考：MaaEnd-2/assets/resource/pipeline/Common/
+鍙傝€冿細MaaEnd-2/assets/resource/pipeline/Common/
 """
 
 import cv2
@@ -22,19 +22,19 @@ ensure_src_path(__file__)
 
 
 class RecognitionEngine:
-    """识别引擎，支持 MaaEnd 式节点识别
+    """璇嗗埆寮曟搸锛屾敮鎸?MaaEnd 寮忚妭鐐硅瘑鍒?
 
-    OCR 通过 MaaFw Pipeline 系统调用（内建 OCR 引擎）。
-    本引擎负责：模板匹配、颜色匹配、组合逻辑。
+    OCR 閫氳繃 MaaFw Pipeline 绯荤粺璋冪敤锛堝唴寤?OCR 寮曟搸锛夈€?
+    鏈紩鎿庤礋璐ｏ細妯℃澘鍖归厤銆侀鑹插尮閰嶃€佺粍鍚堥€昏緫銆?
     """
 
     def __init__(self, assets_dir: str = None):
         self.assets_dir = Path(assets_dir) if assets_dir else Path(get_project_root(__file__)) / "assets"
 
-    # ── 主分发 ─────────────────────────────────────────────────
+    # 鈹€鈹€ 涓诲垎鍙?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
     def recognize(self, img: np.ndarray, node_config: Dict[str, Any]) -> Tuple[bool, Any]:
-        """执行节点识别"""
+        """鎵ц鑺傜偣璇嗗埆"""
         node_type = node_config.get("type", "")
 
         if node_type == "TemplateMatch":
@@ -46,22 +46,22 @@ class RecognitionEngine:
         elif node_type == "Or":
             return self._or_recognize(img, node_config)
         elif node_type == "OCR":
-            # OCR 通过 MaaFw Pipeline 执行，此处返回提示
-            return False, {"reason": "OCR 需通过 MaaFw Pipeline 执行，请使用 Tasker.post_recognition()"}
+            # OCR 閫氳繃 MaaFw Pipeline 鎵ц锛屾澶勮繑鍥炴彁绀?
+            return False, {"reason": "OCR 闇€閫氳繃 MaaFw Pipeline 鎵ц锛岃浣跨敤 Tasker.post_recognition()"}
         elif isinstance(node_config, str):
             return False, None
         return False, None
 
-    # ── 模板匹配（SIFT 特征匹配，尺度不变）─────────────────
+    # 鈹€鈹€ 妯℃澘鍖归厤锛圫IFT 鐗瑰緛鍖归厤锛屽昂搴︿笉鍙橈級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
     def _template_match(self, img: np.ndarray, config: Dict[str, Any]) -> Tuple[bool, Any]:
-        """SIFT 特征匹配 — 尺度/旋转不变，远超传统模板匹配
+        """SIFT 鐗瑰緛鍖归厤 鈥?灏哄害/鏃嬭浆涓嶅彉锛岃繙瓒呬紶缁熸ā鏉垮尮閰?
 
-        config: {template: str, roi: [x,y,w,h], threshold: float (最小匹配点数)}
+        config: {template: str, roi: [x,y,w,h], threshold: float (鏈€灏忓尮閰嶇偣鏁?}
         
-        返回格式:
-        - 成功：(True, {"bbox": [x1, y1, x2, y2], "center": [cx, cy], "matches": int, "confidence": float})
-        - 失败：(False, {"matches": int})
+        杩斿洖鏍煎紡:
+        - 鎴愬姛锛?True, {"bbox": [x1, y1, x2, y2], "center": [cx, cy], "matches": int, "confidence": float})
+        - 澶辫触锛?False, {"matches": int})
         """
         template_path = config.get("template", "")
         roi = config.get("roi")
@@ -82,10 +82,10 @@ class RecognitionEngine:
         else:
             search_img = img
 
-        # SIFT 检测器
+        # SIFT 妫€娴嬪櫒
         sift = cv2.SIFT_create()
 
-        # 转换为灰度
+        # 杞崲涓虹伆搴?
         gray_tmpl = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
         gray_src = cv2.cvtColor(search_img, cv2.COLOR_BGR2GRAY)
 
@@ -95,7 +95,7 @@ class RecognitionEngine:
         if des1 is None or des2 is None or len(des1) < 4 or len(des2) < 4:
             return False, {"matches": 0}
 
-        # FLANN 匹配
+        # FLANN 鍖归厤
         FLANN_INDEX_KDTREE = 1
         index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
         search_params = dict(checks=50)
@@ -109,7 +109,7 @@ class RecognitionEngine:
                 good.append(m)
 
         if len(good) >= min_matches:
-            # 计算匹配区域边界框
+            # 璁＄畻鍖归厤鍖哄煙杈圭晫妗?
             pts = [kp2[m.trainIdx].pt for m in good]
             xs = [p[0] for p in pts]
             ys = [p[1] for p in pts]
@@ -117,17 +117,17 @@ class RecognitionEngine:
             min_x, max_x = min(xs), max(xs)
             min_y, max_y = min(ys), max(ys)
             
-            # 转换为全局坐标
+            # 杞崲涓哄叏灞€鍧愭爣
             global_x1 = int(min_x) + x
             global_y1 = int(min_y) + y
             global_x2 = int(max_x) + x
             global_y2 = int(max_y) + y
             
-            # 计算中心点
+            # 璁＄畻涓績鐐?
             cx = int((global_x1 + global_x2) / 2)
             cy = int((global_y1 + global_y2) / 2)
             
-            # 计算置信度（匹配点数归一化）
+            # 璁＄畻缃俊搴︼紙鍖归厤鐐规暟褰掍竴鍖栵級
             confidence = min(1.0, len(good) / 20.0)
             
             return True, {
@@ -140,17 +140,17 @@ class RecognitionEngine:
 
         return False, {"matches": len(good)}
 
-    # ── 颜色匹配（轮廓检测，非像素分布）─────────────────────
+    # 鈹€鈹€ 棰滆壊鍖归厤锛堣疆寤撴娴嬶紝闈炲儚绱犲垎甯冿級鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
     def _color_match(self, img: np.ndarray, config: Dict[str, Any]) -> Tuple[bool, Any]:
-        """颜色元素检测：在 ROI 内查找至少 min_contours 个指定颜色的连通区域
+        """棰滆壊鍏冪礌妫€娴嬶細鍦?ROI 鍐呮煡鎵捐嚦灏?min_contours 涓寚瀹氶鑹茬殑杩為€氬尯鍩?
 
         config: {roi: [x,y,w,h], lower: [h,s,v], upper: [h,s,v],
                  min_area: int, min_contours: int}
         
-        返回格式:
-        - 成功：(True, {"contours": int, "bboxes": [[x1,y1,x2,y2],...], "centers": [[cx,cy],...], "total_area": int})
-        - 失败：(False, {"contours": int})
+        杩斿洖鏍煎紡:
+        - 鎴愬姛锛?True, {"contours": int, "bboxes": [[x1,y1,x2,y2],...], "centers": [[cx,cy],...], "total_area": int})
+        - 澶辫触锛?False, {"contours": int})
         """
         roi = config.get("roi")
         lower = np.array(config.get("lower"))
@@ -181,16 +181,16 @@ class RecognitionEngine:
                 valid_contours.append(c)
                 total_area += area
                 
-                # 计算边界框
+                # 璁＄畻杈圭晫妗?
                 x, y, w, h = cv2.boundingRect(c)
-                # 转换为全局坐标
+                # 杞崲涓哄叏灞€鍧愭爣
                 global_x1 = x + x_offset
                 global_y1 = y + y_offset
                 global_x2 = x + w + x_offset
                 global_y2 = y + h + y_offset
                 bboxes.append([global_x1, global_y1, global_x2, global_y2])
                 
-                # 计算中心点
+                # 璁＄畻涓績鐐?
                 cx = global_x1 + w // 2
                 cy = global_y1 + h // 2
                 centers.append([cx, cy])
@@ -205,10 +205,10 @@ class RecognitionEngine:
 
         return False, {"contours": len(valid_contours)}
 
-    # ── 组合识别 ───────────────────────────────────────────────
+    # 鈹€鈹€ 缁勫悎璇嗗埆 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
     def _and_recognize(self, img: np.ndarray, config: Dict[str, Any]) -> Tuple[bool, Any]:
-        """And：所有子节点都匹配，聚合所有 bbox 信息"""
+        """And锛氭墍鏈夊瓙鑺傜偣閮藉尮閰嶏紝鑱氬悎鎵€鏈?bbox 淇℃伅"""
         all_bboxes = []
         all_centers = []
         
@@ -216,7 +216,7 @@ class RecognitionEngine:
             ok, result = self.recognize(img, node)
             if not ok:
                 return False, None
-            # 聚合 bbox 信息
+            # 鑱氬悎 bbox 淇℃伅
             if result:
                 if "bbox" in result:
                     all_bboxes.append(result["bbox"])
@@ -230,7 +230,7 @@ class RecognitionEngine:
         return True, {"bboxes": all_bboxes, "centers": all_centers}
 
     def _or_recognize(self, img: np.ndarray, config: Dict[str, Any]) -> Tuple[bool, Any]:
-        """Or：任一子节点匹配即成功（短路求值），返回第一个匹配的完整信息"""
+        """Or锛氫换涓€瀛愯妭鐐瑰尮閰嶅嵆鎴愬姛锛堢煭璺眰鍊硷級锛岃繑鍥炵涓€涓尮閰嶇殑瀹屾暣淇℃伅"""
         for node in config.get("nodes", []):
             ok, result = self.recognize(img, node)
             if ok:
@@ -238,26 +238,26 @@ class RecognitionEngine:
         return False, None
 
 
-# ═══════════════════════════════════════════════════════════════
-# MaaFw Pipeline OCR 封装
-# ═══════════════════════════════════════════════════════════════
+# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+# MaaFw Pipeline OCR 灏佽
+# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 class MaaFwPipelineOCR:
-    """通过 MaaFw Tasker + Resource 管道系统执行 OCR
+    """閫氳繃 MaaFw Tasker + Resource 绠￠亾绯荤粺鎵ц OCR
 
-    用法:
+    鐢ㄦ硶:
         from maa import Tasker, Resource, Controller
         from maa.pipeline import JRecognitionType, JOCR
 
-        # 创建 Tasker 并绑定 Resource/Controller
+        # 鍒涘缓 Tasker 骞剁粦瀹?Resource/Controller
         tasker = Tasker()
         resource = Resource()
         controller = Controller()
         tasker.bind(resource, controller)
 
-        # 执行 OCR
+        # 鎵ц OCR
         ocr_param = JOCR(
-            expected=["领取", "Claim"],
+            expected=["棰嗗彇", "Claim"],
             roi=(0, 0, 1280, 720)
         )
         job = tasker.post_recognition(JRecognitionType.OCR, ocr_param, image)
@@ -268,15 +268,15 @@ class MaaFwPipelineOCR:
     def create_ocr_param(expected: List[str], roi: Tuple[int, int, int, int] = (0, 0, 0, 0),
                          threshold: float = 0.3) -> Dict[str, Any]:
         """
-        创建 OCR 识别参数（JSON 格式，用于 Pipeline 配置）
+        鍒涘缓 OCR 璇嗗埆鍙傛暟锛圝SON 鏍煎紡锛岀敤浜?Pipeline 閰嶇疆锛?
 
         Args:
-            expected: 期望匹配的文本列表（支持正则表达式）
-            roi: 识别区域 (x, y, w, h)
-            threshold: 置信度阈值
+            expected: 鏈熸湜鍖归厤鐨勬枃鏈垪琛紙鏀寔姝ｅ垯琛ㄨ揪寮忥級
+            roi: 璇嗗埆鍖哄煙 (x, y, w, h)
+            threshold: 缃俊搴﹂槇鍊?
 
         Returns:
-            OCR 参数字典
+            OCR 鍙傛暟瀛楀吀
         """
         return {
             "type": "OCR",
@@ -289,29 +289,29 @@ class MaaFwPipelineOCR:
 
     @staticmethod
     def doc():
-        """返回 MaaFw OCR 使用文档"""
+        """杩斿洖 MaaFw OCR 浣跨敤鏂囨。"""
         return """
-MaaFw Pipeline OCR 使用指南
+MaaFw Pipeline OCR 浣跨敤鎸囧崡
 ==========================
 
-1. 通过 Tasker.post_recognition() 执行 OCR:
+1. 閫氳繃 Tasker.post_recognition() 鎵ц OCR:
    from maa import Tasker, JRecognitionType
    from maa.pipeline import JOCR
 
    ocr_param = JOCR(
-       expected=["领取", "Claim", "(?i)collect"],  # 支持正则
+       expected=["棰嗗彇", "Claim", "(?i)collect"],  # 鏀寔姝ｅ垯
        roi=(0, 0, 1280, 720),
        threshold=0.3
    )
    job = tasker.post_recognition(JRecognitionType.OCR, ocr_param, image)
 
-2. 在 Pipeline JSON 中配置 OCR:
+2. 鍦?Pipeline JSON 涓厤缃?OCR:
    {
        "CheckClaimButton": {
            "recognition": {
                "type": "OCR",
                "param": {
-                   "expected": ["领取", "一键领取", "Claim"],
+                   "expected": ["棰嗗彇", "涓€閿鍙?, "Claim"],
                    "roi": [950, 60, 330, 640],
                    "threshold": 0.3
                }
@@ -320,36 +320,36 @@ MaaFw Pipeline OCR 使用指南
        }
    }
 
-3. OCR 结果格式（重要：包含完整坐标信息供 LLM 决策）:
+3. OCR 缁撴灉鏍煎紡锛堥噸瑕侊細鍖呭惈瀹屾暣鍧愭爣淇℃伅渚?LLM 鍐崇瓥锛?
    RecognitionDetail(
-       hit: bool,                          # 是否匹配期望文本
-       box: (x, y, w, h),                  # 匹配位置边界框
-       all_results: list[RecognitionResult],  # 所有识别结果
-       best_result: RecognitionResult       # 最佳匹配结果
+       hit: bool,                          # 鏄惁鍖归厤鏈熸湜鏂囨湰
+       box: (x, y, w, h),                  # 鍖归厤浣嶇疆杈圭晫妗?
+       all_results: list[RecognitionResult],  # 鎵€鏈夎瘑鍒粨鏋?
+       best_result: RecognitionResult       # 鏈€浣冲尮閰嶇粨鏋?
    )
    
-   RecognitionResult 包含:
-   - text: str              # 识别的文本
-   - bbox: [x1, y1, x2, y2] # 文本边界框（全局坐标）
-   - center: [cx, cy]       # 文本中心点
-   - confidence: float      # 置信度
+   RecognitionResult 鍖呭惈:
+   - text: str              # 璇嗗埆鐨勬枃鏈?
+   - bbox: [x1, y1, x2, y2] # 鏂囨湰杈圭晫妗嗭紙鍏ㄥ眬鍧愭爣锛?
+   - center: [cx, cy]       # 鏂囨湰涓績鐐?
+   - confidence: float      # 缃俊搴?
 
-4. 支持的特性:
-   - 多语言自动检测（中文/英文/日文/韩文）
-   - 正则表达式匹配（如 (?i) 不区分大小写）
-   - ROI 区域识别
-   - 置信度阈值过滤
-   - 文本排序（Horizontal/Vertical/Area 等）
-   - **返回完整坐标信息，LLM 可根据坐标自行决定点击位置**
+4. 鏀寔鐨勭壒鎬?
+   - 澶氳瑷€鑷姩妫€娴嬶紙涓枃/鑻辨枃/鏃ユ枃/闊╂枃锛?
+   - 姝ｅ垯琛ㄨ揪寮忓尮閰嶏紙濡?(?i) 涓嶅尯鍒嗗ぇ灏忓啓锛?
+   - ROI 鍖哄煙璇嗗埆
+   - 缃俊搴﹂槇鍊艰繃婊?
+   - 鏂囨湰鎺掑簭锛圚orizontal/Vertical/Area 绛夛級
+   - **杩斿洖瀹屾暣鍧愭爣淇℃伅锛孡LM 鍙牴鎹潗鏍囪嚜琛屽喅瀹氱偣鍑讳綅缃?*
 """
 
 
-# ═══════════════════════════════════════════════════════════════
-# 预定义状态节点（参考 MaaEnd，适配 OpenCV 实现）
-# ═══════════════════════════════════════════════════════════════
+# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+# 棰勫畾涔夌姸鎬佽妭鐐癸紙鍙傝€?MaaEnd锛岄€傞厤 OpenCV 瀹炵幇锛?
+# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 PREDEFINED_STATES = {
-    # ── 取消按钮（对话框区域 SIFT，阈值=5 最小匹配点） ──
+    # 鈹€鈹€ 鍙栨秷鎸夐挳锛堝璇濇鍖哄煙 SIFT锛岄槇鍊?5 鏈€灏忓尮閰嶇偣锛?鈹€鈹€
     "CancelButton": {
         "type": "Or",
         "nodes": [
@@ -368,7 +368,7 @@ PREDEFINED_STATES = {
         ]
     },
 
-    # ── 世界页面（左上角小 ROI SIFT） ──
+    # 鈹€鈹€ 涓栫晫椤甸潰锛堝乏涓婅灏?ROI SIFT锛?鈹€鈹€
     "InWorld": {
         "type": "Or",
         "nodes": [
@@ -387,7 +387,7 @@ PREDEFINED_STATES = {
         ]
     },
 
-    # ── 任务图标（右上角 ROI，高阈值防误匹配） ──
+    # 鈹€鈹€ 浠诲姟鍥炬爣锛堝彸涓婅 ROI锛岄珮闃堝€奸槻璇尮閰嶏級 鈹€鈹€
     "TaskIcon": {
         "type": "TemplateMatch",
         "template": "SceneManager/TaskIcon.png",
@@ -395,7 +395,7 @@ PREDEFINED_STATES = {
         "threshold": 15
     },
 
-    # ── 黄色确认按钮（颜色轮廓 + 模板双验证） ──
+    # 鈹€鈹€ 榛勮壊纭鎸夐挳锛堥鑹茶疆寤?+ 妯℃澘鍙岄獙璇侊級 鈹€鈹€
     "YellowConfirmButton": {
         "type": "And",
         "nodes": [
@@ -416,7 +416,7 @@ PREDEFINED_STATES = {
         ]
     },
 
-    # ── 菜单列表（颜色验证，OCR 需 MaaFw Pipeline） ──
+    # 鈹€鈹€ 鑿滃崟鍒楄〃锛堥鑹查獙璇侊紝OCR 闇€ MaaFw Pipeline锛?鈹€鈹€
     "InMenuList": {
         "type": "And",
         "nodes": [
@@ -429,37 +429,38 @@ PREDEFINED_STATES = {
                 "min_contours": 2
             }
         ],
-        "note": "OCR 部分需通过 MaaFw Pipeline 执行"
+        "note": "OCR 閮ㄥ垎闇€閫氳繃 MaaFw Pipeline 鎵ц"
     },
 
-    # ── 行动手册（OCR 需 MaaFw Pipeline） ──
+    # 鈹€鈹€ 琛屽姩鎵嬪唽锛圤CR 闇€ MaaFw Pipeline锛?鈹€鈹€
     "InOperationalManual": {
-        "note": "需通过 MaaFw Pipeline OCR 执行:\n" +
-                "  ocr_param = JOCR(expected=['行动手册', 'Operational Manual'], roi=(0, 0, 215, 60))"
+        "note": "闇€閫氳繃 MaaFw Pipeline OCR 鎵ц:\n" +
+                "  ocr_param = JOCR(expected=['琛屽姩鎵嬪唽', 'Operational Manual'], roi=(0, 0, 215, 60))"
     }
 }
 
 
-# ═══════════════════════════════════════════════════════════════
-# 测试代码
-# ═══════════════════════════════════════════════════════════════
+# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
+# 娴嬭瘯浠ｇ爜
+# 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
 
 if __name__ == "__main__":
     from pathlib import Path
 
-    # recognition_engine.py 在 src/core/recognition/
+    # recognition_engine.py 鍦?src/core/recognition/
     SRC_DIR = Path(__file__).resolve().parent.parent.parent
     sys.path.insert(0, str(SRC_DIR))
 
     print("=" * 60)
-    print("识别引擎测试（MaaFw OCR + OpenCV 模板/颜色匹配）")
+    print("璇嗗埆寮曟搸娴嬭瘯锛圡aaFw OCR + OpenCV 妯℃澘/棰滆壊鍖归厤锛?)
     print("=" * 60)
 
-    # 打印 MaaFw OCR 使用文档
-    print("\nMaaFw OCR 使用指南:")
+    # 鎵撳嵃 MaaFw OCR 浣跨敤鏂囨。
+    print("\nMaaFw OCR 浣跨敤鎸囧崡:")
     print(MaaFwPipelineOCR.doc())
 
-    # 测试预定义状态
-    print("\n预定义状态节点:")
+    # 娴嬭瘯棰勫畾涔夌姸鎬?
+    print("\n棰勫畾涔夌姸鎬佽妭鐐?")
     for name, config in PREDEFINED_STATES.items():
         print(f"  - {name}: {config.get('type', 'N/A')}")
+

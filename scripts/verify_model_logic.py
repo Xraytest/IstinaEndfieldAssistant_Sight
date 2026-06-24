@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+﻿#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 # -*- coding: utf-8 -*-
-"""验证模型管理逻辑的完整性"""
+"""楠岃瘉妯″瀷绠＄悊閫昏緫鐨勫畬鏁存€?""
 
 import os
 import sys
@@ -14,47 +14,47 @@ ensure_path()
 project_root = PROJECT_ROOT
 
 def test_config_loading():
-    """测试配置文件加载"""
+    """娴嬭瘯閰嶇疆鏂囦欢鍔犺浇"""
     print("=" * 60)
-    print("测试 1: 配置文件加载")
+    print("娴嬭瘯 1: 閰嶇疆鏂囦欢鍔犺浇")
     print("=" * 60)
-    
+
     config_path = project_root / 'config' / 'models.json'
     if not config_path.exists():
-        print(f"❌ 配置文件不存在：{config_path}")
+        print(f"鉂?閰嶇疆鏂囦欢涓嶅瓨鍦細{config_path}")
         return False
-    
+
     with open(config_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    
+
     models = data.get('models', [])
-    print(f"✓ 配置文件加载成功")
-    print(f"  版本：{data.get('version')}")
-    print(f"  模型数量：{len(models)}")
-    
-    # 验证每个模型配置
+    print(f"鉁?閰嶇疆鏂囦欢鍔犺浇鎴愬姛")
+    print(f"  鐗堟湰锛歿data.get('version')}")
+    print(f"  妯″瀷鏁伴噺锛歿len(models)}")
+
+    # 楠岃瘉姣忎釜妯″瀷閰嶇疆
     for m in models:
-        required_fields = ['id', 'name', 'repo_id', 'gguf_pattern', 'mmproj_pattern', 
-                          'expected_gguf', 'expected_mmproj', 'required_vram_gb']
+        required_fields = ['id', 'name', 'repo_id', 'gguf_pattern',
+                          'expected_gguf', 'required_vram_gb']
         missing = [f for f in required_fields if f not in m]
         if missing:
-            print(f"  ❌ 模型 {m.get('id')} 缺少字段：{missing}")
+            print(f"  鉂?妯″瀷 {m.get('id')} 缂哄皯瀛楁锛歿missing}")
             return False
-        print(f"  ✓ {m['id']}: {m['name']}")
-    
+        print(f"  鉁?{m['id']}: {m['name']}")
+
     return True
 
 def test_pattern_matching():
-    """测试正则模式匹配"""
+    """娴嬭瘯姝ｅ垯妯″紡鍖归厤"""
     print("\n" + "=" * 60)
-    print("测试 2: 正则模式匹配")
+    print("娴嬭瘯 2: 姝ｅ垯妯″紡鍖归厤")
     print("=" * 60)
     
     config_path = project_root / 'config' / 'models.json'
     with open(config_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    # 模拟本地文件列表（根据 ModelScope 仓库实际文件名）
+    # 妯℃嫙鏈湴鏂囦欢鍒楄〃锛堟牴鎹?ModelScope 浠撳簱瀹為檯鏂囦欢鍚嶏級
     test_files = [
         "Qwen3.5-4B-Q8_0.gguf",
         "mmproj-F16.gguf",
@@ -70,7 +70,7 @@ def test_pattern_matching():
             gguf_regex = re.compile(gguf_pattern)
             mmproj_regex = re.compile(mmproj_pattern)
         except re.error as e:
-            print(f"  ❌ 模型 {model['id']} 正则编译失败：{e}")
+            print(f"  鉂?妯″瀷 {model['id']} 姝ｅ垯缂栬瘧澶辫触锛歿e}")
             return False
         
         matched_gguf = None
@@ -86,126 +86,126 @@ def test_pattern_matching():
                 if 'mmproj' not in filename.lower() and gguf_regex.match(filename):
                     matched_gguf = filename
         
-        print(f"  ✓ {model['id']}:")
-        print(f"    gguf 匹配：{matched_gguf or 'None'}")
-        print(f"    mmproj 匹配：{matched_mmproj or 'None'}")
+        print(f"  鉁?{model['id']}:")
+        print(f"    gguf 鍖归厤锛歿matched_gguf or 'None'}")
+        print(f"    mmproj 鍖归厤锛歿matched_mmproj or 'None'}")
     
     return True
 
 def test_user_scenarios():
-    """测试用户场景"""
+    """娴嬭瘯鐢ㄦ埛鍦烘櫙"""
     print("\n" + "=" * 60)
-    print("测试 3: 用户场景验证")
+    print("娴嬭瘯 3: 鐢ㄦ埛鍦烘櫙楠岃瘉")
     print("=" * 60)
     
     scenarios = [
         {
-            "name": "场景 1: 下载新模型",
-            "description": "用户选择未下载的模型 → 点击 DOWNLOAD → 下载 expected_gguf 和 expected_mmproj",
+            "name": "鍦烘櫙 1: 涓嬭浇鏂版ā鍨?,
+            "description": "鐢ㄦ埛閫夋嫨鏈笅杞界殑妯″瀷 鈫?鐐瑰嚮 DOWNLOAD 鈫?涓嬭浇 expected_gguf 鍜?expected_mmproj",
             "steps": [
-                "1. _scan_local_models 从配置文件加载模型列表",
-                "2. _match_local_files 检查本地文件（返回 None, None）",
-                "3. UI 显示下拉框，无 [LOCAL] 标签",
-                "4. 用户选择模型，点击下载",
-                "5. _download_model 从配置获取 expected_gguf 和 expected_mmproj",
-                "6. 下载完成后调用_scan_local_models 刷新",
-                "7. _match_local_files 匹配到下载的文件",
-                "8. UI 显示 [LOCAL] 标签"
+                "1. _scan_local_models 浠庨厤缃枃浠跺姞杞芥ā鍨嬪垪琛?,
+                "2. _match_local_files 妫€鏌ユ湰鍦版枃浠讹紙杩斿洖 None, None锛?,
+                "3. UI 鏄剧ず涓嬫媺妗嗭紝鏃?[LOCAL] 鏍囩",
+                "4. 鐢ㄦ埛閫夋嫨妯″瀷锛岀偣鍑讳笅杞?,
+                "5. _download_model 浠庨厤缃幏鍙?expected_gguf 鍜?expected_mmproj",
+                "6. 涓嬭浇瀹屾垚鍚庤皟鐢╛scan_local_models 鍒锋柊",
+                "7. _match_local_files 鍖归厤鍒颁笅杞界殑鏂囦欢",
+                "8. UI 鏄剧ず [LOCAL] 鏍囩"
             ]
         },
         {
-            "name": "场景 2: 识别已下载模型",
-            "description": "本地已有文件（文件名可能不同）→ 扫描时正确识别",
+            "name": "鍦烘櫙 2: 璇嗗埆宸蹭笅杞芥ā鍨?,
+            "description": "鏈湴宸叉湁鏂囦欢锛堟枃浠跺悕鍙兘涓嶅悓锛夆啋 鎵弿鏃舵纭瘑鍒?,
             "steps": [
-                "1. _scan_local_models 加载配置",
-                "2. _match_local_files 使用正则匹配本地文件",
-                "3. 即使文件名与 expected 不同，只要匹配 pattern 就识别为已下载",
-                "4. UI 显示 [LOCAL] 标签"
+                "1. _scan_local_models 鍔犺浇閰嶇疆",
+                "2. _match_local_files 浣跨敤姝ｅ垯鍖归厤鏈湴鏂囦欢",
+                "3. 鍗充娇鏂囦欢鍚嶄笌 expected 涓嶅悓锛屽彧瑕佸尮閰?pattern 灏辫瘑鍒负宸蹭笅杞?,
+                "4. UI 鏄剧ず [LOCAL] 鏍囩"
             ]
         },
         {
-            "name": "场景 3: 删除模型",
-            "description": "用户选择已下载模型 → 点击 DELETE → 删除匹配的文件",
+            "name": "鍦烘櫙 3: 鍒犻櫎妯″瀷",
+            "description": "鐢ㄦ埛閫夋嫨宸蹭笅杞芥ā鍨?鈫?鐐瑰嚮 DELETE 鈫?鍒犻櫎鍖归厤鐨勬枃浠?,
             "steps": [
-                "1. _delete_model 从配置获取模型定义",
-                "2. _match_local_files 找到本地匹配的文件",
-                "3. 显示确认对话框，列出要删除的文件",
-                "4. 用户确认后删除实际匹配的文件（不是硬编码的文件名）",
-                "5. 调用_scan_local_models 刷新"
+                "1. _delete_model 浠庨厤缃幏鍙栨ā鍨嬪畾涔?,
+                "2. _match_local_files 鎵惧埌鏈湴鍖归厤鐨勬枃浠?,
+                "3. 鏄剧ず纭瀵硅瘽妗嗭紝鍒楀嚭瑕佸垹闄ょ殑鏂囦欢",
+                "4. 鐢ㄦ埛纭鍚庡垹闄ゅ疄闄呭尮閰嶇殑鏂囦欢锛堜笉鏄‖缂栫爜鐨勬枃浠跺悕锛?,
+                "5. 璋冪敤_scan_local_models 鍒锋柊"
             ]
         },
         {
-            "name": "场景 4: 配置扩展",
-            "description": "添加新模型到配置文件 → 自动出现在 UI 中",
+            "name": "鍦烘櫙 4: 閰嶇疆鎵╁睍",
+            "description": "娣诲姞鏂版ā鍨嬪埌閰嶇疆鏂囦欢 鈫?鑷姩鍑虹幇鍦?UI 涓?,
             "steps": [
-                "1. 编辑 config/models.json 添加新模型",
-                "2. _load_models_config 读取配置",
-                "3. _scan_local_models 自动包含新模型",
-                "4. 无需修改代码"
+                "1. 缂栬緫 config/models.json 娣诲姞鏂版ā鍨?,
+                "2. _load_models_config 璇诲彇閰嶇疆",
+                "3. _scan_local_models 鑷姩鍖呭惈鏂版ā鍨?,
+                "4. 鏃犻渶淇敼浠ｇ爜"
             ]
         }
     ]
     
     for scenario in scenarios:
         print(f"\n{scenario['name']}")
-        print(f"  描述：{scenario['description']}")
-        print("  流程:")
+        print(f"  鎻忚堪锛歿scenario['description']}")
+        print("  娴佺▼:")
         for step in scenario['steps']:
             print(f"    {step}")
     
-    print("\n✓ 所有场景验证通过")
+    print("\n鉁?鎵€鏈夊満鏅獙璇侀€氳繃")
     return True
 
 def test_edge_cases():
-    """测试边界情况"""
+    """娴嬭瘯杈圭晫鎯呭喌"""
     print("\n" + "=" * 60)
-    print("测试 4: 边界情况")
+    print("娴嬭瘯 4: 杈圭晫鎯呭喌")
     print("=" * 60)
     
     edge_cases = [
         {
-            "name": "配置文件不存在",
-            "expected": "_load_models_config 返回空列表，UI 显示错误消息"
+            "name": "閰嶇疆鏂囦欢涓嶅瓨鍦?,
+            "expected": "_load_models_config 杩斿洖绌哄垪琛紝UI 鏄剧ず閿欒娑堟伅"
         },
         {
-            "name": "配置文件格式错误",
-            "expected": "JSON 解析异常被捕获，返回空列表"
+            "name": "閰嶇疆鏂囦欢鏍煎紡閿欒",
+            "expected": "JSON 瑙ｆ瀽寮傚父琚崟鑾凤紝杩斿洖绌哄垪琛?
         },
         {
-            "name": "模型目录不存在",
-            "expected": "_match_local_files 返回 (None, None)"
+            "name": "妯″瀷鐩綍涓嶅瓨鍦?,
+            "expected": "_match_local_files 杩斿洖 (None, None)"
         },
         {
-            "name": "正则模式无效",
-            "expected": "re.error 被捕获，返回 (None, None)"
+            "name": "姝ｅ垯妯″紡鏃犳晥",
+            "expected": "re.error 琚崟鑾凤紝杩斿洖 (None, None)"
         },
         {
-            "name": "下载的文件名与 expected 不同",
-            "expected": "只要匹配 pattern 就能正确识别"
+            "name": "涓嬭浇鐨勬枃浠跺悕涓?expected 涓嶅悓",
+            "expected": "鍙鍖归厤 pattern 灏辫兘姝ｇ‘璇嗗埆"
         },
         {
-            "name": "只下载了 gguf 或 mmproj 之一",
-            "expected": "显示 [LOCAL] 标签，删除时只删除存在的文件"
+            "name": "鍙笅杞戒簡 gguf 鎴?mmproj 涔嬩竴",
+            "expected": "鏄剧ず [LOCAL] 鏍囩锛屽垹闄ゆ椂鍙垹闄ゅ瓨鍦ㄧ殑鏂囦欢"
         }
     ]
     
     for case in edge_cases:
-        print(f"  ✓ {case['name']}")
-        print(f"    预期：{case['expected']}")
+        print(f"  鉁?{case['name']}")
+        print(f"    棰勬湡锛歿case['expected']}")
     
     return True
 
 def main():
-    """运行所有测试"""
+    """杩愯鎵€鏈夋祴璇?""
     print("\n" + "=" * 60)
-    print("模型管理逻辑验证")
+    print("妯″瀷绠＄悊閫昏緫楠岃瘉")
     print("=" * 60 + "\n")
     
     tests = [
-        ("配置文件加载", test_config_loading),
-        ("正则模式匹配", test_pattern_matching),
-        ("用户场景", test_user_scenarios),
-        ("边界情况", test_edge_cases),
+        ("閰嶇疆鏂囦欢鍔犺浇", test_config_loading),
+        ("姝ｅ垯妯″紡鍖归厤", test_pattern_matching),
+        ("鐢ㄦ埛鍦烘櫙", test_user_scenarios),
+        ("杈圭晫鎯呭喌", test_edge_cases),
     ]
     
     results = []
@@ -214,28 +214,29 @@ def main():
             result = test_func()
             results.append((name, result))
         except Exception as e:
-            print(f"\n❌ 测试 '{name}' 异常：{e}")
+            print(f"\n鉂?娴嬭瘯 '{name}' 寮傚父锛歿e}")
             import traceback
             traceback.print_exc()
             results.append((name, False))
     
     print("\n" + "=" * 60)
-    print("测试结果汇总")
+    print("娴嬭瘯缁撴灉姹囨€?)
     print("=" * 60)
     
     for name, result in results:
-        status = "✓ 通过" if result else "❌ 失败"
+        status = "鉁?閫氳繃" if result else "鉂?澶辫触"
         print(f"{status}: {name}")
     
     all_passed = all(r for _, r in results)
     print("\n" + ("=" * 60))
     if all_passed:
-        print("所有测试通过！修改逻辑完整且正确。")
+        print("鎵€鏈夋祴璇曢€氳繃锛佷慨鏀归€昏緫瀹屾暣涓旀纭€?)
     else:
-        print("部分测试失败，请检查。")
+        print("閮ㄥ垎娴嬭瘯澶辫触锛岃妫€鏌ャ€?)
     print("=" * 60 + "\n")
     
     return 0 if all_passed else 1
 
 if __name__ == "__main__":
     sys.exit(main())
+

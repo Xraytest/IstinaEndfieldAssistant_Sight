@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 # -*- coding: utf-8 -*-
 """
 Module integrity tests for the modularized IEA CLI.
@@ -49,7 +49,7 @@ def test_game_coords():
     assert len(OVERLAY_KEYWORDS) >= 10
 
     # Top bar
-    assert TOP_BAR_BUTTONS["tasks"]["label"] == "任务"
+    assert TOP_BAR_BUTTONS["tasks"]["label"] == "浠诲姟"
 
     # Helpers
     assert xy_str((570, 22)) == "(570, 22)"
@@ -170,3 +170,4 @@ if __name__ == "__main__":
         sys.exit(1)
     else:
         print("ALL TESTS PASSED")
+

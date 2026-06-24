@@ -1,13 +1,13 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-高精度页面分析器 v2 — 基于 MaaEnd 式多源融合识别
+楂樼簿搴﹂〉闈㈠垎鏋愬櫒 v2 鈥?鍩轰簬 MaaEnd 寮忓婧愯瀺鍚堣瘑鍒?
 
-完全弃用颜色分布/像素计数。使用：
-1. TemplateMatch — 模板匹配定位特定 UI 元素（返回 bbox+center）
-2. ColorMatch (轮廓) — 检测特定颜色的连通区域作为 UI 元素（返回 bboxes+centers）
-3. And/Or 组合 — 多条件融合
+瀹屽叏寮冪敤棰滆壊鍒嗗竷/鍍忕礌璁℃暟銆備娇鐢細
+1. TemplateMatch 鈥?妯℃澘鍖归厤瀹氫綅鐗瑰畾 UI 鍏冪礌锛堣繑鍥?bbox+center锛?
+2. ColorMatch (杞粨) 鈥?妫€娴嬬壒瀹氶鑹茬殑杩為€氬尯鍩熶綔涓?UI 鍏冪礌锛堣繑鍥?bboxes+centers锛?
+3. And/Or 缁勫悎 鈥?澶氭潯浠惰瀺鍚?
 
-参考：MaaEnd-2/assets/resource/pipeline/Common/
+鍙傝€冿細MaaEnd-2/assets/resource/pipeline/Common/
 """
 
 import cv2
@@ -23,25 +23,25 @@ from core.capability.recognition import RecognitionEngine
 
 
 class HighPrecisionPageAnalyzerV2:
-    """页面分析器 v2 — 全量多源融合，无颜色分布
+    """椤甸潰鍒嗘瀽鍣?v2 鈥?鍏ㄩ噺澶氭簮铻嶅悎锛屾棤棰滆壊鍒嗗竷
     
-    所有识别结果返回 bbox/center 坐标信息，供 LLM 决策使用。
+    鎵€鏈夎瘑鍒粨鏋滆繑鍥?bbox/center 鍧愭爣淇℃伅锛屼緵 LLM 鍐崇瓥浣跨敤銆?
     """
 
     def __init__(self):
         self.engine = RecognitionEngine()
 
     def analyze(self, img: np.ndarray) -> Dict[str, Any]:
-        """多节点短路匹配。先精确后宽泛：模板优先于颜色轮廓
+        """澶氳妭鐐圭煭璺尮閰嶃€傚厛绮剧‘鍚庡娉涳細妯℃澘浼樺厛浜庨鑹茶疆寤?
         
-        返回格式：
+        杩斿洖鏍煎紡锛?
         {
             "page_type": str,
             "confidence": float,
             "detail": {
                 "method": str,
-                "bbox": [x1, y1, x2, y2],  # 边界框
-                "center": [cx, cy],         # 中心点
+                "bbox": [x1, y1, x2, y2],  # 杈圭晫妗?
+                "center": [cx, cy],         # 涓績鐐?
                 ...
             },
             "features": {...}
@@ -62,7 +62,7 @@ class HighPrecisionPageAnalyzerV2:
                 return {"page_type": name, "confidence": 0.85, "detail": detail,
                         "features": features}
 
-        # 所有页面检测失败 → 检查是否在游戏内
+        # 鎵€鏈夐〉闈㈡娴嬪け璐?鈫?妫€鏌ユ槸鍚﹀湪娓告垙鍐?
         in_game = self._check_in_game(img, w, h)
         if not in_game:
             return {"page_type": "not_in_game", "confidence": 0.9,
@@ -73,22 +73,22 @@ class HighPrecisionPageAnalyzerV2:
                 "features": features}
 
     def _extract_features(self, img: np.ndarray, w: int, h: int) -> Dict[str, Any]:
-        """提取 VLM 提示词所需的画面特征"""
+        """鎻愬彇 VLM 鎻愮ず璇嶆墍闇€鐨勭敾闈㈢壒寰?""
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # 左侧边栏亮度
+        # 宸︿晶杈规爮浜害
         left_bar = gray[:, max(0, w//20):w//6]
         left_bar_brightness = float(np.mean(left_bar)) if left_bar.size > 0 else 0
 
-        # 右上角绿色像素
+        # 鍙充笂瑙掔豢鑹插儚绱?
         green_lower = np.array([35, 50, 50])
         green_upper = np.array([85, 255, 255])
         green_mask = cv2.inRange(hsv, green_lower, green_upper)
         top_right_green = green_mask[0:h//5, max(0, w*3//4):w]
         green_pixels_top_right = int(cv2.countNonZero(top_right_green))
 
-        # 全屏亮度
+        # 鍏ㄥ睆浜害
         full_brightness = float(np.mean(gray))
 
         return {
@@ -97,12 +97,12 @@ class HighPrecisionPageAnalyzerV2:
             "full_brightness": full_brightness,
         }
 
-    # ── 各页面检测 ──────────────────────────────────────────
+    # 鈹€鈹€ 鍚勯〉闈㈡娴?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
     def _check_exit_dialog(self, img, w, h):
-        """退出对话框：CancelButton SIFT + 金色轮廓双验证
+        """閫€鍑哄璇濇锛欳ancelButton SIFT + 閲戣壊杞粨鍙岄獙璇?
         
-        返回包含 bbox 和 center 坐标信息。
+        杩斿洖鍖呭惈 bbox 鍜?center 鍧愭爣淇℃伅銆?
         """
         ok_color, rc = self.engine.recognize(img, {
             "type": "ColorMatch",
@@ -141,9 +141,9 @@ class HighPrecisionPageAnalyzerV2:
         return False, {}
 
     def _check_quest_panel(self, img, w, h):
-        """任务面板：TaskIcon SIFT
+        """浠诲姟闈㈡澘锛歍askIcon SIFT
         
-        返回包含 bbox 和 center 坐标信息。
+        杩斿洖鍖呭惈 bbox 鍜?center 鍧愭爣淇℃伅銆?
         """
         ok, r = self.engine.recognize(img, {
             "type": "TemplateMatch",
@@ -159,7 +159,7 @@ class HighPrecisionPageAnalyzerV2:
                 "confidence": r.get("confidence", 0)
             }
         
-        # 回退：金色轮廓
+        # 鍥為€€锛氶噾鑹茶疆寤?
         ok_color, rc = self.engine.recognize(img, {
             "type": "ColorMatch",
             "roi": [min(600, w-400), 30, min(400, w-600), min(250, h-30)],
@@ -178,9 +178,9 @@ class HighPrecisionPageAnalyzerV2:
         return False, {}
 
     def _check_world(self, img, w, h):
-        """世界页面：WorldMenu SIFT 匹配 或 绿色资源图标
+        """涓栫晫椤甸潰锛歐orldMenu SIFT 鍖归厤 鎴?缁胯壊璧勬簮鍥炬爣
         
-        返回包含 bbox 和 center 坐标信息。
+        杩斿洖鍖呭惈 bbox 鍜?center 鍧愭爣淇℃伅銆?
         """
         ok, r = self.engine.recognize(img, {
             "type": "TemplateMatch",
@@ -196,7 +196,7 @@ class HighPrecisionPageAnalyzerV2:
                 "confidence": r.get("confidence", 0)
             }
 
-        # 方式 B: 右上角绿色资源图标（轮廓检测）
+        # 鏂瑰紡 B: 鍙充笂瑙掔豢鑹茶祫婧愬浘鏍囷紙杞粨妫€娴嬶級
         rx = max(0, w-500)
         ok_green, rc = self.engine.recognize(img, {
             "type": "ColorMatch",
@@ -217,9 +217,9 @@ class HighPrecisionPageAnalyzerV2:
         return False, {}
 
     def _check_menu(self, img, w, h):
-        """系统菜单：底部金黄色轮廓
+        """绯荤粺鑿滃崟锛氬簳閮ㄩ噾榛勮壊杞粨
         
-        返回包含 bboxes 和 centers 坐标信息。
+        杩斿洖鍖呭惈 bboxes 鍜?centers 鍧愭爣淇℃伅銆?
         """
         ry = max(0, h-500)
         ok, rc = self.engine.recognize(img, {
@@ -240,11 +240,11 @@ class HighPrecisionPageAnalyzerV2:
         return False, {}
 
     def _check_enter_game(self, img, w, h):
-        """进入游戏准备画面：尚无可靠检测方式，暂跳过"""
+        """杩涘叆娓告垙鍑嗗鐢婚潰锛氬皻鏃犲彲闈犳娴嬫柟寮忥紝鏆傝烦杩?""
         return False, {}
 
     def _check_in_game(self, img, w, h):
-        """检查是否在 Endfield 游戏内：全屏搜索金色 UI 元素"""
+        """妫€鏌ユ槸鍚﹀湪 Endfield 娓告垙鍐咃細鍏ㄥ睆鎼滅储閲戣壊 UI 鍏冪礌"""
         ok, r = self.engine.recognize(img, {
             "type": "ColorMatch",
             "roi": [0, 0, w, h],
@@ -255,7 +255,7 @@ class HighPrecisionPageAnalyzerV2:
         })
         return ok
 
-# 向后兼容别名
+# 鍚戝悗鍏煎鍒悕
 HighPrecisionPageAnalyzer = HighPrecisionPageAnalyzerV2
 
 if __name__ == "__main__":
@@ -271,7 +271,8 @@ if __name__ == "__main__":
         img = cv2.imdecode(np.frombuffer(r.stdout, np.uint8), cv2.IMREAD_COLOR)
         analyzer = HighPrecisionPageAnalyzerV2()
         result = analyzer.analyze(img)
-        print(f"[页面] {result['page_type']} (置信度 {result['confidence']:.2f})")
-        print(f"[详情] {result['detail']}")
+        print(f"[椤甸潰] {result['page_type']} (缃俊搴?{result['confidence']:.2f})")
+        print(f"[璇︽儏] {result['detail']}")
     else:
-        print("[错误] 截图失败")
+        print("[閿欒] 鎴浘澶辫触")
+

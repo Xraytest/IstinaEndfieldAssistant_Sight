@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 # -*- coding: utf-8 -*-
 """Authentication Test Script"""
 
@@ -12,12 +12,12 @@ project_root = os.path.dirname(script_dir)
 os.chdir(project_root)
 
 # Add required directories to sys.path (same as client_main.py)
-安卓相关_dir = os.path.join(project_root, "安卓相关")
-入口_dir = os.path.join(project_root, "入口")
-if 安卓相关_dir not in sys.path:
-    sys.path.insert(0, 安卓相关_dir)
-if 入口_dir not in sys.path:
-    sys.path.insert(0, 入口_dir)
+瀹夊崜鐩稿叧_dir = os.path.join(project_root, "瀹夊崜鐩稿叧")
+鍏ュ彛_dir = os.path.join(project_root, "鍏ュ彛")
+if 瀹夊崜鐩稿叧_dir not in sys.path:
+    sys.path.insert(0, 瀹夊崜鐩稿叧_dir)
+if 鍏ュ彛_dir not in sys.path:
+    sys.path.insert(0, 鍏ュ彛_dir)
 
 def test_auth():
     """Test authentication functionality"""
@@ -91,7 +91,7 @@ def test_device_manager():
     print("Device Manager Test")
     print("=" * 60)
     
-    from 控制.adb_manager import ADBDeviceManager
+    from 鎺у埗.adb_manager import ADBDeviceManager
     from core.cloud.managers.device_manager import DeviceManager
     
     # Create ADB manager

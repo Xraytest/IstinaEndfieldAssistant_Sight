@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""下载TinyLlama模型"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""涓嬭浇TinyLlama妯″瀷"""
 import os
 import requests
 
@@ -12,7 +12,7 @@ print(f"Downloading TinyLlama model...")
 print(f"URL: {url}")
 print(f"Save to: {save_path}")
 
-# 使用requests下载
+# 浣跨敤requests涓嬭浇
 response = requests.get(url, stream=True)
 response.raise_for_status()
 
@@ -29,3 +29,4 @@ with open(save_path, 'wb') as f:
                 print(f"\rProgress: {percent:.1f}% ({downloaded}/{total_size} bytes)", end="")
 
 print(f"\nDownload complete! File size: {downloaded / (1024*1024):.1f} MB")
+

@@ -1,11 +1,9 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-标准流执行器 - 集成 OCR + 状态机版本
+鏍囧噯娴佹墽琛屽櫒 - 闆嗘垚 OCR + 鐘舵€佹満鐗堟湰
 
-在真实设备上执行标准流，支持：
-1. PaddleOCR 本地识别
-2. 状态机扩展（loop/check/find_and_click）
-3. 视觉分析
+鍦ㄧ湡瀹炶澶囦笂鎵ц鏍囧噯娴侊紝鏀寔锛?1. PaddleOCR 鏈湴璇嗗埆
+2. 鐘舵€佹満鎵╁睍锛坙oop/check/find_and_click锛?3. 瑙嗚鍒嗘瀽
 """
 
 import sys
@@ -24,74 +22,71 @@ from core.capability.adb_utils import ADB, list_devices
 
 
 def main():
-    parser = argparse.ArgumentParser(description="标准流执行器 - 集成 OCR + 状态机")
-    parser.add_argument("--flow", type=str, default="daily_quest", help="要执行的流程")
-    parser.add_argument("--device", type=str, default=None, help="设备序列号")
-    parser.add_argument("--use-ocr", action="store_true", help="启用 OCR 管理器（PaddleOCR）")
-    parser.add_argument("--use-state-machine", action="store_true", help="启用状态机扩展")
-    parser.add_argument("--list-devices", action="store_true", help="列出可用设备")
+    parser = argparse.ArgumentParser(description="鏍囧噯娴佹墽琛屽櫒 - 闆嗘垚 OCR + 鐘舵€佹満")
+    parser.add_argument("--flow", type=str, default="daily_quest", help="瑕佹墽琛岀殑娴佺▼")
+    parser.add_argument("--device", type=str, default=None, help="璁惧搴忓垪鍙?)
+    parser.add_argument("--use-ocr", action="store_true", help="鍚敤 OCR 绠＄悊鍣紙PaddleOCR锛?)
+    parser.add_argument("--use-state-machine", action="store_true", help="鍚敤鐘舵€佹満鎵╁睍")
+    parser.add_argument("--list-devices", action="store_true", help="鍒楀嚭鍙敤璁惧")
     
     args = parser.parse_args()
     
-    # 列出设备
+    # 鍒楀嚭璁惧
     if args.list_devices:
         devices = list_devices()
-        print("可用设备:")
+        print("鍙敤璁惧:")
         for d in devices:
             print(f"  - {d}")
         return 0
     
-    # 确定设备
+    # 纭畾璁惧
     device_serial = args.device
     if not device_serial:
         devices = list_devices()
         if not devices:
-            print("[ERROR] 未找到可用设备")
+            print("[ERROR] 鏈壘鍒板彲鐢ㄨ澶?)
             return 1
         device_serial = devices[0]
-        print(f"[设备] 自动选择：{device_serial}")
+        print(f"[璁惧] 鑷姩閫夋嫨锛歿device_serial}")
     else:
-        print(f"[设备] 使用指定：{device_serial}")
+        print(f"[璁惧] 浣跨敤鎸囧畾锛歿device_serial}")
     
-    # 检查设备连接
-    adb = ADB(serial=device_serial)
+    # 妫€鏌ヨ澶囪繛鎺?    adb = ADB(serial=device_serial)
     if not adb.check_connection():
-        print(f"[ERROR] 设备 {device_serial} 未连接")
+        print(f"[ERROR] 璁惧 {device_serial} 鏈繛鎺?)
         return 1
-    print(f"[OK] 设备已连接")
+    print(f"[OK] 璁惧宸茶繛鎺?)
     
-    # 加载配置
+    # 鍔犺浇閰嶇疆
     config = FlowConfig()
     flow_name = args.flow
     
     flow = config.get_flow(flow_name)
     if not flow:
-        print(f"[ERROR] 未找到流程：{flow_name}")
+        print(f"[ERROR] 鏈壘鍒版祦绋嬶細{flow_name}")
         return 1
     
     print(f"\n{'='*60}")
-    print(f"标准流执行器 - 集成 OCR + 状态机")
+    print(f"鏍囧噯娴佹墽琛屽櫒 - 闆嗘垚 OCR + 鐘舵€佹満")
     print(f"{'='*60}")
-    print(f"流程：{flow_name}")
-    print(f"设备：{device_serial}")
-    print(f"OCR: {'启用' if args.use_ocr else '禁用'}")
-    print(f"状态机：{'启用' if args.use_state_machine else '禁用'}")
+    print(f"娴佺▼锛歿flow_name}")
+    print(f"璁惧锛歿device_serial}")
+    print(f"OCR: {'鍚敤' if args.use_ocr else '绂佺敤'}")
+    print(f"鐘舵€佹満锛歿'鍚敤' if args.use_state_machine else '绂佺敤'}")
     print(f"{'='*60}\n")
     
-    # 初始化模型引擎
-    engine = Local2BEngine()
+    # 鍒濆鍖栨ā鍨嬪紩鎿?    engine = Local2BEngine()
     if not engine.load():
-        print("[WARN] 模型加载失败，使用 API 模式")
+        print("[WARN] 妯″瀷鍔犺浇澶辫触锛屼娇鐢?API 妯″紡")
     
-    # 初始化记录器
+    # 鍒濆鍖栬褰曞櫒
     recorder = FlowRecorder(
         session_name=f"{flow_name}_ocr_sm",
         record_video=True,
         device_serial=device_serial
     )
     
-    # 创建执行器
-    try:
+    # 鍒涘缓鎵ц鍣?    try:
         executor = StandardFlowExecutor(
             config=config,
             model_engine=engine,
@@ -101,33 +96,34 @@ def main():
             use_state_machine=args.use_state_machine
         )
         
-        print(f"[OK] 执行器初始化成功")
-        print(f"  OCR 管理器：{executor.ocr_manager.ocr_mode if executor.ocr_manager else '未启用'}")
-        print(f"  状态机：{'已启用' if executor.state_machine else '未启用'}")
+        print(f"[OK] 鎵ц鍣ㄥ垵濮嬪寲鎴愬姛")
+        print(f"  OCR 绠＄悊鍣細{executor.ocr_manager.ocr_mode if executor.ocr_manager else '鏈惎鐢?}")
+        print(f"  鐘舵€佹満锛歿'宸插惎鐢? if executor.state_machine else '鏈惎鐢?}")
         
     except Exception as e:
-        print(f"[ERROR] 执行器初始化失败：{e}")
+        print(f"[ERROR] 鎵ц鍣ㄥ垵濮嬪寲澶辫触锛歿e}")
         import traceback
         traceback.print_exc()
         return 1
     
-    # 执行流程
-    print(f"\n开始执行流程...")
+    # 鎵ц娴佺▼
+    print(f"\n寮€濮嬫墽琛屾祦绋?..")
     success = executor.execute_flow(flow_name)
     
-    # 导出报告
+    # 瀵煎嚭鎶ュ憡
     if recorder:
         report = recorder.export_report()
         report_path = os.path.join(recorder.session_dir, "execution_report.json")
         import json
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
-        print(f"\n执行报告已保存：{report_path}")
+        print(f"\n鎵ц鎶ュ憡宸蹭繚瀛橈細{report_path}")
     
-    print(f"\n流程完成：{'成功' if success else '有失败步骤'}")
+    print(f"\n娴佺▼瀹屾垚锛歿'鎴愬姛' if success else '鏈夊け璐ユ楠?}")
     
     return 0 if success else 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

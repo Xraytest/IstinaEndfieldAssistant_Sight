@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-登出对话框检测器 - MaaEnd 式设计
-
-参考 MaaEnd 的做法：
-1. 在特定 ROI 区域使用 OCR 检测关键词
-2. 支持多语言关键词
-3. 自动处理登出对话框
-"""
+鐧诲嚭瀵硅瘽妗嗘娴嬪櫒 - MaaEnd 寮忚璁?
+鍙傝€?MaaEnd 鐨勫仛娉曪細
+1. 鍦ㄧ壒瀹?ROI 鍖哄煙浣跨敤 OCR 妫€娴嬪叧閿瘝
+2. 鏀寔澶氳瑷€鍏抽敭璇?3. 鑷姩澶勭悊鐧诲嚭瀵硅瘽妗?"""
 
 import sys
 import os
@@ -16,37 +13,34 @@ from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
 
-# MaaEnd 式的登出对话框关键词（多语言）
-LOGOUT_KEYWORDS = [
-    # 简体中文
-    "登出", "退出", "登录界面", "超时", "重新登录", "会话过期", "自动登出",
-    "长时间", "没有操作", "断开连接", "确认", "取消",
-    # 繁体中文
-    "登出", "退出", "登入介面", "超時", "重新登入", "會話過期",
-    # 英文
+# MaaEnd 寮忕殑鐧诲嚭瀵硅瘽妗嗗叧閿瘝锛堝璇█锛?LOGOUT_KEYWORDS = [
+    # 绠€浣撲腑鏂?    "鐧诲嚭", "閫€鍑?, "鐧诲綍鐣岄潰", "瓒呮椂", "閲嶆柊鐧诲綍", "浼氳瘽杩囨湡", "鑷姩鐧诲嚭",
+    "闀挎椂闂?, "娌℃湁鎿嶄綔", "鏂紑杩炴帴", "纭", "鍙栨秷",
+    # 绻佷綋涓枃
+    "鐧诲嚭", "閫€鍑?, "鐧诲叆浠嬮潰", "瓒呮檪", "閲嶆柊鐧诲叆", "鏈冭┍閬庢湡",
+    # 鑻辨枃
     "logout", "log out", "login screen", "timeout", "session expired",
     "re-login", "disconnect", "confirm", "cancel",
-    # 日文
-    "画面に戻りますか", "ログアウト", "ログイン", "タイムアウト",
-    # 韩文
-    "나가시겠습니까", "로그아웃", "로그인", "시간초과"
+    # 鏃ユ枃
+    "鐢婚潰銇埢銈娿伨銇欍亱", "銉偘銈偊銉?, "銉偘銈ゃ兂", "銈裤偆銉犮偄銈︺儓",
+    # 闊╂枃
+    "雮橁皜鞁滉矤鞀惦媹旯?, "搿滉犯鞎勳泝", "搿滉犯鞚?, "鞁滉皠齑堦臣"
 ]
 
 
 def detect_logout_dialog_ocr(ocr_results: list) -> bool:
     """
-    使用 OCR 结果检测登出对话框（MaaEnd 式）
+    浣跨敤 OCR 缁撴灉妫€娴嬬櫥鍑哄璇濇锛圡aaEnd 寮忥級
     
     Args:
-        ocr_results: OCR 识别结果列表，每项包含"text"字段
+        ocr_results: OCR 璇嗗埆缁撴灉鍒楄〃锛屾瘡椤瑰寘鍚?text"瀛楁
         
     Returns:
-        bool: 是否检测到登出对话框
-    """
-    # 合并所有 OCR 文本
+        bool: 鏄惁妫€娴嬪埌鐧诲嚭瀵硅瘽妗?    """
+    # 鍚堝苟鎵€鏈?OCR 鏂囨湰
     all_text = " ".join([elem.get("text", "") for elem in ocr_results])
     
-    # 检查关键词
+    # 妫€鏌ュ叧閿瘝
     for keyword in LOGOUT_KEYWORDS:
         if keyword.lower() in all_text.lower():
             return True
@@ -56,42 +50,38 @@ def detect_logout_dialog_ocr(ocr_results: list) -> bool:
 
 def detect_logout_dialog_roi(ocr_results: list, roi: tuple = None) -> bool:
     """
-    在特定 ROI 区域检测登出对话框（MaaEnd 式）
+    鍦ㄧ壒瀹?ROI 鍖哄煙妫€娴嬬櫥鍑哄璇濇锛圡aaEnd 寮忥級
     
     Args:
-        ocr_results: OCR 识别结果列表，每项包含"text"和"box"字段
-        roi: ROI 区域 (x, y, w, h)，默认为 MaaEnd 使用的区域
-        
+        ocr_results: OCR 璇嗗埆缁撴灉鍒楄〃锛屾瘡椤瑰寘鍚?text"鍜?box"瀛楁
+        roi: ROI 鍖哄煙 (x, y, w, h)锛岄粯璁や负 MaaEnd 浣跨敤鐨勫尯鍩?        
     Returns:
-        bool: 是否检测到登出对话框
-    """
-    # MaaEnd 使用的 ROI 区域（1280x720 分辨率）
+        bool: 鏄惁妫€娴嬪埌鐧诲嚭瀵硅瘽妗?    """
+    # MaaEnd 浣跨敤鐨?ROI 鍖哄煙锛?280x720 鍒嗚鲸鐜囷級
     if roi is None:
         roi = (400, 250, 470, 200)  # x, y, w, h
     
     rx, ry, rw, rh = roi
     
-    # 筛选 ROI 区域内的 OCR 结果
+    # 绛涢€?ROI 鍖哄煙鍐呯殑 OCR 缁撴灉
     roi_texts = []
     for elem in ocr_results:
         text = elem.get("text", "")
         box = elem.get("box", [])
         
         if len(box) >= 4:
-            # box 格式：[x1, y1, x2, y2] 或 [x1, y1, w, h]
-            if box[2] > 1000:  # 如果是宽格式
+            # box 鏍煎紡锛歔x1, y1, x2, y2] 鎴?[x1, y1, w, h]
+            if box[2] > 1000:  # 濡傛灉鏄鏍煎紡
                 ex, ey, ew, eh = box
-            else:  # 如果是坐标格式
-                ex, ey, ew, eh = box[0], box[1], box[2] - box[0], box[3] - box[1]
+            else:  # 濡傛灉鏄潗鏍囨牸寮?                ex, ey, ew, eh = box[0], box[1], box[2] - box[0], box[3] - box[1]
             
-            # 检查是否在 ROI 内
-            if (rx <= ex < rx + rw and ry <= ey < ry + rh):
+            # 妫€鏌ユ槸鍚﹀湪 ROI 鍐?            if (rx <= ex < rx + rw and ry <= ey < ry + rh):
                 roi_texts.append(text)
     
-    # 合并 ROI 文本
+    # 鍚堝苟 ROI 鏂囨湰
     roi_text = " ".join(roi_texts)
     
-    # 检查关键词
+    # 妫€鏌ュ叧閿瘝
     for keyword in LOGOUT_KEYWORDS:
         if keyword.lower() in roi_text.lower():
             return True
@@ -102,36 +92,37 @@ def detect_logout_dialog_roi(ocr_results: list, roi: tuple = None) -> bool:
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="登出对话框检测器 - MaaEnd 式")
-    parser.add_argument("--test", action="store_true", help="运行测试")
+    parser = argparse.ArgumentParser(description="鐧诲嚭瀵硅瘽妗嗘娴嬪櫒 - MaaEnd 寮?)
+    parser.add_argument("--test", action="store_true", help="杩愯娴嬭瘯")
     args = parser.parse_args()
     
     if args.test:
-        # 测试数据
+        # 娴嬭瘯鏁版嵁
         test_ocr_results = [
-            {"text": "检测到会话超时", "box": [400, 250, 500, 300]},
-            {"text": "请重新登录", "box": [410, 280, 510, 320]},
-            {"text": "确认", "box": [450, 350, 500, 400]},
-            {"text": "取消", "box": [520, 350, 570, 400]},
+            {"text": "妫€娴嬪埌浼氳瘽瓒呮椂", "box": [400, 250, 500, 300]},
+            {"text": "璇烽噸鏂扮櫥褰?, "box": [410, 280, 510, 320]},
+            {"text": "纭", "box": [450, 350, 500, 400]},
+            {"text": "鍙栨秷", "box": [520, 350, 570, 400]},
         ]
         
         result1 = detect_logout_dialog_ocr(test_ocr_results)
-        print(f"全图 OCR 检测：{'✓ 检测到登出对话框' if result1 else '✗ 未检测到'}")
+        print(f"鍏ㄥ浘 OCR 妫€娴嬶細{'鉁?妫€娴嬪埌鐧诲嚭瀵硅瘽妗? if result1 else '鉁?鏈娴嬪埌'}")
         
         result2 = detect_logout_dialog_roi(test_ocr_results)
-        print(f"ROI 区域检测：{'✓ 检测到登出对话框' if result2 else '✗ 未检测到'}")
+        print(f"ROI 鍖哄煙妫€娴嬶細{'鉁?妫€娴嬪埌鐧诲嚭瀵硅瘽妗? if result2 else '鉁?鏈娴嬪埌'}")
         
-        print(f"\n关键词列表 ({len(LOGOUT_KEYWORDS)} 个):")
+        print(f"\n鍏抽敭璇嶅垪琛?({len(LOGOUT_KEYWORDS)} 涓?:")
         for kw in LOGOUT_KEYWORDS[:10]:
             print(f"  - {kw}")
         if len(LOGOUT_KEYWORDS) > 10:
-            print(f"  ... 以及 {len(LOGOUT_KEYWORDS) - 10} 个更多")
+            print(f"  ... 浠ュ強 {len(LOGOUT_KEYWORDS) - 10} 涓洿澶?)
     else:
-        print("登出对话框检测器 - MaaEnd 式设计")
-        print(f"支持 {len(LOGOUT_KEYWORDS)} 个关键词（多语言）")
-        print("\n使用方法:")
+        print("鐧诲嚭瀵硅瘽妗嗘娴嬪櫒 - MaaEnd 寮忚璁?)
+        print(f"鏀寔 {len(LOGOUT_KEYWORDS)} 涓叧閿瘝锛堝璇█锛?)
+        print("\n浣跨敤鏂规硶:")
         print("  python scripts/detect_logout_maaend.py --test")
 
 
 if __name__ == "__main__":
     main()
+

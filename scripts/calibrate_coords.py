@@ -1,9 +1,8 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-坐标校准脚本
+鍧愭爣鏍″噯鑴氭湰
 
-通过像素扫描找出任务图标的准确坐标
-参考：之前坐标扫描验证结果 (860,80) 59.9%
+閫氳繃鍍忕礌鎵弿鎵惧嚭浠诲姟鍥炬爣鐨勫噯纭潗鏍?鍙傝€冿細涔嬪墠鍧愭爣鎵弿楠岃瘉缁撴灉 (860,80) 59.9%
 """
 
 import subprocess, time, cv2, numpy as np, sys, os
@@ -48,18 +47,14 @@ def detect_golden(img):
 
 def find_icon_by_scanning():
     """
-    通过扫描右上角区域找出任务图标坐标
-    
-    参考之前的扫描结果：
-    - 棋盘格扫描发现 y=40/60/80 有效，y=50/70 无效
-    - 最佳坐标 (860, 80) 产生 59.9% 匹配度
-    """
+    閫氳繃鎵弿鍙充笂瑙掑尯鍩熸壘鍑轰换鍔″浘鏍囧潗鏍?    
+    鍙傝€冧箣鍓嶇殑鎵弿缁撴灉锛?    - 妫嬬洏鏍兼壂鎻忓彂鐜?y=40/60/80 鏈夋晥锛寉=50/70 鏃犳晥
+    - 鏈€浣冲潗鏍?(860, 80) 浜х敓 59.9% 鍖归厤搴?    """
     print("\n" + "="*70)
-    print("坐标扫描：任务图标")
+    print("鍧愭爣鎵弿锛氫换鍔″浘鏍?)
     print("="*70)
     
-    # 确保在世界页面（金色 18-21）
-    print("\n[准备] 确保在世界页面...")
+    # 纭繚鍦ㄤ笘鐣岄〉闈紙閲戣壊 18-21锛?    print("\n[鍑嗗] 纭繚鍦ㄤ笘鐣岄〉闈?..")
     for i in range(10):
         back()
         time.sleep(0.5)
@@ -67,32 +62,31 @@ def find_icon_by_scanning():
     
     img = screencap()
     gold = detect_golden(img)
-    print(f"[当前] 金色元素={gold}")
+    print(f"[褰撳墠] 閲戣壊鍏冪礌={gold}")
     
     if gold < 12 or gold > 25:
-        print(f"[警告] 金色={gold}，可能不在世界页面，尝试恢复...")
+        print(f"[璀﹀憡] 閲戣壊={gold}锛屽彲鑳戒笉鍦ㄤ笘鐣岄〉闈紝灏濊瘯鎭㈠...")
         for i in range(5):
             back()
             time.sleep(0.5)
         time.sleep(1)
         img = screencap()
         gold = detect_golden(img)
-        print(f"[恢复后] 金色元素={gold}")
+        print(f"[鎭㈠鍚嶿 閲戣壊鍏冪礌={gold}")
     
-    # 基准截图
+    # 鍩哄噯鎴浘
     baseline = screencap()
     baseline_gold = detect_golden(baseline)
     
-    # 扫描区域：右上角 (x: 700-1000, y: 20-120)
-    # 基于之前验证：y=40/60/80 有效
+    # 鎵弿鍖哄煙锛氬彸涓婅 (x: 700-1000, y: 20-120)
+    # 鍩轰簬涔嬪墠楠岃瘉锛歽=40/60/80 鏈夋晥
     x_range = range(750, 950, 50)  # 750, 800, 850, 900, 949
-    y_range = [40, 60, 80, 100]   # 之前验证有效的 y 值
-    
+    y_range = [40, 60, 80, 100]   # 涔嬪墠楠岃瘉鏈夋晥鐨?y 鍊?    
     best_coord = None
     best_diff = 0
     best_gold_change = 0
     
-    print("\n[扫描] 右上角区域...")
+    print("\n[鎵弿] 鍙充笂瑙掑尯鍩?..")
     results = []
     
     for x in x_range:
@@ -110,39 +104,36 @@ def find_icon_by_scanning():
             
             results.append((x, y, diff, gold_change))
             
-            # 记录最佳
-            if diff > best_diff or gold_change > best_gold_change:
+            # 璁板綍鏈€浣?            if diff > best_diff or gold_change > best_gold_change:
                 best_diff = diff
                 best_gold_change = gold_change
                 best_coord = (x, y)
             
-            # 恢复
+            # 鎭㈠
             back()
             time.sleep(0.3)
     
-    # 排序显示前 10 个结果
-    results.sort(key=lambda r: (r[2] + r[3]*100000), reverse=True)
+    # 鎺掑簭鏄剧ず鍓?10 涓粨鏋?    results.sort(key=lambda r: (r[2] + r[3]*100000), reverse=True)
     
-    print("\n[结果] 前 10 个最佳坐标:")
+    print("\n[缁撴灉] 鍓?10 涓渶浣冲潗鏍?")
     for i, (x, y, diff, gold_change) in enumerate(results[:10]):
-        marker = "★" if (x, y) == best_coord else " "
+        marker = "鈽? if (x, y) == best_coord else " "
         print(f"  {marker} ({x:4}, {y:3}) diff={diff:>8,} gold_change={gold_change:+d}")
     
     if best_coord:
-        print(f"\n[最佳] {best_coord} diff={best_diff:,} gold_change={best_gold_change:+d}")
+        print(f"\n[鏈€浣砞 {best_coord} diff={best_diff:,} gold_change={best_gold_change:+d}")
     
     return best_coord
 
 def verify_coordinate(coord):
-    """验证给定坐标是否有效"""
+    """楠岃瘉缁欏畾鍧愭爣鏄惁鏈夋晥"""
     print("\n" + "="*70)
-    print(f"坐标验证：{coord}")
+    print(f"鍧愭爣楠岃瘉锛歿coord}")
     print("="*70)
     
     x, y = coord
     
-    # 确保在世界页面
-    print("\n[准备] 确保在世界页面...")
+    # 纭繚鍦ㄤ笘鐣岄〉闈?    print("\n[鍑嗗] 纭繚鍦ㄤ笘鐣岄〉闈?..")
     for i in range(10):
         back()
         time.sleep(0.5)
@@ -150,12 +141,12 @@ def verify_coordinate(coord):
     
     img = screencap()
     gold = detect_golden(img)
-    print(f"[初始] 金色元素={gold}")
+    print(f"[鍒濆] 閲戣壊鍏冪礌={gold}")
     
-    # 多次点击测试
+    # 澶氭鐐瑰嚮娴嬭瘯
     success_count = 0
     for attempt in range(5):
-        print(f"\n[尝试 {attempt+1}/5] 点击 {coord}...")
+        print(f"\n[灏濊瘯 {attempt+1}/5] 鐐瑰嚮 {coord}...")
         
         before = screencap()
         before_gold = detect_golden(before)
@@ -167,55 +158,53 @@ def verify_coordinate(coord):
         after_gold = detect_golden(after)
         diff = screen_diff(before, after)
         
-        print(f"  [结果] diff={diff:,} 金色={before_gold}->{after_gold} (变化={after_gold-before_gold:+d})")
+        print(f"  [缁撴灉] diff={diff:,} 閲戣壊={before_gold}->{after_gold} (鍙樺寲={after_gold-before_gold:+d})")
         
-        # 判断是否成功打开面板（金色增加 >= 3 或 差异 > 500000）
-        if after_gold - before_gold >= 3 or diff > 500000:
-            print(f"  [成功] 面板已打开")
+        # 鍒ゆ柇鏄惁鎴愬姛鎵撳紑闈㈡澘锛堥噾鑹插鍔?>= 3 鎴?宸紓 > 500000锛?        if after_gold - before_gold >= 3 or diff > 500000:
+            print(f"  [鎴愬姛] 闈㈡澘宸叉墦寮€")
             success_count += 1
             
-            # 保存截图
+            # 淇濆瓨鎴浘
             cv2.imwrite(str(PROJECT / 'cache' / f'verify_{x}_{y}.png'), after)
             
-            # 恢复
+            # 鎭㈠
             back()
             time.sleep(1)
         else:
-            print(f"  [失败] 面板未打开")
+            print(f"  [澶辫触] 闈㈡澘鏈墦寮€")
             back()
             time.sleep(0.5)
     
-    print(f"\n[统计] 成功 {success_count}/5 次 ({success_count*20}%)")
+    print(f"\n[缁熻] 鎴愬姛 {success_count}/5 娆?({success_count*20}%)")
     
     return success_count >= 3
 
 def main():
     print("\n" + "="*70)
-    print("坐标校准")
+    print("鍧愭爣鏍″噯")
     print("="*70)
     
-    # 扫描找出最佳坐标
-    best_coord = find_icon_by_scanning()
+    # 鎵弿鎵惧嚭鏈€浣冲潗鏍?    best_coord = find_icon_by_scanning()
     
     if best_coord:
-        # 验证最佳坐标
-        success = verify_coordinate(best_coord)
+        # 楠岃瘉鏈€浣冲潗鏍?        success = verify_coordinate(best_coord)
         
         if success:
-            print(f"\n[✓] 坐标 {best_coord} 验证通过")
+            print(f"\n[鉁揮 鍧愭爣 {best_coord} 楠岃瘉閫氳繃")
             return 0
         else:
-            print(f"\n[✗] 坐标 {best_coord} 验证失败")
+            print(f"\n[鉁梋 鍧愭爣 {best_coord} 楠岃瘉澶辫触")
             return 1
     else:
-        print("\n[✗] 未找到有效坐标")
+        print("\n[鉁梋 鏈壘鍒版湁鏁堝潗鏍?)
         return 1
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as e:
-        print(f"\n[错误] {e}")
+        print(f"\n[閿欒] {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+

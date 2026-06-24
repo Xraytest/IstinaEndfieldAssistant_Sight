@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-Agent-标准流集成模块 - 将标准流配置与AgentExecutor集成
+Agent-鏍囧噯娴侀泦鎴愭ā鍧?- 灏嗘爣鍑嗘祦閰嶇疆涓嶢gentExecutor闆嗘垚
 
-特性:
-1. 标准流指令转换为Agent可理解的指令
-2. 自动记录执行过程
-3. 集成视觉分析反馈
-4. 支持动态提示词优化
+鐗规€?
+1. 鏍囧噯娴佹寚浠よ浆鎹负Agent鍙悊瑙ｇ殑鎸囦护
+2. 鑷姩璁板綍鎵ц杩囩▼
+3. 闆嗘垚瑙嗚鍒嗘瀽鍙嶉
+4. 鏀寔鍔ㄦ€佹彁绀鸿瘝浼樺寲
 """
 
 import sys
@@ -24,7 +24,7 @@ from core.service.cloud.agent_executor import AgentExecutor
 
 
 class AgentStandardFlowRunner:
-    """通过AgentExecutor运行标准流"""
+    """閫氳繃AgentExecutor杩愯鏍囧噯娴?""
 
     def __init__(self, agent_executor: AgentExecutor, config: FlowConfig = None):
         self.agent_executor = agent_executor
@@ -33,7 +33,7 @@ class AgentStandardFlowRunner:
         self._stop_requested = False
 
     def run_flow(self, flow_name: str, record: bool = True) -> Dict[str, Any]:
-        """运行标准流"""
+        """杩愯鏍囧噯娴?""
         flow_config = self.config.get_flow(flow_name)
         if not flow_config:
             return {"status": "error", "message": f"Unknown flow: {flow_name}"}
@@ -42,7 +42,7 @@ class AgentStandardFlowRunner:
         if not steps:
             return {"status": "success", "message": "Flow has no steps"}
 
-        # 初始化记录器
+        # 鍒濆鍖栬褰曞櫒
         if record:
             self.recorder = FlowRecorder(
                 session_name=f"agent_{flow_name}",
@@ -52,9 +52,9 @@ class AgentStandardFlowRunner:
             self.recorder = None
 
         print(f"\n{'='*60}")
-        print(f"Agent执行流程: {flow_name}")
-        print(f"描述: {flow_config.get('description', '')}")
-        print(f"步骤数: {len(steps)}")
+        print(f"Agent鎵ц娴佺▼: {flow_name}")
+        print(f"鎻忚堪: {flow_config.get('description', '')}")
+        print(f"姝ラ鏁? {len(steps)}")
         print(f"{'='*60}\n")
 
         results = []
@@ -70,13 +70,13 @@ class AgentStandardFlowRunner:
             description = step_cfg["description"]
             prompt_template = step_cfg["prompt_template"]
 
-            print(f"\n[步骤 {step_id}/{len(steps)}] {step_key}: {description}")
+            print(f"\n[姝ラ {step_id}/{len(steps)}] {step_key}: {description}")
 
-            # 准备Agent指令
+            # 鍑嗗Agent鎸囦护
             prompt = self.config.substitute_variables(prompt_template)
             prompt = prompt.replace("{{current_page}}", context.get("current_page", "unknown"))
 
-            # 构建完整指令
+            # 鏋勫缓瀹屾暣鎸囦护
             instruction = f"""Standard flow step: {step_key}
 Action type: {action_type}
 Description: {description}
@@ -86,12 +86,12 @@ Description: {description}
 Output JSON with action and required fields only.
 """
 
-            # 发送到Agent
+            # 鍙戦€佸埌Agent
             start_time = time.time()
             result = self.agent_executor.send_instruction(instruction)
             elapsed = time.time() - start_time
 
-            # 记录
+            # 璁板綍
             if self.recorder:
                 self.recorder.record_step(
                     step_id=step_id,
@@ -108,9 +108,8 @@ Output JSON with action and required fields only.
                     }
                 )
 
-            # 更新上下文
-            if result.get("status") == "success":
-                print(f"  [OK] 执行成功 ({elapsed:.1f}s)")
+            # 鏇存柊涓婁笅鏂?            if result.get("status") == "success":
+                print(f"  [OK] 鎵ц鎴愬姛 ({elapsed:.1f}s)")
                 results.append({"step": step_key, "success": True})
             else:
                 print(f"  [FAIL] {result.get('message')}")
@@ -118,7 +117,7 @@ Output JSON with action and required fields only.
 
             time.sleep(1)
 
-        # 生成报告
+        # 鐢熸垚鎶ュ憡
         report = {
             "flow": flow_name,
             "total_steps": len(steps),
@@ -131,20 +130,19 @@ Output JSON with action and required fields only.
             report_file = os.path.join(self.recorder.session_dir, "agent_flow_report.json")
             with open(report_file, "w", encoding="utf-8") as f:
                 json.dump(report, f, ensure_ascii=False, indent=2)
-            print(f"\n报告已保存: {report_file}")
+            print(f"\n鎶ュ憡宸蹭繚瀛? {report_file}")
 
         return report
 
     def stop(self):
-        """停止执行"""
+        """鍋滄鎵ц"""
         self._stop_requested = True
         if self.agent_executor:
-            # AgentExecutor没有直接的停止方法，但可以重置
-            self.agent_executor.reset_conversation()
+            # AgentExecutor娌℃湁鐩存帴鐨勫仠姝㈡柟娉曪紝浣嗗彲浠ラ噸缃?            self.agent_executor.reset_conversation()
 
 
 def create_standard_flow_commands(agent_executor: AgentExecutor) -> Dict[str, callable]:
-    """创建标准流命令字典，便于GUI集成"""
+    """鍒涘缓鏍囧噯娴佸懡浠ゅ瓧鍏革紝渚夸簬GUI闆嗘垚"""
     config = FlowConfig()
 
     commands = {}
@@ -156,11 +154,11 @@ def create_standard_flow_commands(agent_executor: AgentExecutor) -> Dict[str, ca
     return commands
 
 
-# 示例：如何与GUI集成
+# 绀轰緥锛氬浣曚笌GUI闆嗘垚
 def integrate_with_gui():
-    """示例：如何将标准流集成到GUI"""
+    """绀轰緥锛氬浣曞皢鏍囧噯娴侀泦鎴愬埌GUI"""
     print("""
-GUI集成示例:
+GUI闆嗘垚绀轰緥:
 
 from scripts.agent_standard_flow_integration import AgentStandardFlowRunner, FlowConfig
 
@@ -192,10 +190,9 @@ class EnhancedStandardReasoningPage(StandardReasoningPage):
         self._execute_btn.setEnabled(True)
         self._exec_stop_btn.setEnabled(False)
 
-这样，标准流将通过AgentExecutor执行，利用云端VLM能力，
-同时保留配置化和记录分析功能。
-""")
+杩欐牱锛屾爣鍑嗘祦灏嗛€氳繃AgentExecutor鎵ц锛屽埄鐢ㄤ簯绔疺LM鑳藉姏锛?鍚屾椂淇濈暀閰嶇疆鍖栧拰璁板綍鍒嗘瀽鍔熻兘銆?""")
 
 
 if __name__ == "__main__":
     integrate_with_gui()
+

@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+﻿#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 # -*- coding: utf-8 -*-
 """
-多样任务链测试 - 验证软件真实功能
-包含多种任务类型，每步完成后切回orchestrator分析
+澶氭牱浠诲姟閾炬祴璇?- 楠岃瘉杞欢鐪熷疄鍔熻兘
+鍖呭惈澶氱浠诲姟绫诲瀷锛屾瘡姝ュ畬鎴愬悗鍒囧洖orchestrator鍒嗘瀽
 """
 
 import sys
@@ -12,43 +12,43 @@ import json
 import traceback
 from datetime import datetime
 
-# 设置UTF-8编码输出
+# 璁剧疆UTF-8缂栫爜杈撳嚭
 if sys.platform == 'win32':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-# 添加项目路径
+# 娣诲姞椤圭洰璺緞
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-# 多样任务链配置 - 包含各种类型任务
+# 澶氭牱浠诲姟閾鹃厤缃?- 鍖呭惈鍚勭绫诲瀷浠诲姟
 TASK_CHAIN_CONFIG = {
-    "game_package": "com.hypergryph.endfield",  # 游戏包名 - 用于open_app启动
+    "game_package": "com.hypergryph.endfield",  # 娓告垙鍖呭悕 - 鐢ㄤ簬open_app鍚姩
     "tasks": [
-        # 1. 游戏启动类
-        {"id": "task_game_login", "name": "游戏登录确认", "category": "启动"},
+        # 1. 娓告垙鍚姩绫?
+        {"id": "task_game_login", "name": "娓告垙鐧诲綍纭", "category": "鍚姩"},
         
-        # 2. 日常奖励类
-        {"id": "task_daily_rewards", "name": "每日奖励领取", "category": "日常"},
+        # 2. 鏃ュ父濂栧姳绫?
+        {"id": "task_daily_rewards", "name": "姣忔棩濂栧姳棰嗗彇", "category": "鏃ュ父"},
         
-        # 3. 社交互动类
-        {"id": "task_visit_friends", "name": "访问好友", "category": "社交"},
+        # 3. 绀句氦浜掑姩绫?
+        {"id": "task_visit_friends", "name": "璁块棶濂藉弸", "category": "绀句氦"},
         
-        # 4. 商店购买类
-        {"id": "task_credit_shopping", "name": "信用商店购物", "category": "商店"},
+        # 4. 鍟嗗簵璐拱绫?
+        {"id": "task_credit_shopping", "name": "淇＄敤鍟嗗簵璐墿", "category": "鍟嗗簵"},
         
-        # 5. 生产制造类
-        {"id": "task_crafting", "name": "加工站生产", "category": "生产"},
+        # 5. 鐢熶骇鍒堕€犵被
+        {"id": "task_crafting", "name": "鍔犲伐绔欑敓浜?, "category": "鐢熶骇"},
         
-        # 6. 资源出售类
-        {"id": "task_sell_product", "name": "出售产品", "category": "交易"},
+        # 6. 璧勬簮鍑哄敭绫?
+        {"id": "task_sell_product", "name": "鍑哄敭浜у搧", "category": "浜ゆ槗"},
         
-        # 7. 任务派送类
-        {"id": "task_delivery_jobs", "name": "派送任务", "category": "任务"},
+        # 7. 浠诲姟娲鹃€佺被
+        {"id": "task_delivery_jobs", "name": "娲鹃€佷换鍔?, "category": "浠诲姟"},
         
-        # 8. 武器升级类
-        {"id": "task_weapon_upgrade", "name": "武器升级", "category": "强化"},
+        # 8. 姝﹀櫒鍗囩骇绫?
+        {"id": "task_weapon_upgrade", "name": "姝﹀櫒鍗囩骇", "category": "寮哄寲"},
     ],
     "execution_count": 1,
     "timeout_per_task": 300,
@@ -57,7 +57,7 @@ TASK_CHAIN_CONFIG = {
     "output_dir": os.path.join(project_root, 'tests', 'test_output')
 }
 
-# 测试状态记录
+# 娴嬭瘯鐘舵€佽褰?
 test_state = {
     "start_time": None,
     "current_step": 0,
@@ -69,11 +69,11 @@ test_state = {
 }
 
 def log_message(message, level="INFO", category="test"):
-    """日志输出"""
+    """鏃ュ織杈撳嚭"""
     timestamp = datetime.now().strftime("%H:%M:%S")
     print(f"[{timestamp}] [{level}] [{category}] {message}")
     
-    # 写入文件
+    # 鍐欏叆鏂囦欢
     output_dir = TASK_CHAIN_CONFIG['output_dir']
     os.makedirs(output_dir, exist_ok=True)
     log_file = os.path.join(output_dir, 'test_diverse_chain.log')
@@ -81,7 +81,7 @@ def log_message(message, level="INFO", category="test"):
         f.write(f"[{timestamp}] [{level}] [{category}] {message}\n")
 
 def save_step_result(step_index, task_id, task_name, status, details, orchestrator_analysis=None):
-    """保存步骤结果并记录orchestrator分析"""
+    """淇濆瓨姝ラ缁撴灉骞惰褰昽rchestrator鍒嗘瀽"""
     step_result = {
         "step_index": step_index,
         "task_id": task_id,
@@ -99,16 +99,16 @@ def save_step_result(step_index, task_id, task_name, status, details, orchestrat
     else:
         test_state["failed_steps"].append(step_index)
     
-    # 保存状态文件供orchestrator读取
+    # 淇濆瓨鐘舵€佹枃浠朵緵orchestrator璇诲彇
     output_dir = TASK_CHAIN_CONFIG['output_dir']
     state_file = os.path.join(output_dir, 'test_state.json')
     with open(state_file, 'w', encoding='utf-8') as f:
         json.dump(test_state, f, indent=2, ensure_ascii=False)
     
-    log_message(f"步骤 {step_index} 完成: {task_name} - {status}", "INFO", "progress")
+    log_message(f"姝ラ {step_index} 瀹屾垚: {task_name} - {status}", "INFO", "progress")
 
 def generate_orchestrator_report():
-    """生成orchestrator分析报告"""
+    """鐢熸垚orchestrator鍒嗘瀽鎶ュ憡"""
     completed = len(test_state["completed_steps"])
     failed = len(test_state["failed_steps"])
     total = len(TASK_CHAIN_CONFIG["tasks"])
@@ -126,7 +126,7 @@ def generate_orchestrator_report():
         "analysis": {
             "success_rate": completed / max(current, 1) if current > 0 else 0,
             "overall_status": "in_progress" if current < total else ("success" if failed == 0 else "partial_failure"),
-            "recommendation": "继续执行" if current < total else "测试完成"
+            "recommendation": "缁х画鎵ц" if current < total else "娴嬭瘯瀹屾垚"
         },
         "next_action": {
             "type": "continue" if current < total else "finish",
@@ -136,7 +136,7 @@ def generate_orchestrator_report():
     
     test_state["orchestrator_reports"].append(report)
     
-    # 保存报告
+    # 淇濆瓨鎶ュ憡
     output_dir = TASK_CHAIN_CONFIG['output_dir']
     report_file = os.path.join(output_dir, 'orchestrator_report.json')
     with open(report_file, 'w', encoding='utf-8') as f:
@@ -145,7 +145,7 @@ def generate_orchestrator_report():
     return report
 
 class DiverseTaskChainTest:
-    """多样任务链测试运行器"""
+    """澶氭牱浠诲姟閾炬祴璇曡繍琛屽櫒"""
     
     def __init__(self):
         self.components = {}
@@ -153,33 +153,33 @@ class DiverseTaskChainTest:
         self.logged_in = False
         
     def initialize(self):
-        """初始化组件"""
-        log_message("初始化测试组件...", "INFO", "setup")
+        """鍒濆鍖栫粍浠?""
+        log_message("鍒濆鍖栨祴璇曠粍浠?..", "INFO", "setup")
         
         try:
-            from 安卓相关.控制.touch.touch_manager import TouchManager
-            from 安卓相关.控制.adb_manager import ADBDeviceManager
-            from 安卓相关.图像传递.screen_capture import ScreenCapture
-            from 安卓相关.core.cloud.managers.execution_manager import ExecutionManager
-            from 安卓相关.core.cloud.managers.task_queue_manager import TaskQueueManager
-            from 安卓相关.core.cloud.task_manager import TaskManager
-            from 安卓相关.core.communication.communicator import ClientCommunicator
-            from 安卓相关.core.cloud.managers.auth_manager import AuthManager
-            from 安卓相关.core.cloud.managers.device_manager import DeviceManager
+            from 瀹夊崜鐩稿叧.鎺у埗.touch.touch_manager import TouchManager
+            from 瀹夊崜鐩稿叧.鎺у埗.adb_manager import ADBDeviceManager
+            from 瀹夊崜鐩稿叧.鍥惧儚浼犻€?screen_capture import ScreenCapture
+            from 瀹夊崜鐩稿叧.core.cloud.managers.execution_manager import ExecutionManager
+            from 瀹夊崜鐩稿叧.core.cloud.managers.task_queue_manager import TaskQueueManager
+            from 瀹夊崜鐩稿叧.core.cloud.task_manager import TaskManager
+            from 瀹夊崜鐩稿叧.core.communication.communicator import ClientCommunicator
+            from 瀹夊崜鐩稿叧.core.cloud.managers.auth_manager import AuthManager
+            from 瀹夊崜鐩稿叧.core.cloud.managers.device_manager import DeviceManager
             
-            # 加载配置
+            # 鍔犺浇閰嶇疆
             config_path = os.path.join(project_root, "config", "client_config.json")
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
-            # 初始化通信器
+            # 鍒濆鍖栭€氫俊鍣?
             communicator = ClientCommunicator(
                 host=config['server']['host'],
                 port=config['server']['port'],
                 password=config['communication']['password']
             )
             
-            # 初始化组件
+            # 鍒濆鍖栫粍浠?
             auth_manager = AuthManager(communicator, config)
             adb_path = os.path.join(project_root, config['adb']['path'])
             adb_manager = ADBDeviceManager(adb_path)
@@ -210,22 +210,22 @@ class DiverseTaskChainTest:
                 'execution_manager': execution_manager
             }
             
-            log_message("组件初始化完成", "INFO", "setup")
+            log_message("缁勪欢鍒濆鍖栧畬鎴?, "INFO", "setup")
             return True
             
         except Exception as e:
-            log_message(f"组件初始化失败: {e}", "ERROR", "setup")
+            log_message(f"缁勪欢鍒濆鍖栧け璐? {e}", "ERROR", "setup")
             return False
     
     def login(self):
-        """用户登录"""
-        log_message("执行用户登录...", "INFO", "auth")
+        """鐢ㄦ埛鐧诲綍"""
+        log_message("鎵ц鐢ㄦ埛鐧诲綍...", "INFO", "auth")
         
         try:
             auth_manager = self.components['auth_manager']
             communicator = self.components['communicator']
             
-            # 尝试多个arkpass路径
+            # 灏濊瘯澶氫釜arkpass璺緞
             arkpass_paths = [
                 os.path.join(project_root, "cache", "testis.arkpass"),
                 'C:/Users/xray/.arkpass/default.arkpass',
@@ -233,55 +233,55 @@ class DiverseTaskChainTest:
             ]
             
             for arkpass_path in arkpass_paths:
-                log_message(f"检查arkpass文件: {arkpass_path}", "INFO", "auth")
+                log_message(f"妫€鏌rkpass鏂囦欢: {arkpass_path}", "INFO", "auth")
                 if os.path.exists(arkpass_path):
-                    log_message(f"使用arkpass文件: {arkpass_path}", "INFO", "auth")
+                    log_message(f"浣跨敤arkpass鏂囦欢: {arkpass_path}", "INFO", "auth")
                     result = auth_manager.login_with_arkpass(arkpass_path)
                     success = result[0] if isinstance(result, tuple) else result
                     message = result[1] if isinstance(result, tuple) else ""
                     
-                    log_message(f"登录结果: success={success}, message={message}", "INFO", "auth")
+                    log_message(f"鐧诲綍缁撴灉: success={success}, message={message}", "INFO", "auth")
                     
                     if success:
                         self.logged_in = True
                         communicator.set_logged_in(True)
-                        log_message("用户登录成功", "INFO", "auth")
+                        log_message("鐢ㄦ埛鐧诲綍鎴愬姛", "INFO", "auth")
                         return True
             
-            # 尝试自动登录
-            log_message("尝试自动登录...", "INFO", "auth")
+            # 灏濊瘯鑷姩鐧诲綍
+            log_message("灏濊瘯鑷姩鐧诲綍...", "INFO", "auth")
             result = auth_manager.auto_login_with_arkpass(arkpass_paths[0])
             if isinstance(result, tuple) and result[0]:
                 self.logged_in = True
                 communicator.set_logged_in(True)
-                log_message("自动登录成功", "INFO", "auth")
+                log_message("鑷姩鐧诲綍鎴愬姛", "INFO", "auth")
                 return True
             
-            # 设置模拟登录状态（测试环境）
-            log_message("设置模拟登录状态", "INFO", "auth")
+            # 璁剧疆妯℃嫙鐧诲綍鐘舵€侊紙娴嬭瘯鐜锛?
+            log_message("璁剧疆妯℃嫙鐧诲綍鐘舵€?, "INFO", "auth")
             auth_manager.is_logged_in = True
             auth_manager.user_id = "test_user"
             auth_manager.session_id = "test_session"
             communicator.set_logged_in(True)
             self.logged_in = True
-            log_message("模拟登录状态已设置", "INFO", "auth")
+            log_message("妯℃嫙鐧诲綍鐘舵€佸凡璁剧疆", "INFO", "auth")
             return True
             
         except Exception as e:
-            log_message(f"登录异常: {e}", "WARN", "auth")
-            # 设置登录状态以继续测试
+            log_message(f"鐧诲綍寮傚父: {e}", "WARN", "auth")
+            # 璁剧疆鐧诲綍鐘舵€佷互缁х画娴嬭瘯
             auth_manager = self.components['auth_manager']
             auth_manager.is_logged_in = True
             auth_manager.user_id = "test_user"
             auth_manager.session_id = "test_session"
             communicator.set_logged_in(True)
             self.logged_in = True
-            log_message("模拟登录状态已设置（异常恢复）", "INFO", "auth")
+            log_message("妯℃嫙鐧诲綍鐘舵€佸凡璁剧疆锛堝紓甯告仮澶嶏級", "INFO", "auth")
             return True
     
     def connect_device(self):
-        """连接设备"""
-        log_message("连接设备...", "INFO", "device")
+        """杩炴帴璁惧"""
+        log_message("杩炴帴璁惧...", "INFO", "device")
         
         try:
             adb_manager = self.components['adb_manager']
@@ -295,13 +295,13 @@ class DiverseTaskChainTest:
             adb_manager.connect_device(device_address)
             time.sleep(1)
             
-            # 获取ADB路径
+            # 鑾峰彇ADB璺緞
             config_path = os.path.join(project_root, "config", "client_config.json")
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             adb_path = os.path.join(project_root, config['adb']['path'])
             
-            # 使用TouchManager连接 - 正确的参数名
+            # 浣跨敤TouchManager杩炴帴 - 姝ｇ‘鐨勫弬鏁板悕
             result = touch_manager.connect_android(
                 adb_path=adb_path,
                 address=device_address,
@@ -311,78 +311,78 @@ class DiverseTaskChainTest:
             if result:
                 self.device_connected = True
                 resolution = touch_manager.get_resolution()
-                log_message(f"设备连接成功: {device_address}, 分辨率: {resolution}", "INFO", "device")
+                log_message(f"璁惧杩炴帴鎴愬姛: {device_address}, 鍒嗚鲸鐜? {resolution}", "INFO", "device")
                 
-                # 设置DeviceManager的当前设备 - 这是关键步骤
+                # 璁剧疆DeviceManager鐨勫綋鍓嶈澶?- 杩欐槸鍏抽敭姝ラ
                 device_manager.connect_device(device_address)
-                log_message("DeviceManager设备记录已设置", "INFO", "device")
+                log_message("DeviceManager璁惧璁板綍宸茶缃?, "INFO", "device")
                 
                 return True
             
-            log_message("设备连接失败", "ERROR", "device")
+            log_message("璁惧杩炴帴澶辫触", "ERROR", "device")
             return False
             
         except Exception as e:
-            log_message(f"设备连接异常: {e}", "ERROR", "device")
+            log_message(f"璁惧杩炴帴寮傚父: {e}", "ERROR", "device")
             traceback.print_exc()
             return False
     
     def launch_game(self):
-        """启动游戏应用 - 使用open_app工具"""
+        """鍚姩娓告垙搴旂敤 - 浣跨敤open_app宸ュ叿"""
         game_package = TASK_CHAIN_CONFIG.get('game_package', '')
         if not game_package:
-            log_message("未配置游戏包名，跳过游戏启动", "WARN", "launch")
+            log_message("鏈厤缃父鎴忓寘鍚嶏紝璺宠繃娓告垙鍚姩", "WARN", "launch")
             return True
         
-        log_message(f"启动游戏: {game_package}", "INFO", "launch")
+        log_message(f"鍚姩娓告垙: {game_package}", "INFO", "launch")
         
         try:
             touch_manager = self.components['touch_manager']
             
-            # 使用open_app工具启动游戏
+            # 浣跨敤open_app宸ュ叿鍚姩娓告垙
             result = touch_manager.execute_tool_call("open_app", {"app_name": game_package})
             
             if result:
-                log_message(f"游戏启动成功: {game_package}", "INFO", "launch")
-                # 等待游戏加载
+                log_message(f"娓告垙鍚姩鎴愬姛: {game_package}", "INFO", "launch")
+                # 绛夊緟娓告垙鍔犺浇
                 time.sleep(5)
                 return True
             
-            log_message(f"游戏启动失败: {game_package}", "ERROR", "launch")
+            log_message(f"娓告垙鍚姩澶辫触: {game_package}", "ERROR", "launch")
             return False
             
         except Exception as e:
-            log_message(f"游戏启动异常: {e}", "ERROR", "launch")
+            log_message(f"娓告垙鍚姩寮傚父: {e}", "ERROR", "launch")
             traceback.print_exc()
             return False
     
     def setup_task_queue(self, start_index=0):
-        """设置任务队列"""
+        """璁剧疆浠诲姟闃熷垪"""
         task_queue_manager = self.components['task_queue_manager']
         task_queue_manager.clear_queue()
         
-        # 添加剩余任务
+        # 娣诲姞鍓╀綑浠诲姟
         remaining_tasks = TASK_CHAIN_CONFIG['tasks'][start_index:]
         for task in remaining_tasks:
             task_queue_manager.add_task(task)
-            log_message(f"添加任务: {task['name']} ({task['category']})", "INFO", "task")
+            log_message(f"娣诲姞浠诲姟: {task['name']} ({task['category']})", "INFO", "task")
         
         task_queue_manager.set_execution_count(TASK_CHAIN_CONFIG['execution_count'])
         
         queue_info = task_queue_manager.get_queue_info()
-        log_message(f"任务队列: {queue_info}", "INFO", "task")
+        log_message(f"浠诲姟闃熷垪: {queue_info}", "INFO", "task")
         
         return remaining_tasks
     
     def execute_single_task(self, task_index, task_info):
-        """执行单个任务并返回结果"""
-        log_message(f"\n=== 执行任务 {task_index + 1}: {task_info['name']} ===", "INFO", "execution")
-        log_message(f"任务类型: {task_info['category']}", "INFO", "execution")
+        """鎵ц鍗曚釜浠诲姟骞惰繑鍥炵粨鏋?""
+        log_message(f"\n=== 鎵ц浠诲姟 {task_index + 1}: {task_info['name']} ===", "INFO", "execution")
+        log_message(f"浠诲姟绫诲瀷: {task_info['category']}", "INFO", "execution")
         
         execution_manager = self.components['execution_manager']
         task_queue_manager = self.components['task_queue_manager']
         
-        # 设置只执行当前任务
+        # 璁剧疆鍙墽琛屽綋鍓嶄换鍔?
         self.setup_task_queue(task_index)
         
         try:
@@ -390,9 +390,9 @@ class DiverseTaskChainTest:
                 log_message(message, level, category)
             
             def ui_callback(event_type, data):
-                log_message(f"UI事件: {event_type}", "INFO", "ui")
+                log_message(f"UI浜嬩欢: {event_type}", "INFO", "ui")
             
-            # 启动执行
+            # 鍚姩鎵ц
             result = execution_manager.start_execution(
                 log_callback=log_callback,
                 update_ui_callback=ui_callback
@@ -401,10 +401,10 @@ class DiverseTaskChainTest:
             success = result[0] if isinstance(result, tuple) else result
             message = result[1] if isinstance(result, tuple) else ""
             
-            log_message(f"执行启动: success={success}, message={message}", "INFO", "execution")
+            log_message(f"鎵ц鍚姩: success={success}, message={message}", "INFO", "execution")
             
             if success:
-                # 监控执行
+                # 鐩戞帶鎵ц
                 max_wait = TASK_CHAIN_CONFIG['timeout_per_task']
                 start_time = time.time()
                 
@@ -413,7 +413,7 @@ class DiverseTaskChainTest:
                     queue_info = task_queue_manager.get_queue_info()
                     current_index = queue_info.get('current_index', 0)
                     
-                    log_message(f"状态: running={is_running}, index={current_index}", "INFO", "status")
+                    log_message(f"鐘舵€? running={is_running}, index={current_index}", "INFO", "status")
                     
                     if not is_running or current_index >= 1:
                         break
@@ -423,88 +423,88 @@ class DiverseTaskChainTest:
                 execution_duration = time.time() - start_time
                 final_index = task_queue_manager.get_queue_info().get('current_index', 0)
                 
-                # 判断结果
+                # 鍒ゆ柇缁撴灉
                 if final_index >= 1:
                     status = "completed"
-                    details = f"任务完成，耗时 {execution_duration:.1f}秒"
+                    details = f"浠诲姟瀹屾垚锛岃€楁椂 {execution_duration:.1f}绉?
                 else:
                     status = "failed"
-                    details = f"任务未推进，耗时 {execution_duration:.1f}秒"
+                    details = f"浠诲姟鏈帹杩涳紝鑰楁椂 {execution_duration:.1f}绉?
                 
-                # 停止执行
+                # 鍋滄鎵ц
                 execution_manager.stop_execution()
                 time.sleep(2)
                 
                 return status, details
             
-            return "failed", f"执行启动失败: {message}"
+            return "failed", f"鎵ц鍚姩澶辫触: {message}"
             
         except Exception as e:
             execution_manager.stop_execution()
-            return "failed", f"执行异常: {e}"
+            return "failed", f"鎵ц寮傚父: {e}"
     
     def run_test_chain(self):
-        """运行完整测试链"""
+        """杩愯瀹屾暣娴嬭瘯閾?""
         test_state["start_time"] = datetime.now().isoformat()
         
         log_message("=" * 60, "INFO", "test")
-        log_message("多样任务链测试 - 验证软件真实功能", "INFO", "test")
-        log_message(f"任务总数: {len(TASK_CHAIN_CONFIG['tasks'])}", "INFO", "test")
+        log_message("澶氭牱浠诲姟閾炬祴璇?- 楠岃瘉杞欢鐪熷疄鍔熻兘", "INFO", "test")
+        log_message(f"浠诲姟鎬绘暟: {len(TASK_CHAIN_CONFIG['tasks'])}", "INFO", "test")
         log_message("=" * 60, "INFO", "test")
         
-        # 初始化
+        # 鍒濆鍖?
         if not self.initialize():
             return False
         
-        # 登录
+        # 鐧诲綍
         if not self.login():
             return False
         
-        # 连接设备
+        # 杩炴帴璁惧
         if not self.connect_device():
             return False
         
-        # 启动游戏 - 在任务执行前调用open_app
+        # 鍚姩娓告垙 - 鍦ㄤ换鍔℃墽琛屽墠璋冪敤open_app
         if not self.launch_game():
-            log_message("游戏启动失败，但继续执行任务...", "WARN", "launch")
+            log_message("娓告垙鍚姩澶辫触锛屼絾缁х画鎵ц浠诲姟...", "WARN", "launch")
         
-        # 执行每个任务
+        # 鎵ц姣忎釜浠诲姟
         tasks = TASK_CHAIN_CONFIG['tasks']
         
         for i, task in enumerate(tasks):
             test_state["current_step"] = i
             
-            log_message(f"\n>>> 步骤 {i + 1}/{len(tasks)}: {task['name']} ({task['category']})", "INFO", "progress")
+            log_message(f"\n>>> 姝ラ {i + 1}/{len(tasks)}: {task['name']} ({task['category']})", "INFO", "progress")
             
-            # 执行任务
+            # 鎵ц浠诲姟
             status, details = self.execute_single_task(i, task)
             
-            # 保存结果
+            # 淇濆瓨缁撴灉
             orchestrator_report = generate_orchestrator_report()
             save_step_result(i, task['id'], task['name'], status, details, orchestrator_report)
             
-            # 打印orchestrator分析
-            log_message(f"[ORCHESTRATOR] 进度: {orchestrator_report['progress']}", "INFO", "orchestrator")
-            log_message(f"[ORCHESTRATOR] 分析: {orchestrator_report['analysis']}", "INFO", "orchestrator")
-            log_message(f"[ORCHESTRATOR] 下一步: {orchestrator_report['next_action']}", "INFO", "orchestrator")
+            # 鎵撳嵃orchestrator鍒嗘瀽
+            log_message(f"[ORCHESTRATOR] 杩涘害: {orchestrator_report['progress']}", "INFO", "orchestrator")
+            log_message(f"[ORCHESTRATOR] 鍒嗘瀽: {orchestrator_report['analysis']}", "INFO", "orchestrator")
+            log_message(f"[ORCHESTRATOR] 涓嬩竴姝? {orchestrator_report['next_action']}", "INFO", "orchestrator")
             
-            # 如果失败，记录但继续下一个任务
+            # 濡傛灉澶辫触锛岃褰曚絾缁х画涓嬩竴涓换鍔?
             if status == "failed":
-                log_message(f"任务 {task['name']} 失败，继续下一个任务", "WARN", "execution")
+                log_message(f"浠诲姟 {task['name']} 澶辫触锛岀户缁笅涓€涓换鍔?, "WARN", "execution")
         
-        # 最终报告
+        # 鏈€缁堟姤鍛?
         test_state["current_step"] = len(tasks)
         final_report = generate_orchestrator_report()
         test_state["final_result"] = final_report
         
         log_message("\n" + "=" * 60, "INFO", "summary")
-        log_message("测试完成摘要", "INFO", "summary")
-        log_message(f"完成: {len(test_state['completed_steps'])}/{len(tasks)}", "INFO", "summary")
-        log_message(f"失败: {len(test_state['failed_steps'])}/{len(tasks)}", "INFO", "summary")
-        log_message(f"成功率: {final_report['analysis']['success_rate']:.1%}", "INFO", "summary")
+        log_message("娴嬭瘯瀹屾垚鎽樿", "INFO", "summary")
+        log_message(f"瀹屾垚: {len(test_state['completed_steps'])}/{len(tasks)}", "INFO", "summary")
+        log_message(f"澶辫触: {len(test_state['failed_steps'])}/{len(tasks)}", "INFO", "summary")
+        log_message(f"鎴愬姛鐜? {final_report['analysis']['success_rate']:.1%}", "INFO", "summary")
         log_message("=" * 60, "INFO", "summary")
         
-        # 保存最终结果
+        # 淇濆瓨鏈€缁堢粨鏋?
         output_dir = TASK_CHAIN_CONFIG['output_dir']
         result_file = os.path.join(output_dir, 'test_diverse_chain_results.json')
         with open(result_file, 'w', encoding='utf-8') as f:
@@ -513,8 +513,8 @@ class DiverseTaskChainTest:
         return len(test_state['failed_steps']) == 0
     
     def cleanup(self):
-        """清理"""
-        log_message("清理测试环境...", "INFO", "cleanup")
+        """娓呯悊"""
+        log_message("娓呯悊娴嬭瘯鐜...", "INFO", "cleanup")
         
         try:
             if 'execution_manager' in self.components:
@@ -523,14 +523,14 @@ class DiverseTaskChainTest:
             if self.device_connected and 'touch_manager' in self.components:
                 self.components['touch_manager'].disconnect()
             
-            log_message("清理完成", "INFO", "cleanup")
+            log_message("娓呯悊瀹屾垚", "INFO", "cleanup")
             
         except Exception as e:
-            log_message(f"清理异常: {e}", "WARN", "cleanup")
+            log_message(f"娓呯悊寮傚父: {e}", "WARN", "cleanup")
 
 
 def main():
-    """主函数"""
+    """涓诲嚱鏁?""
     test = DiverseTaskChainTest()
     
     try:
@@ -538,11 +538,11 @@ def main():
         test.cleanup()
         return 0 if success else 1
     except KeyboardInterrupt:
-        log_message("测试被用户中断", "WARN", "test")
+        log_message("娴嬭瘯琚敤鎴蜂腑鏂?, "WARN", "test")
         test.cleanup()
         return 2
     except Exception as e:
-        log_message(f"测试异常: {e}", "ERROR", "test")
+        log_message(f"娴嬭瘯寮傚父: {e}", "ERROR", "test")
         traceback.print_exc()
         test.cleanup()
         return 3

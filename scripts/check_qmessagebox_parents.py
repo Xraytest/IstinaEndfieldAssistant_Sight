@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
 Small static checker to find QMessageBox.* calls that may not pass a parent widget as first argument.
 Run from repository root (IstinaEndfieldAssistant folder).
@@ -51,3 +51,4 @@ if __name__ == '__main__':
             for lineno, snip in items:
                 print(f'  Line {lineno}: {snip}')
             print()
+

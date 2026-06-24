@@ -167,13 +167,13 @@ git checkout main
 
 ```bash
 # 启动 llama-server
-python scripts/tools/start_llama_server.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/tools/start_llama_server.py
 
 # 启动 GUI
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 
 # 运行标准流
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 ```
 
 **总预计时间**：4-5 小时
@@ -242,23 +242,23 @@ python scripts/standard_flow_engine.py --flow daily_quest --local-only
 ### 1. 启动 llama-server
 
 ```bash
-python scripts/tools/start_llama_server.py --model qwen3.5-2b
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/tools/start_llama_server.py --model qwen3.5-2b
 ```
 
 ### 2. 启动 GUI
 
 ```bash
 # 使用本地配置
-python src/gui/pyqt6/main.py --config config/client_config.local.json
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py --config config/client_config.local.json
 
 # 或修改主配置后直接启动
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 ```
 
 ### 3. 运行标准流
 
 ```bash
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 ```
 
 详见：[LOCAL_ONLY_QUICKSTART.md](LOCAL_ONLY_QUICKSTART.md)

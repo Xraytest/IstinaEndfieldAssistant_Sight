@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""游戏状态快速恢复 — 按页面对策导航回世界页面 v2"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""娓告垙鐘舵€佸揩閫熸仮澶?鈥?鎸夐〉闈㈠绛栧鑸洖涓栫晫椤甸潰 v2"""
 import subprocess, time, cv2, numpy as np, sys
 from pathlib import Path
 
@@ -25,7 +25,7 @@ def tap(x,y):
 a = HighPrecisionPageAnalyzer()
 engine = RecognitionEngine()
 
-print('自动导航回世界...')
+print('鑷姩瀵艰埅鍥炰笘鐣?..')
 for attempt in range(40):
     img = sc()
     if img is None: continue
@@ -36,11 +36,11 @@ for attempt in range(40):
     print(f'{attempt:2d}: {pt:18s} conf={r["confidence"]:.2f}')
 
     if pt == 'world':
-        print('✅ 已回到世界页面！')
+        print('鉁?宸插洖鍒颁笘鐣岄〉闈紒')
         sys.exit(0)
 
     if pt == 'not_in_game':
-        print('  重启Endfield...')
+        print('  閲嶅惎Endfield...')
         subprocess.run([str(ADB), '-s', SER, 'shell', 'am', 'force-stop',
                        'com.hypergryph.endfield'], capture_output=True, timeout=10)
         time.sleep(2)
@@ -51,7 +51,7 @@ for attempt in range(40):
         time.sleep(25)
 
     if pt == 'exit_dialog':
-        # SIFT精确匹配CancelButton位置
+        # SIFT绮剧‘鍖归厤CancelButton浣嶇疆
         ok, r2 = engine.recognize(img, {
             "type": "TemplateMatch",
             "template": "Common/Button/CancelButtonType1.png",
@@ -77,5 +77,6 @@ for attempt in range(40):
     else:
         k(4); time.sleep(0.5)
 
-print('❌ 未能恢复到世界页面')
+print('鉂?鏈兘鎭㈠鍒颁笘鐣岄〉闈?)
 sys.exit(1)
+

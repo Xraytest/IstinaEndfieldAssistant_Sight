@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-离线全标准流测试 — 使用缓存截图验证分析器和引擎逻辑
+绂荤嚎鍏ㄦ爣鍑嗘祦娴嬭瘯 鈥?浣跨敤缂撳瓨鎴浘楠岃瘉鍒嗘瀽鍣ㄥ拰寮曟搸閫昏緫
 
-不依赖在线设备。使用已知页面截图测试：
-- cache/test_recognition/world_*.png → 预期 world
-- cache/test_recognition/quest_*.png → 预期 quest_panel
-- cache/test_recognition/dialog_*.png → 预期 exit_dialog
-- cache/menu_screen.png → 预期 menu
+涓嶄緷璧栧湪绾胯澶囥€備娇鐢ㄥ凡鐭ラ〉闈㈡埅鍥炬祴璇曪細
+- cache/test_recognition/world_*.png 鈫?棰勬湡 world
+- cache/test_recognition/quest_*.png 鈫?棰勬湡 quest_panel
+- cache/test_recognition/dialog_*.png 鈫?棰勬湡 exit_dialog
+- cache/menu_screen.png 鈫?棰勬湡 menu
 """
 
 import sys, json, cv2
@@ -23,7 +23,7 @@ engine = RecognitionEngine()
 
 
 def test_page_classification():
-    """测试页面分类器在所有已知截图上的准确性"""
+    """娴嬭瘯椤甸潰鍒嗙被鍣ㄥ湪鎵€鏈夊凡鐭ユ埅鍥句笂鐨勫噯纭€?""
     print("=" * 60)
     print("Test 1: Page Classifier Accuracy (offline)")
     print("=" * 60)
@@ -67,7 +67,7 @@ def test_page_classification():
         else:
             status = "FAIL"
 
-        print(f"  [{status}] {fname} → {page_type} (c={confidence:.2f}) "
+        print(f"  [{status}] {fname} 鈫?{page_type} (c={confidence:.2f}) "
               f"detail={detail.get('method','?')}")
 
     accuracy = correct / len(test_cases) * 100 if test_cases else 0
@@ -76,7 +76,7 @@ def test_page_classification():
 
 
 def test_template_matching():
-    """测试所有预定义模板在当前截图上的表现"""
+    """娴嬭瘯鎵€鏈夐瀹氫箟妯℃澘鍦ㄥ綋鍓嶆埅鍥句笂鐨勮〃鐜?""
     print("\n" + "=" * 60)
     print("Test 2: Template Matching (SIFT)")
     print("=" * 60)
@@ -110,7 +110,7 @@ def test_template_matching():
 
 
 def test_flow_configs():
-    """验证全部流配置"""
+    """楠岃瘉鍏ㄩ儴娴侀厤缃?""
     print("\n" + "=" * 60)
     print("Test 3: Flow Config Validation")
     print("=" * 60)
@@ -152,7 +152,7 @@ def test_flow_configs():
 
 
 def test_all_actions():
-    """验证引擎支持所有动作类型"""
+    """楠岃瘉寮曟搸鏀寔鎵€鏈夊姩浣滅被鍨?""
     print("\n" + "=" * 60)
     print("Test 4: Action Type Coverage")
     print("=" * 60)
@@ -183,7 +183,7 @@ def test_all_actions():
 
 
 def test_sift_match_accuracy():
-    """SIFT匹配在已知截图上的准确性"""
+    """SIFT鍖归厤鍦ㄥ凡鐭ユ埅鍥句笂鐨勫噯纭€?""
     print("\n" + "=" * 60)
     print("Test 5: SIFT Match on Known Screenshots")
     print("=" * 60)
@@ -254,3 +254,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

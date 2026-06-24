@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 # -*- coding: utf-8 -*-
 """Test MaaFramework with different screencap methods"""
 
@@ -9,14 +9,14 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 os.chdir(project_root)
 
-android_dir = os.path.join(project_root, "安卓相关")
-entry_dir = os.path.join(project_root, "入口")
+android_dir = os.path.join(project_root, "瀹夊崜鐩稿叧")
+entry_dir = os.path.join(project_root, "鍏ュ彛")
 if android_dir not in sys.path:
     sys.path.insert(0, android_dir)
 if entry_dir not in sys.path:
     sys.path.insert(0, entry_dir)
 
-from 控制.touch.touch_manager import TouchManager
+from 鎺у埗.touch.touch_manager import TouchManager
 
 def main():
     print("=" * 60)

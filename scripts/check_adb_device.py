@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-ADB 设备信息诊断
+ADB 璁惧淇℃伅璇婃柇
 """
 
 import subprocess, sys
@@ -15,34 +15,34 @@ def run_adb(cmd):
     return r.stdout.strip()
 
 print("\n" + "="*70)
-print("ADB 设备信息")
+print("ADB 璁惧淇℃伅")
 print("="*70)
 
-# 设备列表
-print("\n[设备列表]")
+# 璁惧鍒楄〃
+print("\n[璁惧鍒楄〃]")
 print(run_adb(['devices']))
 
-# 分辨率
-print("\n[分辨率]")
+# 鍒嗚鲸鐜?print("\n[鍒嗚鲸鐜嘳")
 print(run_adb(['shell', 'wm', 'size']))
 
-# 密度
-print("\n[密度]")
+# 瀵嗗害
+print("\n[瀵嗗害]")
 print(run_adb(['shell', 'wm', 'density']))
 
-# 显示信息
-print("\n[显示信息]")
+# 鏄剧ず淇℃伅
+print("\n[鏄剧ず淇℃伅]")
 print(run_adb(['shell', 'dumpsys', 'display', 'display', '0']))
 
-# 当前活动
-print("\n[当前活动]")
+# 褰撳墠娲诲姩
+print("\n[褰撳墠娲诲姩]")
 output = run_adb(['shell', 'dumpsys', 'window', 'window'])
 for line in output.split('\n')[:50]:
     if 'mCurrentFocus' in line or 'mFocusedApp' in line or 'ActivityRecord' in line:
         print(line)
 
-# 测试点击
-print("\n[点击测试]")
-print("点击 (860, 80)...")
+# 娴嬭瘯鐐瑰嚮
+print("\n[鐐瑰嚮娴嬭瘯]")
+print("鐐瑰嚮 (860, 80)...")
 subprocess.run([ADB, '-s', SERIAL, 'shell', 'input', 'tap', '860', '80'], capture_output=True, timeout=10)
-print("完成")
+print("瀹屾垚")
+

@@ -224,16 +224,16 @@ print(f"类型: {info['type']}, 推荐截图: {info['recommended_screenshot']}")
 
 ```bash
 # 单元测试
-python -m unittest tests.test_device_detector -v
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe -m unittest tests.test_device_detector -v
 
 # 集成测试
-python -m unittest tests.test_integration -v
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe -m unittest tests.test_integration -v
 
 # 验证脚本
-python scripts/validate_migration.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/validate_migration.py
 
 # 演示脚本
-python scripts/demo_migration.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/demo_migration.py
 ```
 
 ---

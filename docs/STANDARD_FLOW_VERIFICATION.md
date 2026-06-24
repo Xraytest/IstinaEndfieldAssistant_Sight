@@ -314,22 +314,22 @@
 
 ```bash
 # 1. 验证菜单内坐标 (影响 6 个流程)
-python scripts/verify_menu_entries.py --scan-all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/verify_menu_entries.py --scan-all
 
 # 2. 更新配置后测试 daily_quest
-python scripts/standard_flow_engine.py --flow daily_quest
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest
 ```
 
 ### 后续执行 (中低优先级)
 
 ```bash
 # 3. 测试所有流程
-python scripts/standard_flow_engine.py --flow all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow all
 
 # 4. 采集页面特征优化判断
-python scripts/capture_page_profiles.py --type world --count 10
-python scripts/capture_page_profiles.py --type quest_panel --count 5
-python scripts/capture_page_profiles.py --update
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/capture_page_profiles.py --type world --count 10
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/capture_page_profiles.py --type quest_panel --count 5
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/capture_page_profiles.py --update
 ```
 
 ## 结论
@@ -367,11 +367,11 @@ python scripts/capture_page_profiles.py --update
 
 ```bash
 # 菜单坐标优化 (可选)
-python scripts/verify_menu_entries.py --scan-all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/verify_menu_entries.py --scan-all
 
 # 完整流程测试
-python scripts/standard_flow_engine.py --flow all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow all
 
 # 页面特征优化
-python scripts/capture_page_profiles.py --update
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/capture_page_profiles.py --update
 ```

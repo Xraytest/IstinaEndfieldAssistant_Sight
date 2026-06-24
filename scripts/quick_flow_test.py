@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-快速流测试 — 从当前游戏状态直接执行流步骤（跳过 preamble）
+蹇€熸祦娴嬭瘯 鈥?浠庡綋鍓嶆父鎴忕姸鎬佺洿鎺ユ墽琛屾祦姝ラ锛堣烦杩?preamble锛?
 
-用法: python scripts/quick_flow_test.py daily_quest
+鐢ㄦ硶: python scripts/quick_flow_test.py daily_quest
 """
 
 import sys, time, json
@@ -25,13 +25,13 @@ def load_flow(flow_name):
     flow = config.get("flows", {}).get(flow_name)
     nav = config.get("variables", {}).get("nav_coords", {})
     if not flow:
-        print(f"未找到流程: {flow_name}")
+        print(f"鏈壘鍒版祦绋? {flow_name}")
         sys.exit(1)
     return flow, nav
 
 
 def resolve_coords(raw, nav_coords):
-    """解析坐标（支持 {{nav_coords.xxx}} 引用）"""
+    """瑙ｆ瀽鍧愭爣锛堟敮鎸?{{nav_coords.xxx}} 寮曠敤锛?""
     if isinstance(raw, list):
         return raw
     if isinstance(raw, str) and "{{" in raw:
@@ -50,8 +50,8 @@ def run_flow(flow_name: str):
     vlm = GUIClient({"vlm_mode": "local"})
 
     print(f"\n{'='*60}")
-    print(f"执行: {flow_name} ({flow.get('description','')})")
-    print(f"步骤: {len(steps)}")
+    print(f"鎵ц: {flow_name} ({flow.get('description','')})")
+    print(f"姝ラ: {len(steps)}")
     print(f"{'='*60}")
 
     for i, step in enumerate(steps):
@@ -60,23 +60,23 @@ def run_flow(flow_name: str):
         desc = step.get("desc", sid)
         wait_s = step.get("wait", 2)
 
-        print(f"\n[步骤 {i+1}/{len(steps)}] {desc}")
+        print(f"\n[姝ラ {i+1}/{len(steps)}] {desc}")
 
-        # 截图分析当前页面
+        # 鎴浘鍒嗘瀽褰撳墠椤甸潰
         img_bytes = adb_screencap()
         if not img_bytes:
-            print("  截图失败")
+            print("  鎴浘澶辫触")
             continue
         cv_img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
         page_result = analyzer.analyze(cv_img)
         pt = page_result["page_type"]
         conf = page_result["confidence"]
 
-        print(f"  当前页面: {pt} (置信度 {conf:.2f})")
+        print(f"  褰撳墠椤甸潰: {pt} (缃俊搴?{conf:.2f})")
 
-        # 自动处理退出对话框
+        # 鑷姩澶勭悊閫€鍑哄璇濇
         if pt == "exit_dialog":
-            print(f"  [AUTO] 检测到退出对话框，自动关闭...")
+            print(f"  [AUTO] 妫€娴嬪埌閫€鍑哄璇濇锛岃嚜鍔ㄥ叧闂?..")
             closed = False
             for cx, cy in [(600, 750), (540, 720), (660, 780), (580, 730), (620, 770)]:
                 adb.tap(cx, cy)
@@ -85,29 +85,29 @@ def run_flow(flow_name: str):
                 cv_img2 = cv2.imdecode(np.frombuffer(img_bytes2, np.uint8), cv2.IMREAD_COLOR)
                 r2 = analyzer.analyze(cv_img2)
                 if r2["page_type"] != "exit_dialog":
-                    print(f"  [OK] 对话框已关闭，当前={r2['page_type']}")
+                    print(f"  [OK] 瀵硅瘽妗嗗凡鍏抽棴锛屽綋鍓?{r2['page_type']}")
                     r = r2
                     pt = r["page_type"]
                     conf = r["confidence"]
                     closed = True
                     break
             if not closed:
-                print(f"  [WARN] 无法关闭退出对话框，按返回")
+                print(f"  [WARN] 鏃犳硶鍏抽棴閫€鍑哄璇濇锛屾寜杩斿洖")
                 adb.back()
                 time.sleep(1)
                 continue
 
         # Check for special screen and handle
         if pt in ("enter_game_prompt", "title"):
-            print(f"  [INFO] {pt} 画面，点击中央进入游戏")
+            print(f"  [INFO] {pt} 鐢婚潰锛岀偣鍑讳腑澶繘鍏ユ父鎴?)
             adb.tap(960, 540)
             time.sleep(3)
             continue
 
         if pt == "menu":
-            print(f"  [INFO] 菜单页面，left_bar={r['features'].get('left_bar_brightness',0):.0f}")
+            print(f"  [INFO] 鑿滃崟椤甸潰锛宭eft_bar={r['features'].get('left_bar_brightness',0):.0f}")
 
-        # 处理 actions
+        # 澶勭悊 actions
         if action == "tap":
             coords = resolve_coords(step.get("coords"), nav)
             if coords and len(coords) == 2:
@@ -115,7 +115,7 @@ def run_flow(flow_name: str):
                 adb.tap(coords[0], coords[1])
                 time.sleep(wait_s)
             else:
-                print(f"  [WARN] 无有效坐标")
+                print(f"  [WARN] 鏃犳湁鏁堝潗鏍?)
 
         elif action == "back":
             print(f"  [BACK]")
@@ -126,11 +126,11 @@ def run_flow(flow_name: str):
             expect = step.get("expect", "")
             if expect:
                 if pt == expect:
-                    print(f"  [OK] 页面匹配预期: {expect}")
+                    print(f"  [OK] 椤甸潰鍖归厤棰勬湡: {expect}")
                 elif expect == "world" and pt in ("world", "world_transition"):
-                    print(f"  [OK] 页面匹配预期 (world)")
+                    print(f"  [OK] 椤甸潰鍖归厤棰勬湡 (world)")
                 else:
-                    print(f"  [WARN] 预期={expect} 实际={pt}")
+                    print(f"  [WARN] 棰勬湡={expect} 瀹為檯={pt}")
 
         elif action == "claim":
             coords = nav.get("claim_all", [810, 900])
@@ -148,7 +148,7 @@ def run_flow(flow_name: str):
 
         elif action == "navigate":
             target = step.get("target", "world")
-            print(f"  [NAV] 导航到 {target}")
+            print(f"  [NAV] 瀵艰埅鍒?{target}")
             for _ in range(6):
                 adb.back()
                 time.sleep(0.5)
@@ -158,13 +158,14 @@ def run_flow(flow_name: str):
             print(f"  [WAIT] {wait_s}s")
             time.sleep(wait_s)
 
-    # 最终状态
+    # 鏈€缁堢姸鎬?
     img_bytes = adb_screencap()
     cv_img = cv2.imdecode(np.frombuffer(img_bytes, np.uint8), cv2.IMREAD_COLOR)
     final = analyzer.analyze(cv_img)
-    print(f"\n最终页面: {final['page_type']} (置信度 {final['confidence']:.2f})")
+    print(f"\n鏈€缁堥〉闈? {final['page_type']} (缃俊搴?{final['confidence']:.2f})")
 
 
 if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) > 1 else "daily_quest"
     run_flow(name)
+

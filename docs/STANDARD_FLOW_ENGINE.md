@@ -38,42 +38,42 @@ cache/
 
 ```bash
 # 测试配置加载
-python scripts/test_new_flow_engine.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/test_new_flow_engine.py
 
 # 执行单个流程（本地2B模型）
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 
 # 执行所有流程
-python scripts/standard_flow_engine.py --flow all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow all
 
 # 执行但不记录截图（快速测试）
-python scripts/standard_flow_engine.py --flow daily_quest --no-record
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --no-record
 ```
 
 ### 2. 视觉分析
 
 ```bash
 # 执行并自动分析
-python scripts/standard_flow_engine.py --flow daily_quest
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest
 
 # 仅分析已有记录
-python scripts/standard_flow_engine.py --flow daily_quest --analyze-only --session-dir cache/flow_daily_quest_20260604_123456
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --analyze-only --session-dir cache/flow_daily_quest_20260604_123456
 
 # 跳过分析
-python scripts/standard_flow_engine.py --flow daily_quest --skip-analysis
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --skip-analysis
 ```
 
 ### 3. 自动优化提示词
 
 ```bash
 # 执行并自动优化提示词（会修改配置文件）
-python scripts/standard_flow_engine.py --flow daily_quest --optimize-prompts
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --optimize-prompts
 
 # 批量优化所有流程（迭代2次）
-python scripts/prompt_optimizer.py --flows all --iterations 2
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/prompt_optimizer.py --flows all --iterations 2
 
 # 干运行（仅分析，不修改）
-python scripts/prompt_optimizer.py --flows daily_quest --dry-run
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/prompt_optimizer.py --flows daily_quest --dry-run
 ```
 
 ## 配置说明

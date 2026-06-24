@@ -266,16 +266,16 @@ print(f"推荐触控: {info['recommended_control']}")
 
 ```bash
 # 单元测试
-python -m unittest tests.test_device_detector -v
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe -m unittest tests.test_device_detector -v
 
 # 集成测试
-python -m unittest tests.test_integration -v
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe -m unittest tests.test_integration -v
 
 # 完整性验证
-python scripts/validate_migration.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/validate_migration.py
 
 # 功能演示
-python scripts/demo_migration.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/demo_migration.py
 ```
 
 ---

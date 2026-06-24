@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-OCR 管理器 - 基于 MaaFw 内置 OCR 的屏幕决策系统
+OCR 绠＄悊鍣?- 鍩轰簬 MaaFw 鍐呯疆 OCR 鐨勫睆骞曞喅绛栫郴缁?
 
-使用 MaaFramework 内建 OCR 引擎，替代 VLM 图像输入。
-延迟从 ~20s 降低到 ~1s（95%+ 性能提升）
+浣跨敤 MaaFramework 鍐呭缓 OCR 寮曟搸锛屾浛浠?VLM 鍥惧儚杈撳叆銆?
+寤惰繜浠?~20s 闄嶄綆鍒?~1s锛?5%+ 鎬ц兘鎻愬崌锛?
 """
 
 import os
@@ -21,96 +21,96 @@ from core.capability.ocr.screen_decider import ScreenDecider, ScreenState
 
 class OCRManager:
     """
-    OCR 管理器 - 基于 MaaFw 内置 OCR 的屏幕决策系统
+    OCR 绠＄悊鍣?- 鍩轰簬 MaaFw 鍐呯疆 OCR 鐨勫睆骞曞喅绛栫郴缁?
 
-    仅使用 MaaFramework 内建 OCR 引擎，无需额外依赖。
+    浠呬娇鐢?MaaFramework 鍐呭缓 OCR 寮曟搸锛屾棤闇€棰濆渚濊禆銆?
     """
 
     def __init__(self, device_manager=None, config_path: str = None, touch_executor=None):
         """
-        初始化 OCR 管理器
+        鍒濆鍖?OCR 绠＄悊鍣?
 
         Args:
-            device_manager: 设备管理器（可选）
-            config_path: 配置文件路径（可选）
-            touch_executor: MaaFwTouchExecutor 实例（可选）
+            device_manager: 璁惧绠＄悊鍣紙鍙€夛級
+            config_path: 閰嶇疆鏂囦欢璺緞锛堝彲閫夛級
+            touch_executor: MaaFwTouchExecutor 瀹炰緥锛堝彲閫夛級
         """
         self.logger = get_logger()
         self.device_manager = device_manager
         self.decider = ScreenDecider()
 
-        # 加载配置
+        # 鍔犺浇閰嶇疆
         self.config = self._load_config(config_path)
 
-        # MaaFw OCR 相关
+        # MaaFw OCR 鐩稿叧
         self._maafw_executor = touch_executor
         self._controller_id = None
 
-        # 如果传入了 touch_executor，自动设置
+        # 濡傛灉浼犲叆浜?touch_executor锛岃嚜鍔ㄨ缃?
         if touch_executor is not None:
             self.set_maafw_executor(touch_executor, "default")
 
-        self.logger.info("OCR 管理器初始化完成（MaaFw 内置 OCR）")
+        self.logger.info("OCR 绠＄悊鍣ㄥ垵濮嬪寲瀹屾垚锛圡aaFw 鍐呯疆 OCR锛?)
 
     def _load_config(self, config_path: str = None) -> Dict[str, Any]:
-        """加载 OCR 配置"""
+        """鍔犺浇 OCR 閰嶇疆"""
         if config_path and os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
 
-        # 默认配置路径
+        # 榛樿閰嶇疆璺緞
         default_path = Path(get_project_root(__file__)) / "config" / "ocr_config.json"
 
         if default_path.exists():
             with open(default_path, "r", encoding="utf-8") as f:
                 return json.load(f)
 
-        # 返回默认配置
+        # 杩斿洖榛樿閰嶇疆
         return {
             "screen_resolution": {"width": 1280, "height": 720},
             "top_bar": {"y_range": [10, 80]},
             "overlay": {"roi": {"x_start": 950, "x_end": 1280, "y_start": 60, "y_end": 700}},
-            "claim_keywords": ["领取", "收取", "一键领取", "完成", "提交", "领奖"],
+            "claim_keywords": ["棰嗗彇", "鏀跺彇", "涓€閿鍙?, "瀹屾垚", "鎻愪氦", "棰嗗"],
         }
 
     def set_maafw_executor(self, executor, controller_id: str):
         """
-        设置 MaaFw 执行器
+        璁剧疆 MaaFw 鎵ц鍣?
 
         Args:
-            executor: MaaFwTouchExecutor 实例
-            controller_id: 控制器 ID
+            executor: MaaFwTouchExecutor 瀹炰緥
+            controller_id: 鎺у埗鍣?ID
         """
         self._maafw_executor = executor
         self._controller_id = controller_id
-        self.logger.info(f"MaaFw 执行器已设置，controller_id: {controller_id}")
+        self.logger.info(f"MaaFw 鎵ц鍣ㄥ凡璁剧疆锛宑ontroller_id: {controller_id}")
 
     def run_ocr(self, roi: List[int] = None, expected: List[str] = None) -> List[Dict]:
         """
-        通过 MaaFw 执行 OCR 识别
+        閫氳繃 MaaFw 鎵ц OCR 璇嗗埆
 
         Args:
-            roi: 识别区域 [x, y, w, h]，None 表示全屏
-            expected: 期望匹配的文本列表（可选）
+            roi: 璇嗗埆鍖哄煙 [x, y, w, h]锛孨one 琛ㄧず鍏ㄥ睆
+            expected: 鏈熸湜鍖归厤鐨勬枃鏈垪琛紙鍙€夛級
 
         Returns:
-            OCR 结果列表：[{"text": str, "box": [x,y,w,h], "score": float}, ...]
+            OCR 缁撴灉鍒楄〃锛歔{"text": str, "box": [x,y,w,h], "score": float}, ...]
         """
-        # 如果执行器未设置，尝试从 device_manager 获取
+        # 濡傛灉鎵ц鍣ㄦ湭璁剧疆锛屽皾璇曚粠 device_manager 鑾峰彇
         if self._maafw_executor is None:
             if self.device_manager and hasattr(self.device_manager, 'get_touch_executor'):
                 self._maafw_executor = self.device_manager.get_touch_executor()
                 if self._maafw_executor:
-                    self.logger.info("已从 device_manager 自动获取 MaaFw 执行器")
+                    self.logger.info("宸蹭粠 device_manager 鑷姩鑾峰彇 MaaFw 鎵ц鍣?)
                     self.set_maafw_executor(self._maafw_executor, "auto")
             
             if self._maafw_executor is None:
-                self.logger.error("MaaFw 执行器未设置")
+                self.logger.error("MaaFw 鎵ц鍣ㄦ湭璁剧疆")
                 return []
 
         try:
-            # 调用 MaaFw OCR (5.11.1+ API)
-            # 参数转换为 tuple 格式
+            # 璋冪敤 MaaFw OCR (5.11.1+ API)
+            # 鍙傛暟杞崲涓?tuple 鏍煎紡
             roi_tuple = tuple(roi) if roi else None
             
             ocr_results = self._maafw_executor.ocr(
@@ -118,29 +118,29 @@ class OCRManager:
                 expected=expected
             )
 
-            # 归一化结果格式
+            # 褰掍竴鍖栫粨鏋滄牸寮?
             return self._normalize_ocr_results(ocr_results)
 
         except Exception as e:
-            self.logger.error(f"MaaFw OCR 识别异常：{e}", exc_info=True)
+            self.logger.error(f"MaaFw OCR 璇嗗埆寮傚父锛歿e}", exc_info=True)
             return []
 
     def _normalize_ocr_results(self, results: Any) -> List[Dict]:
         """
-        归一化 OCR 结果为标准格式
+        褰掍竴鍖?OCR 缁撴灉涓烘爣鍑嗘牸寮?
 
         Args:
-            results: MaaFw OCR 原始结果
+            results: MaaFw OCR 鍘熷缁撴灉
 
         Returns:
-            标准化 OCR 结果列表
+            鏍囧噯鍖?OCR 缁撴灉鍒楄〃
         """
         if not results:
             return []
 
         normalized = []
         for item in results:
-            # MaaFw OCR 结果格式：{"text": str, "box": [x,y,w,h], "score": float}
+            # MaaFw OCR 缁撴灉鏍煎紡锛歿"text": str, "box": [x,y,w,h], "score": float}
             text = item.get("text", "").strip()
             box = item.get("box", [0, 0, 0, 0])
             score = item.get("score", 0.0)
@@ -164,111 +164,112 @@ class OCRManager:
 
     def capture_and_recognize(self, roi: List[int] = None, expected: List[str] = None) -> ScreenState:
         """
-        OCR + 决策一站式流程
+        OCR + 鍐崇瓥涓€绔欏紡娴佺▼
 
         Args:
-            roi: 识别区域 [x, y, w, h]
-            expected: 期望匹配的文本列表
+            roi: 璇嗗埆鍖哄煙 [x, y, w, h]
+            expected: 鏈熸湜鍖归厤鐨勬枃鏈垪琛?
 
         Returns:
-            ScreenState: 屏幕状态检测结果
+            ScreenState: 灞忓箷鐘舵€佹娴嬬粨鏋?
         """
         try:
-            # 1. OCR 识别（通过 MaaFw）
+            # 1. OCR 璇嗗埆锛堥€氳繃 MaaFw锛?
             ocr_results = self.run_ocr(roi=roi, expected=expected)
             if not ocr_results:
-                return ScreenState(page_type="unknown", description="OCR 无结果")
+                return ScreenState(page_type="unknown", description="OCR 鏃犵粨鏋?)
 
-            # 2. 决策模块分析
+            # 2. 鍐崇瓥妯″潡鍒嗘瀽
             state = self.decider.detect_screen_state(ocr_results)
 
-            self.logger.info(f"OCR 决策完成：{state.page_type} - {state.description}")
+            self.logger.info(f"OCR 鍐崇瓥瀹屾垚锛歿state.page_type} - {state.description}")
             return state
 
         except Exception as e:
-            self.logger.error(f"OCR 决策异常：{e}", exc_info=True)
-            return ScreenState(page_type="error", description=f"OCR 异常：{str(e)}")
+            self.logger.error(f"OCR 鍐崇瓥寮傚父锛歿e}", exc_info=True)
+            return ScreenState(page_type="error", description=f"OCR 寮傚父锛歿str(e)}")
 
     def build_llm_prompt(self, state: ScreenState, instruction: str,
                          history: List[Dict] = None) -> str:
         """
-        构建纯文本 LLM 提示词
+        鏋勫缓绾枃鏈?LLM 鎻愮ず璇?
 
         Args:
-            state: 屏幕状态检测结果
-            instruction: 任务指令
-            history: 历史上下文（可选）
+            state: 灞忓箷鐘舵€佹娴嬬粨鏋?
+            instruction: 浠诲姟鎸囦护
+            history: 鍘嗗彶涓婁笅鏂囷紙鍙€夛級
 
         Returns:
-            完整的 LLM 提示词
+            瀹屾暣鐨?LLM 鎻愮ず璇?
         """
         lines = [
-            "你是一个明日方舟终末地游戏助手。根据以下屏幕信息执行任务。",
+            "浣犳槸涓€涓槑鏃ユ柟鑸熺粓鏈湴娓告垙鍔╂墜銆傛牴鎹互涓嬪睆骞曚俊鎭墽琛屼换鍔°€?,
             "",
-            "【屏幕状态】",
+            "銆愬睆骞曠姸鎬併€?,
             state.to_llm_prompt(),
             "",
-            "【任务指令】",
+            "銆愪换鍔℃寚浠ゃ€?,
             instruction,
         ]
 
         if history and len(history) > 0:
             lines.append("")
-            lines.append("【历史上下文】")
-            for h in history[-3:]:  # 最近 3 步
-                role = "操作" if h.get("role") == "user" else "结果"
+            lines.append("銆愬巻鍙蹭笂涓嬫枃銆?)
+            for h in history[-3:]:  # 鏈€杩?3 姝?
+                role = "鎿嶄綔" if h.get("role") == "user" else "缁撴灉"
                 content = h.get("content", "")[:100]
                 lines.append(f"- {role}: {content}")
 
         lines.append("")
-        lines.append("请返回 JSON 格式的操作建议：")
+        lines.append("璇疯繑鍥?JSON 鏍煎紡鐨勬搷浣滃缓璁細")
         lines.append('{')
         lines.append('  "action": "click|swipe|back|wait|navigate",')
-        lines.append('  "target": {"x": 123, "y": 456},  // 可选')
-        lines.append('  "reason": "操作原因说明"')
+        lines.append('  "target": {"x": 123, "y": 456},  // 鍙€?)
+        lines.append('  "reason": "鎿嶄綔鍘熷洜璇存槑"')
         lines.append('}')
 
         return "\n".join(lines)
 
     def get_known_coords(self, name: str) -> Optional[Tuple[int, int]]:
         """
-        获取已知功能坐标
+        鑾峰彇宸茬煡鍔熻兘鍧愭爣
 
         Args:
-            name: 坐标名称（tasks_button, event_button, claim_all 等）
+            name: 鍧愭爣鍚嶇О锛坱asks_button, event_button, claim_all 绛夛級
 
         Returns:
-            (x, y) 坐标元组，或 None
+            (x, y) 鍧愭爣鍏冪粍锛屾垨 None
         """
         from core.foundation.game_coords import KNOWN_COORDS
         return KNOWN_COORDS.get(name)
 
 
-# ── 独立测试 ──────────────────────────────────────────────────────
+# 鈹€鈹€ 鐙珛娴嬭瘯 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
 
 def main():
-    """独立测试"""
+    """鐙珛娴嬭瘯"""
     print("=" * 60)
-    print("OCR 管理器 - 测试（MaaFw 内置 OCR）")
+    print("OCR 绠＄悊鍣?- 娴嬭瘯锛圡aaFw 鍐呯疆 OCR锛?)
     print("=" * 60)
 
     manager = OCRManager()
 
-    # 测试已知坐标
+    # 娴嬭瘯宸茬煡鍧愭爣
     coords = manager.get_known_coords("tasks_button")
-    print(f"任务按钮坐标：{coords}")
+    print(f"浠诲姟鎸夐挳鍧愭爣锛歿coords}")
 
-    # 测试提示词构建
+    # 娴嬭瘯鎻愮ず璇嶆瀯寤?
     mock_state = ScreenState(
         page_type="world_map_with_overlay",
         overlay_detected=True,
-        overlay_texts=["每日任务", "领取"],
-        claim_buttons=[(1035, 323, "一键领取")]
+        overlay_texts=["姣忔棩浠诲姟", "棰嗗彇"],
+        claim_buttons=[(1035, 323, "涓€閿鍙?)]
     )
 
-    prompt = manager.build_llm_prompt(mock_state, "检查并领取每日任务奖励")
-    print(f"\nLLM 提示词预览:\n{prompt[:500]}...")
+    prompt = manager.build_llm_prompt(mock_state, "妫€鏌ュ苟棰嗗彇姣忔棩浠诲姟濂栧姳")
+    print(f"\nLLM 鎻愮ず璇嶉瑙?\n{prompt[:500]}...")
 
 
 if __name__ == "__main__":
     main()
+

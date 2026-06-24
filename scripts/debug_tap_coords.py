@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""调试 tap 坐标对比：扫描脚本 vs 标准流引擎"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""璋冭瘯 tap 鍧愭爣瀵规瘮锛氭壂鎻忚剼鏈?vs 鏍囧噯娴佸紩鎿?""
 import subprocess, time, cv2, numpy as np, sys, os
 from pathlib import Path
 
@@ -9,11 +9,11 @@ ensure_path()
 ADB_PATH = f"{PROJECT_ROOT}\\3rd-part\\adb\\adb.exe"
 DEVICE = "localhost:16512"
 
-# 测试坐标：扫描脚本验证有效的坐标
+# 娴嬭瘯鍧愭爣锛氭壂鎻忚剼鏈獙璇佹湁鏁堢殑鍧愭爣
 TEST_X, TEST_Y = 860, 80
 
 def adb_screencap():
-    """截图"""
+    """鎴浘"""
     r = subprocess.run([ADB_PATH, "-s", DEVICE, "exec-out", "screencap", "-p"],
                        capture_output=True, timeout=10)
     if r.returncode == 0 and len(r.stdout) > 1000:
@@ -21,11 +21,10 @@ def adb_screencap():
     return None
 
 def count_gold_elements(img):
-    """计算金色元素数量（页面特征）"""
+    """璁＄畻閲戣壊鍏冪礌鏁伴噺锛堥〉闈㈢壒寰侊級"""
     if img is None:
         return 0
-    # 旋转到横屏
-    img_rot = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    # 鏃嬭浆鍒版í灞?    img_rot = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
     img_resized = cv2.resize(img_rot, (1280, 720))
     
     hsv = cv2.cvtColor(img_resized, cv2.COLOR_BGR2HSV)
@@ -42,13 +41,13 @@ def count_gold_elements(img):
     return len(valid_contours)
 
 def adb_back():
-    """按返回键"""
+    """鎸夎繑鍥為敭"""
     subprocess.run([ADB_PATH, "-s", DEVICE, "shell", "input", "keyevent", "4"], 
                    capture_output=True, timeout=5)
 
 def test_scan_script_tap():
-    """测试扫描脚本方式的 tap"""
-    print("\n[测试 1] 扫描脚本方式：subprocess.run([... 'input', 'tap', '860', '80'])")
+    """娴嬭瘯鎵弿鑴氭湰鏂瑰紡鐨?tap"""
+    print("\n[娴嬭瘯 1] 鎵弿鑴氭湰鏂瑰紡锛歴ubprocess.run([... 'input', 'tap', '860', '80'])")
     result = subprocess.run(
         [ADB_PATH, "-s", DEVICE, "shell", "input", "tap", "860", "80"],
         capture_output=True, timeout=5
@@ -56,57 +55,57 @@ def test_scan_script_tap():
     return result.returncode == 0
 
 def test_adb_utils_tap():
-    """测试 adb_utils 方式的 tap"""
-    print("\n[测试 2] adb_utils 方式：ADB().tap(860, 80)")
+    """娴嬭瘯 adb_utils 鏂瑰紡鐨?tap"""
+    print("\n[娴嬭瘯 2] adb_utils 鏂瑰紡锛欰DB().tap(860, 80)")
     from core.capability.adb_utils import ADB
     adb = ADB()
     return adb.tap(860, 80)
 
 def test_adb_utils_tap_direct():
-    """测试 adb_utils 底层函数的 tap"""
-    print("\n[测试 3] adb_utils 底层：adb_tap(860, 80)")
+    """娴嬭瘯 adb_utils 搴曞眰鍑芥暟鐨?tap"""
+    print("\n[娴嬭瘯 3] adb_utils 搴曞眰锛歛db_tap(860, 80)")
     from core.capability.adb_utils import adb_tap
     return adb_tap(860, 80)
 
 def main():
-    # 回到世界
-    print("[前置] 回到世界...")
+    # 鍥炲埌涓栫晫
+    print("[鍓嶇疆] 鍥炲埌涓栫晫...")
     for i in range(8):
         adb_back()
         time.sleep(0.3)
     time.sleep(2)
     
-    # 基准截图
+    # 鍩哄噯鎴浘
     img_base = adb_screencap()
     if img_base is None:
-        print("[ERROR] 基准截图失败")
+        print("[ERROR] 鍩哄噯鎴浘澶辫触")
         sys.exit(1)
     
     gold_base = count_gold_elements(img_base)
-    print(f"[基准] 分辨率：{img_base.shape[1]}x{img_base.shape[0]}")
-    print(f"[基准] 金色元素：{gold_base}")
+    print(f"[鍩哄噯] 鍒嗚鲸鐜囷細{img_base.shape[1]}x{img_base.shape[0]}")
+    print(f"[鍩哄噯] 閲戣壊鍏冪礌锛歿gold_base}")
     
     if gold_base < 15:
-        print("[警告] 金色元素数量较少，可能不在世界页面")
+        print("[璀﹀憡] 閲戣壊鍏冪礌鏁伴噺杈冨皯锛屽彲鑳戒笉鍦ㄤ笘鐣岄〉闈?)
     elif gold_base > 20:
-        print("[提示] 金色元素数量较多，可能在任务面板页面")
+        print("[鎻愮ず] 閲戣壊鍏冪礌鏁伴噺杈冨锛屽彲鑳藉湪浠诲姟闈㈡澘椤甸潰")
     else:
-        print("[提示] 金色元素数量正常，应在世界页面")
+        print("[鎻愮ず] 閲戣壊鍏冪礌鏁伴噺姝ｅ父锛屽簲鍦ㄤ笘鐣岄〉闈?)
     
-    # 测试三种 tap 方式
+    # 娴嬭瘯涓夌 tap 鏂瑰紡
     tests = [
-        ("扫描脚本方式", test_scan_script_tap),
+        ("鎵弿鑴氭湰鏂瑰紡", test_scan_script_tap),
         ("ADB().tap()", test_adb_utils_tap),
         ("adb_tap()", test_adb_utils_tap_direct),
     ]
     
     for name, test_func in tests:
         print(f"\n{'='*60}")
-        print(f"[测试] {name}")
+        print(f"[娴嬭瘯] {name}")
         print(f"{'='*60}")
         
-        # 确保回到世界
-        print("[准备] 回到世界...")
+        # 纭繚鍥炲埌涓栫晫
+        print("[鍑嗗] 鍥炲埌涓栫晫...")
         for _ in range(5):
             adb_back()
             time.sleep(0.3)
@@ -114,28 +113,27 @@ def main():
         
         img_before = adb_screencap()
         gold_before = count_gold_elements(img_before)
-        print(f"[点击前] 金色元素：{gold_before}")
+        print(f"[鐐瑰嚮鍓峕 閲戣壊鍏冪礌锛歿gold_before}")
         
-        # 执行 tap
+        # 鎵ц tap
         success = test_func()
-        print(f"[点击] input tap 860 80 {'成功' if success else '失败'}")
+        print(f"[鐐瑰嚮] input tap 860 80 {'鎴愬姛' if success else '澶辫触'}")
         
-        # 等待并截图
-        time.sleep(3)
+        # 绛夊緟骞舵埅鍥?        time.sleep(3)
         img_after = adb_screencap()
         gold_after = count_gold_elements(img_after)
-        print(f"[点击后] 金色元素：{gold_after}")
+        print(f"[鐐瑰嚮鍚嶿 閲戣壊鍏冪礌锛歿gold_after}")
         
-        # 判断结果
+        # 鍒ゆ柇缁撴灉
         if gold_after > gold_before + 5:
-            print(f"[结果] ✅ 面板已打开 (金色 +{gold_after - gold_before})")
+            print(f"[缁撴灉] 鉁?闈㈡澘宸叉墦寮€ (閲戣壊 +{gold_after - gold_before})")
         elif gold_after < gold_before - 5:
-            print(f"[结果] ❌ 金色消失 (金色 -{gold_before - gold_after})")
+            print(f"[缁撴灉] 鉂?閲戣壊娑堝け (閲戣壊 -{gold_before - gold_after})")
         else:
-            print(f"[结果] ⚠️  无明显变化 (金色 {gold_after - gold_before:+d})")
+            print(f"[缁撴灉] 鈿狅笍  鏃犳槑鏄惧彉鍖?(閲戣壊 {gold_after - gold_before:+d})")
         
-        # 返回
-        print("[恢复] 按返回键...")
+        # 杩斿洖
+        print("[鎭㈠] 鎸夎繑鍥為敭...")
         for _ in range(3):
             adb_back()
             time.sleep(0.3)
@@ -143,3 +141,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

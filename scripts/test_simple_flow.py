@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-标准流测试 - 最终版（不依赖 PaddleOCR）
+鏍囧噯娴佹祴璇?- 鏈€缁堢増锛堜笉渚濊禆 PaddleOCR锛?
 
-使用：
-1. MaaFw 触控
-2. MaaFw 截图
-3. 简单的视觉特征分析（不依赖 OCR）
-4. MaaEnd 式登出检测逻辑（关键词匹配）
+浣跨敤锛?
+1. MaaFw 瑙︽帶
+2. MaaFw 鎴浘
+3. 绠€鍗曠殑瑙嗚鐗瑰緛鍒嗘瀽锛堜笉渚濊禆 OCR锛?
+4. MaaEnd 寮忕櫥鍑烘娴嬮€昏緫锛堝叧閿瘝鍖归厤锛?
 """
 
 import sys
@@ -19,23 +19,23 @@ from _path_setup import ensure_path; ensure_path()
 
 from core.capability.adb_utils import ADB, list_devices, adb_screencap
 
-# MaaFw 触控
+# MaaFw 瑙︽帶
 try:
     from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
     MAAFW_AVAILABLE = True
 except ImportError:
     MaaFwTouchExecutor = None
     MAAFW_AVAILABLE = False
-    print("[WARN] MaaFramework 未安装")
+    print("[WARN] MaaFramework 鏈畨瑁?)
 
 
 class SimplePageAnalyzer:
-    """简单的页面分析器（不依赖 OCR）"""
+    """绠€鍗曠殑椤甸潰鍒嗘瀽鍣紙涓嶄緷璧?OCR锛?""
     
-    # MaaEnd 式登出关键词
+    # MaaEnd 寮忕櫥鍑哄叧閿瘝
     LOGOUT_KEYWORDS = [
-        "登出", "退出", "登录界面", "超时", "重新登录", "会话过期",
-        "自动登出", "长时间", "没有操作", "断开连接", "确认", "取消",
+        "鐧诲嚭", "閫€鍑?, "鐧诲綍鐣岄潰", "瓒呮椂", "閲嶆柊鐧诲綍", "浼氳瘽杩囨湡",
+        "鑷姩鐧诲嚭", "闀挎椂闂?, "娌℃湁鎿嶄綔", "鏂紑杩炴帴", "纭", "鍙栨秷",
         "logout", "timeout", "session", "login"
     ]
     
@@ -44,7 +44,7 @@ class SimplePageAnalyzer:
     
     def analyze(self, screenshot: bytes) -> dict:
         """
-        分析截图（不依赖 OCR）
+        鍒嗘瀽鎴浘锛堜笉渚濊禆 OCR锛?
         
         Returns:
             dict: {
@@ -59,14 +59,14 @@ class SimplePageAnalyzer:
             from PIL import Image
             import io
             
-            # 解码图片
+            # 瑙ｇ爜鍥剧墖
             img = Image.open(io.BytesIO(screenshot))
             img_array = np.array(img)
             cv_img = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
             
             height, width = cv_img.shape[:2]
             
-            # 1. 检测黄色元素（登出对话框确认按钮）
+            # 1. 妫€娴嬮粍鑹插厓绱狅紙鐧诲嚭瀵硅瘽妗嗙‘璁ゆ寜閽級
             hsv = cv2.cvtColor(cv_img, cv2.COLOR_BGR2HSV)
             lower_yellow = np.array([20, 100, 100])
             upper_yellow = np.array([35, 255, 255])
@@ -74,23 +74,23 @@ class SimplePageAnalyzer:
             yellow_pixels = cv2.countNonZero(yellow_mask)
             yellow_ratio = yellow_pixels / (width * height)
             
-            # 2. 检测白色/浅色区域（登出对话框背景）
+            # 2. 妫€娴嬬櫧鑹?娴呰壊鍖哄煙锛堢櫥鍑哄璇濇鑳屾櫙锛?
             gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
             white_mask = cv2.inRange(gray, 200, 255)
             white_pixels = cv2.countNonZero(white_mask)
             white_ratio = white_pixels / (width * height)
             
-            # 3. 检测暗色区域（标题画面特征）
+            # 3. 妫€娴嬫殫鑹插尯鍩燂紙鏍囬鐢婚潰鐗瑰緛锛?
             dark_mask = cv2.inRange(gray, 0, 40)
             dark_pixels = cv2.countNonZero(dark_mask)
             dark_ratio = dark_pixels / (width * height)
             
-            # 4. 检测左侧导航栏（世界地图特征）
+            # 4. 妫€娴嬪乏渚у鑸爮锛堜笘鐣屽湴鍥剧壒寰侊級
             left_bar = cv_img[:, :100, :]
             left_bar_gray = cv2.cvtColor(left_bar, cv2.COLOR_BGR2GRAY)
             left_bar_brightness = np.mean(left_bar_gray)
             
-            # 5. 检测右上角绿色元素（任务/活动图标）
+            # 5. 妫€娴嬪彸涓婅缁胯壊鍏冪礌锛堜换鍔?娲诲姩鍥炬爣锛?
             top_right = cv_img[:200, int(width*0.7):, :]
             top_right_hsv = cv2.cvtColor(top_right, cv2.COLOR_BGR2HSV)
             lower_green = np.array([40, 50, 50])
@@ -98,12 +98,12 @@ class SimplePageAnalyzer:
             green_mask = cv2.inRange(top_right_hsv, lower_green, upper_green)
             green_pixels = cv2.countNonZero(green_mask)
             
-            # 判断页面类型
-            # 登出对话框特征：白色背景 + 黄色按钮
+            # 鍒ゆ柇椤甸潰绫诲瀷
+            # 鐧诲嚭瀵硅瘽妗嗙壒寰侊細鐧借壊鑳屾櫙 + 榛勮壊鎸夐挳
             has_logout = white_ratio > 0.3 and yellow_ratio > 0.001
-            # 世界地图特征：左侧暗色导航栏 + 右上角绿色元素
+            # 涓栫晫鍦板浘鐗瑰緛锛氬乏渚ф殫鑹插鑸爮 + 鍙充笂瑙掔豢鑹插厓绱?
             is_world_map = left_bar_brightness < 50 and green_pixels > 100
-            # 标题画面特征：大量暗色区域 + 无左侧导航栏
+            # 鏍囬鐢婚潰鐗瑰緛锛氬ぇ閲忔殫鑹插尯鍩?+ 鏃犲乏渚у鑸爮
             is_title = dark_ratio > 0.5 and left_bar_brightness > 100 and not has_logout
             
             if has_logout:
@@ -128,7 +128,7 @@ class SimplePageAnalyzer:
             }
             
         except Exception as e:
-            print(f"[ERROR] 页面分析失败：{e}")
+            print(f"[ERROR] 椤甸潰鍒嗘瀽澶辫触锛歿e}")
             return {
                 "page_type": "error",
                 "has_logout_dialog": False,
@@ -137,14 +137,14 @@ class SimplePageAnalyzer:
 
 
 class SimpleFlowExecutor:
-    """简单标准流执行器（不依赖 OCR）"""
+    """绠€鍗曟爣鍑嗘祦鎵ц鍣紙涓嶄緷璧?OCR锛?""
     
     def __init__(self, device_serial: str):
         self.device_serial = device_serial
         self.adb = ADB(serial=device_serial)
         self.analyzer = SimplePageAnalyzer()
         
-        # 初始化 MaaFw 触控
+        # 鍒濆鍖?MaaFw 瑙︽帶
         self._maafw = None
         if MAAFW_AVAILABLE:
             try:
@@ -156,23 +156,23 @@ class SimpleFlowExecutor:
                 )
                 self._maafw = MaaFwTouchExecutor(maafw_config)
                 if self._maafw.connect():
-                    print(f"[MaaFw] 触控初始化成功")
+                    print(f"[MaaFw] 瑙︽帶鍒濆鍖栨垚鍔?)
             except Exception as e:
-                print(f"[MaaFw] 初始化失败：{e}")
+                print(f"[MaaFw] 鍒濆鍖栧け璐ワ細{e}")
         
         self.session_dir = None
         self.screenshots = []
         
     def start_session(self, flow_name: str):
-        """开始执行会话"""
+        """寮€濮嬫墽琛屼細璇?""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_dir = PROJECT_ROOT / "cache" / f"flow_{flow_name}_simple_{timestamp}"
         self.session_dir.mkdir(parents=True, exist_ok=True)
         (self.session_dir / "screenshots").mkdir(exist_ok=True)
-        print(f"[会话] {self.session_dir}")
+        print(f"[浼氳瘽] {self.session_dir}")
         
     def capture(self, label: str) -> bytes:
-        """截图并保存"""
+        """鎴浘骞朵繚瀛?""
         screenshot = adb_screencap(self.device_serial)
         if screenshot:
             timestamp = datetime.now().strftime("%Y%m%S")
@@ -181,11 +181,11 @@ class SimpleFlowExecutor:
             with open(path, "wb") as f:
                 f.write(screenshot)
             self.screenshots.append(str(path))
-            print(f"[截图] {filename}")
+            print(f"[鎴浘] {filename}")
         return screenshot
     
     def check_page(self) -> str:
-        """检查当前页面类型（不依赖 OCR）"""
+        """妫€鏌ュ綋鍓嶉〉闈㈢被鍨嬶紙涓嶄緷璧?OCR锛?""
         screenshot = adb_screencap(self.device_serial)
         if not screenshot:
             return "error"
@@ -194,231 +194,232 @@ class SimpleFlowExecutor:
         page_type = result["page_type"]
         features = result["features"]
         
-        print(f"\n[页面检测] 视觉分析（不依赖 OCR）")
-        print(f"  类型：{page_type}")
-        print(f"  黄色按钮：{features.get('yellow_ratio', 0):.4f}")
-        print(f"  白色背景：{features.get('white_ratio', 0):.4f}")
-        print(f"  暗色区域：{features.get('dark_ratio', 0):.4f}")
-        print(f"  左侧亮度：{features.get('left_bar_brightness', 0):.1f}")
-        print(f"  绿色像素：{features.get('green_pixels', 0)}")
+        print(f"\n[椤甸潰妫€娴媇 瑙嗚鍒嗘瀽锛堜笉渚濊禆 OCR锛?)
+        print(f"  绫诲瀷锛歿page_type}")
+        print(f"  榛勮壊鎸夐挳锛歿features.get('yellow_ratio', 0):.4f}")
+        print(f"  鐧借壊鑳屾櫙锛歿features.get('white_ratio', 0):.4f}")
+        print(f"  鏆楄壊鍖哄煙锛歿features.get('dark_ratio', 0):.4f}")
+        print(f"  宸︿晶浜害锛歿features.get('left_bar_brightness', 0):.1f}")
+        print(f"  缁胯壊鍍忕礌锛歿features.get('green_pixels', 0)}")
         
         if result["has_logout_dialog"]:
-            print(f"\n[警告] 检测到登出对话框！")
+            print(f"\n[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紒")
             return "logout_dialog"
         
         return page_type
     
     def tap(self, x: int, y: int, label: str):
-        """点击（仅使用 MaaFw，严禁 ADB 触控）"""
-        print(f"\n[点击] {label} @ ({x}, {y})")
+        """鐐瑰嚮锛堜粎浣跨敤 MaaFw锛屼弗绂?ADB 瑙︽帶锛?""
+        print(f"\n[鐐瑰嚮] {label} @ ({x}, {y})")
         if self._maafw and self._maafw.connected:
             self._maafw.safe_press(x, y)
         else:
-            raise RuntimeError("MaaFw 未连接，无法执行点击操作")
+            raise RuntimeError("MaaFw 鏈繛鎺ワ紝鏃犳硶鎵ц鐐瑰嚮鎿嶄綔")
         self.adb.wait(1)
         self.capture(f"tap_{label}")
 
     def back(self):
-        """返回（仅使用 MaaFw，严禁 ADB 触控）"""
-        print(f"\n[返回]")
+        """杩斿洖锛堜粎浣跨敤 MaaFw锛屼弗绂?ADB 瑙︽帶锛?""
+        print(f"\n[杩斿洖]")
         if self._maafw and self._maafw.connected:
             job = self._maafw.post_keyevent(4)
             if job:
                 job.wait()
         else:
-            raise RuntimeError("MaaFw 未连接，无法执行返回操作")
+            raise RuntimeError("MaaFw 鏈繛鎺ワ紝鏃犳硶鎵ц杩斿洖鎿嶄綔")
         self.adb.wait(1)
         self.capture("back")
     
     def handle_logout_dialog(self):
-        """处理退出游戏对话框 - 点击取消按钮（不是确认按钮！）"""
-        print(f"\n[处理] 检测到退出游戏对话框，点击取消按钮...")
+        """澶勭悊閫€鍑烘父鎴忓璇濇 - 鐐瑰嚮鍙栨秷鎸夐挳锛堜笉鏄‘璁ゆ寜閽紒锛?""
+        print(f"\n[澶勭悊] 妫€娴嬪埌閫€鍑烘父鎴忓璇濇锛岀偣鍑诲彇娑堟寜閽?..")
 
-        # 退出游戏对话框特征：
-        # - 白色背景
-        # - 左侧灰色"取消"按钮
-        # - 右侧黄色"确认"按钮
-        # 我们需要点击"取消"按钮来继续游戏
+        # 閫€鍑烘父鎴忓璇濇鐗瑰緛锛?
+        # - 鐧借壊鑳屾櫙
+        # - 宸︿晶鐏拌壊"鍙栨秷"鎸夐挳
+        # - 鍙充晶榛勮壊"纭"鎸夐挳
+        # 鎴戜滑闇€瑕佺偣鍑?鍙栨秷"鎸夐挳鏉ョ户缁父鎴?
         
-        # 截图尺寸：1920x1080，MaaFw 逻辑坐标：1280x720
-        # 从截图估算：取消按钮在对话框底部左侧
-        # 1920x1080 坐标：约 (800, 700)
-        # 转换为 1280x720: (800/1920*1280, 700/1080*720) ≈ (533, 467)
+        # 鎴浘灏哄锛?920x1080锛孧aaFw 閫昏緫鍧愭爣锛?280x720
+        # 浠庢埅鍥句及绠楋細鍙栨秷鎸夐挳鍦ㄥ璇濇搴曢儴宸︿晶
+        # 1920x1080 鍧愭爣锛氱害 (800, 700)
+        # 杞崲涓?1280x720: (800/1920*1280, 700/1080*720) 鈮?(533, 467)
         
-        # 尝试多个坐标
+        # 灏濊瘯澶氫釜鍧愭爣
         coords = [
-            (533, 467),  # 估算坐标
-            (540, 470),  # 微调
-            (520, 460),  # 偏左
-            (550, 480),  # 偏右
-            (533, 450),  # 偏上
-            (533, 480),  # 偏下
+            (533, 467),  # 浼扮畻鍧愭爣
+            (540, 470),  # 寰皟
+            (520, 460),  # 鍋忓乏
+            (550, 480),  # 鍋忓彸
+            (533, 450),  # 鍋忎笂
+            (533, 480),  # 鍋忎笅
         ]
         
         for x, y in coords:
-            print(f"  点击取消按钮 @ ({x}, {y})")
+            print(f"  鐐瑰嚮鍙栨秷鎸夐挳 @ ({x}, {y})")
             self.tap(x, y, "exit_cancel")
             self.wait(2)
             
-            # 检查是否已退出对话框
+            # 妫€鏌ユ槸鍚﹀凡閫€鍑哄璇濇
             page_type = self.check_page()
             if page_type != "logout_dialog":
-                print(f"  [OK] 已退出对话框，当前页面：{page_type}")
+                print(f"  [OK] 宸查€€鍑哄璇濇锛屽綋鍓嶉〉闈細{page_type}")
                 return True
         
-        print(f"  [WARN] 仍在对话框，可能需要手动处理")
+        print(f"  [WARN] 浠嶅湪瀵硅瘽妗嗭紝鍙兘闇€瑕佹墜鍔ㄥ鐞?)
         return False
     
     def wait(self, seconds: int):
-        """等待"""
-        print(f"\n[等待] {seconds}s")
+        """绛夊緟"""
+        print(f"\n[绛夊緟] {seconds}s")
         self.adb.wait(seconds)
 
 
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="标准流测试 - 简单版（不依赖 OCR）")
-    parser.add_argument("--device", type=str, default=None, help="设备序列号")
-    parser.add_argument("--flow", type=str, default="daily_quest", help="流程名称")
+    parser = argparse.ArgumentParser(description="鏍囧噯娴佹祴璇?- 绠€鍗曠増锛堜笉渚濊禆 OCR锛?)
+    parser.add_argument("--device", type=str, default=None, help="璁惧搴忓垪鍙?)
+    parser.add_argument("--flow", type=str, default="daily_quest", help="娴佺▼鍚嶇О")
     args = parser.parse_args()
     
-    # 确定设备
+    # 纭畾璁惧
     device_serial = args.device or list_devices()[0]
-    print(f"[设备] {device_serial}")
+    print(f"[璁惧] {device_serial}")
     
-    # 创建执行器
+    # 鍒涘缓鎵ц鍣?
     executor = SimpleFlowExecutor(device_serial)
     executor.start_session(args.flow)
     
     print("\n" + "="*60)
-    print(f"标准流测试 - 简单版（不依赖 OCR）")
-    print(f"流程：{args.flow}")
+    print(f"鏍囧噯娴佹祴璇?- 绠€鍗曠増锛堜笉渚濊禆 OCR锛?)
+    print(f"娴佺▼锛歿args.flow}")
     print("="*60)
     
-    # 步骤 1: 检查初始页面
-    print("\n--- 步骤 1: 检查初始页面 ---")
+    # 姝ラ 1: 妫€鏌ュ垵濮嬮〉闈?
+    print("\n--- 姝ラ 1: 妫€鏌ュ垵濮嬮〉闈?---")
     page_type = executor.check_page()
     
-    # 处理登出对话框
+    # 澶勭悊鐧诲嚭瀵硅瘽妗?
     if page_type == "logout_dialog":
-        print("\n[登出] 检测到登出对话框，尝试处理...")
+        print("\n[鐧诲嚭] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紝灏濊瘯澶勭悊...")
         success = executor.handle_logout_dialog()
 
         if not success:
-            print("\n[错误] 登出对话框处理失败，需要手动处理")
+            print("\n[閿欒] 鐧诲嚭瀵硅瘽妗嗗鐞嗗け璐ワ紝闇€瑕佹墜鍔ㄥ鐞?)
         
-        # 重新检查页面
+        # 閲嶆柊妫€鏌ラ〉闈?
         page_type = executor.check_page()
 
-    # 处理标题画面
+    # 澶勭悊鏍囬鐢婚潰
     max_title_attempts = 5
     for attempt in range(max_title_attempts):
         if page_type == "title_screen":
-            print(f"\n[标题] 检测到标题画面，点击中央继续 ({attempt+1}/{max_title_attempts})...")
+            print(f"\n[鏍囬] 妫€娴嬪埌鏍囬鐢婚潰锛岀偣鍑讳腑澶户缁?({attempt+1}/{max_title_attempts})...")
             executor.tap(640, 360, "title_continue")
             executor.wait(5)
             page_type = executor.check_page()
         else:
             break
     
-    # 如果还在标题画面，尝试重新启动游戏
+    # 濡傛灉杩樺湪鏍囬鐢婚潰锛屽皾璇曢噸鏂板惎鍔ㄦ父鎴?
     if page_type == "title_screen":
-        print("\n[警告] 标题画面无法跳过，尝试重新启动游戏...")
-        # 这里可以添加游戏重启逻辑
+        print("\n[璀﹀憡] 鏍囬鐢婚潰鏃犳硶璺宠繃锛屽皾璇曢噸鏂板惎鍔ㄦ父鎴?..")
+        # 杩欓噷鍙互娣诲姞娓告垙閲嶅惎閫昏緫
     
-    # 步骤 2: 打开任务面板
-    print("\n--- 步骤 2: 打开任务面板 ---")
+    # 姝ラ 2: 鎵撳紑浠诲姟闈㈡澘
+    print("\n--- 姝ラ 2: 鎵撳紑浠诲姟闈㈡澘 ---")
 
-    # 先检查是否有登出对话框
+    # 鍏堟鏌ユ槸鍚︽湁鐧诲嚭瀵硅瘽妗?
     page_type = executor.check_page()
     if page_type == "logout_dialog":
-        print("\n[警告] 检测到登出对话框，尝试处理...")
+        print("\n[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紝灏濊瘯澶勭悊...")
         executor.handle_logout_dialog()
         executor.wait(3)
 
-    # 尝试多个任务图标坐标（右上角）
-    # 从截图分析：1920x1080 分辨率，任务图标在右上角
-    # 转换为 1280x720 逻辑坐标
-    # 1920x1080 坐标约 (1700, 80) → 1280x720: (1133, 53)
+    # 灏濊瘯澶氫釜浠诲姟鍥炬爣鍧愭爣锛堝彸涓婅锛?
+    # 浠庢埅鍥惧垎鏋愶細1920x1080 鍒嗚鲸鐜囷紝浠诲姟鍥炬爣鍦ㄥ彸涓婅
+    # 杞崲涓?1280x720 閫昏緫鍧愭爣
+    # 1920x1080 鍧愭爣绾?(1700, 80) 鈫?1280x720: (1133, 53)
     task_coords = [
-        (1133, 53),   # 右上角任务图标
-        (1140, 60),   # 微调
-        (1120, 50),   # 稍左
-        (1150, 60),   # 稍右
-        (1133, 45),   # 稍上
-        (1133, 65),   # 稍下
+        (1133, 53),   # 鍙充笂瑙掍换鍔″浘鏍?
+        (1140, 60),   # 寰皟
+        (1120, 50),   # 绋嶅乏
+        (1150, 60),   # 绋嶅彸
+        (1133, 45),   # 绋嶄笂
+        (1133, 65),   # 绋嶄笅
     ]
     
     task_opened = False
     for x, y in task_coords:
-        print(f"\n[尝试] 点击任务图标 @ ({x}, {y})")
+        print(f"\n[灏濊瘯] 鐐瑰嚮浠诲姟鍥炬爣 @ ({x}, {y})")
         executor.tap(x, y, "task_icon")
         executor.wait(2)
         
-        # 检查页面变化
+        # 妫€鏌ラ〉闈㈠彉鍖?
         page_type = executor.check_page()
-        # 如果页面类型变化或不再显示退出对话框，认为任务面板已打开
+        # 濡傛灉椤甸潰绫诲瀷鍙樺寲鎴栦笉鍐嶆樉绀洪€€鍑哄璇濇锛岃涓轰换鍔￠潰鏉垮凡鎵撳紑
         if page_type != "logout_dialog":
-            print(f"  [OK] 任务面板可能已打开，当前页面：{page_type}")
+            print(f"  [OK] 浠诲姟闈㈡澘鍙兘宸叉墦寮€锛屽綋鍓嶉〉闈細{page_type}")
             task_opened = True
             break
     
     if not task_opened:
-        print("\n[警告] 任务图标点击失败，继续执行流程...")
+        print("\n[璀﹀憡] 浠诲姟鍥炬爣鐐瑰嚮澶辫触锛岀户缁墽琛屾祦绋?..")
 
-    # 步骤 3: 检查任务面板
-    print("\n--- 步骤 3: 检查任务面板 ---")
+    # 姝ラ 3: 妫€鏌ヤ换鍔￠潰鏉?
+    print("\n--- 姝ラ 3: 妫€鏌ヤ换鍔￠潰鏉?---")
     page_type = executor.check_page()
 
-    # 检查是否有登出对话框
+    # 妫€鏌ユ槸鍚︽湁鐧诲嚭瀵硅瘽妗?
     if page_type == "logout_dialog":
-        print("\n[警告] 检测到登出对话框，尝试处理...")
+        print("\n[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紝灏濊瘯澶勭悊...")
         executor.handle_logout_dialog()
         executor.wait(3)
 
-    # 步骤 4: 领取奖励
-    print("\n--- 步骤 4: 领取奖励 ---")
-    # 尝试多个领取按钮坐标
+    # 姝ラ 4: 棰嗗彇濂栧姳
+    print("\n--- 姝ラ 4: 棰嗗彇濂栧姳 ---")
+    # 灏濊瘯澶氫釜棰嗗彇鎸夐挳鍧愭爣
     claim_coords = [
-        (1100, 650),  # 右下角
-        (1150, 680),  # 更靠右下
-        (1050, 620),  # 稍左
+        (1100, 650),  # 鍙充笅瑙?
+        (1150, 680),  # 鏇撮潬鍙充笅
+        (1050, 620),  # 绋嶅乏
     ]
     
     for x, y in claim_coords:
-        print(f"\n[尝试] 点击领取按钮 @ ({x}, {y})")
+        print(f"\n[灏濊瘯] 鐐瑰嚮棰嗗彇鎸夐挳 @ ({x}, {y})")
         executor.tap(x, y, "claim_all")
         executor.wait(2)
-        break  # 只尝试一次，避免多次点击
+        break  # 鍙皾璇曚竴娆★紝閬垮厤澶氭鐐瑰嚮
     
-    # 再次检查登出对话框
+    # 鍐嶆妫€鏌ョ櫥鍑哄璇濇
     page_type = executor.check_page()
     if page_type == "logout_dialog":
-        print("\n[警告] 检测到登出对话框，尝试处理...")
+        print("\n[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紝灏濊瘯澶勭悊...")
         executor.handle_logout_dialog()
         executor.wait(3)
 
-    # 步骤 5: 返回
-    print("\n--- 步骤 5: 返回探索界面 ---")
+    # 姝ラ 5: 杩斿洖
+    print("\n--- 姝ラ 5: 杩斿洖鎺㈢储鐣岄潰 ---")
     executor.back()
     executor.wait(2)
     
-    # 再次检查登出对话框
+    # 鍐嶆妫€鏌ョ櫥鍑哄璇濇
     page_type = executor.check_page()
     if page_type == "logout_dialog":
-        print("\n[警告] 检测到登出对话框，尝试处理...")
+        print("\n[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紝灏濊瘯澶勭悊...")
         executor.handle_logout_dialog()
         executor.wait(3)
 
-    # 步骤 6: 检查返回结果
-    print("\n--- 步骤 6: 检查返回结果 ---")
+    # 姝ラ 6: 妫€鏌ヨ繑鍥炵粨鏋?
+    print("\n--- 姝ラ 6: 妫€鏌ヨ繑鍥炵粨鏋?---")
     page_type = executor.check_page()
     
-    # 最终检查登出对话框
+    # 鏈€缁堟鏌ョ櫥鍑哄璇濇
     if page_type == "logout_dialog":
-        print("\n[警告] 检测到登出对话框，需要手动处理")
+        print("\n[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紝闇€瑕佹墜鍔ㄥ鐞?)
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

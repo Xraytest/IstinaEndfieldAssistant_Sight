@@ -45,13 +45,13 @@ start.bat
 **方式二：直接运行 GUI**
 
 ```bash
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 ```
 
 **方式三：CLI 模式**
 
 ```bash
-python scripts/istina.py <subcommand>
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py <subcommand>
 ```
 
 ## CLI 命令
@@ -59,38 +59,38 @@ python scripts/istina.py <subcommand>
 ### 系统诊断
 
 ```bash
-python scripts/istina.py system doctor    # 全面系统诊断
-python scripts/istina.py system env       # 环境变量检查
-python scripts/istina.py system disk      # 磁盘使用情况
-python scripts/istina.py system perf      # 性能测试
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py system doctor    # 全面系统诊断
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py system env       # 环境变量检查
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py system disk      # 磁盘使用情况
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py system perf      # 性能测试
 ```
 
 ### 设备管理
 
 ```bash
-python scripts/istina.py device status    # 设备状态
-python scripts/istina.py device screenshot  # 截图
-python scripts/istina.py device info      # 设备信息
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py device status    # 设备状态
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py device screenshot  # 截图
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py device info      # 设备信息
 ```
 
 ### 场景采集
 
 ```bash
-python scripts/istina.py scene capture --count 20    # 采集 20 张截图
-python scripts/istina.py scene nav <page>            # 导航到页面
-python scripts/istina.py scene analyze -i "..."      # VLM 分析画面
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py scene capture --count 20    # 采集 20 张截图
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py scene nav <page>            # 导航到页面
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/istina.py scene analyze -i "..."      # VLM 分析画面
 ```
 
 ### 标准流引擎
 
 ```bash
 # 执行单个流程
-python scripts/standard_flow_engine.py --flow daily_quest
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest
 
 # 执行所有流程
-python scripts/standard_flow_engine.py --flow all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow all
 
 # 视觉分析 + 提示词优化
-python scripts/standard_flow_engine.py --flow daily_quest --optimize-prompts
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --optimize-prompts
 ```
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
 Small helper process that creates a hidden native Win32 window and writes its
 HWND to a file. The main application can spawn this helper to obtain a stable
@@ -147,3 +147,4 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main())
+

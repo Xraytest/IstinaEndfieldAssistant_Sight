@@ -301,9 +301,7 @@ class SettingsPage(QWidget):
             "display_name": "显示名称",
             "repo_id": "仓库 ID",
             "gguf_pattern": "GGUF 文件模式",
-            "mmproj_pattern": "MMProj 文件模式",
             "expected_gguf": "期望 GGUF 文件名",
-            "expected_mmproj": "期望 MMProj 文件名",
             "required_vram_gb": "所需显存"
         }
 
@@ -318,11 +316,6 @@ class SettingsPage(QWidget):
         except re.error as e:
             return {"valid": False, "error": f"Invalid gguf_pattern: {e}"}
 
-        try:
-            re.compile(model["mmproj_pattern"])
-        except re.error as e:
-            return {"valid": False, "error": f"Invalid mmproj_pattern: {e}"}
-
         # 验证显存值为正数
         try:
             vram = float(model["required_vram_gb"])
@@ -334,8 +327,6 @@ class SettingsPage(QWidget):
         # 验证文件名不为空
         if not model["expected_gguf"].strip():
             return {"valid": False, "error": "expected_gguf cannot be empty"}
-        if not model["expected_mmproj"].strip():
-            return {"valid": False, "error": "expected_mmproj cannot be empty"}
 
         return {"valid": True, "error": ""}
 
@@ -383,53 +374,44 @@ class SettingsPage(QWidget):
         
         return valid_models
 
-    def _match_local_files(self, models_dir: str, model_config: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+    def _match_local_files(self, models_dir: str, model_config: Dict[str, Any]) -> Optional[str]:
         """
         根据配置模式匹配本地已下载的模型文件
-        
+
         Args:
             models_dir: 模型目录路径
             model_config: 模型配置字典
-            
+
         Returns:
-            (匹配的 gguf 文件名，匹配的 mmproj 文件名)，未匹配则为 None
+            匹配的 gguf 文件名，未匹配则为 None
         """
         if not os.path.isdir(models_dir):
-            return None, None
-        
+            return None
+
         gguf_pattern = model_config.get("gguf_pattern", "")
-        mmproj_pattern = model_config.get("mmproj_pattern", "")
-        
+
         try:
             gguf_regex = re.compile(gguf_pattern)
-            mmproj_regex = re.compile(mmproj_pattern)
         except re.error:
-            return None, None
-        
+            return None
+
         matched_gguf = None
-        matched_mmproj = None
-        
+
         try:
             files = os.listdir(models_dir)
         except Exception:
-            return None, None
-        
+            return None
+
         for filename in files:
             if not filename.endswith('.gguf'):
                 continue
-            
-            # 优先匹配 mmproj（因为 mmproj 文件名更独特）
-            if matched_mmproj is None and mmproj_pattern:
-                if mmproj_regex.match(filename):
-                    matched_mmproj = filename
-                    continue
-            
-            # 匹配主模型文件（排除 mmproj）
+
+            # 匹配主模型文件
             if matched_gguf is None and gguf_pattern:
-                if 'mmproj' not in filename.lower() and gguf_regex.match(filename):
+                if gguf_regex.match(filename):
                     matched_gguf = filename
-        
-        return matched_gguf, matched_mmproj
+
+        return matched_gguf
 
     def _get_models_dir(self) -> str:
         """获取模型目录路径"""
@@ -478,10 +460,10 @@ class SettingsPage(QWidget):
             required_gb = model_cfg.get("required_vram_gb", 0)
 
             # 使用正则模式匹配本地文件
-            matched_gguf, matched_mmproj = self._match_local_files(models_dir, model_cfg)
+            matched_gguf = self._match_local_files(models_dir, model_cfg)
 
-            # 显示 [LOCAL] 标签如果任一文件已下载
-            local_tag = "[LOCAL]" if matched_gguf or matched_mmproj else ""
+            # 显示 [LOCAL] 标签如果模型已下载
+            local_tag = "[LOCAL]" if matched_gguf else ""
 
             # 构建显示标签
             if vram_gb > 0:
@@ -526,11 +508,11 @@ class SettingsPage(QWidget):
         self._local_models_label.setText("\n".join(lines))
 
     def _download_model(self):
-        """使用 ModelScope 下载模型和 mmproj（配置驱动）"""
+        """使用 ModelScope 下载模型（仅 gguf）"""
         model_id = self._model_select_combo.currentData()
         if not model_id:
             return
-        
+
         # 从配置文件查找模型定义
         models_config = self._load_models_config()
         model_cfg = None
@@ -538,19 +520,18 @@ class SettingsPage(QWidget):
             if cfg.get("repo_id") == model_id:
                 model_cfg = cfg
                 break
-        
+
         if not model_cfg:
             self._download_status_label.setText(f"Model config not found: {model_id}")
             return
-        
-        # 获取期望的文件名（用于下载）
+
+        # 获取期望的 gguf 文件名（只下载主模型）
         gguf = model_cfg.get("expected_gguf", "")
-        mmproj = model_cfg.get("expected_mmproj", "")
-        
-        if not gguf or not mmproj:
-            self._download_status_label.setText("Invalid model config: missing expected files")
+
+        if not gguf:
+            self._download_status_label.setText("Invalid model config: missing expected gguf file")
             return
-        
+
         models_dir = self._get_models_dir()
         os.makedirs(models_dir, exist_ok=True)
 
@@ -570,36 +551,32 @@ class SettingsPage(QWidget):
                 try:
                     from modelscope.hub.file_download import model_file_download
                     import tqdm
-                    
+
                     # 禁用 tqdm 输出，避免与 PyQt6 渲染冲突
-                    # 解决：QPainter::begin: Paint device returned engine == 0
                     tqdm.tqdm.disable = True
-                    
+
                     total = len(self.files)
                     for i, fname in enumerate(self.files):
-                        # 发送文件索引和名称，用于更精确的进度显示
                         self.progress.emit((i, fname, total))
                         model_file_download(
                             model_id=self.repo,
                             file_path=fname,
                             cache_dir=self.dest,
                         )
-                    self.progress.emit((-1, "", total))  # 完成信号
+                    self.progress.emit((-1, "", total))
                     self.finished.emit(True, f"Downloaded {total} file(s) to {self.dest}")
                 except Exception as e:
                     self.finished.emit(False, str(e))
 
         self._download_thread = ModelScopeDownloader(
-            model_id, [gguf, mmproj], models_dir
+            model_id, [gguf], models_dir
         )
-        # 连接进度信号
         self._download_thread.progress.connect(self._on_download_progress)
         self._download_thread.finished.connect(lambda ok, msg: self._on_download_finished(ok, msg))
-        # 显示下载进度条
         self._download_progress.setVisible(True)
         self._download_progress.setValue(0)
         self._download_status_label.setText(f"Preparing to download {gguf}...")
-        self._download_btn.setEnabled(False)  # 下载期间禁用按钮
+        self._download_btn.setEnabled(False)
         self._download_thread.start()
 
     def _on_download_progress(self, progress_data):
@@ -669,17 +646,15 @@ class SettingsPage(QWidget):
             return
         
         models_dir = self._get_models_dir()
-        
+
         # 使用正则模式匹配本地已下载的文件
-        matched_gguf, matched_mmproj = self._match_local_files(models_dir, model_cfg)
-        
+        matched_gguf = self._match_local_files(models_dir, model_cfg)
+
         # 构建要删除的文件列表
         files_to_delete = []
         if matched_gguf:
             files_to_delete.append((matched_gguf, os.path.join(models_dir, matched_gguf)))
-        if matched_mmproj:
-            files_to_delete.append((matched_mmproj, os.path.join(models_dir, matched_mmproj)))
-        
+
         if not files_to_delete:
             QMessageBox.warning(self, "无本地文件", "该模型未下载，无法删除。")
             return

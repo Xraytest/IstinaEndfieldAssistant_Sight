@@ -1,12 +1,12 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-标准流完整测试 - OCR_Only 数据源
+鏍囧噯娴佸畬鏁存祴璇?- OCR_Only 鏁版嵁婧?
 
-功能：
-1. 使用 MaaFw 内置 OCR 进行页面检测
-2. 检测登出对话框（MaaEnd 式）
-3. 截图记录
-4. 完整流程执行
+鍔熻兘锛?
+1. 浣跨敤 MaaFw 鍐呯疆 OCR 杩涜椤甸潰妫€娴?
+2. 妫€娴嬬櫥鍑哄璇濇锛圡aaEnd 寮忥級
+3. 鎴浘璁板綍
+4. 瀹屾暣娴佺▼鎵ц
 """
 
 import sys
@@ -21,7 +21,7 @@ from _path_setup import ensure_path; ensure_path()
 from core.capability.ocr.ocr_manager import OCRManager
 from core.capability.adb_utils import ADB, list_devices, adb_screencap
 
-# MaaFw 触控
+# MaaFw 瑙︽帶
 try:
     from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
     MAAFW_AVAILABLE = True
@@ -31,14 +31,14 @@ except ImportError:
 
 
 class OCROnlyFlowExecutor:
-    """OCR_Only 标准流执行器"""
+    """OCR_Only 鏍囧噯娴佹墽琛屽櫒"""
 
     def __init__(self, device_serial: str):
         self.device_serial = device_serial
         self.adb = ADB(serial=device_serial)
         self.ocr_manager = OCRManager()
         
-        # 初始化 MaaFw 触控
+        # 鍒濆鍖?MaaFw 瑙︽帶
         self._maafw = None
         if MAAFW_AVAILABLE:
             try:
@@ -50,23 +50,23 @@ class OCROnlyFlowExecutor:
                 )
                 self._maafw = MaaFwTouchExecutor(maafw_config)
                 if self._maafw.connect():
-                    print(f"[MaaFw] 触控初始化成功")
+                    print(f"[MaaFw] 瑙︽帶鍒濆鍖栨垚鍔?)
             except Exception as e:
-                print(f"[MaaFw] 初始化失败：{e}")
+                print(f"[MaaFw] 鍒濆鍖栧け璐ワ細{e}")
         
         self.session_dir = None
         self.screenshots = []
         
     def start_session(self, flow_name: str):
-        """开始执行会话"""
+        """寮€濮嬫墽琛屼細璇?""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_dir = PROJECT_ROOT / "cache" / f"flow_{flow_name}_ocr_only_{timestamp}"
         self.session_dir.mkdir(parents=True, exist_ok=True)
         (self.session_dir / "screenshots").mkdir(exist_ok=True)
-        print(f"[会话] {self.session_dir}")
+        print(f"[浼氳瘽] {self.session_dir}")
         
     def capture(self, label: str) -> bytes:
-        """截图并保存"""
+        """鎴浘骞朵繚瀛?""
         screenshot = adb_screencap(self.device_serial)
         if screenshot:
             timestamp = datetime.now().strftime("%Y%m%S")
@@ -75,74 +75,74 @@ class OCROnlyFlowExecutor:
             with open(path, "wb") as f:
                 f.write(screenshot)
             self.screenshots.append(str(path))
-            print(f"[截图] {filename}")
+            print(f"[鎴浘] {filename}")
         return screenshot
     
     def check_page(self, expected_type: str = None) -> str:
-        """检查当前页面类型（OCR_Only）"""
+        """妫€鏌ュ綋鍓嶉〉闈㈢被鍨嬶紙OCR_Only锛?""
         state = self.ocr_manager.capture_and_recognize(self.device_serial)
         
-        print(f"\n[页面检测] OCR_Only")
-        print(f"  类型：{state.page_type}")
-        print(f"  描述：{state.description}")
-        print(f"  顶部栏：{state.top_bar_buttons}")
-        print(f"  面板文本：{len(state.overlay_texts)} 条")
+        print(f"\n[椤甸潰妫€娴媇 OCR_Only")
+        print(f"  绫诲瀷锛歿state.page_type}")
+        print(f"  鎻忚堪锛歿state.description}")
+        print(f"  椤堕儴鏍忥細{state.top_bar_buttons}")
+        print(f"  闈㈡澘鏂囨湰锛歿len(state.overlay_texts)} 鏉?)
         
-        # 检查登出对话框
+        # 妫€鏌ョ櫥鍑哄璇濇
         if state.page_type == "logout_dialog":
-            print(f"\n[警告] 检测到登出对话框！")
-            print(f"  需要手动处理或自动取消")
+            print(f"\n[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紒")
+            print(f"  闇€瑕佹墜鍔ㄥ鐞嗘垨鑷姩鍙栨秷")
             return "logout_dialog"
         
-        # 检查预期页面
+        # 妫€鏌ラ鏈熼〉闈?
         if expected_type:
             if state.page_type == expected_type or (expected_type == "world" and "world" in state.page_type):
-                print(f"  ✓ 页面匹配预期：{expected_type}")
+                print(f"  鉁?椤甸潰鍖归厤棰勬湡锛歿expected_type}")
             else:
-                print(f"  ✗ 页面不匹配：期望={expected_type} 实际={state.page_type}")
+                print(f"  鉁?椤甸潰涓嶅尮閰嶏細鏈熸湜={expected_type} 瀹為檯={state.page_type}")
         
         return state.page_type
     
     def tap(self, x: int, y: int, label: str):
-        """点击 - 使用 MaaFw"""
-        print(f"\n[点击] {label} @ ({x}, {y})")
+        """鐐瑰嚮 - 浣跨敤 MaaFw"""
+        print(f"\n[鐐瑰嚮] {label} @ ({x}, {y})")
         if self._maafw and self._maafw.connected:
             self._maafw.safe_press(x, y)
         else:
-            # ADB 回退
+            # ADB 鍥為€€
             import subprocess
             subprocess.run(["adb", "-s", self.device_serial, "shell", "input", "tap", str(x), str(y)])
         self.adb.wait(1)
         self.capture(f"tap_{label}")
     
     def swipe(self, x1: int, y1: int, x2: int, y2: int, label: str):
-        """滑动"""
-        print(f"\n[滑动] {label}: ({x1},{y1}) -> ({x2},{y2})")
+        """婊戝姩"""
+        print(f"\n[婊戝姩] {label}: ({x1},{y1}) -> ({x2},{y2})")
         self.adb.swipe(x1, y1, x2, y2, 300)
         self.adb.wait(1)
         self.capture(f"swipe_{label}")
     
     def back(self):
-        """返回 - 使用 MaaFw"""
-        print(f"\n[返回]")
+        """杩斿洖 - 浣跨敤 MaaFw"""
+        print(f"\n[杩斿洖]")
         if self._maafw and self._maafw.connected:
             job = self._maafw.post_keyevent(4)  # KEYCODE_BACK
             if job:
                 job.wait()
         else:
-            # ADB 回退
+            # ADB 鍥為€€
             import subprocess
             subprocess.run(["adb", "-s", self.device_serial, "shell", "input", "keyevent", "4"])
         self.adb.wait(1)
         self.capture("back")
     
     def wait(self, seconds: int):
-        """等待"""
-        print(f"\n[等待] {seconds}s")
+        """绛夊緟"""
+        print(f"\n[绛夊緟] {seconds}s")
         self.adb.wait(seconds)
     
     def export_report(self):
-        """导出执行报告"""
+        """瀵煎嚭鎵ц鎶ュ憡"""
         report = {
             "device": self.device_serial,
             "session_dir": str(self.session_dir),
@@ -155,67 +155,67 @@ class OCROnlyFlowExecutor:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
         
-        print(f"\n[报告] {report_path}")
+        print(f"\n[鎶ュ憡] {report_path}")
         return report
 
 
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="标准流完整测试 - OCR_Only")
-    parser.add_argument("--device", type=str, default=None, help="设备序列号")
-    parser.add_argument("--flow", type=str, default="daily_quest", help="流程名称")
+    parser = argparse.ArgumentParser(description="鏍囧噯娴佸畬鏁存祴璇?- OCR_Only")
+    parser.add_argument("--device", type=str, default=None, help="璁惧搴忓垪鍙?)
+    parser.add_argument("--flow", type=str, default="daily_quest", help="娴佺▼鍚嶇О")
     args = parser.parse_args()
     
-    # 确定设备
+    # 纭畾璁惧
     device_serial = args.device or list_devices()[0]
-    print(f"[设备] {device_serial}")
+    print(f"[璁惧] {device_serial}")
     
-    # 创建执行器
+    # 鍒涘缓鎵ц鍣?
     executor = OCROnlyFlowExecutor(device_serial)
     executor.start_session(args.flow)
     
     print("\n" + "="*60)
-    print(f"标准流测试 - OCR_Only 数据源")
-    print(f"流程：{args.flow}")
+    print(f"鏍囧噯娴佹祴璇?- OCR_Only 鏁版嵁婧?)
+    print(f"娴佺▼锛歿args.flow}")
     print("="*60)
     
-    # 步骤 1: 检查初始页面
-    print("\n--- 步骤 1: 检查初始页面 ---")
+    # 姝ラ 1: 妫€鏌ュ垵濮嬮〉闈?
+    print("\n--- 姝ラ 1: 妫€鏌ュ垵濮嬮〉闈?---")
     page_type = executor.check_page(expected_type="world")
     
     if page_type == "logout_dialog":
-        print("\n[错误] 检测到登出对话框，无法继续")
+        print("\n[閿欒] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紝鏃犳硶缁х画")
         executor.export_report()
         return 1
     
-    # 步骤 2: 打开任务面板
-    print("\n--- 步骤 2: 打开任务面板 ---")
+    # 姝ラ 2: 鎵撳紑浠诲姟闈㈡澘
+    print("\n--- 姝ラ 2: 鎵撳紑浠诲姟闈㈡澘 ---")
     executor.tap(860, 80, "task_icon")
     
-    # 步骤 3: 检查任务面板
-    print("\n--- 步骤 3: 检查任务面板 ---")
+    # 姝ラ 3: 妫€鏌ヤ换鍔￠潰鏉?
+    print("\n--- 姝ラ 3: 妫€鏌ヤ换鍔￠潰鏉?---")
     page_type = executor.check_page()
-    print(f"  面板文本示例：{executor.ocr_manager.decider.overlay_texts[:3] if hasattr(executor.ocr_manager.decider, 'overlay_texts') else 'N/A'}")
+    print(f"  闈㈡澘鏂囨湰绀轰緥锛歿executor.ocr_manager.decider.overlay_texts[:3] if hasattr(executor.ocr_manager.decider, 'overlay_texts') else 'N/A'}")
     
-    # 步骤 4: 领取奖励
-    print("\n--- 步骤 4: 领取奖励 ---")
+    # 姝ラ 4: 棰嗗彇濂栧姳
+    print("\n--- 姝ラ 4: 棰嗗彇濂栧姳 ---")
     executor.tap(810, 900, "claim_all")
     executor.wait(2)
     
-    # 步骤 5: 返回
-    print("\n--- 步骤 5: 返回探索界面 ---")
+    # 姝ラ 5: 杩斿洖
+    print("\n--- 姝ラ 5: 杩斿洖鎺㈢储鐣岄潰 ---")
     executor.back()
     
-    # 步骤 6: 检查返回结果
-    print("\n--- 步骤 6: 检查返回结果 ---")
+    # 姝ラ 6: 妫€鏌ヨ繑鍥炵粨鏋?
+    print("\n--- 姝ラ 6: 妫€鏌ヨ繑鍥炵粨鏋?---")
     page_type = executor.check_page(expected_type="world")
     
-    # 导出报告
+    # 瀵煎嚭鎶ュ憡
     executor.export_report()
     
     print("\n" + "="*60)
-    print("测试完成")
+    print("娴嬭瘯瀹屾垚")
     print("="*60)
     
     return 0
@@ -223,3 +223,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

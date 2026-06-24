@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 # -*- coding: utf-8 -*-
 """Device Connection and Execution Test"""
 
@@ -10,8 +10,8 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(script_dir)
 os.chdir(project_root)
 
-android_dir = os.path.join(project_root, "安卓相关")
-entry_dir = os.path.join(project_root, "入口")
+android_dir = os.path.join(project_root, "瀹夊崜鐩稿叧")
+entry_dir = os.path.join(project_root, "鍏ュ彛")
 if android_dir not in sys.path:
     sys.path.insert(0, android_dir)
 if entry_dir not in sys.path:
@@ -22,7 +22,7 @@ def test_touch_manager():
     print("TouchManager Connection Test")
     print("=" * 60)
     
-    from 控制.touch.touch_manager import TouchManager
+    from 鎺у埗.touch.touch_manager import TouchManager
     
     print("\n[Step 1] Create TouchManager")
     touch_manager = TouchManager()
@@ -57,8 +57,8 @@ def test_screen_capture():
     print("ScreenCapture Test")
     print("=" * 60)
     
-    from 控制.adb_manager import ADBDeviceManager
-    from 图像传递.screen_capture import ScreenCapture
+    from 鎺у埗.adb_manager import ADBDeviceManager
+    from 鍥惧儚浼犻€?screen_capture import ScreenCapture
     
     print("\n[Step 1] Create ADB Manager")
     adb_path = "3rd-part/ADB/adb.exe"
@@ -96,12 +96,12 @@ def test_execution_manager():
     
     from core.communication.communicator import ClientCommunicator
     from core.cloud.managers.auth_manager import AuthManager
-    from 控制.adb_manager import ADBDeviceManager
+    from 鎺у埗.adb_manager import ADBDeviceManager
     from core.cloud.managers.device_manager import DeviceManager
     from core.cloud.task_manager import TaskManager
     from core.cloud.managers.task_queue_manager import TaskQueueManager
-    from 控制.touch.touch_manager import TouchManager
-    from 图像传递.screen_capture import ScreenCapture
+    from 鎺у埗.touch.touch_manager import TouchManager
+    from 鍥惧儚浼犻€?screen_capture import ScreenCapture
     from core.cloud.managers.execution_manager import ExecutionManager
     
     print("\n[Step 1] Create Communicator and Auth")

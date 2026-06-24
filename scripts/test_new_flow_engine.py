@@ -1,98 +1,98 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-测试新标准流引擎 - 验证配置加载和执行
+娴嬭瘯鏂版爣鍑嗘祦寮曟搸 - 楠岃瘉閰嶇疆鍔犺浇鍜屾墽琛?
 """
 
 import sys
 import os
 
-# 设置路径
+# 璁剧疆璺緞
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 from _path_setup import ensure_path; ensure_path()
 
-# 直接导入
+# 鐩存帴瀵煎叆
 from scripts.standard_flow_engine import FlowConfig, Local2BEngine, FlowRecorder
 
 def test_config():
-    """测试配置加载"""
+    """娴嬭瘯閰嶇疆鍔犺浇"""
     print("=" * 60)
-    print("测试1: 配置加载")
+    print("娴嬭瘯1: 閰嶇疆鍔犺浇")
     print("=" * 60)
 
     config = FlowConfig()
-    print(f"配置文件: {config.config_path}")
+    print(f"閰嶇疆鏂囦欢: {config.config_path}")
 
-    # 列出所有流程
+    # 鍒楀嚭鎵€鏈夋祦绋?
     flows = config.all_flows
-    print(f"\n可用流程 ({len(flows)}):")
+    print(f"\n鍙敤娴佺▼ ({len(flows)}):")
     for flow in flows:
         enabled = config.is_flow_enabled(flow)
-        print(f"  - {flow}: {'启用' if enabled else '禁用'}")
+        print(f"  - {flow}: {'鍚敤' if enabled else '绂佺敤'}")
 
-    # 测试变量替换
-    print("\n测试变量替换:")
-    test_prompt = "点击签到按钮: {{coords.signin_entry}}"
+    # 娴嬭瘯鍙橀噺鏇挎崲
+    print("\n娴嬭瘯鍙橀噺鏇挎崲:")
+    test_prompt = "鐐瑰嚮绛惧埌鎸夐挳: {{coords.signin_entry}}"
     result = config.substitute_variables(test_prompt)
-    print(f"  输入: {test_prompt}")
-    print(f"  输出: {result}")
+    print(f"  杈撳叆: {test_prompt}")
+    print(f"  杈撳嚭: {result}")
 
-    # 获取特定流程
+    # 鑾峰彇鐗瑰畾娴佺▼
     daily = config.get_flow("daily_quest")
     if daily:
-        print(f"\ndaily_quest 流程:")
-        print(f"  描述: {daily.get('description')}")
-        print(f"  步骤数: {len(daily.get('steps', []))}")
+        print(f"\ndaily_quest 娴佺▼:")
+        print(f"  鎻忚堪: {daily.get('description')}")
+        print(f"  姝ラ鏁? {len(daily.get('steps', []))}")
         for i, step in enumerate(daily.get('steps', [])):
             print(f"  {i+1}. {step['id']}: {step['description'][:50]}...")
 
     return config
 
 def test_model():
-    """测试2B模型加载"""
+    """娴嬭瘯2B妯″瀷鍔犺浇"""
     print("\n" + "=" * 60)
-    print("测试2: 本地2B模型")
+    print("娴嬭瘯2: 鏈湴2B妯″瀷")
     print("=" * 60)
 
     engine = Local2BEngine()
     ok = engine.load()
-    print(f"加载结果: {'成功' if ok else '失败'}")
+    print(f"鍔犺浇缁撴灉: {'鎴愬姛' if ok else '澶辫触'}")
     if ok:
-        print(f"运行模式: {'本地' if engine.is_local() else 'API'}")
+        print(f"杩愯妯″紡: {'鏈湴' if engine.is_local() else 'API'}")
 
     return engine
 
 def test_recorder():
-    """测试记录器"""
+    """娴嬭瘯璁板綍鍣?""
     print("\n" + "=" * 60)
-    print("测试3: 流程记录器")
+    print("娴嬭瘯3: 娴佺▼璁板綍鍣?)
     print("=" * 60)
 
     recorder = FlowRecorder(session_name="test_session", record_video=True)
-    print(f"会话目录: {recorder.session_dir}")
+    print(f"浼氳瘽鐩綍: {recorder.session_dir}")
 
-    # 模拟记录步骤
+    # 妯℃嫙璁板綍姝ラ
     recorder.record_step(
         step_id=1,
         step_key="test_step",
         action="test_action",
-        description="测试描述",
-        prompt="测试提示词",
+        description="娴嬭瘯鎻忚堪",
+        prompt="娴嬭瘯鎻愮ず璇?,
         decision='{"action": "none"}',
         success=True
     )
 
-    print(f"已记录步骤: {len(recorder.steps)}")
+    print(f"宸茶褰曟楠? {len(recorder.steps)}")
 
-    # 导出报告
+    # 瀵煎嚭鎶ュ憡
     report = recorder.export_report()
-    print(f"报告步骤数: {report['total_steps']}")
-    print(f"成功: {report['success_count']}, 失败: {report['fail_count']}")
+    print(f"鎶ュ憡姝ラ鏁? {report['total_steps']}")
+    print(f"鎴愬姛: {report['success_count']}, 澶辫触: {report['fail_count']}")
 
     return recorder
 
 def main():
-    print("标准流引擎测试套件\n")
+    print("鏍囧噯娴佸紩鎿庢祴璇曞浠禱n")
 
     try:
         config = test_config()
@@ -100,21 +100,22 @@ def main():
         recorder = test_recorder()
 
         print("\n" + "=" * 60)
-        print("所有测试完成")
+        print("鎵€鏈夋祴璇曞畬鎴?)
         print("=" * 60)
 
-        print("\n下一步:")
-        print("1. 运行完整流程: python scripts/standard_flow_engine.py --flow daily_quest --local-only")
-        print("2. 运行所有流程: python scripts/standard_flow_engine.py --flow all")
-        print("3. 仅分析已有记录: python scripts/standard_flow_engine.py --flow daily_quest --analyze-only")
-        print("4. 启用自动优化: python scripts/standard_flow_engine.py --flow daily_quest --optimize-prompts")
+        print("\n涓嬩竴姝?")
+        print("1. 杩愯瀹屾暣娴佺▼: python scripts/standard_flow_engine.py --flow daily_quest --local-only")
+        print("2. 杩愯鎵€鏈夋祦绋? python scripts/standard_flow_engine.py --flow all")
+        print("3. 浠呭垎鏋愬凡鏈夎褰? python scripts/standard_flow_engine.py --flow daily_quest --analyze-only")
+        print("4. 鍚敤鑷姩浼樺寲: python scripts/standard_flow_engine.py --flow daily_quest --optimize-prompts")
 
         return 0
     except Exception as e:
-        print(f"\n[ERROR] 测试失败: {e}")
+        print(f"\n[ERROR] 娴嬭瘯澶辫触: {e}")
         import traceback
         traceback.print_exc()
         return 1
 
 if __name__ == "__main__":
     sys.exit(main())
+

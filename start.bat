@@ -10,7 +10,7 @@ echo ========================================
 echo.
 
 :: 检查 Python 环境
-python --version >nul 2>&1
+"C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe" --version >nul 2>&1
 if errorlevel 1 (
     echo [错误] 未找到 Python，请先安装 Python 3.10+
     pause
@@ -29,7 +29,7 @@ if not exist "config\client_config.json" (
 echo [启动] 启动 IEA 本地版 GUI...
 echo.
 
-python src/gui/pyqt6/main.py
+"C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe" src/gui/pyqt6/main.py
 
 if errorlevel 1 (
     echo.

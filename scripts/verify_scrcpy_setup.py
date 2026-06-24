@@ -1,117 +1,116 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-scrcpy 集成验证脚本
-检查所有组件是否正确安装和配置
+scrcpy 闆嗘垚楠岃瘉鑴氭湰
+妫€鏌ユ墍鏈夌粍浠舵槸鍚︽纭畨瑁呭拰閰嶇疆
 """
 import sys
 from pathlib import Path
 
-# 添加 src 到路径
-project_root = Path(__file__).resolve().parent.parent
+# 娣诲姞 src 鍒拌矾寰?project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 def check_dependencies():
-    """检查 Python 依赖"""
-    print("1. 检查 Python 依赖...")
+    """妫€鏌?Python 渚濊禆"""
+    print("1. 妫€鏌?Python 渚濊禆...")
     missing = []
 
     try:
         import av
-        print(f"   ✓ av (PyAV) 已安装, 版本: {av.__version__}")
+        print(f"   鉁?av (PyAV) 宸插畨瑁? 鐗堟湰: {av.__version__}")
     except ImportError:
         missing.append("av")
-        print("   ✗ av (PyAV) 未安装")
+        print("   鉁?av (PyAV) 鏈畨瑁?)
 
     try:
         import adbutils
-        print(f"   ✓ adbutils 已安装, 版本: {adbutils.__version__}")
+        print(f"   鉁?adbutils 宸插畨瑁? 鐗堟湰: {adbutils.__version__}")
     except ImportError:
         missing.append("adbutils")
-        print("   ✗ adbutils 未安装")
+        print("   鉁?adbutils 鏈畨瑁?)
 
     try:
         from PIL import Image
-        print(f"   ✓ Pillow 已安装")
+        print(f"   鉁?Pillow 宸插畨瑁?)
     except ImportError:
         missing.append("Pillow")
-        print("   ✗ Pillow 未安装")
+        print("   鉁?Pillow 鏈畨瑁?)
 
     try:
         import numpy as np
-        print(f"   ✓ numpy 已安装, 版本: {np.__version__}")
+        print(f"   鉁?numpy 宸插畨瑁? 鐗堟湰: {np.__version__}")
     except ImportError:
         missing.append("numpy")
-        print("   ✗ numpy 未安装")
+        print("   鉁?numpy 鏈畨瑁?)
 
     if missing:
-        print(f"\n   缺少依赖: {', '.join(missing)}")
-        print("   请运行: venv\\Scripts\\python.exe -m pip install " + " ".join(missing))
+        print(f"\n   缂哄皯渚濊禆: {', '.join(missing)}")
+        print("   璇疯繍琛? venv\\Scripts\\python.exe -m pip install " + " ".join(missing))
         return False
     return True
 
 def check_resources():
-    """检查资源文件"""
-    print("\n2. 检查资源文件...")
+    """妫€鏌ヨ祫婧愭枃浠?""
+    print("\n2. 妫€鏌ヨ祫婧愭枃浠?..")
 
     jar_path = project_root / "3rd-part" / "scrcpy" / "scrcpy-server.jar"
     if jar_path.exists():
         size_mb = jar_path.stat().st_size / (1024*1024)
-        print(f"   ✓ scrcpy-server.jar 存在 ({size_mb:.1f} MB)")
+        print(f"   鉁?scrcpy-server.jar 瀛樺湪 ({size_mb:.1f} MB)")
         return True
     else:
-        print(f"   ✗ scrcpy-server.jar 不存在: {jar_path}")
-        print("   请从 StarRailCopilot 复制: bin/scrcpy/scrcpy-server-v1.25.jar")
+        print(f"   鉁?scrcpy-server.jar 涓嶅瓨鍦? {jar_path}")
+        print("   璇蜂粠 StarRailCopilot 澶嶅埗: bin/scrcpy/scrcpy-server-v1.25.jar")
         return False
 
 def check_modules():
-    """检查模块导入"""
-    print("\n3. 检查模块导入...")
+    """妫€鏌ユā鍧楀鍏?""
+    print("\n3. 妫€鏌ユā鍧楀鍏?..")
 
     try:
         from core.capability.input.screenshot import ScreenCapture, ScrcpyCore
-        print("   ✓ ScreenCapture 导入成功")
-        print("   ✓ ScrcpyCore 导入成功")
+        print("   鉁?ScreenCapture 瀵煎叆鎴愬姛")
+        print("   鉁?ScrcpyCore 瀵煎叆鎴愬姛")
 
-        # 检查异常类
+        # 妫€鏌ュ紓甯哥被
         from core.capability.input.screenshot import (
             ScrcpyError,
             ScrcpyServerError,
             ScrcpyConnectionError,
             ScrcpyDecodeError
         )
-        print("   ✓ 异常类导入成功")
+        print("   鉁?寮傚父绫诲鍏ユ垚鍔?)
         return True
     except ImportError as e:
-        print(f"   ✗ 模块导入失败: {e}")
+        print(f"   鉁?妯″潡瀵煎叆澶辫触: {e}")
         return False
 
 def check_adb_manager():
-    """检查 ADB 管理器集成"""
-    print("\n4. 检查 ADB 管理器...")
+    """妫€鏌?ADB 绠＄悊鍣ㄩ泦鎴?""
+    print("\n4. 妫€鏌?ADB 绠＄悊鍣?..")
 
     try:
         from core.capability.device.adb_manager import ADBDeviceManager
-        print("   ✓ ADBDeviceManager 导入成功")
+        print("   鉁?ADBDeviceManager 瀵煎叆鎴愬姛")
 
-        # 检查 adbutils 集成
+        # 妫€鏌?adbutils 闆嗘垚
         adb = ADBDeviceManager("adb", timeout=10)
         if hasattr(adb, 'adb') and callable(getattr(adb, 'create_connection', None)):
-            print("   ✓ adbutils 集成正常")
+            print("   鉁?adbutils 闆嗘垚姝ｅ父")
             return True
         else:
-            print("   ⚠ adbutils 集成可能不完整")
-            return True  # 仍然算通过
+            print("   鈿?adbutils 闆嗘垚鍙兘涓嶅畬鏁?)
+            return True  # 浠嶇劧绠楅€氳繃
     except Exception as e:
-        print(f"   ✗ ADB 管理器检查失败: {e}")
+        print(f"   鉁?ADB 绠＄悊鍣ㄦ鏌ュけ璐? {e}")
         return False
 
 def check_config():
-    """检查配置文件"""
-    print("\n5. 检查配置文件...")
+    """妫€鏌ラ厤缃枃浠?""
+    print("\n5. 妫€鏌ラ厤缃枃浠?..")
 
     config_path = project_root / "config" / "client_config.example.json"
     if not config_path.exists():
-        print(f"   ✗ 配置文件不存在: {config_path}")
+        print(f"   鉁?閰嶇疆鏂囦欢涓嶅瓨鍦? {config_path}")
         return False
 
     import json
@@ -123,23 +122,23 @@ def check_config():
         method = screen_config.get('method', '')
         scrcpy_config = screen_config.get('scrcpy', {})
 
-        print(f"   ✓ 配置文件存在")
-        print(f"   - screen.method: {method or '未设置'}")
-        print(f"   - screen.scrcpy: {scrcpy_config or '未设置'}")
+        print(f"   鉁?閰嶇疆鏂囦欢瀛樺湪")
+        print(f"   - screen.method: {method or '鏈缃?}")
+        print(f"   - screen.scrcpy: {scrcpy_config or '鏈缃?}")
 
         if method == 'scrcpy':
-            print("   ✓ 默认方法为 scrcpy")
+            print("   鉁?榛樿鏂规硶涓?scrcpy")
         else:
-            print("   ⚠ 默认方法不是 scrcpy（建议设置为 'scrcpy'）")
+            print("   鈿?榛樿鏂规硶涓嶆槸 scrcpy锛堝缓璁缃负 'scrcpy'锛?)
 
         return True
     except Exception as e:
-        print(f"   ✗ 配置文件解析失败: {e}")
+        print(f"   鉁?閰嶇疆鏂囦欢瑙ｆ瀽澶辫触: {e}")
         return False
 
 def main():
     print("=" * 60)
-    print("scrcpy 集成验证")
+    print("scrcpy 闆嗘垚楠岃瘉")
     print("=" * 60)
 
     checks = [
@@ -155,26 +154,26 @@ def main():
         try:
             results.append(check())
         except Exception as e:
-            print(f"   ✗ 检查异常: {e}")
+            print(f"   鉁?妫€鏌ュ紓甯? {e}")
             results.append(False)
 
     print("\n" + "=" * 60)
     passed = sum(results)
     total = len(results)
-    print(f"结果: {passed}/{total} 项检查通过")
+    print(f"缁撴灉: {passed}/{total} 椤规鏌ラ€氳繃")
 
     if passed == total:
-        print("✅ 所有检查通过！scrcpy 集成就绪。")
-        print("\n使用说明：")
-        print("1. 确保 ADB 服务器运行: 3rd-part\\adb\\adb.exe start-server")
-        print("2. 连接设备: 3rd-part\\adb\\adb.exe devices")
-        print("3. 运行测试: venv\\Scripts\\python.exe scripts\\test_scrcpy.py")
-        print("4. 在代码中使用:")
+        print("鉁?鎵€鏈夋鏌ラ€氳繃锛乻crcpy 闆嗘垚灏辩华銆?)
+        print("\n浣跨敤璇存槑锛?)
+        print("1. 纭繚 ADB 鏈嶅姟鍣ㄨ繍琛? 3rd-part\\adb\\adb.exe start-server")
+        print("2. 杩炴帴璁惧: 3rd-part\\adb\\adb.exe devices")
+        print("3. 杩愯娴嬭瘯: venv\\Scripts\\python.exe scripts\\test_scrcpy.py")
+        print("4. 鍦ㄤ唬鐮佷腑浣跨敤:")
         print("   from core.capability.input.screenshot import ScreenCapture")
         print("   sc = ScreenCapture(adb_manager, config)")
         print("   img = sc.capture_screen(device_serial)")
     else:
-        print("❌ 部分检查未通过，请修复上述问题。")
+        print("鉂?閮ㄥ垎妫€鏌ユ湭閫氳繃锛岃淇涓婅堪闂銆?)
 
     print("=" * 60)
     return passed == total
@@ -182,3 +181,4 @@ def main():
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
+

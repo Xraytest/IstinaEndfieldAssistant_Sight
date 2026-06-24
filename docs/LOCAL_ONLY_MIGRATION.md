@@ -662,13 +662,13 @@ class MainWindow(QMainWindow):
 
 ```bash
 # 启动 llama-server
-python scripts/tools/start_llama_server.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/tools/start_llama_server.py
 
 # 启动 GUI
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 
 # 测试标准流
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 ```
 
 ---
@@ -679,27 +679,27 @@ python scripts/standard_flow_engine.py --flow daily_quest --local-only
 
 ```bash
 # 方式一：自动启动（GUI 检测未运行时会提示）
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 
 # 方式二：手动启动
-python scripts/tools/start_llama_server.py --model qwen3.5-2b
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/tools/start_llama_server.py --model qwen3.5-2b
 ```
 
 ### 6.2 启动 GUI
 
 ```bash
 # 直接运行，无需登录
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 ```
 
 ### 6.3 运行标准流
 
 ```bash
 # 执行每日任务
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 
 # 执行所有流程
-python scripts/standard_flow_engine.py --flow all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow all
 ```
 
 ---

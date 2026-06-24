@@ -297,7 +297,7 @@ mv scripts/discover_models.py scripts/debug_archived/
 
 ```bash
 # 方式 1: 使用脚本
-python scripts/tools/start_llama_server.py --model qwen3.5-2b
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/tools/start_llama_server.py --model qwen3.5-2b
 
 # 方式 2: 手动启动
 ./3rd-part/llama-server/llama-server.exe \
@@ -312,7 +312,7 @@ python scripts/tools/start_llama_server.py --model qwen3.5-2b
 ### 5.3 启动 GUI
 
 ```bash
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 ```
 
 **验证**:
@@ -324,7 +324,7 @@ python src/gui/pyqt6/main.py
 ### 5.4 运行标准流
 
 ```bash
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 ```
 
 **验证**:

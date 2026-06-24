@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-标准流前置检查：验证页面状态并导航到世界
-用法：python scripts/check_and_navigate.py
+鏍囧噯娴佸墠缃鏌ワ細楠岃瘉椤甸潰鐘舵€佸苟瀵艰埅鍒颁笘鐣?鐢ㄦ硶锛歱ython scripts/check_and_navigate.py
 """
 import subprocess, time, cv2, numpy as np, sys
 from pathlib import Path
@@ -49,7 +48,7 @@ def get_brightness(img):
     return np.mean(cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY))
 
 def classify_page(gold, brightness):
-    """基于金色元素和亮度判断页面类型"""
+    """鍩轰簬閲戣壊鍏冪礌鍜屼寒搴﹀垽鏂〉闈㈢被鍨?""
     if brightness < 30:
         return "black_screen"
     elif gold >= 22:
@@ -57,8 +56,7 @@ def classify_page(gold, brightness):
     elif gold >= 18:
         return "world"
     elif gold >= 15:
-        return "world_low_gold"  # 世界页面但金色较少
-    elif gold >= 12:
+        return "world_low_gold"  # 涓栫晫椤甸潰浣嗛噾鑹茶緝灏?    elif gold >= 12:
         return "exit_dialog"
     elif gold >= 8:
         return "menu"
@@ -68,91 +66,91 @@ def classify_page(gold, brightness):
         return "other"
 
 def navigate_to_world(max_attempts=3):
-    """尝试导航到世界页面"""
+    """灏濊瘯瀵艰埅鍒颁笘鐣岄〉闈?""
     for attempt in range(max_attempts):
-        print(f"\n[尝试 {attempt+1}/{max_attempts}] 检查当前页面...")
+        print(f"\n[灏濊瘯 {attempt+1}/{max_attempts}] 妫€鏌ュ綋鍓嶉〉闈?..")
         
         img = adb_screencap()
         if img is None:
-            print("[ERROR] 截图失败")
+            print("[ERROR] 鎴浘澶辫触")
             continue
         
         gold = count_gold(img)
         brightness = get_brightness(img)
         page_type = classify_page(gold, brightness)
         
-        print(f"  金色元素：{gold}, 亮度：{brightness:.1f}, 类型：{page_type}")
+        print(f"  閲戣壊鍏冪礌锛歿gold}, 浜害锛歿brightness:.1f}, 绫诲瀷锛歿page_type}")
         
         if page_type == "world" or page_type == "world_low_gold":
-            print(f"\n[成功] 已确认在世界页面")
+            print(f"\n[鎴愬姛] 宸茬‘璁ゅ湪涓栫晫椤甸潰")
             return True
         
         elif page_type == "black_screen":
-            print("[操作] 黑屏，点击中央")
+            print("[鎿嶄綔] 榛戝睆锛岀偣鍑讳腑澶?)
             adb_tap(540, 960)
             time.sleep(3)
         
         elif page_type == "exit_dialog":
-            print("[操作] 退出对话框，点击取消")
+            print("[鎿嶄綔] 閫€鍑哄璇濇锛岀偣鍑诲彇娑?)
             adb_tap(600, 750)
             time.sleep(2)
         
         elif page_type == "quest_panel":
-            print("[操作] 任务面板，按返回")
+            print("[鎿嶄綔] 浠诲姟闈㈡澘锛屾寜杩斿洖")
             adb_back()
             time.sleep(2)
         
         elif page_type == "menu":
-            print("[操作] 菜单页面，按返回")
+            print("[鎿嶄綔] 鑿滃崟椤甸潰锛屾寜杩斿洖")
             adb_back()
             time.sleep(1)
         
         elif page_type == "loading":
-            print("[操作] 加载中，等待 15 秒")
+            print("[鎿嶄綔] 鍔犺浇涓紝绛夊緟 15 绉?)
             time.sleep(15)
         
         else:
-            print("[操作] 未知页面，按返回并点击中央")
+            print("[鎿嶄綔] 鏈煡椤甸潰锛屾寜杩斿洖骞剁偣鍑讳腑澶?)
             adb_back()
             time.sleep(0.5)
             adb_tap(540, 960)
             time.sleep(3)
     
-    print(f"\n[失败] {max_attempts} 次尝试后仍未进入世界页面")
+    print(f"\n[澶辫触] {max_attempts} 娆″皾璇曞悗浠嶆湭杩涘叆涓栫晫椤甸潰")
     return False
 
 def main():
     print("="*60)
-    print("标准流前置检查：导航到世界页面")
+    print("鏍囧噯娴佸墠缃鏌ワ細瀵艰埅鍒颁笘鐣岄〉闈?)
     print("="*60)
     
-    # 先按几次返回确保不在深层菜单
-    print("\n[前置] 按返回键退出深层菜单...")
+    # 鍏堟寜鍑犳杩斿洖纭繚涓嶅湪娣卞眰鑿滃崟
+    print("\n[鍓嶇疆] 鎸夎繑鍥為敭閫€鍑烘繁灞傝彍鍗?..")
     for i in range(5):
         adb_back()
         time.sleep(0.3)
     time.sleep(1)
     
-    # 导航到世界
-    success = navigate_to_world(max_attempts=5)
+    # 瀵艰埅鍒颁笘鐣?    success = navigate_to_world(max_attempts=5)
     
     if success:
-        # 保存世界页面截图
+        # 淇濆瓨涓栫晫椤甸潰鎴浘
         img = adb_screencap()
         if img is not None:
             img_rot = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
             cv2.imwrite(str(PROJECT_ROOT / "data" / "analysis" / "world_page_reference.png"), img_rot)
-            print(f"\n[保存] 世界页面参考截图已保存")
+            print(f"\n[淇濆瓨] 涓栫晫椤甸潰鍙傝€冩埅鍥惧凡淇濆瓨")
         
         print(f"\n{'='*60}")
-        print("[就绪] 可以运行标准流：python scripts/standard_flow_engine.py --flow daily_quest")
+        print("[灏辩华] 鍙互杩愯鏍囧噯娴侊細python scripts/standard_flow_engine.py --flow daily_quest")
         print(f"{'='*60}")
         return 0
     else:
         print(f"\n{'='*60}")
-        print("[提示] 请手动进入游戏世界页面后重新运行")
+        print("[鎻愮ず] 璇锋墜鍔ㄨ繘鍏ユ父鎴忎笘鐣岄〉闈㈠悗閲嶆柊杩愯")
         print(f"{'='*60}")
         return 1
 
 if __name__ == "__main__":
     sys.exit(main())
+

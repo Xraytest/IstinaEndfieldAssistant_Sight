@@ -95,23 +95,23 @@ def __init__(self, config: dict):
 ### 3.1 启动 llama-server
 
 ```bash
-python scripts/tools/start_llama_server.py --model qwen3.5-2b
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/tools/start_llama_server.py --model qwen3.5-2b
 ```
 
 ### 3.2 启动 GUI
 
 ```bash
 # 使用本地配置
-python src/gui/pyqt6/main.py --config config/client_config.local.json
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py --config config/client_config.local.json
 
 # 或修改主配置为 local_only 模式后直接启动
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 ```
 
 ### 3.3 运行标准流
 
 ```bash
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 ```
 
 ---
@@ -134,7 +134,7 @@ python scripts/standard_flow_engine.py --flow daily_quest --local-only
 
 **解决**:
 ```bash
-python scripts/tools/start_llama_server.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/tools/start_llama_server.py
 ```
 
 ### 模型文件不存在

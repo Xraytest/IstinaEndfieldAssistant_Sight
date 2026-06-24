@@ -1052,23 +1052,23 @@ if __name__ == "__main__":
 
 ```bash
 # 测试本地 VLM 客户端
-python -m pytest tests/unit/test_local_vlm_client.py -v
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe -m pytest tests/unit/test_local_vlm_client.py -v
 
 # 测试本地认证管理器
-python -m pytest tests/unit/test_local_auth_manager.py -v
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe -m pytest tests/unit/test_local_auth_manager.py -v
 ```
 
 ### 8.2 集成测试
 
 ```bash
 # 启动 llama-server
-python scripts/tools/start_llama_server.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/tools/start_llama_server.py
 
 # 在另一个终端测试 GUI
-python src/gui/pyqt6/main.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe src/gui/pyqt6/main.py
 
 # 测试标准流
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 ```
 
 ### 8.3 手动测试

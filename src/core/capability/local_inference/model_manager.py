@@ -2,15 +2,20 @@
 模型管理器 - 管理本地模型文件的下载、加载和版本管理
 
 支持从ModelScope下载GGUF格式模型
+
+设计原则：
+1. 模型注册在下载时自动完成，无需预编码
+2. 基于文件系统自动发现模型（扫描 models 目录）
+3. 每个模型目录包含一个 model_info.json 元数据文件
+4. 不再依赖 mmproj 文件（ multimodal 支持已移除）
 """
 import os
 import sys
 import json
-import hashlib
 import fnmatch
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from core.foundation.paths import ensure_src_path
 
 # 添加项目根目录到路径
@@ -24,17 +29,36 @@ logger = get_logger()
 class ModelInfo:
     """模型信息数据类"""
     name: str
-    modelscope_id: str
-    file_pattern: str
-    size_gb: float
-    description: str
-    quantization: str
-    parameters: str
-    recommended_gpu_memory_gb: int
+    modelscope_id: str = ""
+    file_pattern: str = "*.gguf"
+    size_gb: float = 0.0
+    description: str = ""
+    quantization: str = ""
+    parameters: str = ""
+    recommended_gpu_memory_gb: int = 0
     local_path: Optional[str] = None
     is_downloaded: bool = False
     version: str = "latest"
-    
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ModelInfo':
+        """从字典创建 ModelInfo"""
+        # 提供默认值处理缺失字段
+        defaults = {
+            'modelscope_id': "",
+            'file_pattern': "*.gguf",
+            'size_gb': 0.0,
+            'description': "",
+            'quantization': "",
+            'parameters': "",
+            'recommended_gpu_memory_gb': 0,
+            'local_path': None,
+            'is_downloaded': False,
+            'version': "latest"
+        }
+        merged = {**defaults, **data}
+        return cls(**merged)
+
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return asdict(self)
@@ -43,80 +67,35 @@ class ModelInfo:
 class ModelManager:
     """
     模型管理器 - 管理本地模型文件
-    
+
     职责:
-    1. 从ModelScope下载模型
-    2. 管理模型文件版本
+    1. 自动发现已下载模型（扫描文件系统）
+    2. 从ModelScope下载模型并自动注册
     3. 验证模型完整性
     4. 提供模型元数据
+    5. 不再使用预编码的 MODEL_REGISTRY
     """
-    
-    # 模型注册表 - 与 config/models.json 保持一致
-    MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
-        "qwen3.5-4b": {
-            "modelscope_id": "unsloth/Qwen3.5-4B-GGUF",
-            "file_pattern": "Qwen3\\.5-4B-.*\\.gguf",
-            "size_gb": 2.8,
-            "description": "4B 参数，Q8 量化，适合入门级 GPU",
-            "quantization": "Q8_0",
-            "parameters": "4B",
-            "recommended_gpu_memory_gb": 5.5,
-        },
-        "qwen3.5-9b": {
-            "modelscope_id": "unsloth/Qwen3.5-9B-GGUF",
-            "file_pattern": "Qwen3\\.5-9B-.*\\.gguf",
-            "size_gb": 4.5,
-            "description": "9B 参数，Q8 量化，推荐配置",
-            "quantization": "Q8_0",
-            "parameters": "9B",
-            "recommended_gpu_memory_gb": 11.5,
-        },
-        "qwen3.6-27b": {
-            "modelscope_id": "unsloth/Qwen3.6-27B-GGUF",
-            "file_pattern": "Qwen3\\.6-27B-.*\\.gguf",
-            "size_gb": 14.0,
-            "description": "27B 参数，Q8 量化，需要高端 GPU",
-            "quantization": "Q8_0",
-            "parameters": "27B",
-            "recommended_gpu_memory_gb": 33.0,
-        },
-        "qwen3.6-35b-a3b": {
-            "modelscope_id": "unsloth/Qwen3.6-35B-A3B-GGUF",
-            "file_pattern": "Qwen3\\.6-35B-A3B-.*\\.gguf",
-            "size_gb": 18.0,
-            "description": "35B 参数，A3B 稀疏架构，需要顶级 GPU",
-            "quantization": "Q8_0",
-            "parameters": "35B",
-            "recommended_gpu_memory_gb": 41.0,
-        },
-        "gemma4-2b-q8_0": {
-            "modelscope_id": "unsloth/gemma-4-2b-it-GGUF",
-            "file_pattern": "*Q8_0*.gguf",
-            "size_gb": 2.5,
-            "description": "轻量级备用实时控制模型，2B参数，Q8量化",
-            "quantization": "Q8_0",
-            "parameters": "2B",
-            "recommended_gpu_memory_gb": 8,
-        },
-    }
-    
+
     def __init__(self, models_dir: str = "models"):
         """
         初始化模型管理器
-        
+
         Args:
             models_dir: 模型存储目录路径
         """
         self._models_dir = Path(models_dir)
         self._models_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 模型元数据文件
+
+        # 模型元数据文件（存储已注册模型的目录名和基本信息）
         self._metadata_file = self._models_dir / "model_metadata.json"
         self._metadata = self._load_metadata()
-        
-        logger.info(LogCategory.MAIN, "模型管理器初始化完成", 
+
+        # 缓存已发现的模型列表
+        self._discovered_models: Dict[str, ModelInfo] = {}
+
+        logger.info(LogCategory.MAIN, "模型管理器初始化完成",
                    models_dir=str(self._models_dir))
-    
+
     def _load_metadata(self) -> Dict[str, Any]:
         """加载模型元数据"""
         if self._metadata_file.exists():
@@ -125,9 +104,9 @@ class ModelManager:
                     return json.load(f)
             except Exception as e:
                 logger.warning(LogCategory.MAIN, "加载模型元数据失败", error=str(e))
-        
+
         return {}
-    
+
     def _save_metadata(self):
         """保存模型元数据"""
         try:
@@ -135,54 +114,115 @@ class ModelManager:
                 json.dump(self._metadata, f, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.error(LogCategory.MAIN, "保存模型元数据失败", error=str(e))
-    
+
+    def discover_models(self) -> Dict[str, ModelInfo]:
+        """
+        扫描文件系统，发现所有已下载的模型
+
+        扫描策略:
+        1. 遍历 models 目录下的所有一级子目录
+        2. 每个子目录中查找 .gguf 文件
+        3. 如果存在 model_info.json，读取元数据；否则使用默认元数据
+        4. 构建 ModelInfo 对象并缓存
+
+        Returns:
+            模型名称到 ModelInfo 的映射
+        """
+        discovered = {}
+
+        if not self._models_dir.exists():
+            logger.warning(LogCategory.MAIN, "模型目录不存在", dir=str(self._models_dir))
+            return discovered
+
+        for model_dir in self._models_dir.iterdir():
+            if not model_dir.is_dir():
+                continue
+
+            # 查找 .gguf 文件（排除 mmproj - 虽然不应该存在）
+            gguf_files = [f for f in model_dir.glob("*.gguf") if 'mmproj' not in f.name.lower()]
+            if not gguf_files:
+                continue
+
+            # 选择主模型文件（第一个非 mmproj 的 .gguf）
+            model_file = gguf_files[0]
+            model_name = model_dir.name
+
+            # 读取模型元数据（如果存在）
+            model_info_path = model_dir / "model_info.json"
+            if model_info_path.exists():
+                try:
+                    with open(model_info_path, 'r', encoding='utf-8') as f:
+                        info_data = json.load(f)
+                        # 确保 name 字段与目录名一致
+                        info_data['name'] = model_name
+                        info_data['local_path'] = str(model_file)
+                        info_data['is_downloaded'] = True
+                        model_info = ModelInfo.from_dict(info_data)
+                except Exception as e:
+                    logger.warning(LogCategory.MAIN, "读取模型元数据失败",
+                                 model_dir=str(model_dir), error=str(e))
+                    # 使用默认元数据
+                    model_info = self._create_default_model_info(model_name, model_file)
+            else:
+                # 没有元数据文件，使用默认信息
+                model_info = self._create_default_model_info(model_name, model_file)
+
+            discovered[model_name] = model_info
+
+        self._discovered_models = discovered
+        logger.debug(LogCategory.MAIN, "模型发现完成", count=len(discovered))
+        return discovered
+
+    def _create_default_model_info(self, model_name: str, model_file: Path) -> ModelInfo:
+        """创建默认的 ModelInfo（基于目录名和文件大小）"""
+        try:
+            size_gb = model_file.stat().st_size / (1024 ** 3)
+        except Exception:
+            size_gb = 0.0
+
+        return ModelInfo(
+            name=model_name,
+            modelscope_id="",  # 未知
+            file_pattern="*.gguf",
+            size_gb=round(size_gb, 2),
+            description="自动发现的模型（无元数据）",
+            quantization="unknown",
+            parameters="unknown",
+            recommended_gpu_memory_gb=0,
+            local_path=str(model_file),
+            is_downloaded=True,
+            version="unknown"
+        )
+
     def get_model_info(self, model_name: str) -> Optional[ModelInfo]:
         """
         获取模型信息
-        
+
         Args:
             model_name: 模型名称
-            
+
         Returns:
             模型信息对象，如果不存在返回None
         """
-        if model_name not in self.MODEL_REGISTRY:
-            return None
-        
-        registry_info = self.MODEL_REGISTRY[model_name]
-        local_path = self.get_model_path(model_name)
-        
-        return ModelInfo(
-            name=model_name,
-            modelscope_id=registry_info["modelscope_id"],
-            file_pattern=registry_info["file_pattern"],
-            size_gb=registry_info["size_gb"],
-            description=registry_info["description"],
-            quantization=registry_info["quantization"],
-            parameters=registry_info["parameters"],
-            recommended_gpu_memory_gb=registry_info["recommended_gpu_memory_gb"],
-            local_path=str(local_path) if local_path else None,
-            is_downloaded=self.is_model_downloaded(model_name),
-            version=self._metadata.get(model_name, {}).get("version", "latest")
-        )
-    
+        # 如果尚未发现模型，先执行发现
+        if not self._discovered_models:
+            self.discover_models()
+
+        return self._discovered_models.get(model_name)
+
     def get_all_models(self) -> List[ModelInfo]:
-        """获取所有模型信息"""
-        return [
-            self.get_model_info(name) 
-            for name in self.MODEL_REGISTRY.keys()
-        ]
-    
+        """获取所有已发现模型的信息"""
+        if not self._discovered_models:
+            self.discover_models()
+        return list(self._discovered_models.values())
+
     def get_available_models(self) -> List[ModelInfo]:
-        """获取已下载的可用模型列表"""
-        return [
-            model_info for model_info in self.get_all_models()
-            if model_info and model_info.is_downloaded
-        ]
-    
+        """获取已下载的可用模型列表（同 get_all_models）"""
+        return self.get_all_models()
+
     def get_model_path(self, model_name: str) -> Optional[Path]:
         """
-        获取模型文件路径（支持多种目录命名方式）
+        获取模型文件路径
 
         Args:
             model_name: 模型名称
@@ -190,370 +230,332 @@ class ModelManager:
         Returns:
             模型文件路径，如果不存在返回None
         """
-        if model_name not in self.MODEL_REGISTRY:
-            return None
-
-        registry_info = self.MODEL_REGISTRY[model_name]
-
-        # 策略1: 直接使用 model_name 作为目录名（向后兼容）
-        model_dir = self._models_dir / model_name
-        if model_dir.exists():
-            file_path = self._find_gguf_in_dir(model_dir, registry_info["file_pattern"], model_name)
-            if file_path:
-                return file_path
-
-        # 策略2: 从 modelscope_id 推导可能的目录名
-        modelscope_id = registry_info["modelscope_id"]
-        # 提取仓库名部分，如 "unsloth/Qwen3.5-4B-GGUF" -> "Qwen3.5-4B-GGUF"
-        repo_name = modelscope_id.split('/')[-1] if '/' in modelscope_id else modelscope_id
-
-        # 尝试不同的命名变体
-        possible_dir_names = [
-            repo_name,
-            repo_name.replace('.', ''),  # 移除点号: Qwen3.5-4B-GGUF -> Qwen35-4B-GGUF
-            repo_name.replace('.', '_'),  # 替换为下划线
-            repo_name.upper(),
-            repo_name.lower(),
-        ]
-
-        for dir_name in possible_dir_names:
-            model_dir = self._models_dir / dir_name
-            if model_dir.exists():
-                file_path = self._find_gguf_in_dir(model_dir, registry_info["file_pattern"], model_name)
-                if file_path:
-                    return file_path
-
-        # 策略3: 递归扫描所有子目录，查找匹配的.gguf文件
-        for model_dir in self._models_dir.rglob("*"):
-            if model_dir.is_dir():
-                # 检查目录名是否可能匹配（基于 modelscope_id）
-                dir_name = model_dir.name
-                repo_name = modelscope_id.split('/')[-1] if '/' in modelscope_id else modelscope_id
-                # 检查目录名是否包含仓库名的关键部分（忽略大小写和分隔符）
-                normalized_dir = dir_name.lower().replace('.', '').replace('_', '').replace('-', '')
-                normalized_repo = repo_name.lower().replace('.', '').replace('_', '').replace('-', '')
-                if normalized_repo in normalized_dir or normalized_dir in normalized_repo:
-                    file_path = self._find_gguf_in_dir(model_dir, registry_info["file_pattern"], model_name)
-                    if file_path:
-                        return file_path
-
+        model_info = self.get_model_info(model_name)
+        if model_info and model_info.local_path:
+            return Path(model_info.local_path)
         return None
 
-    def _find_gguf_in_dir(self, model_dir: Path, file_pattern: str, model_name: str = None) -> Optional[Path]:
-        """在指定目录中查找匹配的.gguf文件"""
-        # 收集所有.gguf文件
-        all_gguf_files = []
-        for file_path in model_dir.iterdir():
-            if file_path.is_file() and file_path.suffix == '.gguf':
-                all_gguf_files.append(file_path)
-
-        if not all_gguf_files:
-            return None
-
-        # 步骤1: 尝试模式匹配
-        matching_files = []
-        for file_path in all_gguf_files:
-            if fnmatch.fnmatch(file_path.name, file_pattern):
-                matching_files.append(file_path)
-
-        if matching_files:
-            # 从匹配的文件中优先选择主模型（排除 mmproj 文件）
-            main_models = [f for f in matching_files if 'mmproj' not in f.name.lower()]
-            if main_models:
-                return main_models[0]
-            return matching_files[0]
-
-        # 步骤2: 如果没有模式匹配，尝试从 config/models.json 获取预期文件名
-        if model_name:
-            expected_file = self._get_expected_gguf_filename(model_name)
-            if expected_file:
-                expected_path = model_dir / expected_file
-                if expected_path.exists():
-                    return expected_path
-
-        # 步骤3: 最后，优先返回非 mmproj 的第一个.gguf文件
-        main_files = [f for f in all_gguf_files if 'mmproj' not in f.name.lower()]
-        if main_files:
-            return main_files[0]
-
-        return all_gguf_files[0]
-
-    def _get_expected_gguf_filename(self, model_name: str) -> Optional[str]:
-        """从 config/models.json 获取预期的GGUF文件名"""
-        try:
-            import json
-            config_path = Path(__file__).parent.parent.parent.parent.parent / "config" / "models.json"
-            if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                for model_config in config.get("models", []):
-                    if model_config["id"] == model_name:
-                        return model_config.get("expected_gguf")
-        except Exception:
-            pass
-        return None
-    
     def is_model_downloaded(self, model_name: str) -> bool:
         """检查模型是否已下载"""
         return self.get_model_path(model_name) is not None
-    
+
     def download_model(
-        self, 
+        self,
         model_name: str,
+        modelscope_id: str,
+        file_pattern: str = "*.gguf",
+        size_gb: float = 0.0,
+        description: str = "",
+        quantization: str = "",
+        parameters: str = "",
+        recommended_gpu_memory_gb: int = 0,
         progress_callback: Optional[Callable[[int, str], None]] = None
     ) -> Optional[str]:
         """
-        下载指定模型
-        
+        下载指定模型并自动注册
+
         Args:
-            model_name: 模型名称
+            model_name: 模型名称（本地目录名）
+            modelscope_id: ModelScope 仓库ID
+            file_pattern: 文件匹配模式
+            size_gb: 模型大小（GB）
+            description: 模型描述
+            quantization: 量化方式
+            parameters: 参数量
+            recommended_gpu_memory_gb: 推荐显存
             progress_callback: 进度回调函数(percentage, message)
-            
+
         Returns:
             下载的模型路径，失败返回None
         """
-        if model_name not in self.MODEL_REGISTRY:
-            logger.error(LogCategory.MAIN, "未知模型", model_name=model_name)
-            raise ValueError(f"Unknown model: {model_name}")
-        
-        model_info = self.MODEL_REGISTRY[model_name]
-        
         try:
             # 检查是否已下载
             if self.is_model_downloaded(model_name):
-                logger.info(LogCategory.MAIN, "模型已存在，跳过下载", 
+                logger.info(LogCategory.MAIN, "模型已存在，跳过下载",
                            model_name=model_name)
                 if progress_callback:
                     progress_callback(100, "模型已存在")
                 return str(self.get_model_path(model_name))
-            
+
             if progress_callback:
                 progress_callback(0, "开始下载...")
-            
-            # 使用modelscope下载
-            model_path = self._download_from_modelscope(
-                model_name=model_name,
-                modelscope_id=model_info["modelscope_id"],
-                file_pattern=model_info["file_pattern"],
-                progress_callback=progress_callback
-            )
-            
-            if model_path:
-                # 更新元数据
-                self._metadata[model_name] = {
-                    "version": "latest",
-                    "download_time": self._get_timestamp(),
-                    "modelscope_id": model_info["modelscope_id"]
-                }
-                self._save_metadata()
-                
-                logger.info(LogCategory.MAIN, "模型下载完成", 
-                           model_name=model_name, path=model_path)
-                return model_path
-            
-        except Exception as e:
-            logger.exception(LogCategory.MAIN, "模型下载失败", 
-                           model_name=model_name, error=str(e))
-            if progress_callback:
-                progress_callback(-1, f"下载失败: {str(e)}")
-        
-        return None
-    
-    def _download_from_modelscope(
-        self,
-        model_name: str,
-        modelscope_id: str,
-        file_pattern: str,
-        progress_callback: Optional[Callable[[int, str], None]] = None
-    ) -> Optional[str]:
-        """从ModelScope下载模型"""
-        try:
-            from modelscope import snapshot_download
-            
-            if progress_callback:
-                progress_callback(10, "连接ModelScope...")
-            
+
             # 创建模型目录
             model_dir = self._models_dir / model_name
             model_dir.mkdir(parents=True, exist_ok=True)
-            
+
+            if progress_callback:
+                progress_callback(10, "连接ModelScope...")
+
+            # 下载模型
+            model_file = self._download_from_modelscope(
+                modelscope_id=modelscope_id,
+                file_pattern=file_pattern,
+                model_dir=model_dir,
+                progress_callback=progress_callback
+            )
+
+            if not model_file:
+                logger.error(LogCategory.MAIN, "模型下载失败", model_name=model_name)
+                return None
+
+            if progress_callback:
+                progress_callback(95, "注册模型...")
+
+            # 创建 model_info.json 元数据文件
+            model_info = ModelInfo(
+                name=model_name,
+                modelscope_id=modelscope_id,
+                file_pattern=file_pattern,
+                size_gb=size_gb,
+                description=description,
+                quantization=quantization,
+                parameters=parameters,
+                recommended_gpu_memory_gb=recommended_gpu_memory_gb,
+                local_path=str(model_file),
+                is_downloaded=True,
+                version="latest"
+            )
+
+            # 保存元数据到模型目录
+            model_info_path = model_dir / "model_info.json"
+            try:
+                with open(model_info_path, 'w', encoding='utf-8') as f:
+                    json.dump(model_info.to_dict(), f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                logger.warning(LogCategory.MAIN, "保存模型元数据失败",
+                             model_dir=str(model_dir), error=str(e))
+
+            # 更新管理器元数据（记录模型目录名）
+            self._metadata[model_name] = {
+                "version": "latest",
+                "download_time": self._get_timestamp(),
+                "modelscope_id": modelscope_id,
+                "file": model_file.name
+            }
+            self._save_metadata()
+
+            # 更新缓存
+            self._discovered_models[model_name] = model_info
+
+            if progress_callback:
+                progress_callback(100, "下载完成")
+
+            logger.info(LogCategory.MAIN, "模型下载并注册完成",
+                       model_name=model_name, path=str(model_file))
+            return str(model_file)
+
+        except Exception as e:
+            logger.exception(LogCategory.MAIN, "模型下载异常",
+                           model_name=model_name, error=str(e))
+            if progress_callback:
+                progress_callback(-1, f"下载失败: {str(e)}")
+            return None
+
+    def _download_from_modelscope(
+        self,
+        modelscope_id: str,
+        file_pattern: str,
+        model_dir: Path,
+        progress_callback: Optional[Callable[[int, str], None]] = None
+    ) -> Optional[Path]:
+        """从ModelScope下载模型"""
+        try:
+            from modelscope import snapshot_download
+
             if progress_callback:
                 progress_callback(20, "开始下载...")
-            
+
             # 下载模型
             downloaded_path = snapshot_download(
                 modelscope_id,
                 local_dir=str(model_dir),
                 allow_file_pattern=file_pattern
             )
-            
+
             if progress_callback:
                 progress_callback(90, "验证模型...")
-            
-            # 验证下载
-            model_path = self.get_model_path(model_name)
-            if model_path and self.verify_model(str(model_path)):
-                if progress_callback:
-                    progress_callback(100, "下载完成")
-                return str(model_path)
-            else:
-                logger.error(LogCategory.MAIN, "模型验证失败", 
-                           model_name=model_name)
+
+            # 验证下载：查找 .gguf 文件
+            gguf_files = list(model_dir.glob("*.gguf"))
+            if not gguf_files:
+                logger.error(LogCategory.MAIN, "下载目录中未找到.gguf文件",
+                           dir=str(model_dir))
                 return None
-                
+
+            # 选择第一个 .gguf 文件（主模型）
+            model_file = gguf_files[0]
+
+            # 简单验证：文件大小至少 1MB
+            if model_file.stat().st_size < 1024 * 1024:
+                logger.error(LogCategory.MAIN, "模型文件过小",
+                           path=str(model_file))
+                return None
+
+            if progress_callback:
+                progress_callback(95, "下载完成")
+            return model_file
+
         except ImportError:
             logger.error(LogCategory.MAIN, "modelscope库未安装")
             if progress_callback:
                 progress_callback(-1, "请先安装modelscope: pip install modelscope")
             raise ImportError("modelscope library is required for downloading models")
-        
+
         except Exception as e:
             logger.exception(LogCategory.MAIN, "ModelScope下载失败", error=str(e))
             raise
-    
+
     def verify_model(self, model_path: str) -> bool:
         """
         验证模型文件完整性
-        
+
         Args:
             model_path: 模型文件路径
-            
+
         Returns:
             是否验证通过
         """
         try:
             path = Path(model_path)
-            
+
             # 检查文件是否存在
             if not path.exists():
                 logger.warning(LogCategory.MAIN, "模型文件不存在", path=model_path)
                 return False
-            
+
             # 检查文件大小（至少1MB）
             file_size = path.stat().st_size
             if file_size < 1024 * 1024:  # 1MB
-                logger.warning(LogCategory.MAIN, "模型文件过小", 
+                logger.warning(LogCategory.MAIN, "模型文件过小",
                              path=model_path, size_bytes=file_size)
                 return False
-            
+
             # 检查文件扩展名
             if path.suffix != '.gguf':
-                logger.warning(LogCategory.MAIN, "模型文件格式不正确", 
+                logger.warning(LogCategory.MAIN, "模型文件格式不正确",
                              path=model_path, suffix=path.suffix)
                 return False
-            
-            logger.debug(LogCategory.MAIN, "模型验证通过", 
+
+            logger.debug(LogCategory.MAIN, "模型验证通过",
                         path=model_path, size_mb=round(file_size / (1024*1024), 2))
             return True
-            
+
         except Exception as e:
-            logger.exception(LogCategory.MAIN, "模型验证异常", 
+            logger.exception(LogCategory.MAIN, "模型验证异常",
                            path=model_path, error=str(e))
             return False
-    
+
     def delete_model(self, model_name: str) -> bool:
         """
         删除模型
-        
+
         Args:
             model_name: 模型名称
-            
+
         Returns:
             是否删除成功
         """
         try:
             model_dir = self._models_dir / model_name
-            
+
             if not model_dir.exists():
-                logger.warning(LogCategory.MAIN, "模型目录不存在", 
+                logger.warning(LogCategory.MAIN, "模型目录不存在",
                              model_name=model_name)
                 return False
-            
+
             # 删除目录
             import shutil
             shutil.rmtree(model_dir)
-            
-            # 更新元数据
+
+            # 更新元数据和缓存
             if model_name in self._metadata:
                 del self._metadata[model_name]
                 self._save_metadata()
-            
+
+            if model_name in self._discovered_models:
+                del self._discovered_models[model_name]
+
             logger.info(LogCategory.MAIN, "模型已删除", model_name=model_name)
             return True
-            
+
         except Exception as e:
-            logger.exception(LogCategory.MAIN, "删除模型失败", 
+            logger.exception(LogCategory.MAIN, "删除模型失败",
                            model_name=model_name, error=str(e))
             return False
-    
+
     def get_model_size(self, model_name: str) -> Optional[float]:
         """
         获取模型文件大小（GB）
-        
+
         Args:
             model_name: 模型名称
-            
+
         Returns:
             文件大小（GB），如果不存在返回None
         """
         model_path = self.get_model_path(model_name)
         if not model_path:
             return None
-        
+
         try:
             size_bytes = model_path.stat().st_size
             return round(size_bytes / (1024**3), 2)
         except Exception as e:
-            import logging
-            logging.getLogger(__name__).debug(f"获取模型大小失败：{e}")
+            logger.debug(LogCategory.MAIN, "获取模型大小失败",
+                        model_name=model_name, error=str(e))
             return None
-    
+
     def get_disk_usage(self) -> Dict[str, Any]:
         """获取模型磁盘使用情况"""
         total_size = 0
         model_sizes = {}
-        
-        for model_name in self.MODEL_REGISTRY.keys():
-            size = self.get_model_size(model_name)
-            if size:
-                model_sizes[model_name] = size
-                total_size += size
-        
+
+        for model_info in self.get_all_models():
+            if model_info.size_gb:
+                model_sizes[model_info.name] = model_info.size_gb
+                total_size += model_info.size_gb
+
         return {
             "total_size_gb": round(total_size, 2),
             "model_count": len(model_sizes),
             "models": model_sizes
         }
-    
+
     def recommend_model(self, gpu_memory_gb: int) -> Optional[str]:
         """
         根据GPU显存推荐模型
-        
+
         Args:
             gpu_memory_gb: GPU显存大小（GB）
-            
+
         Returns:
-            推荐的模型名称
+            推荐的模型名称（基于已下载模型）
         """
-        # 按推荐显存排序
-        sorted_models = sorted(
-            self.MODEL_REGISTRY.items(),
-            key=lambda x: x[1]["recommended_gpu_memory_gb"],
-            reverse=True
-        )
-        
-        for model_name, info in sorted_models:
-            if gpu_memory_gb >= info["recommended_gpu_memory_gb"]:
-                return model_name
-        
-        # 如果都不满足，返回最小的模型
-        return "qwen3.5-2b-qwen3.6-plus-distilled-f16"
-    
+        available_models = self.get_available_models()
+        if not available_models:
+            return None
+
+        # 筛选出满足显存要求的模型
+        suitable = [
+            m for m in available_models
+            if gpu_memory_gb >= m.recommended_gpu_memory_gb
+        ]
+
+        if suitable:
+            # 返回满足条件中推荐显存最大的（性能最好的）
+            suitable.sort(key=lambda m: m.recommended_gpu_memory_gb, reverse=True)
+            return suitable[0].name
+
+        # 如果没有满足的，返回已下载的最小模型（用户可能需要降低要求）
+        available_models.sort(key=lambda m: m.recommended_gpu_memory_gb)
+        return available_models[0].name if available_models else None
+
     def _get_timestamp(self) -> str:
         """获取当前时间戳"""
         from datetime import datetime
         return datetime.now().isoformat()
-    
+
     def get_models_dir(self) -> str:
         """获取模型目录路径"""
         return str(self._models_dir)
@@ -567,41 +569,55 @@ def get_default_manager() -> ModelManager:
 
 def download_model_with_progress(
     model_name: str,
+    modelscope_id: str,
+    file_pattern: str = "*.gguf",
+    size_gb: float = 0.0,
+    description: str = "",
+    quantization: str = "",
+    parameters: str = "",
+    recommended_gpu_memory_gb: int = 0,
     progress_callback: Optional[Callable[[int, str], None]] = None
 ) -> Optional[str]:
     """带进度回调的模型下载"""
     manager = ModelManager()
-    return manager.download_model(model_name, progress_callback)
+    return manager.download_model(
+        model_name=model_name,
+        modelscope_id=modelscope_id,
+        file_pattern=file_pattern,
+        size_gb=size_gb,
+        description=description,
+        quantization=quantization,
+        parameters=parameters,
+        recommended_gpu_memory_gb=recommended_gpu_memory_gb,
+        progress_callback=progress_callback
+    )
 
 
 if __name__ == "__main__":
     # 测试模型管理器
     print("=" * 60)
-    print("模型管理器测试")
+    print("模型管理器测试（动态注册版本）")
     print("=" * 60)
-    
+
     manager = ModelManager(models_dir="test_models")
-    
-    # 测试获取模型信息
-    print("\n1. 获取所有模型信息:")
-    for model_info in manager.get_all_models():
-        print(f"  {model_info.name}:")
-        print(f"    描述: {model_info.description}")
-        print(f"    大小: {model_info.size_gb} GB")
-        print(f"    推荐显存: {model_info.recommended_gpu_memory_gb} GB")
-        print(f"    已下载: {model_info.is_downloaded}")
-        print()
-    
-    # 测试模型推荐
-    print("\n2. 模型推荐测试:")
-    for memory in [8, 16, 24, 32]:
-        recommended = manager.recommend_model(memory)
-        print(f"  {memory}GB显存推荐: {recommended}")
-    
+
+    # 测试模型发现（扫描文件系统）
+    print("\n1. 扫描已下载模型:")
+    discovered = manager.discover_models()
+    print(f"   发现 {len(discovered)} 个模型:")
+    for name, info in discovered.items():
+        print(f"     - {name}: {info.description} ({info.size_gb} GB)")
+
+    # 测试获取所有模型
+    print("\n2. 获取所有模型信息:")
+    models = manager.get_all_models()
+    for model in models:
+        print(f"   {model.name}: {model.description}")
+
     # 测试磁盘使用
     print("\n3. 磁盘使用情况:")
     usage = manager.get_disk_usage()
     print(f"  总大小: {usage['total_size_gb']} GB")
     print(f"  模型数量: {usage['model_count']}")
-    
+
     print("\n" + "=" * 60)

@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-状态恢复脚本 - 找到并确认世界页面状态
-"""
+鐘舵€佹仮澶嶈剼鏈?- 鎵惧埌骞剁‘璁や笘鐣岄〉闈㈢姸鎬?"""
 
 import subprocess, time, cv2, numpy as np, sys, os
 from pathlib import Path
@@ -40,7 +39,7 @@ def detect_golden(img):
     return len([c for c in contours if cv2.contourArea(c) > 30])
 
 def classify_page(gold_count):
-    """基于金色元素数量判断页面类型"""
+    """鍩轰簬閲戣壊鍏冪礌鏁伴噺鍒ゆ柇椤甸潰绫诲瀷"""
     if gold_count < 10:
         return "unknown_low"
     elif 10 <= gold_count <= 18:
@@ -54,140 +53,127 @@ def classify_page(gold_count):
 
 def find_world_state(max_attempts=30):
     """
-    尝试找到世界页面状态
-    
-    策略：
-    1. 连续按返回键，监控金色元素变化
-    2. 一旦金色在 16-24 范围内，确认为世界页面
-    3. 如果金色>30，说明在菜单/面板中，继续按返回
-    4. 如果金色<10，说明在异常状态，继续按返回
-    """
+    灏濊瘯鎵惧埌涓栫晫椤甸潰鐘舵€?    
+    绛栫暐锛?    1. 杩炵画鎸夎繑鍥為敭锛岀洃鎺ч噾鑹插厓绱犲彉鍖?    2. 涓€鏃﹂噾鑹插湪 16-24 鑼冨洿鍐咃紝纭涓轰笘鐣岄〉闈?    3. 濡傛灉閲戣壊>30锛岃鏄庡湪鑿滃崟/闈㈡澘涓紝缁х画鎸夎繑鍥?    4. 濡傛灉閲戣壊<10锛岃鏄庡湪寮傚父鐘舵€侊紝缁х画鎸夎繑鍥?    """
     print("\n" + "="*70)
-    print("状态恢复：寻找世界页面")
+    print("鐘舵€佹仮澶嶏細瀵绘壘涓栫晫椤甸潰")
     print("="*70)
     
     history = []
     
     for i in range(max_attempts):
-        # 截图
+        # 鎴浘
         img = screencap()
         if img is None:
-            print(f"[{i:2d}] 截图失败")
+            print(f"[{i:2d}] 鎴浘澶辫触")
             continue
         
         gold = detect_golden(img)
         page = classify_page(gold)
         
         history.append((i, gold, page))
-        marker = "★" if page == "world" else " "
-        print(f"{marker} [{i:2d}] 金色={gold:3d} → {page}")
+        marker = "鈽? if page == "world" else " "
+        print(f"{marker} [{i:2d}] 閲戣壊={gold:3d} 鈫?{page}")
         
-        # 找到世界页面
+        # 鎵惧埌涓栫晫椤甸潰
         if page == "world":
-            print(f"\n[成功] 在第{i+1}次尝试后找到世界页面")
+            print(f"\n[鎴愬姛] 鍦ㄧ{i+1}娆″皾璇曞悗鎵惧埌涓栫晫椤甸潰")
             return True, i, gold, img
         
-        # 决定下一步操作
-        if gold > 30:
-            # 在菜单/面板中，按返回
-            print(f"       → 按返回 (在菜单/面板中)")
+        # 鍐冲畾涓嬩竴姝ユ搷浣?        if gold > 30:
+            # 鍦ㄨ彍鍗?闈㈡澘涓紝鎸夎繑鍥?            print(f"       鈫?鎸夎繑鍥?(鍦ㄨ彍鍗?闈㈡澘涓?")
             back()
             time.sleep(0.5)
         elif gold < 10:
-            # 异常状态，按返回
-            print(f"       → 按返回 (异常状态)")
+            # 寮傚父鐘舵€侊紝鎸夎繑鍥?            print(f"       鈫?鎸夎繑鍥?(寮傚父鐘舵€?")
             back()
             time.sleep(0.5)
         elif page == "exit_dialog":
-            # 退出对话框，点击取消按钮
-            print(f"       → 点击取消按钮 (退出对话框)")
+            # 閫€鍑哄璇濇锛岀偣鍑诲彇娑堟寜閽?            print(f"       鈫?鐐瑰嚮鍙栨秷鎸夐挳 (閫€鍑哄璇濇)")
             tap(600, 750)
             time.sleep(1.5)
         else:
-            # 其他状态，按返回
-            print(f"       → 按返回")
+            # 鍏朵粬鐘舵€侊紝鎸夎繑鍥?            print(f"       鈫?鎸夎繑鍥?)
             back()
             time.sleep(0.5)
     
-    print(f"\n[失败] {max_attempts}次尝试后仍未找到世界页面")
-    print("\n历史:")
+    print(f"\n[澶辫触] {max_attempts}娆″皾璇曞悗浠嶆湭鎵惧埌涓栫晫椤甸潰")
+    print("\n鍘嗗彶:")
     for idx, gold, page in history[-10:]:
-        print(f"  [{idx:2d}] 金色={gold:3d} → {page}")
+        print(f"  [{idx:2d}] 閲戣壊={gold:3d} 鈫?{page}")
     
     return False, max_attempts, history[-1][1] if history else 0, None
 
 def verify_world_state(img):
-    """验证是否真的是世界页面"""
+    """楠岃瘉鏄惁鐪熺殑鏄笘鐣岄〉闈?""
     if img is None:
         return False
     
     gold = detect_golden(img)
     
-    # 世界页面特征：
-    # 1. 金色元素 16-24 个
-    # 2. 点击右上角任务图标应该打开面板（金色增加）
+    # 涓栫晫椤甸潰鐗瑰緛锛?    # 1. 閲戣壊鍏冪礌 16-24 涓?    # 2. 鐐瑰嚮鍙充笂瑙掍换鍔″浘鏍囧簲璇ユ墦寮€闈㈡澘锛堥噾鑹插鍔狅級
     
-    print(f"\n[验证] 当前金色={gold}")
+    print(f"\n[楠岃瘉] 褰撳墠閲戣壊={gold}")
     
     if not (16 <= gold <= 24):
-        print(f"[验证失败] 金色{gold}不在世界页面范围 (16-24)")
+        print(f"[楠岃瘉澶辫触] 閲戣壊{gold}涓嶅湪涓栫晫椤甸潰鑼冨洿 (16-24)")
         return False
     
-    # 尝试点击任务图标
-    print("[验证] 点击任务图标 (860, 80)...")
+    # 灏濊瘯鐐瑰嚮浠诲姟鍥炬爣
+    print("[楠岃瘉] 鐐瑰嚮浠诲姟鍥炬爣 (860, 80)...")
     before = img
     tap(860, 80)
     time.sleep(2)
     
     after = screencap()
     if after is None:
-        print("[验证失败] 截图失败")
+        print("[楠岃瘉澶辫触] 鎴浘澶辫触")
         return False
     
     gold_after = detect_golden(after)
-    print(f"[验证] 点击后金色={gold_after} (变化={gold_after-gold:+d})")
+    print(f"[楠岃瘉] 鐐瑰嚮鍚庨噾鑹?{gold_after} (鍙樺寲={gold_after-gold:+d})")
     
-    # 恢复
+    # 鎭㈠
     back()
     time.sleep(0.5)
     
-    # 判断：如果金色增加>=3，说明打开了面板
-    if gold_after - gold >= 3:
-        print("[验证通过] 任务图标点击有效")
+    # 鍒ゆ柇锛氬鏋滈噾鑹插鍔?=3锛岃鏄庢墦寮€浜嗛潰鏉?    if gold_after - gold >= 3:
+        print("[楠岃瘉閫氳繃] 浠诲姟鍥炬爣鐐瑰嚮鏈夋晥")
         return True
     else:
-        print(f"[验证警告] 任务图标点击后金色变化小 ({gold_after-gold:+d})")
+        print(f"[楠岃瘉璀﹀憡] 浠诲姟鍥炬爣鐐瑰嚮鍚庨噾鑹插彉鍖栧皬 ({gold_after-gold:+d})")
         return False
 
 def main():
     print("\n" + "="*70)
-    print("状态恢复诊断")
+    print("鐘舵€佹仮澶嶈瘖鏂?)
     print("="*70)
     
-    # 寻找世界页面
+    # 瀵绘壘涓栫晫椤甸潰
     success, attempts, gold, img = find_world_state()
     
     if success:
-        # 验证
+        # 楠岃瘉
         is_valid = verify_world_state(img)
         
         if is_valid:
-            print(f"\n[✓] 成功找到并验证世界页面")
-            print(f"    尝试次数：{attempts}")
-            print(f"    金色元素：{gold}")
+            print(f"\n[鉁揮 鎴愬姛鎵惧埌骞堕獙璇佷笘鐣岄〉闈?)
+            print(f"    灏濊瘯娆℃暟锛歿attempts}")
+            print(f"    閲戣壊鍏冪礌锛歿gold}")
             return 0
         else:
-            print(f"\n[⚠] 找到疑似世界页面，但验证未通过")
+            print(f"\n[鈿燷 鎵惧埌鐤戜技涓栫晫椤甸潰锛屼絾楠岃瘉鏈€氳繃")
             return 1
     else:
-        print(f"\n[✗] 无法找到世界页面")
+        print(f"\n[鉁梋 鏃犳硶鎵惧埌涓栫晫椤甸潰")
         return 1
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as e:
-        print(f"\n[错误] {e}")
+        print(f"\n[閿欒] {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+

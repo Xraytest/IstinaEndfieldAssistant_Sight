@@ -1,19 +1,19 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-使用 9b 模型执行标准流的便捷脚本
+浣跨敤 9b 妯″瀷鎵ц鏍囧噯娴佺殑渚挎嵎鑴氭湰
 """
 import sys
 import os
 from pathlib import Path
 
-# 设置路径
+# 璁剧疆璺緞
 from _path_setup import PROJECT_ROOT as _PROJECT_ROOT, SRC_DIR as _SRC_DIR, ensure_path
 ensure_path()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = PROJECT_ROOT / "src"
 
-# 修改标准流引擎的 Local2BEngine 以支持 9b 模型
+# 淇敼鏍囧噯娴佸紩鎿庣殑 Local2BEngine 浠ユ敮鎸?9b 妯″瀷
 import importlib.util
 spec = importlib.util.spec_from_file_location(
     "standard_flow_engine",
@@ -21,15 +21,15 @@ spec = importlib.util.spec_from_file_location(
 )
 sfe_module = importlib.util.module_from_spec(spec)
 
-# 覆盖 Local2BEngine._find_model 方法
+# 瑕嗙洊 Local2BEngine._find_model 鏂规硶
 original_find_model = None
 
 def find_9b_model():
-    """查找 9b 模型"""
+    """鏌ユ壘 9b 妯″瀷"""
     from pathlib import Path
     from typing import Optional, Tuple
     
-    # 优先查找 9b Q8_0 模型
+    # 浼樺厛鏌ユ壘 9b Q8_0 妯″瀷
     model_paths = [
         PROJECT_ROOT / "models" / "unsloth" / "Qwen3___5-9B-GGUF" / "Qwen3.5-9B-Q8_0.gguf",
         PROJECT_ROOT / "models" / "qwen3.5-9b-fp16" / "Qwen3.5-9B-FP16.gguf",
@@ -38,10 +38,10 @@ def find_9b_model():
     
     for model_path in model_paths:
         if model_path.exists():
-            print(f"[9B] 找到模型：{model_path}")
+            print(f"[9B] 鎵惧埌妯″瀷锛歿model_path}")
             return "qwen3.5-9b-q8_0", str(model_path)
     
-    # 如果没有找到 9b，尝试使用 ModelManager
+    # 濡傛灉娌℃湁鎵惧埌 9b锛屽皾璇曚娇鐢?ModelManager
     try:
         from core.capability.local_inference.model_manager import ModelManager
         manager = ModelManager()
@@ -49,49 +49,48 @@ def find_9b_model():
         for info in available:
             if "9b" in info.name.lower() or "9B" in info.parameters:
                 if info.local_path and Path(info.local_path).exists():
-                    print(f"[9B] 通过 ModelManager 找到：{info.name} @ {info.local_path}")
+                    print(f"[9B] 閫氳繃 ModelManager 鎵惧埌锛歿info.name} @ {info.local_path}")
                     return info.name, str(info.local_path)
     except Exception as e:
-        print(f"[WARN] ModelManager 查找失败：{e}")
+        print(f"[WARN] ModelManager 鏌ユ壘澶辫触锛歿e}")
     
     return None, None
 
-# 直接修改标准流引擎中的 Local2BEngine 类
-sys.modules['standard_flow_engine_prep'] = sfe_module
+# 鐩存帴淇敼鏍囧噯娴佸紩鎿庝腑鐨?Local2BEngine 绫?sys.modules['standard_flow_engine_prep'] = sfe_module
 
-# 现在执行标准流
-from standard_flow_engine import main as sfe_main
+# 鐜板湪鎵ц鏍囧噯娴?from standard_flow_engine import main as sfe_main
 import argparse
 
-# 保存原始 sys.argv
+# 淇濆瓨鍘熷 sys.argv
 original_argv = sys.argv.copy()
 
 try:
-    # 修改命令行参数，添加 --model 参数支持
-    # 这里我们直接调用 main，但通过环境变量指定模型
+    # 淇敼鍛戒护琛屽弬鏁帮紝娣诲姞 --model 鍙傛暟鏀寔
+    # 杩欓噷鎴戜滑鐩存帴璋冪敤 main锛屼絾閫氳繃鐜鍙橀噺鎸囧畾妯″瀷
     os.environ['STANDARD_FLOW_MODEL'] = 'qwen3.5-9b-q8_0'
     
-    # 使用默认参数执行 daily_quest 流程
-    # 设备：192.168.1.12:16512
+    # 浣跨敤榛樿鍙傛暟鎵ц daily_quest 娴佺▼
+    # 璁惧锛?92.168.1.12:16512
     sys.argv = [
         'run_flow_9b.py',
         '--flow', 'daily_quest',
         '--device', '192.168.1.12:16512',
         '--local-only',
-        '--skip-analysis',  # 跳过分析，只执行
+        '--skip-analysis',  # 璺宠繃鍒嗘瀽锛屽彧鎵ц
     ]
     
     print("=" * 60)
-    print("标准流执行引擎 - 9B 模型模式")
+    print("鏍囧噯娴佹墽琛屽紩鎿?- 9B 妯″瀷妯″紡")
     print("=" * 60)
-    print(f"流程：daily_quest")
-    print(f"设备：192.168.1.12:16512")
-    print(f"模型：qwen3.5-9b-q8_0")
-    print(f"记录画面：是")
+    print(f"娴佺▼锛歞aily_quest")
+    print(f"璁惧锛?92.168.1.12:16512")
+    print(f"妯″瀷锛歲wen3.5-9b-q8_0")
+    print(f"璁板綍鐢婚潰锛氭槸")
     print("=" * 60)
     
-    # 执行
+    # 鎵ц
     sfe_main()
     
 finally:
     sys.argv = original_argv
+

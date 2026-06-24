@@ -1,12 +1,8 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-登出对话框检测器 - 多特征融合方案
-
-不依赖 PaddleOCR，使用：
-1. 颜色检测（红色警告图标）
-2. 布局分析（对话框特征）
-3. 模板匹配（确认/取消按钮）
-"""
+鐧诲嚭瀵硅瘽妗嗘娴嬪櫒 - 澶氱壒寰佽瀺鍚堟柟妗?
+涓嶄緷璧?PaddleOCR锛屼娇鐢細
+1. 棰滆壊妫€娴嬶紙绾㈣壊璀﹀憡鍥炬爣锛?2. 甯冨眬鍒嗘瀽锛堝璇濇鐗瑰緛锛?3. 妯℃澘鍖归厤锛堢‘璁?鍙栨秷鎸夐挳锛?"""
 
 import sys
 import os
@@ -18,7 +14,7 @@ ensure_path()
 
 def detect_logout_dialog(screenshot_path: str) -> dict:
     """
-    检测登出对话框
+    妫€娴嬬櫥鍑哄璇濇
     
     Returns:
         dict: {
@@ -46,17 +42,17 @@ def detect_logout_dialog(screenshot_path: str) -> dict:
         }
     }
     
-    # 读取截图
+    # 璇诲彇鎴浘
     img = cv2.imread(screenshot_path)
     if img is None:
         return result
     
     height, width = img.shape[:2]
     
-    # 1. 颜色检测 - 红色警告图标
+    # 1. 棰滆壊妫€娴?- 绾㈣壊璀﹀憡鍥炬爣
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     
-    # 红色范围
+    # 绾㈣壊鑼冨洿
     lower_red1 = np.array([0, 100, 100])
     upper_red1 = np.array([15, 255, 255])
     mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
@@ -69,59 +65,52 @@ def detect_logout_dialog(screenshot_path: str) -> dict:
     red_pixels = cv2.countNonZero(red_mask)
     red_ratio = red_pixels / (width * height)
     
-    # 登出对话框通常有明显的红色警告图标
+    # 鐧诲嚭瀵硅瘽妗嗛€氬父鏈夋槑鏄剧殑绾㈣壊璀﹀憡鍥炬爣
     result["features"]["has_red_warning"] = red_ratio > 0.001
     
-    # 2. 布局分析 - 检测对话框特征
+    # 2. 甯冨眬鍒嗘瀽 - 妫€娴嬪璇濇鐗瑰緛
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
-    # 检测半透明黑色覆盖层
-    dark_threshold = 40
+    # 妫€娴嬪崐閫忔槑榛戣壊瑕嗙洊灞?    dark_threshold = 40
     dark_mask = cv2.inRange(gray, 0, dark_threshold)
     dark_pixels = cv2.countNonZero(dark_mask)
     dark_ratio = dark_pixels / (width * height)
     
-    # 登出对话框有大的半透明黑色背景
+    # 鐧诲嚭瀵硅瘽妗嗘湁澶х殑鍗婇€忔槑榛戣壊鑳屾櫙
     result["features"]["dark_overlay"] = dark_ratio > 0.1
     
-    # 3. 检测对话框边框（矩形轮廓）
+    # 3. 妫€娴嬪璇濇杈规锛堢煩褰㈣疆寤擄級
     edges = cv2.Canny(gray, 50, 150)
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    # 查找大的矩形轮廓（对话框）
-    dialog_found = False
+    # 鏌ユ壘澶х殑鐭╁舰杞粨锛堝璇濇锛?    dialog_found = False
     for contour in contours:
         area = cv2.contourArea(contour)
-        if area > 50000:  # 大的轮廓
+        if area > 50000:  # 澶х殑杞粨
             peri = cv2.arcLength(contour, True)
             approx = cv2.approxPolyDP(contour, 0.02 * peri, True)
-            if len(approx) == 4:  # 四边形
-                x, y, w, h = cv2.boundingRect(approx)
-                # 对话框通常在屏幕中央
-                if width * 0.3 < x < width * 0.7 and height * 0.2 < y < height * 0.6:
+            if len(approx) == 4:  # 鍥涜竟褰?                x, y, w, h = cv2.boundingRect(approx)
+                # 瀵硅瘽妗嗛€氬父鍦ㄥ睆骞曚腑澶?                if width * 0.3 < x < width * 0.7 and height * 0.2 < y < height * 0.6:
                     dialog_found = True
                     break
     
     result["features"]["has_dialog_layout"] = dialog_found
     
-    # 4. 检测确认/取消按钮（通常在对话框底部）
-    # 按钮特征：矩形、有文字、在对话框底部
-    button_area = gray[int(height * 0.5):int(height * 0.8), :]
+    # 4. 妫€娴嬬‘璁?鍙栨秷鎸夐挳锛堥€氬父鍦ㄥ璇濇搴曢儴锛?    # 鎸夐挳鐗瑰緛锛氱煩褰€佹湁鏂囧瓧銆佸湪瀵硅瘽妗嗗簳閮?    button_area = gray[int(height * 0.5):int(height * 0.8), :]
     button_edges = cv2.Canny(button_area, 100, 200)
     button_contours, _ = cv2.findContours(button_edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     button_count = 0
     for contour in button_contours:
         area = cv2.contourArea(contour)
-        if 5000 < area < 50000:  # 按钮大小
+        if 5000 < area < 50000:  # 鎸夐挳澶у皬
             x, y, w, h = cv2.boundingRect(contour)
-            if 50 < w < 300 and 30 < h < 100:  # 按钮比例
+            if 50 < w < 300 and 30 < h < 100:  # 鎸夐挳姣斾緥
                 button_count += 1
     
-    # 登出对话框通常有 2 个按钮（确认/取消）
-    result["features"]["has_confirm_cancel"] = button_count >= 2
+    # 鐧诲嚭瀵硅瘽妗嗛€氬父鏈?2 涓寜閽紙纭/鍙栨秷锛?    result["features"]["has_confirm_cancel"] = button_count >= 2
     
-    # 综合判断
+    # 缁煎悎鍒ゆ柇
     score = 0.0
     if result["features"]["has_red_warning"]:
         score += 0.3
@@ -141,33 +130,34 @@ def detect_logout_dialog(screenshot_path: str) -> dict:
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="登出对话框检测器")
-    parser.add_argument("--image", type=str, required=True, help="截图路径")
+    parser = argparse.ArgumentParser(description="鐧诲嚭瀵硅瘽妗嗘娴嬪櫒")
+    parser.add_argument("--image", type=str, required=True, help="鎴浘璺緞")
     args = parser.parse_args()
     
     print("\n" + "="*60)
-    print("登出对话框检测")
+    print("鐧诲嚭瀵硅瘽妗嗘娴?)
     print("="*60)
-    print(f"截图：{args.image}")
+    print(f"鎴浘锛歿args.image}")
     
     result = detect_logout_dialog(args.image)
     
-    print("\n检测结果:")
-    print(f"  检测到登出对话框：{'✓' if result['detected'] else '✗'}")
-    print(f"  置信度：{result['confidence']:.2f}")
+    print("\n妫€娴嬬粨鏋?")
+    print(f"  妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭細{'鉁? if result['detected'] else '鉁?}")
+    print(f"  缃俊搴︼細{result['confidence']:.2f}")
     
-    print("\n特征分析:")
+    print("\n鐗瑰緛鍒嗘瀽:")
     for feature, value in result["features"].items():
-        status = "✓" if value else "✗"
+        status = "鉁? if value else "鉁?
         print(f"  {feature}: {status}")
     
     if result["detected"]:
-        print("\n[警告] 检测到登出对话框！需要处理。")
+        print("\n[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紒闇€瑕佸鐞嗐€?)
         return 1
     else:
-        print("\n[正常] 未检测到登出对话框。")
+        print("\n[姝ｅ父] 鏈娴嬪埌鐧诲嚭瀵硅瘽妗嗐€?)
         return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

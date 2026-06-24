@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-测试动作执行 - 验证标准流引擎能否正确执行ADB命令
+娴嬭瘯鍔ㄤ綔鎵ц - 楠岃瘉鏍囧噯娴佸紩鎿庤兘鍚︽纭墽琛孉DB鍛戒护
 """
 
 import sys
@@ -13,23 +13,23 @@ from scripts.standard_flow_engine import FlowConfig, Local2BEngine, FlowRecorder
 from core.capability.adb_utils import ADB
 
 def test_adb_connection():
-    """测试ADB连接"""
+    """娴嬭瘯ADB杩炴帴"""
     print("=" * 60)
-    print("测试1: ADB连接")
+    print("娴嬭瘯1: ADB杩炴帴")
     print("=" * 60)
 
     adb = ADB()
     connected = adb.check_connection()
-    print(f"ADB连接状态: {'✓ 已连接' if connected else '✗ 未连接'}")
+    print(f"ADB杩炴帴鐘舵€? {'鉁?宸茶繛鎺? if connected else '鉁?鏈繛鎺?}")
 
     if connected:
-        print(f"设备序列: {adb.serial}")
+        print(f"璁惧搴忓垪: {adb.serial}")
     return connected
 
 def test_action_mapping():
-    """测试动作映射"""
+    """娴嬭瘯鍔ㄤ綔鏄犲皠"""
     print("\n" + "=" * 60)
-    print("测试2: 动作执行逻辑")
+    print("娴嬭瘯2: 鍔ㄤ綔鎵ц閫昏緫")
     print("=" * 60)
 
     config = FlowConfig()
@@ -38,74 +38,75 @@ def test_action_mapping():
     recorder = FlowRecorder(session_name="action_test", record_video=False)
     executor = StandardFlowExecutor(config, engine, recorder)
 
-    # 模拟执行一个tap动作
-    print("\n模拟执行tap动作:")
+    # 妯℃嫙鎵ц涓€涓猼ap鍔ㄤ綔
+    print("\n妯℃嫙鎵цtap鍔ㄤ綔:")
     test_data = {"action": "tap", "coords": [500, 1000]}
     success, error, _ = executor._execute_action("tap", test_data)
-    print(f"  结果: {'成功' if success else '失败'}")
+    print(f"  缁撴灉: {'鎴愬姛' if success else '澶辫触'}")
     if error:
-        print(f"  错误: {error}")
+        print(f"  閿欒: {error}")
 
-    # 模拟执行back动作
-    print("\n模拟执行back动作:")
+    # 妯℃嫙鎵цback鍔ㄤ綔
+    print("\n妯℃嫙鎵цback鍔ㄤ綔:")
     success, error, _ = executor._execute_action("back", {})
-    print(f"  结果: {'成功' if success else '失败'}")
+    print(f"  缁撴灉: {'鎴愬姛' if success else '澶辫触'}")
     if error:
-        print(f"  错误: {error}")
+        print(f"  閿欒: {error}")
 
-    # 模拟执行claim动作
-    print("\n模拟执行claim动作:")
+    # 妯℃嫙鎵цclaim鍔ㄤ綔
+    print("\n妯℃嫙鎵цclaim鍔ㄤ綔:")
     success, error, _ = executor._execute_action("claim", {})
-    print(f"  结果: {'成功' if success else '失败'}")
+    print(f"  缁撴灉: {'鎴愬姛' if success else '澶辫触'}")
     if error:
-        print(f"  错误: {error}")
+        print(f"  閿欒: {error}")
 
 def test_json_parsing():
-    """测试JSON解析"""
+    """娴嬭瘯JSON瑙ｆ瀽"""
     print("\n" + "=" * 60)
-    print("测试3: JSON解析")
+    print("娴嬭瘯3: JSON瑙ｆ瀽")
     print("=" * 60)
 
     executor = StandardFlowExecutor(FlowConfig(), Local2BEngine())
 
-    # 测试正常JSON
+    # 娴嬭瘯姝ｅ父JSON
     test_json = '{"action": "tap", "coords": [100, 200]}'
     import json
     parsed = executor._extract_json(test_json)
-    print(f"正常JSON: {parsed}")
+    print(f"姝ｅ父JSON: {parsed}")
 
-    # 测试带think标签的JSON
-    test_with_think = '''<think>分析中...</think>
+    # 娴嬭瘯甯hink鏍囩鐨凧SON
+    test_with_think = '''<think>鍒嗘瀽涓?..</think>
     {"action": "back", "result": "success"}'''
     cleaned = re.sub(r'<think>[\s\S]*?</think>', '', test_with_think).strip()
     parsed = executor._extract_json(cleaned)
-    print(f"带think标签: {parsed}")
+    print(f"甯hink鏍囩: {parsed}")
 
 def main():
-    print("动作执行测试\n")
+    print("鍔ㄤ綔鎵ц娴嬭瘯\n")
 
-    # 测试ADB连接
+    # 娴嬭瘯ADB杩炴帴
     if not test_adb_connection():
-        print("\n[ERROR] ADB未连接，请检查设备")
+        print("\n[ERROR] ADB鏈繛鎺ワ紝璇锋鏌ヨ澶?)
         return 1
 
-    # 测试动作映射
+    # 娴嬭瘯鍔ㄤ綔鏄犲皠
     test_action_mapping()
 
-    # 测试JSON解析
+    # 娴嬭瘯JSON瑙ｆ瀽
     import re
     test_json_parsing()
 
     print("\n" + "=" * 60)
-    print("测试完成")
+    print("娴嬭瘯瀹屾垚")
     print("=" * 60)
 
-    print("\n下一步:")
-    print("1. 运行实际流程: python scripts/standard_flow_engine.py --flow daily_quest --no-record")
-    print("2. 观察ADB命令是否被执行（检查设备屏幕是否响应）")
-    print("3. 查看cache目录下的截图确认记录")
+    print("\n涓嬩竴姝?")
+    print("1. 杩愯瀹為檯娴佺▼: python scripts/standard_flow_engine.py --flow daily_quest --no-record")
+    print("2. 瑙傚療ADB鍛戒护鏄惁琚墽琛岋紙妫€鏌ヨ澶囧睆骞曟槸鍚﹀搷搴旓級")
+    print("3. 鏌ョ湅cache鐩綍涓嬬殑鎴浘纭璁板綍")
 
     return 0
 
 if __name__ == "__main__":
     sys.exit(main())
+

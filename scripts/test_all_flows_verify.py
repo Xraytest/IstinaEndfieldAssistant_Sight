@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-全标准流验证 — 逐个执行，每流之间恢复到world
+鍏ㄦ爣鍑嗘祦楠岃瘉 鈥?閫愪釜鎵ц锛屾瘡娴佷箣闂存仮澶嶅埌world
 
-验证标准：每流至少1个关键步骤触发画面变化(>100K像素)即为通过
+楠岃瘉鏍囧噯锛氭瘡娴佽嚦灏?涓叧閿楠よЕ鍙戠敾闈㈠彉鍖?>100K鍍忕礌)鍗充负閫氳繃
 """
 
 import subprocess, time, cv2, numpy as np, json, sys
@@ -50,7 +50,7 @@ def screen_change(before, after, threshold=50000):
 
 
 def recover_to_world(analyzer):
-    """恢复到world页面"""
+    """鎭㈠鍒皐orld椤甸潰"""
     for attempt in range(30):
         img = screencap()
         if img is None:
@@ -95,7 +95,7 @@ def resolve_coords(raw, nav):
 
 
 def run_one_flow(flow_name: str) -> bool:
-    """执行单个流，至少1个关键步骤有画面变化即成功"""
+    """鎵ц鍗曚釜娴侊紝鑷冲皯1涓叧閿楠ゆ湁鐢婚潰鍙樺寲鍗虫垚鍔?""
     flow, nav = load_flow(flow_name)
     if not flow:
         return False
@@ -162,13 +162,13 @@ def run_one_flow(flow_name: str) -> bool:
         elif action == "wait":
             time.sleep(wait_s)
 
-    return max_change > 100000  # 至少100K像素变化
+    return max_change > 100000  # 鑷冲皯100K鍍忕礌鍙樺寲
 
 
 def main():
     analyzer = HighPrecisionPageAnalyzer()
     print("=" * 60)
-    print("全标准流验证（10流独立测试，流间world恢复）")
+    print("鍏ㄦ爣鍑嗘祦楠岃瘉锛?0娴佺嫭绔嬫祴璇曪紝娴侀棿world鎭㈠锛?)
     print("=" * 60)
 
     results = {}
@@ -181,24 +181,24 @@ def main():
         print(f"\n{'-'*40}")
         print(f"recover world -> {flow_name}...")
 
-        # 恢复world
+        # 鎭㈠world
         if not recover_to_world(analyzer):
             print(f"  [FAIL] cannot recover to world")
             results[flow_name] = False
             continue
 
-        # 执行流
+        # 鎵ц娴?
         passed = run_one_flow(flow_name)
         status = "PASS" if passed else "FAIL"
         results[flow_name] = passed
         print(f"  [{status}] {flow_name}")
 
-        # 等待稳定
+        # 绛夊緟绋冲畾
         time.sleep(1)
 
-    # 总结
+    # 鎬荤粨
     print("\n" + "=" * 60)
-    print("验证总结")
+    print("楠岃瘉鎬荤粨")
     print("=" * 60)
     passed_count = sum(1 for v in results.values() if v)
     for name, ok in results.items():
@@ -211,3 +211,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

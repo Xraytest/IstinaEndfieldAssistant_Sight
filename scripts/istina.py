@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-IstinaEndfieldAssistant_Sight — CLI 入口（薄包装）
+IstinaEndfieldAssistant_Sight 鈥?CLI 鍏ュ彛锛堣杽鍖呰锛?
 
-委托给 src/cli/istina.py 执行。
+濮旀墭缁?src/cli/istina.py 鎵ц銆?
 """
 import sys
 from pathlib import Path
@@ -15,3 +15,4 @@ from cli.istina import main
 
 if __name__ == "__main__":
     sys.exit(main())
+

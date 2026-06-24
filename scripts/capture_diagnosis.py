@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-手动截图诊断 - 保存当前画面以便人工分析
+鎵嬪姩鎴浘璇婃柇 - 淇濆瓨褰撳墠鐢婚潰浠ヤ究浜哄伐鍒嗘瀽
 """
 
 import subprocess, time, cv2, numpy as np, sys, os
@@ -40,32 +40,30 @@ def detect_golden(img):
 
 def main():
     print("\n" + "="*70)
-    print("手动截图诊断")
+    print("鎵嬪姩鎴浘璇婃柇")
     print("="*70)
     
-    # 确保在世界页面
-    print("\n[准备] 按返回键回到基础状态...")
+    # 纭繚鍦ㄤ笘鐣岄〉闈?    print("\n[鍑嗗] 鎸夎繑鍥為敭鍥炲埌鍩虹鐘舵€?..")
     for i in range(10):
         back()
         time.sleep(0.5)
     time.sleep(1)
     
-    # 截图 1：初始状态
-    print("\n[截图 1] 初始状态...")
+    # 鎴浘 1锛氬垵濮嬬姸鎬?    print("\n[鎴浘 1] 鍒濆鐘舵€?..")
     img1 = screencap()
     gold1, _ = detect_golden(img1)
-    print(f"  金色元素：{gold1}")
+    print(f"  閲戣壊鍏冪礌锛歿gold1}")
     cv2.imwrite(str(OUTPUT_DIR / '01_initial.png'), img1)
     
-    # 截图 2：点击任务图标前
-    print("\n[截图 2] 点击任务图标前...")
+    # 鎴浘 2锛氱偣鍑讳换鍔″浘鏍囧墠
+    print("\n[鎴浘 2] 鐐瑰嚮浠诲姟鍥炬爣鍓?..")
     time.sleep(0.5)
     img2 = screencap()
     gold2, golden2 = detect_golden(img2)
-    print(f"  金色元素：{gold2}")
+    print(f"  閲戣壊鍏冪礌锛歿gold2}")
     cv2.imwrite(str(OUTPUT_DIR / '02_before_tap.png'), img2)
     
-    # 在截图上标注金色元素位置
+    # 鍦ㄦ埅鍥句笂鏍囨敞閲戣壊鍏冪礌浣嶇疆
     img2_annotated = img2.copy()
     for i, cnt in enumerate(golden2):
         M = cv2.moments(cnt)
@@ -75,19 +73,19 @@ def main():
             cv2.circle(img2_annotated, (cx, cy), 5, (255, 0, 0), -1)
     cv2.imwrite(str(OUTPUT_DIR / '02_before_tap_annotated.png'), img2_annotated)
     
-    # 点击任务图标
-    print("\n[操作] 点击任务图标 (860, 80)...")
+    # 鐐瑰嚮浠诲姟鍥炬爣
+    print("\n[鎿嶄綔] 鐐瑰嚮浠诲姟鍥炬爣 (860, 80)...")
     tap(860, 80)
     time.sleep(3)
     
-    # 截图 3：点击后
-    print("\n[截图 3] 点击任务图标后...")
+    # 鎴浘 3锛氱偣鍑诲悗
+    print("\n[鎴浘 3] 鐐瑰嚮浠诲姟鍥炬爣鍚?..")
     img3 = screencap()
     gold3, golden3 = detect_golden(img3)
-    print(f"  金色元素：{gold3}")
+    print(f"  閲戣壊鍏冪礌锛歿gold3}")
     cv2.imwrite(str(OUTPUT_DIR / '03_after_tap_860_80.png'), img3)
     
-    # 标注
+    # 鏍囨敞
     img3_annotated = img3.copy()
     for i, cnt in enumerate(golden3):
         M = cv2.moments(cnt)
@@ -97,48 +95,48 @@ def main():
             cv2.circle(img3_annotated, (cx, cy), 5, (0, 255, 0), -1)
     cv2.imwrite(str(OUTPUT_DIR / '03_after_tap_860_80_annotated.png'), img3_annotated)
     
-    # 按返回
-    print("\n[操作] 按返回键...")
+    # 鎸夎繑鍥?    print("\n[鎿嶄綔] 鎸夎繑鍥為敭...")
     back()
     time.sleep(1)
     
-    # 截图 4：返回后
-    print("\n[截图 4] 按返回后...")
+    # 鎴浘 4锛氳繑鍥炲悗
+    print("\n[鎴浘 4] 鎸夎繑鍥炲悗...")
     img4 = screencap()
     gold4, _ = detect_golden(img4)
-    print(f"  金色元素：{gold4}")
+    print(f"  閲戣壊鍏冪礌锛歿gold4}")
     cv2.imwrite(str(OUTPUT_DIR / '04_after_back.png'), img4)
     
-    # 尝试点击其他位置
-    print("\n[操作] 点击菜单图标 (1392, 79)...")
+    # 灏濊瘯鐐瑰嚮鍏朵粬浣嶇疆
+    print("\n[鎿嶄綔] 鐐瑰嚮鑿滃崟鍥炬爣 (1392, 79)...")
     tap(1392, 79)
     time.sleep(3)
     
-    # 截图 5：点击菜单后
-    print("\n[截图 5] 点击菜单图标后...")
+    # 鎴浘 5锛氱偣鍑昏彍鍗曞悗
+    print("\n[鎴浘 5] 鐐瑰嚮鑿滃崟鍥炬爣鍚?..")
     img5 = screencap()
     gold5, _ = detect_golden(img5)
-    print(f"  金色元素：{gold5}")
+    print(f"  閲戣壊鍏冪礌锛歿gold5}")
     cv2.imwrite(str(OUTPUT_DIR / '05_after_tap_menu.png'), img5)
     
     print("\n" + "="*70)
-    print("截图完成")
+    print("鎴浘瀹屾垚")
     print("="*70)
-    print(f"\n截图保存在：{OUTPUT_DIR}")
-    print("\n请检查以下截图：")
-    print("  01_initial.png - 初始状态")
-    print("  02_before_tap.png - 点击任务图标前")
-    print("  02_before_tap_annotated.png - 标注金色元素")
-    print("  03_after_tap_860_80.png - 点击任务图标后")
-    print("  03_after_tap_860_80_annotated.png - 标注金色元素")
-    print("  04_after_back.png - 按返回后")
-    print("  05_after_tap_menu.png - 点击菜单后")
+    print(f"\n鎴浘淇濆瓨鍦細{OUTPUT_DIR}")
+    print("\n璇锋鏌ヤ互涓嬫埅鍥撅細")
+    print("  01_initial.png - 鍒濆鐘舵€?)
+    print("  02_before_tap.png - 鐐瑰嚮浠诲姟鍥炬爣鍓?)
+    print("  02_before_tap_annotated.png - 鏍囨敞閲戣壊鍏冪礌")
+    print("  03_after_tap_860_80.png - 鐐瑰嚮浠诲姟鍥炬爣鍚?)
+    print("  03_after_tap_860_80_annotated.png - 鏍囨敞閲戣壊鍏冪礌")
+    print("  04_after_back.png - 鎸夎繑鍥炲悗")
+    print("  05_after_tap_menu.png - 鐐瑰嚮鑿滃崟鍚?)
 
 if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(f"\n[错误] {e}")
+        print(f"\n[閿欒] {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+

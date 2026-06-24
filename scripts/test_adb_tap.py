@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""测试 ADB tap 点击任务图标"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""娴嬭瘯 ADB tap 鐐瑰嚮浠诲姟鍥炬爣"""
 import subprocess, time
 
 ADB = r"C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\adb\adb.exe"
@@ -12,39 +12,36 @@ def adb_tap(x, y):
 def adb_back():
     subprocess.run([ADB, "-s", DEVICE, "shell", "input", "keyevent", "4"], capture_output=True)
 
-# 先按返回回到世界
-print("[前置] 回到世界...")
+# 鍏堟寜杩斿洖鍥炲埌涓栫晫
+print("[鍓嶇疆] 鍥炲埌涓栫晫...")
 for _ in range(6):
     adb_back()
     time.sleep(0.3)
 time.sleep(2)
 
-# 测试多个坐标
-# MaaFw 扫描确认 y=40 有效 (MaaFw 1280x720 横屏)
-# 假设 ADB 也是 1280x720 横屏空间
+# 娴嬭瘯澶氫釜鍧愭爣
+# MaaFw 鎵弿纭 y=40 鏈夋晥 (MaaFw 1280x720 妯睆)
+# 鍋囪 ADB 涔熸槸 1280x720 妯睆绌洪棿
 test_coords = [
-    (570, 40),   # MaaFw 最佳
-    (570, 28),   # MaaFw 有效
-    (855, 60),   # 原配置 (假设 1080x1920)
-    (855, 40),   # 混合
-    (40, 570),   # 旋转？
-]
+    (570, 40),   # MaaFw 鏈€浣?    (570, 28),   # MaaFw 鏈夋晥
+    (855, 60),   # 鍘熼厤缃?(鍋囪 1080x1920)
+    (855, 40),   # 娣峰悎
+    (40, 570),   # 鏃嬭浆锛?]
 
-print("\n[测试] ADB tap 点击")
+print("\n[娴嬭瘯] ADB tap 鐐瑰嚮")
 for x, y in test_coords:
-    print(f"\n点击 ({x}, {y})...")
+    print(f"\n鐐瑰嚮 ({x}, {y})...")
     adb_tap(x, y)
     time.sleep(3)
     
-    # 截图检查
-    r = subprocess.run([ADB, "-s", DEVICE, "exec-out", "screencap", "-p"], capture_output=True, timeout=10)
+    # 鎴浘妫€鏌?    r = subprocess.run([ADB, "-s", DEVICE, "exec-out", "screencap", "-p"], capture_output=True, timeout=10)
     if r.returncode == 0 and len(r.stdout) > 1000:
-        print(f"  截图成功：{len(r.stdout)} bytes")
+        print(f"  鎴浘鎴愬姛锛歿len(r.stdout)} bytes")
     else:
-        print(f"  截图失败")
+        print(f"  鎴浘澶辫触")
     
-    # 按返回
-    adb_back()
+    # 鎸夎繑鍥?    adb_back()
     time.sleep(1)
 
-print("\n[完成]")
+print("\n[瀹屾垚]")
+

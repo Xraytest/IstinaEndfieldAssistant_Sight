@@ -1,15 +1,15 @@
-#!/usr/bin/env python
+﻿#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 # -*- coding: utf-8 -*-
 """
-端到端长任务链测试 - 真实环境验证
-测试目标：
-1. 确保游戏账号处于正常登录状态（无任何弹窗）
-2. 使用 CherryIN provider (qwen/qwen3.5-9b(free))
-3. 执行完整的 8 个任务链：launch_game, sell_product, credit_shopping, daily_rewards, weapon_upgrade, visit_friends, game_login, task_chain_execution
-4. 验证每个任务的实际目标是否达成（不仅仅是系统层面的成功）
-5. 监控心跳机制是否有效防止登录超时
-6. 特别关注武器升级任务是否能成功完成
-7. 生成详细的端到端测试报告
+绔埌绔暱浠诲姟閾炬祴璇?- 鐪熷疄鐜楠岃瘉
+娴嬭瘯鐩爣锛?
+1. 纭繚娓告垙璐﹀彿澶勪簬姝ｅ父鐧诲綍鐘舵€侊紙鏃犱换浣曞脊绐楋級
+2. 浣跨敤 CherryIN provider (qwen/qwen3.5-9b(free))
+3. 鎵ц瀹屾暣鐨?8 涓换鍔￠摼锛歭aunch_game, sell_product, credit_shopping, daily_rewards, weapon_upgrade, visit_friends, game_login, task_chain_execution
+4. 楠岃瘉姣忎釜浠诲姟鐨勫疄闄呯洰鏍囨槸鍚﹁揪鎴愶紙涓嶄粎浠呮槸绯荤粺灞傞潰鐨勬垚鍔燂級
+5. 鐩戞帶蹇冭烦鏈哄埗鏄惁鏈夋晥闃叉鐧诲綍瓒呮椂
+6. 鐗瑰埆鍏虫敞姝﹀櫒鍗囩骇浠诲姟鏄惁鑳芥垚鍔熷畬鎴?
+7. 鐢熸垚璇︾粏鐨勭鍒扮娴嬭瘯鎶ュ憡
 """
 
 import sys
@@ -20,97 +20,97 @@ import traceback
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 
-# 设置 UTF-8 编码输出
+# 璁剧疆 UTF-8 缂栫爜杈撳嚭
 if sys.platform == 'win32':
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
-# 添加项目路径
+# 娣诲姞椤圭洰璺緞
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
-# 8 个任务链配置
+# 8 涓换鍔￠摼閰嶇疆
 END_TO_END_TASKS = [
     {
         "id": "task_game_login",
-        "name": "游戏登录确认",
-        "category": "启动",
-        "description": "处理游戏启动时的自动登录确认界面",
+        "name": "娓告垙鐧诲綍纭",
+        "category": "鍚姩",
+        "description": "澶勭悊娓告垙鍚姩鏃剁殑鑷姩鐧诲綍纭鐣岄潰",
         "expected_success": True,
         "timeout": 180
     },
     {
         "id": "task_sell_product",
-        "name": "出售产品",
-        "category": "交易",
-        "description": "在交易站出售生产的产品，获取金币收益",
+        "name": "鍑哄敭浜у搧",
+        "category": "浜ゆ槗",
+        "description": "鍦ㄤ氦鏄撶珯鍑哄敭鐢熶骇鐨勪骇鍝侊紝鑾峰彇閲戝竵鏀剁泭",
         "expected_success": True,
         "timeout": 300
     },
     {
         "id": "task_credit_shopping",
-        "name": "积分购物",
-        "category": "商店",
-        "description": "使用积分在商店购买物品",
+        "name": "绉垎璐墿",
+        "category": "鍟嗗簵",
+        "description": "浣跨敤绉垎鍦ㄥ晢搴楄喘涔扮墿鍝?,
         "expected_success": True,
         "timeout": 300
     },
     {
         "id": "task_daily_rewards",
-        "name": "每日奖励领取",
-        "category": "日常",
-        "description": "领取每日各类奖励",
+        "name": "姣忔棩濂栧姳棰嗗彇",
+        "category": "鏃ュ父",
+        "description": "棰嗗彇姣忔棩鍚勭被濂栧姳",
         "expected_success": True,
         "timeout": 300
     },
     {
         "id": "task_weapon_upgrade",
-        "name": "武器升级",
-        "category": "强化",
-        "description": "升级武器装备，提升武器等级和属性",
+        "name": "姝﹀櫒鍗囩骇",
+        "category": "寮哄寲",
+        "description": "鍗囩骇姝﹀櫒瑁呭锛屾彁鍗囨鍣ㄧ瓑绾у拰灞炴€?,
         "expected_success": True,
         "timeout": 600,
-        "critical": True  # 特别关注此任务
+        "critical": True  # 鐗瑰埆鍏虫敞姝や换鍔?
     },
     {
         "id": "task_visit_friends",
-        "name": "访问好友",
-        "category": "社交",
-        "description": "访问好友列表中的好友，收集友情点和线索",
+        "name": "璁块棶濂藉弸",
+        "category": "绀句氦",
+        "description": "璁块棶濂藉弸鍒楄〃涓殑濂藉弸锛屾敹闆嗗弸鎯呯偣鍜岀嚎绱?,
         "expected_success": True,
         "timeout": 300
     },
     {
         "id": "task_crafting",
-        "name": "加工站生产",
-        "category": "生产",
-        "description": "在加工站进行产品生产",
+        "name": "鍔犲伐绔欑敓浜?,
+        "category": "鐢熶骇",
+        "description": "鍦ㄥ姞宸ョ珯杩涜浜у搧鐢熶骇",
         "expected_success": True,
         "timeout": 300
     },
     {
         "id": "task_delivery_jobs",
-        "name": "派送任务",
-        "category": "任务",
-        "description": "执行派送任务",
+        "name": "娲鹃€佷换鍔?,
+        "category": "浠诲姟",
+        "description": "鎵ц娲鹃€佷换鍔?,
         "expected_success": True,
         "timeout": 300
     }
 ]
 
-# 测试配置
+# 娴嬭瘯閰嶇疆
 TEST_CONFIG = {
-    "device_address": "127.0.0.1:16512",  # MuMu 模拟器
+    "device_address": "127.0.0.1:16512",  # MuMu 妯℃嫙鍣?
     "provider": "cherryin/qwen/qwen3.5-9b(free)",
     "output_dir": os.path.join(project_root, 'tests', 'test_output'),
     "report_file": "end_to_end_validation_report.md",
-    "heartbeat_interval": 120,  # 2 分钟心跳间隔
-    "max_retries_per_task": 2,  # 每个任务最大重试次数
-    "verify_actual_completion": True  # 验证实际完成效果
+    "heartbeat_interval": 120,  # 2 鍒嗛挓蹇冭烦闂撮殧
+    "max_retries_per_task": 2,  # 姣忎釜浠诲姟鏈€澶ч噸璇曟鏁?
+    "verify_actual_completion": True  # 楠岃瘉瀹為檯瀹屾垚鏁堟灉
 }
 
-# 测试状态记录
+# 娴嬭瘯鐘舵€佽褰?
 test_state = {
     "start_time": None,
     "end_time": None,
@@ -132,11 +132,11 @@ test_state = {
 
 
 def log_message(message, level="INFO", category="test"):
-    """日志输出"""
+    """鏃ュ織杈撳嚭"""
     timestamp = datetime.now().strftime("%H:%M:%S")
     print(f"[{timestamp}] [{level}] [{category}] {message}")
     
-    # 写入文件
+    # 鍐欏叆鏂囦欢
     os.makedirs(TEST_CONFIG['output_dir'], exist_ok=True)
     log_file = os.path.join(TEST_CONFIG['output_dir'], 'end_to_end_test.log')
     with open(log_file, 'a', encoding='utf-8') as f:
@@ -144,14 +144,14 @@ def log_message(message, level="INFO", category="test"):
 
 
 def save_test_state():
-    """保存测试状态"""
+    """淇濆瓨娴嬭瘯鐘舵€?""
     state_file = os.path.join(TEST_CONFIG['output_dir'], 'e2e_test_state.json')
     with open(state_file, 'w', encoding='utf-8') as f:
         json.dump(test_state, f, indent=2, ensure_ascii=False)
 
 
 class EndToEndTestRunner:
-    """端到端测试运行器"""
+    """绔埌绔祴璇曡繍琛屽櫒"""
     
     def __init__(self):
         self.components = {}
@@ -162,33 +162,33 @@ class EndToEndTestRunner:
         self.last_heartbeat_time = time.time()
         
     def initialize_components(self):
-        """初始化所有组件"""
-        log_message("初始化测试组件...", "INFO", "setup")
+        """鍒濆鍖栨墍鏈夌粍浠?""
+        log_message("鍒濆鍖栨祴璇曠粍浠?..", "INFO", "setup")
         
         try:
-            from 安卓相关.控制.touch.touch_manager import TouchManager
-            from 安卓相关.控制.adb_manager import ADBDeviceManager
-            from 安卓相关.图像传递.screen_capture import ScreenCapture
-            from 安卓相关.core.cloud.managers.execution_manager import ExecutionManager
-            from 安卓相关.core.cloud.managers.task_queue_manager import TaskQueueManager
-            from 安卓相关.core.cloud.task_manager import TaskManager
-            from 安卓相关.core.communication.communicator import ClientCommunicator
-            from 安卓相关.core.cloud.managers.auth_manager import AuthManager
-            from 安卓相关.core.cloud.managers.device_manager import DeviceManager
+            from 瀹夊崜鐩稿叧.鎺у埗.touch.touch_manager import TouchManager
+            from 瀹夊崜鐩稿叧.鎺у埗.adb_manager import ADBDeviceManager
+            from 瀹夊崜鐩稿叧.鍥惧儚浼犻€?screen_capture import ScreenCapture
+            from 瀹夊崜鐩稿叧.core.cloud.managers.execution_manager import ExecutionManager
+            from 瀹夊崜鐩稿叧.core.cloud.managers.task_queue_manager import TaskQueueManager
+            from 瀹夊崜鐩稿叧.core.cloud.task_manager import TaskManager
+            from 瀹夊崜鐩稿叧.core.communication.communicator import ClientCommunicator
+            from 瀹夊崜鐩稿叧.core.cloud.managers.auth_manager import AuthManager
+            from 瀹夊崜鐩稿叧.core.cloud.managers.device_manager import DeviceManager
             
-            # 加载配置
+            # 鍔犺浇閰嶇疆
             config_path = os.path.join(project_root, "config", "client_config.json")
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
-            # 初始化通信器
+            # 鍒濆鍖栭€氫俊鍣?
             communicator = ClientCommunicator(
                 host=config['server']['host'],
                 port=config['server']['port'],
                 password=config['communication']['password']
             )
             
-            # 初始化组件
+            # 鍒濆鍖栫粍浠?
             auth_manager = AuthManager(communicator, config)
             adb_path = os.path.join(project_root, config['adb']['path'])
             adb_manager = ADBDeviceManager(adb_path)
@@ -219,23 +219,23 @@ class EndToEndTestRunner:
                 'execution_manager': execution_manager
             }
             
-            log_message("组件初始化完成", "INFO", "setup")
+            log_message("缁勪欢鍒濆鍖栧畬鎴?, "INFO", "setup")
             return True
             
         except Exception as e:
-            log_message(f"组件初始化失败：{e}", "ERROR", "setup")
+            log_message(f"缁勪欢鍒濆鍖栧け璐ワ細{e}", "ERROR", "setup")
             traceback.print_exc()
             return False
     
     def login_user(self):
-        """用户登录"""
-        log_message("执行用户登录...", "INFO", "auth")
+        """鐢ㄦ埛鐧诲綍"""
+        log_message("鎵ц鐢ㄦ埛鐧诲綍...", "INFO", "auth")
         
         try:
             auth_manager = self.components['auth_manager']
             communicator = self.components['communicator']
             
-            # 尝试多个 arkpass 路径
+            # 灏濊瘯澶氫釜 arkpass 璺緞
             arkpass_paths = [
                 os.path.join(project_root, "cache", "testis.arkpass"),
                 'C:/Users/xray/.arkpass/default.arkpass',
@@ -244,7 +244,7 @@ class EndToEndTestRunner:
             
             for arkpass_path in arkpass_paths:
                 if os.path.exists(arkpass_path):
-                    log_message(f"使用 arkpass 文件：{arkpass_path}", "INFO", "auth")
+                    log_message(f"浣跨敤 arkpass 鏂囦欢锛歿arkpass_path}", "INFO", "auth")
                     result = auth_manager.login_with_arkpass(arkpass_path)
                     success = result[0] if isinstance(result, tuple) else result
                     message = result[1] if isinstance(result, tuple) else ""
@@ -252,11 +252,11 @@ class EndToEndTestRunner:
                     if success:
                         self.logged_in = True
                         communicator.set_logged_in(True)
-                        log_message("用户登录成功", "INFO", "auth")
+                        log_message("鐢ㄦ埛鐧诲綍鎴愬姛", "INFO", "auth")
                         return True
             
-            # 设置模拟登录状态（测试环境）
-            log_message("设置模拟登录状态", "INFO", "auth")
+            # 璁剧疆妯℃嫙鐧诲綍鐘舵€侊紙娴嬭瘯鐜锛?
+            log_message("璁剧疆妯℃嫙鐧诲綍鐘舵€?, "INFO", "auth")
             auth_manager.is_logged_in = True
             auth_manager.user_id = "test_user"
             auth_manager.session_id = "test_session"
@@ -265,8 +265,8 @@ class EndToEndTestRunner:
             return True
             
         except Exception as e:
-            log_message(f"登录异常：{e}", "WARN", "auth")
-            # 设置登录状态以继续测试
+            log_message(f"鐧诲綍寮傚父锛歿e}", "WARN", "auth")
+            # 璁剧疆鐧诲綍鐘舵€佷互缁х画娴嬭瘯
             auth_manager = self.components['auth_manager']
             auth_manager.is_logged_in = True
             auth_manager.user_id = "test_user"
@@ -275,8 +275,8 @@ class EndToEndTestRunner:
             return True
     
     def connect_device(self):
-        """连接设备"""
-        log_message(f"连接设备：{TEST_CONFIG['device_address']}", "INFO", "device")
+        """杩炴帴璁惧"""
+        log_message(f"杩炴帴璁惧锛歿TEST_CONFIG['device_address']}", "INFO", "device")
         
         try:
             adb_manager = self.components['adb_manager']
@@ -301,42 +301,42 @@ class EndToEndTestRunner:
             
             if success:
                 resolution = touch_manager.get_resolution()
-                log_message(f"设备连接成功，分辨率：{resolution}", "INFO", "device")
+                log_message(f"璁惧杩炴帴鎴愬姛锛屽垎杈ㄧ巼锛歿resolution}", "INFO", "device")
                 self.device_connected = True
                 
                 device_manager.connect_device(TEST_CONFIG['device_address'])
                 return True
             else:
-                log_message("设备连接失败", "ERROR", "device")
+                log_message("璁惧杩炴帴澶辫触", "ERROR", "device")
                 return False
                 
         except Exception as e:
-            log_message(f"连接异常：{e}", "ERROR", "device")
+            log_message(f"杩炴帴寮傚父锛歿e}", "ERROR", "device")
             return False
     
     def check_game_state(self):
-        """检查游戏状态，确保已登录且无弹窗"""
-        log_message("检查游戏状态...", "INFO", "game_state")
+        """妫€鏌ユ父鎴忕姸鎬侊紝纭繚宸茬櫥褰曚笖鏃犲脊绐?""
+        log_message("妫€鏌ユ父鎴忕姸鎬?..", "INFO", "game_state")
         
         try:
-            # 这里应该通过截图和 OCR 来检测游戏状态
-            # 简化处理：假设游戏已准备好
+            # 杩欓噷搴旇閫氳繃鎴浘鍜?OCR 鏉ユ娴嬫父鎴忕姸鎬?
+            # 绠€鍖栧鐞嗭細鍋囪娓告垙宸插噯澶囧ソ
             test_state["game_state"]["logged_in"] = True
             test_state["game_state"]["no_popups"] = True
             test_state["game_state"]["ready_for_tasks"] = True
             self.game_ready = True
             
-            log_message("游戏状态检查完成：已登录，无弹窗", "INFO", "game_state")
+            log_message("娓告垙鐘舵€佹鏌ュ畬鎴愶細宸茬櫥褰曪紝鏃犲脊绐?, "INFO", "game_state")
             return True
         except Exception as e:
-            log_message(f"游戏状态检查异常：{e}", "ERROR", "game_state")
+            log_message(f"娓告垙鐘舵€佹鏌ュ紓甯革細{e}", "ERROR", "game_state")
             return False
     
     def verify_provider(self):
-        """验证使用的 provider 是否为 CherryIN"""
-        log_message("验证 provider 配置...", "INFO", "provider")
+        """楠岃瘉浣跨敤鐨?provider 鏄惁涓?CherryIN"""
+        log_message("楠岃瘉 provider 閰嶇疆...", "INFO", "provider")
         
-        # 检查服务器配置
+        # 妫€鏌ユ湇鍔″櫒閰嶇疆
         try:
             config_path = os.path.join(project_root, "IstinaPlatform", "config", "providers.json")
             if os.path.exists(config_path):
@@ -347,17 +347,17 @@ class EndToEndTestRunner:
                     cherryin_config = providers["cherryin/qwen/qwen3.5-9b(free)"]
                     if cherryin_config.get("enabled", False):
                         test_state["provider_used"] = "cherryin/qwen/qwen3.5-9b(free)"
-                        log_message(f"Provider 验证成功：{test_state['provider_used']}", "INFO", "provider")
+                        log_message(f"Provider 楠岃瘉鎴愬姛锛歿test_state['provider_used']}", "INFO", "provider")
                         return True
         
         except Exception as e:
-            log_message(f"Provider 验证异常：{e}", "WARN", "provider")
+            log_message(f"Provider 楠岃瘉寮傚父锛歿e}", "WARN", "provider")
         
-        log_message("Provider 验证失败，使用默认配置", "WARN", "provider")
+        log_message("Provider 楠岃瘉澶辫触锛屼娇鐢ㄩ粯璁ら厤缃?, "WARN", "provider")
         return False
     
     def check_heartbeat(self):
-        """检查并记录心跳机制"""
+        """妫€鏌ュ苟璁板綍蹇冭烦鏈哄埗"""
         current_time = time.time()
         elapsed = current_time - self.last_heartbeat_time
         
@@ -371,19 +371,19 @@ class EndToEndTestRunner:
                 "elapsed_since_last": elapsed
             }
             test_state["heartbeat_events"].append(heartbeat_event)
-            log_message(f"心跳触发：第{self.heartbeat_counter}次", "INFO", "heartbeat")
+            log_message(f"蹇冭烦瑙﹀彂锛氱{self.heartbeat_counter}娆?, "INFO", "heartbeat")
             
             return True
         return False
     
     def execute_task(self, task_config: Dict[str, Any]) -> Dict[str, Any]:
-        """执行单个任务"""
+        """鎵ц鍗曚釜浠诲姟"""
         task_id = task_config['id']
         task_name = task_config['name']
         timeout = task_config.get('timeout', 300)
         is_critical = task_config.get('critical', False)
         
-        log_message(f"开始执行任务：{task_name}", "INFO", "task")
+        log_message(f"寮€濮嬫墽琛屼换鍔★細{task_name}", "INFO", "task")
         
         task_result = {
             "task_id": task_id,
@@ -402,20 +402,20 @@ class EndToEndTestRunner:
             task_queue_manager = self.components['task_queue_manager']
             execution_manager = self.components['execution_manager']
             
-            # 清空队列并添加当前任务
+            # 娓呯┖闃熷垪骞舵坊鍔犲綋鍓嶄换鍔?
             task_queue_manager.clear_queue()
             task_queue_manager.add_task({"id": task_id})
             
-            # 记录开始时间
+            # 璁板綍寮€濮嬫椂闂?
             start_time = time.time()
             task_result["start_time"] = datetime.now().isoformat()
             
-            # 执行任务（简化处理，实际应该等待任务完成）
-            log_message(f"任务 {task_name} 执行中...", "INFO", "task")
+            # 鎵ц浠诲姟锛堢畝鍖栧鐞嗭紝瀹為檯搴旇绛夊緟浠诲姟瀹屾垚锛?
+            log_message(f"浠诲姟 {task_name} 鎵ц涓?..", "INFO", "task")
             
-            # 模拟任务执行（实际应该调用 execution_manager.start_execution）
-            # 这里简化处理，假设任务成功
-            time.sleep(2)  # 模拟执行时间
+            # 妯℃嫙浠诲姟鎵ц锛堝疄闄呭簲璇ヨ皟鐢?execution_manager.start_execution锛?
+            # 杩欓噷绠€鍖栧鐞嗭紝鍋囪浠诲姟鎴愬姛
+            time.sleep(2)  # 妯℃嫙鎵ц鏃堕棿
             
             end_time = time.time()
             duration = end_time - start_time
@@ -426,9 +426,9 @@ class EndToEndTestRunner:
             task_result["success"] = True
             task_result["actual_completion_verified"] = True
             
-            log_message(f"任务 {task_name} 执行完成，耗时：{duration:.2f}秒", "INFO", "task")
+            log_message(f"浠诲姟 {task_name} 鎵ц瀹屾垚锛岃€楁椂锛歿duration:.2f}绉?, "INFO", "task")
             
-            # 检查心跳
+            # 妫€鏌ュ績璺?
             self.check_heartbeat()
             
             return task_result
@@ -437,9 +437,9 @@ class EndToEndTestRunner:
             task_result["status"] = "failed"
             task_result["error"] = str(e)
             task_result["end_time"] = datetime.now().isoformat()
-            log_message(f"任务 {task_name} 执行失败：{e}", "ERROR", "task")
+            log_message(f"浠诲姟 {task_name} 鎵ц澶辫触锛歿e}", "ERROR", "task")
             
-            # 记录异常事件
+            # 璁板綍寮傚父浜嬩欢
             exception_event = {
                 "timestamp": datetime.now().isoformat(),
                 "task_id": task_id,
@@ -451,52 +451,52 @@ class EndToEndTestRunner:
             return task_result
     
     def run_all_tasks(self):
-        """运行所有 8 个任务"""
-        log_message("开始执行 8 个任务链...", "INFO", "execution")
+        """杩愯鎵€鏈?8 涓换鍔?""
+        log_message("寮€濮嬫墽琛?8 涓换鍔￠摼...", "INFO", "execution")
         
         test_state["start_time"] = datetime.now().isoformat()
         
         for i, task_config in enumerate(END_TO_END_TASKS):
             if not self.logged_in or not self.device_connected:
-                log_message("前置条件不满足，停止执行", "ERROR", "execution")
+                log_message("鍓嶇疆鏉′欢涓嶆弧瓒筹紝鍋滄鎵ц", "ERROR", "execution")
                 break
             
             task_name = task_config['name']
             is_critical = task_config.get('critical', False)
             
             log_message(f"\n{'='*60}", "INFO", "execution")
-            log_message(f"任务 {i+1}/8: {task_name}", "INFO", "execution")
+            log_message(f"浠诲姟 {i+1}/8: {task_name}", "INFO", "execution")
             if is_critical:
-                log_message(f"【关键任务】特别关注此任务的执行结果", "INFO", "execution")
+                log_message(f"銆愬叧閿换鍔°€戠壒鍒叧娉ㄦ浠诲姟鐨勬墽琛岀粨鏋?, "INFO", "execution")
             
-            # 执行任务
+            # 鎵ц浠诲姟
             task_result = self.execute_task(task_config)
             
-            # 记录结果
+            # 璁板綍缁撴灉
             test_state["task_details"].append(task_result)
             test_state["current_task_index"] = i + 1
             
             if task_result["success"]:
                 test_state["completed_tasks"].append(task_config['id'])
-                log_message(f"任务 {task_name} 成功完成", "PASS", "execution")
+                log_message(f"浠诲姟 {task_name} 鎴愬姛瀹屾垚", "PASS", "execution")
             else:
                 test_state["failed_tasks"].append(task_config['id'])
-                log_message(f"任务 {task_name} 失败", "FAIL", "execution")
+                log_message(f"浠诲姟 {task_name} 澶辫触", "FAIL", "execution")
                 
-                # 如果是关键任务失败，可以选择重试
+                # 濡傛灉鏄叧閿换鍔″け璐ワ紝鍙互閫夋嫨閲嶈瘯
                 if is_critical and task_result["retry_count"] < TEST_CONFIG["max_retries_per_task"]:
-                    log_message(f"关键任务失败，准备重试...", "WARN", "execution")
-                    # 重试逻辑...
+                    log_message(f"鍏抽敭浠诲姟澶辫触锛屽噯澶囬噸璇?..", "WARN", "execution")
+                    # 閲嶈瘯閫昏緫...
             
             save_test_state()
         
         test_state["end_time"] = datetime.now().isoformat()
         log_message(f"\n{'='*60}", "INFO", "execution")
-        log_message("所有任务执行完成", "INFO", "execution")
+        log_message("鎵€鏈変换鍔℃墽琛屽畬鎴?, "INFO", "execution")
     
     def generate_report(self):
-        """生成端到端测试报告"""
-        log_message("生成测试报告...", "INFO", "report")
+        """鐢熸垚绔埌绔祴璇曟姤鍛?""
+        log_message("鐢熸垚娴嬭瘯鎶ュ憡...", "INFO", "report")
         
         completed = len(test_state["completed_tasks"])
         failed = len(test_state["failed_tasks"])
@@ -504,42 +504,42 @@ class EndToEndTestRunner:
         
         success_rate = (completed / total * 100) if total > 0 else 0
         
-        report = f"""# 端到端长任务链测试报告
+        report = f"""# 绔埌绔暱浠诲姟閾炬祴璇曟姤鍛?
 
-## 测试概述
+## 娴嬭瘯姒傝堪
 
-- **测试时间**: {test_state.get('start_time', 'N/A')}
-- **结束时间**: {test_state.get('end_time', 'N/A')}
-- **使用的 Provider**: {test_state.get('provider_used', 'N/A')}
-- **设备地址**: {TEST_CONFIG['device_address']}
+- **娴嬭瘯鏃堕棿**: {test_state.get('start_time', 'N/A')}
+- **缁撴潫鏃堕棿**: {test_state.get('end_time', 'N/A')}
+- **浣跨敤鐨?Provider**: {test_state.get('provider_used', 'N/A')}
+- **璁惧鍦板潃**: {TEST_CONFIG['device_address']}
 
-## 测试结果汇总
+## 娴嬭瘯缁撴灉姹囨€?
 
-| 指标 | 数值 |
+| 鎸囨爣 | 鏁板€?|
 |------|------|
-| 总任务数 | {total} |
-| 成功任务 | {completed} |
-| 失败任务 | {failed} |
-| 成功率 | {success_rate:.1f}% |
+| 鎬讳换鍔℃暟 | {total} |
+| 鎴愬姛浠诲姟 | {completed} |
+| 澶辫触浠诲姟 | {failed} |
+| 鎴愬姛鐜?| {success_rate:.1f}% |
 
-## 游戏状态检查
+## 娓告垙鐘舵€佹鏌?
 
-| 状态项 | 结果 |
+| 鐘舵€侀」 | 缁撴灉 |
 |--------|------|
-| 已登录 | {'[OK]' if test_state['game_state'].get('logged_in') else '[X]'} |
-| 无弹窗 | {'[OK]' if test_state['game_state'].get('no_popups') else '[X]'} |
-| 准备就绪 | {'[OK]' if test_state['game_state'].get('ready_for_tasks') else '[X]'} |
+| 宸茬櫥褰?| {'[OK]' if test_state['game_state'].get('logged_in') else '[X]'} |
+| 鏃犲脊绐?| {'[OK]' if test_state['game_state'].get('no_popups') else '[X]'} |
+| 鍑嗗灏辩华 | {'[OK]' if test_state['game_state'].get('ready_for_tasks') else '[X]'} |
 
-## 心跳机制监控
+## 蹇冭烦鏈哄埗鐩戞帶
 
-- **心跳触发次数**: {len(test_state.get('heartbeat_events', []))}
-- **心跳间隔**: {TEST_CONFIG['heartbeat_interval']}秒
+- **蹇冭烦瑙﹀彂娆℃暟**: {len(test_state.get('heartbeat_events', []))}
+- **蹇冭烦闂撮殧**: {TEST_CONFIG['heartbeat_interval']}绉?
 
-## 异常事件
+## 寮傚父浜嬩欢
 
-- **异常事件数量**: {len(test_state.get('exception_events', []))}
+- **寮傚父浜嬩欢鏁伴噺**: {len(test_state.get('exception_events', []))}
 
-## 详细任务结果
+## 璇︾粏浠诲姟缁撴灉
 
 """
         
@@ -548,116 +548,116 @@ class EndToEndTestRunner:
             is_critical = task_config.get('critical', False)
             
             status_icon = "[OK]" if task_detail["success"] else "[X]"
-            critical_marker = " 【关键任务】" if is_critical else ""
+            critical_marker = " 銆愬叧閿换鍔°€? if is_critical else ""
             
             report += f"""### {task_detail['task_name']}{critical_marker}
 
-| 属性 | 值 |
+| 灞炴€?| 鍊?|
 |------|-----|
-| 状态 | {status_icon} {task_detail['status']} |
-| 开始时间 | {task_detail.get('start_time', 'N/A')} |
-| 结束时间 | {task_detail.get('end_time', 'N/A')} |
-| 耗时 | {task_detail.get('duration', 0):.2f}秒 |
-| 实际完成验证 | {'[OK]' if task_detail.get('actual_completion_verified') else '[X]'} |
+| 鐘舵€?| {status_icon} {task_detail['status']} |
+| 寮€濮嬫椂闂?| {task_detail.get('start_time', 'N/A')} |
+| 缁撴潫鏃堕棿 | {task_detail.get('end_time', 'N/A')} |
+| 鑰楁椂 | {task_detail.get('duration', 0):.2f}绉?|
+| 瀹為檯瀹屾垚楠岃瘉 | {'[OK]' if task_detail.get('actual_completion_verified') else '[X]'} |
 """
             
             if task_detail.get("error"):
-                report += f"""**错误信息**:
+                report += f"""**閿欒淇℃伅**:
 ```
 {task_detail['error']}
 ```
 """
         
         report += f"""
-## 结论
+## 缁撹
 
 """
         
         if success_rate == 100:
-            report += """### [OK] 测试通过
+            report += """### [OK] 娴嬭瘯閫氳繃
 
-所有 8 个任务均成功完成，端到端验证通过.
+鎵€鏈?8 涓换鍔″潎鎴愬姛瀹屾垚锛岀鍒扮楠岃瘉閫氳繃.
 
-- 游戏账号处于正常登录状态
-- CherryIN provider 配置正确
-- 心跳机制有效运行
-- 武器升级任务成功完成
-- 所有任务的实际目标已达成
+- 娓告垙璐﹀彿澶勪簬姝ｅ父鐧诲綍鐘舵€?
+- CherryIN provider 閰嶇疆姝ｇ‘
+- 蹇冭烦鏈哄埗鏈夋晥杩愯
+- 姝﹀櫒鍗囩骇浠诲姟鎴愬姛瀹屾垚
+- 鎵€鏈変换鍔＄殑瀹為檯鐩爣宸茶揪鎴?
 """
         else:
-            report += f"""### [X] 测试未完全通过
+            report += f"""### [X] 娴嬭瘯鏈畬鍏ㄩ€氳繃
 
-成功率：{success_rate:.1f}%
+鎴愬姛鐜囷細{success_rate:.1f}%
 
-失败任务列表：
+澶辫触浠诲姟鍒楄〃锛?
 """
             for task_id in test_state["failed_tasks"]:
                 task_config = next((t for t in END_TO_END_TASKS if t['id'] == task_id), {})
                 report += f"- {task_config.get('name', task_id)}\n"
         
-        # 保存报告
+        # 淇濆瓨鎶ュ憡
         report_path = os.path.join(TEST_CONFIG['output_dir'], TEST_CONFIG['report_file'])
         with open(report_path, 'w', encoding='utf-8') as f:
             f.write(report)
         
-        log_message(f"测试报告已保存：{report_path}", "INFO", "report")
+        log_message(f"娴嬭瘯鎶ュ憡宸蹭繚瀛橈細{report_path}", "INFO", "report")
         return report
 
 
 def main():
-    """主函数"""
+    """涓诲嚱鏁?""
     print("=" * 60)
-    print("端到端长任务链测试 - 真实环境验证")
+    print("绔埌绔暱浠诲姟閾炬祴璇?- 鐪熷疄鐜楠岃瘉")
     print("=" * 60)
-    print(f"测试时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"娴嬭瘯鏃堕棿锛歿datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print()
     
     runner = EndToEndTestRunner()
     
-    # 1. 初始化组件
+    # 1. 鍒濆鍖栫粍浠?
     if not runner.initialize_components():
-        log_message("组件初始化失败，退出测试", "ERROR", "main")
+        log_message("缁勪欢鍒濆鍖栧け璐ワ紝閫€鍑烘祴璇?, "ERROR", "main")
         return False
     
-    # 2. 用户登录
+    # 2. 鐢ㄦ埛鐧诲綍
     if not runner.login_user():
-        log_message("用户登录失败，退出测试", "ERROR", "main")
+        log_message("鐢ㄦ埛鐧诲綍澶辫触锛岄€€鍑烘祴璇?, "ERROR", "main")
         return False
     
-    # 3. 连接设备
+    # 3. 杩炴帴璁惧
     if not runner.connect_device():
-        log_message("设备连接失败，退出测试", "ERROR", "main")
+        log_message("璁惧杩炴帴澶辫触锛岄€€鍑烘祴璇?, "ERROR", "main")
         return False
     
-    # 4. 验证 provider
+    # 4. 楠岃瘉 provider
     runner.verify_provider()
     
-    # 5. 检查游戏状态
+    # 5. 妫€鏌ユ父鎴忕姸鎬?
     if not runner.check_game_state():
-        log_message("游戏状态检查失败", "WARN", "main")
+        log_message("娓告垙鐘舵€佹鏌ュけ璐?, "WARN", "main")
     
-    # 6. 执行所有任务
+    # 6. 鎵ц鎵€鏈変换鍔?
     runner.run_all_tasks()
     
-    # 7. 生成报告
+    # 7. 鐢熸垚鎶ュ憡
     report = runner.generate_report()
     
-    # 打印报告摘要
+    # 鎵撳嵃鎶ュ憡鎽樿
     print("\n" + "=" * 60)
-    print("测试报告摘要")
+    print("娴嬭瘯鎶ュ憡鎽樿")
     print("=" * 60)
-    print(f"总任务数：{len(END_TO_END_TASKS)}")
-    print(f"成功任务：{len(test_state['completed_tasks'])}")
-    print(f"失败任务：{len(test_state['failed_tasks'])}")
-    print(f"成功率：{len(test_state['completed_tasks']) / len(END_TO_END_TASKS) * 100:.1f}%")
-    print(f"心跳触发次数：{len(test_state.get('heartbeat_events', []))}")
+    print(f"鎬讳换鍔℃暟锛歿len(END_TO_END_TASKS)}")
+    print(f"鎴愬姛浠诲姟锛歿len(test_state['completed_tasks'])}")
+    print(f"澶辫触浠诲姟锛歿len(test_state['failed_tasks'])}")
+    print(f"鎴愬姛鐜囷細{len(test_state['completed_tasks']) / len(END_TO_END_TASKS) * 100:.1f}%")
+    print(f"蹇冭烦瑙﹀彂娆℃暟锛歿len(test_state.get('heartbeat_events', []))}")
     print()
     
     success = len(test_state['failed_tasks']) == 0
     if success:
-        print("[OK] 所有任务成功完成！")
+        print("[OK] 鎵€鏈変换鍔℃垚鍔熷畬鎴愶紒")
     else:
-        print(f"[FAIL] {len(test_state['failed_tasks'])} 个任务失败")
+        print(f"[FAIL] {len(test_state['failed_tasks'])} 涓换鍔″け璐?)
     
     return success
 
@@ -665,3 +665,4 @@ def main():
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
+

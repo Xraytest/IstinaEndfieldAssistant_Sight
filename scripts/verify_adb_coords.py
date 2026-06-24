@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""验证 ADB tap 坐标 - 直接测试 (860, 80)"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""楠岃瘉 ADB tap 鍧愭爣 - 鐩存帴娴嬭瘯 (860, 80)"""
 import subprocess, time, cv2, numpy as np, sys
 
 PROJECT_ROOT = r'C:\Users\xray\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant'
@@ -22,29 +22,29 @@ def adb_screencap():
         return cv2.imdecode(np.frombuffer(r.stdout, dtype=np.uint8), cv2.IMREAD_COLOR)
     return None
 
-# 回到世界
-print("[前置] 回到世界...")
+# 鍥炲埌涓栫晫
+print("[鍓嶇疆] 鍥炲埌涓栫晫...")
 for _ in range(8):
     adb_back()
     time.sleep(0.3)
 time.sleep(2)
 
-# 基准截图
+# 鍩哄噯鎴浘
 img_base = adb_screencap()
 if img_base is None:
-    print("[ERROR] 基准截图失败")
+    print("[ERROR] 鍩哄噯鎴浘澶辫触")
     sys.exit(1)
-print(f"[基准] 分辨率：{img_base.shape[1]}x{img_base.shape[0]}")
+print(f"[鍩哄噯] 鍒嗚鲸鐜囷細{img_base.shape[1]}x{img_base.shape[0]}")
 
-# 测试坐标
+# 娴嬭瘯鍧愭爣
 test_coords = [
-    ("配置新", 860, 80),
-    ("配置旧", 820, 40),
-    ("扫描最佳", 860, 80),
-    ("中央", 960, 540),
+    ("閰嶇疆鏂?, 860, 80),
+    ("閰嶇疆鏃?, 820, 40),
+    ("鎵弿鏈€浣?, 860, 80),
+    ("涓ぎ", 960, 540),
 ]
 
-print("\n[测试] ADB tap 坐标验证")
+print("\n[娴嬭瘯] ADB tap 鍧愭爣楠岃瘉")
 print("="*70)
 
 for name, x, y in test_coords:
@@ -54,23 +54,23 @@ for name, x, y in test_coords:
     
     img = adb_screencap()
     if img is None:
-        print(f"  截图失败")
+        print(f"  鎴浘澶辫触")
         adb_back()
         time.sleep(1)
         continue
     
-    # 像素差异
+    # 鍍忕礌宸紓
     diff = cv2.absdiff(img_base, img)
     gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY)
     changed = cv2.countNonZero(thresh)
     rate = changed / (thresh.shape[0] * thresh.shape[1]) * 100
     
-    status = "✅" if rate > 30 else ("⚠️" if rate > 10 else "❌")
-    print(f"  {status} 变化：{changed:8d} px ({rate:5.1f}%)")
+    status = "鉁? if rate > 30 else ("鈿狅笍" if rate > 10 else "鉂?)
+    print(f"  {status} 鍙樺寲锛歿changed:8d} px ({rate:5.1f}%)")
     
-    # 按返回
-    adb_back()
+    # 鎸夎繑鍥?    adb_back()
     time.sleep(1)
 
-print("\n[结论] >30% 表示面板打开，<10% 表示无变化")
+print("\n[缁撹] >30% 琛ㄧず闈㈡澘鎵撳紑锛?10% 琛ㄧず鏃犲彉鍖?)
+

@@ -1,13 +1,13 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-标准流测试 - 完整异常处理版本
+鏍囧噯娴佹祴璇?- 瀹屾暣寮傚父澶勭悊鐗堟湰
 
-功能:
-1. 登出对话框检测和自动处理
-2. 游戏状态检查和自动启动
-3. 模拟器异常处理（重启）
-4. 完整的每日任务流程
-5. 详细的执行报告
+鍔熻兘:
+1. 鐧诲嚭瀵硅瘽妗嗘娴嬪拰鑷姩澶勭悊
+2. 娓告垙鐘舵€佹鏌ュ拰鑷姩鍚姩
+3. 妯℃嫙鍣ㄥ紓甯稿鐞嗭紙閲嶅惎锛?
+4. 瀹屾暣鐨勬瘡鏃ヤ换鍔℃祦绋?
+5. 璇︾粏鐨勬墽琛屾姤鍛?
 """
 
 import sys
@@ -23,7 +23,7 @@ from _path_setup import ensure_path; ensure_path()
 
 from core.capability.adb_utils import ADB, list_devices, adb_screencap
 
-# MaaFw 触控
+# MaaFw 瑙︽帶
 try:
     from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
     MAAFW_AVAILABLE = True
@@ -33,14 +33,14 @@ except ImportError:
 
 
 class RobustFlowExecutor:
-    """健壮的标准流执行器 - 包含完整异常处理"""
+    """鍋ュ．鐨勬爣鍑嗘祦鎵ц鍣?- 鍖呭惈瀹屾暣寮傚父澶勭悊"""
     
     def __init__(self, device_serial: str):
         self.device_serial = device_serial
         self.adb = ADB(serial=device_serial)
         self.adb_path = PROJECT_ROOT / "3rd-part" / "adb" / "adb.exe"
         
-        # 初始化 MaaFw 触控
+        # 鍒濆鍖?MaaFw 瑙︽帶
         self._maafw = None
         if MAAFW_AVAILABLE:
             try:
@@ -52,9 +52,9 @@ class RobustFlowExecutor:
                 )
                 self._maafw = MaaFwTouchExecutor(maafw_config)
                 if self._maafw.connect():
-                    print(f"[MaaFw] 触控初始化成功")
+                    print(f"[MaaFw] 瑙︽帶鍒濆鍖栨垚鍔?)
             except Exception as e:
-                print(f"[MaaFw] 初始化失败：{e}")
+                print(f"[MaaFw] 鍒濆鍖栧け璐ワ細{e}")
         
         self.session_dir = None
         self.screenshots = []
@@ -62,15 +62,15 @@ class RobustFlowExecutor:
         self.errors = []
         
     def start_session(self, flow_name: str):
-        """开始执行会话"""
+        """寮€濮嬫墽琛屼細璇?""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.session_dir = PROJECT_ROOT / "cache" / f"flow_{flow_name}_robust_{timestamp}"
         self.session_dir.mkdir(parents=True, exist_ok=True)
         (self.session_dir / "screenshots").mkdir(exist_ok=True)
-        print(f"[会话] {self.session_dir}")
+        print(f"[浼氳瘽] {self.session_dir}")
         
     def capture(self, label: str) -> bytes:
-        """截图并保存"""
+        """鎴浘骞朵繚瀛?""
         try:
             screenshot = adb_screencap(self.device_serial)
             if screenshot:
@@ -80,14 +80,14 @@ class RobustFlowExecutor:
                 with open(path, "wb") as f:
                     f.write(screenshot)
                 self.screenshots.append(str(path))
-                print(f"[截图] {filename}")
+                print(f"[鎴浘] {filename}")
             return screenshot
         except Exception as e:
-            print(f"[ERROR] 截图失败：{e}")
+            print(f"[ERROR] 鎴浘澶辫触锛歿e}")
             return None
     
     def check_logout_dialog(self) -> bool:
-        """检查是否显示登出对话框"""
+        """妫€鏌ユ槸鍚︽樉绀虹櫥鍑哄璇濇"""
         try:
             import cv2
             import numpy as np
@@ -104,14 +104,14 @@ class RobustFlowExecutor:
             
             height, width = cv_img.shape[:2]
             
-            # 检测黄色元素（确认按钮）
+            # 妫€娴嬮粍鑹插厓绱狅紙纭鎸夐挳锛?
             hsv = cv2.cvtColor(cv_img, cv2.COLOR_BGR2HSV)
             lower_yellow = np.array([20, 100, 100])
             upper_yellow = np.array([35, 255, 255])
             yellow_mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
             yellow_ratio = cv2.countNonZero(yellow_mask) / (width * height)
             
-            # 检测白色区域（对话框背景）
+            # 妫€娴嬬櫧鑹插尯鍩燂紙瀵硅瘽妗嗚儗鏅級
             gray = cv2.cvtColor(cv_img, cv2.COLOR_BGR2GRAY)
             white_mask = cv2.inRange(gray, 200, 255)
             white_ratio = cv2.countNonZero(white_mask) / (width * height)
@@ -119,112 +119,112 @@ class RobustFlowExecutor:
             return white_ratio > 0.3 and yellow_ratio > 0.001
             
         except Exception as e:
-            print(f"[ERROR] 登出检测失败：{e}")
+            print(f"[ERROR] 鐧诲嚭妫€娴嬪け璐ワ細{e}")
             return False
     
     def handle_logout_dialog(self, max_attempts: int = 5):
-        """处理登出对话框 - 多次尝试点击（使用 MaaFw）"""
-        print(f"\n[处理] 检测到登出对话框，开始处理...")
+        """澶勭悊鐧诲嚭瀵硅瘽妗?- 澶氭灏濊瘯鐐瑰嚮锛堜娇鐢?MaaFw锛?""
+        print(f"\n[澶勭悊] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紝寮€濮嬪鐞?..")
         
-        # 尝试多个坐标
+        # 灏濊瘯澶氫釜鍧愭爣
         coords = [
-            (640, 580), (640, 600), (640, 620),  # 逻辑坐标
-            (960, 850), (960, 870), (960, 890),  # 物理坐标
+            (640, 580), (640, 600), (640, 620),  # 閫昏緫鍧愭爣
+            (960, 850), (960, 870), (960, 890),  # 鐗╃悊鍧愭爣
         ]
         
         for i, (x, y) in enumerate(coords):
-            print(f"  尝试 {i+1}/{len(coords)}: 点击 ({x}, {y})")
-            # 使用 MaaFw 点击
+            print(f"  灏濊瘯 {i+1}/{len(coords)}: 鐐瑰嚮 ({x}, {y})")
+            # 浣跨敤 MaaFw 鐐瑰嚮
             if self._maafw and self._maafw.connected:
                 self._maafw.safe_press(x, y)
             time.sleep(1)
             
             if not self.check_logout_dialog():
-                print(f"  [OK] 登出对话框已关闭")
+                print(f"  [OK] 鐧诲嚭瀵硅瘽妗嗗凡鍏抽棴")
                 return True
         
-        print(f"  [WARN] 登出对话框处理失败，尝试重启模拟器")
+        print(f"  [WARN] 鐧诲嚭瀵硅瘽妗嗗鐞嗗け璐ワ紝灏濊瘯閲嶅惎妯℃嫙鍣?)
         return False
     
     def _adb_tap(self, x: int, y: int):
-        """错误：严禁使用 ADB 触控输入！应使用 MaaFw"""
-        raise RuntimeError("严禁使用 ADB 触控输入！应使用 MaaFw.safe_press()")
+        """閿欒锛氫弗绂佷娇鐢?ADB 瑙︽帶杈撳叆锛佸簲浣跨敤 MaaFw"""
+        raise RuntimeError("涓ョ浣跨敤 ADB 瑙︽帶杈撳叆锛佸簲浣跨敤 MaaFw.safe_press()")
     
     def _adb_back(self):
-        """错误：严禁使用 ADB 触控输入！应使用 MaaFw"""
-        raise RuntimeError("严禁使用 ADB 触控输入！应使用 MaaFw.post_keyevent()")
+        """閿欒锛氫弗绂佷娇鐢?ADB 瑙︽帶杈撳叆锛佸簲浣跨敤 MaaFw"""
+        raise RuntimeError("涓ョ浣跨敤 ADB 瑙︽帶杈撳叆锛佸簲浣跨敤 MaaFw.post_keyevent()")
     
     def restart_emulator(self):
-        """重启模拟器"""
-        print(f"\n[异常处理] 重启模拟器...")
+        """閲嶅惎妯℃嫙鍣?""
+        print(f"\n[寮傚父澶勭悊] 閲嶅惎妯℃嫙鍣?..")
         try:
-            # 发送重启命令
+            # 鍙戦€侀噸鍚懡浠?
             subprocess.run(
                 [str(self.adb_path), "-s", self.device_serial, "reboot"],
                 timeout=10
             )
-            print(f"  [INFO] 重启命令已发送")
+            print(f"  [INFO] 閲嶅惎鍛戒护宸插彂閫?)
             
-            # 等待重启（约 60 秒）
-            print(f"  [INFO] 等待模拟器重启...")
+            # 绛夊緟閲嶅惎锛堢害 60 绉掞級
+            print(f"  [INFO] 绛夊緟妯℃嫙鍣ㄩ噸鍚?..")
             for i in range(60):
                 time.sleep(1)
                 if i % 10 == 0:
-                    print(f"    等待 {i}/60 秒...")
+                    print(f"    绛夊緟 {i}/60 绉?..")
             
-            # 等待设备重新连接
-            print(f"  [INFO] 等待设备重新连接...")
+            # 绛夊緟璁惧閲嶆柊杩炴帴
+            print(f"  [INFO] 绛夊緟璁惧閲嶆柊杩炴帴...")
             for i in range(30):
                 devices = list_devices()
                 if self.device_serial in devices:
-                    print(f"  [OK] 设备已重新连接")
+                    print(f"  [OK] 璁惧宸查噸鏂拌繛鎺?)
                     return True
                 time.sleep(1)
             
-            print(f"  [ERROR] 设备重新连接超时")
+            print(f"  [ERROR] 璁惧閲嶆柊杩炴帴瓒呮椂")
             return False
             
         except Exception as e:
-            print(f"  [ERROR] 重启模拟器失败：{e}")
+            print(f"  [ERROR] 閲嶅惎妯℃嫙鍣ㄥけ璐ワ細{e}")
             return False
     
     def tap(self, x: int, y: int, label: str):
-        """点击（仅使用 MaaFw）"""
-        print(f"\n[点击] {label} @ ({x}, {y})")
+        """鐐瑰嚮锛堜粎浣跨敤 MaaFw锛?""
+        print(f"\n[鐐瑰嚮] {label} @ ({x}, {y})")
         
-        # 仅使用 MaaFw
+        # 浠呬娇鐢?MaaFw
         if self._maafw and self._maafw.connected:
             self._maafw.safe_press(x, y)
         else:
-            raise RuntimeError("MaaFw 未连接，无法执行点击操作")
+            raise RuntimeError("MaaFw 鏈繛鎺ワ紝鏃犳硶鎵ц鐐瑰嚮鎿嶄綔")
         
         time.sleep(1)
         self.capture(f"tap_{label}")
         self.steps_log.append({"step": label, "action": "tap", "coords": [x, y], "status": "OK"})
     
     def back(self):
-        """返回（仅使用 MaaFw）"""
-        print(f"\n[返回]")
+        """杩斿洖锛堜粎浣跨敤 MaaFw锛?""
+        print(f"\n[杩斿洖]")
         
-        # 仅使用 MaaFw
+        # 浠呬娇鐢?MaaFw
         if self._maafw and self._maafw.connected:
             job = self._maafw.post_keyevent(4)  # 4 = KEYCODE_BACK
             if job:
                 job.wait()
         else:
-            raise RuntimeError("MaaFw 未连接，无法执行返回操作")
+            raise RuntimeError("MaaFw 鏈繛鎺ワ紝鏃犳硶鎵ц杩斿洖鎿嶄綔")
         
         time.sleep(1)
         self.capture("back")
         self.steps_log.append({"step": "back", "action": "back", "status": "OK"})
     
     def wait(self, seconds: int):
-        """等待"""
-        print(f"\n[等待] {seconds}s")
+        """绛夊緟"""
+        print(f"\n[绛夊緟] {seconds}s")
         time.sleep(seconds)
     
     def export_report(self):
-        """导出执行报告"""
+        """瀵煎嚭鎵ц鎶ュ憡"""
         report = {
             "device": self.device_serial,
             "session_dir": str(self.session_dir),
@@ -241,53 +241,53 @@ class RobustFlowExecutor:
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
         
-        print(f"\n[报告] {report_path}")
+        print(f"\n[鎶ュ憡] {report_path}")
         return report
 
 
 def run_daily_quest_flow(executor: RobustFlowExecutor) -> bool:
-    """执行每日任务流程"""
+    """鎵ц姣忔棩浠诲姟娴佺▼"""
     
     print("\n" + "="*60)
-    print("标准流测试 - 每日任务")
+    print("鏍囧噯娴佹祴璇?- 姣忔棩浠诲姟")
     print("="*60)
     
-    # 步骤 0: 检查并处理登出对话框
-    print("\n--- 步骤 0: 检查登出对话框 ---")
+    # 姝ラ 0: 妫€鏌ュ苟澶勭悊鐧诲嚭瀵硅瘽妗?
+    print("\n--- 姝ラ 0: 妫€鏌ョ櫥鍑哄璇濇 ---")
     if executor.check_logout_dialog():
-        print("[警告] 检测到登出对话框！")
+        print("[璀﹀憡] 妫€娴嬪埌鐧诲嚭瀵硅瘽妗嗭紒")
         if not executor.handle_logout_dialog():
-            # 尝试重启模拟器
+            # 灏濊瘯閲嶅惎妯℃嫙鍣?
             if executor.restart_emulator():
-                print("[OK] 模拟器已重启，重新检查")
+                print("[OK] 妯℃嫙鍣ㄥ凡閲嶅惎锛岄噸鏂版鏌?)
                 time.sleep(10)
                 if executor.check_logout_dialog():
-                    print("[错误] 重启后仍有登出对话框")
-                    executor.errors.append("登出对话框无法处理")
+                    print("[閿欒] 閲嶅惎鍚庝粛鏈夌櫥鍑哄璇濇")
+                    executor.errors.append("鐧诲嚭瀵硅瘽妗嗘棤娉曞鐞?)
                     return False
             else:
-                print("[错误] 模拟器重启失败")
-                executor.errors.append("模拟器重启失败")
+                print("[閿欒] 妯℃嫙鍣ㄩ噸鍚け璐?)
+                executor.errors.append("妯℃嫙鍣ㄩ噸鍚け璐?)
                 return False
         executor.wait(3)
     else:
-        print("[OK] 无登出对话框")
+        print("[OK] 鏃犵櫥鍑哄璇濇")
     
-    # 步骤 1: 点击任务图标
-    print("\n--- 步骤 1: 打开任务面板 ---")
+    # 姝ラ 1: 鐐瑰嚮浠诲姟鍥炬爣
+    print("\n--- 姝ラ 1: 鎵撳紑浠诲姟闈㈡澘 ---")
     executor.tap(860, 80, "task_icon")
     
-    # 步骤 2: 领取每日任务奖励
-    print("\n--- 步骤 2: 领取每日任务奖励 ---")
+    # 姝ラ 2: 棰嗗彇姣忔棩浠诲姟濂栧姳
+    print("\n--- 姝ラ 2: 棰嗗彇姣忔棩浠诲姟濂栧姳 ---")
     executor.tap(810, 900, "claim_daily")
     executor.wait(2)
     
-    # 步骤 3: 返回
-    print("\n--- 步骤 3: 返回探索界面 ---")
+    # 姝ラ 3: 杩斿洖
+    print("\n--- 姝ラ 3: 杩斿洖鎺㈢储鐣岄潰 ---")
     executor.back()
     
     print("\n" + "="*60)
-    print("流程完成")
+    print("娴佺▼瀹屾垚")
     print("="*60)
     
     return True
@@ -296,32 +296,32 @@ def run_daily_quest_flow(executor: RobustFlowExecutor) -> bool:
 def main():
     import argparse
     
-    parser = argparse.ArgumentParser(description="标准流测试 - 完整异常处理版本")
-    parser.add_argument("--device", type=str, default=None, help="设备序列号")
-    parser.add_argument("--flow", type=str, default="daily_quest", help="流程名称")
+    parser = argparse.ArgumentParser(description="鏍囧噯娴佹祴璇?- 瀹屾暣寮傚父澶勭悊鐗堟湰")
+    parser.add_argument("--device", type=str, default=None, help="璁惧搴忓垪鍙?)
+    parser.add_argument("--flow", type=str, default="daily_quest", help="娴佺▼鍚嶇О")
     args = parser.parse_args()
     
-    # 确定设备
+    # 纭畾璁惧
     device_serial = args.device or list_devices()[0]
-    print(f"[设备] {device_serial}")
+    print(f"[璁惧] {device_serial}")
     
-    # 创建执行器
+    # 鍒涘缓鎵ц鍣?
     executor = RobustFlowExecutor(device_serial)
     executor.start_session(args.flow)
     
-    # 执行流程
+    # 鎵ц娴佺▼
     success = run_daily_quest_flow(executor)
     
-    # 导出报告
+    # 瀵煎嚭鎶ュ憡
     executor.export_report()
     
     print("\n" + "="*60)
-    print("测试完成")
-    print(f"步骤数量：{len(executor.steps_log)}")
-    print(f"截图数量：{len(executor.screenshots)}")
-    print(f"错误数量：{len(executor.errors)}")
-    print(f"会话目录：{executor.session_dir}")
-    print(f"状态：{'成功' if success else '失败'}")
+    print("娴嬭瘯瀹屾垚")
+    print(f"姝ラ鏁伴噺锛歿len(executor.steps_log)}")
+    print(f"鎴浘鏁伴噺锛歿len(executor.screenshots)}")
+    print(f"閿欒鏁伴噺锛歿len(executor.errors)}")
+    print(f"浼氳瘽鐩綍锛歿executor.session_dir}")
+    print(f"鐘舵€侊細{'鎴愬姛' if success else '澶辫触'}")
     print("="*60)
     
     return 0 if success else 1
@@ -329,3 +329,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

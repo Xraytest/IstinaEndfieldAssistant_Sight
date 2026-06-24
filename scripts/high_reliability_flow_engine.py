@@ -1,16 +1,13 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-高可靠标准流执行引擎 v5
-基于 OCR+ 模板匹配 +MaaEnd 流程参考 +VLM 决策
+楂樺彲闈犳爣鍑嗘祦鎵ц寮曟搸 v5
+鍩轰簬 OCR+ 妯℃澘鍖归厤 +MaaEnd 娴佺▼鍙傝€?+VLM 鍐崇瓥
 
-核心特性：
-1. 识别增强：OCR+ 模板匹配 + 颜色匹配
-2. LLM 决策：根据识别结果决定点击位置
-3. MaaEnd 模式：Navigation→StatusCheck→ScrollFind→Claim→Back
-4. 错误恢复：无响应时自动重启游戏
-5. 多重验证：坐标验证 + 页面验证+VLM 验证
-6. 无超时机制：等待用户确认或自动恢复
-"""
+鏍稿績鐗规€э細
+1. 璇嗗埆澧炲己锛歄CR+ 妯℃澘鍖归厤 + 棰滆壊鍖归厤
+2. LLM 鍐崇瓥锛氭牴鎹瘑鍒粨鏋滃喅瀹氱偣鍑讳綅缃?3. MaaEnd 妯″紡锛歂avigation鈫扴tatusCheck鈫扴crollFind鈫扖laim鈫払ack
+4. 閿欒鎭㈠锛氭棤鍝嶅簲鏃惰嚜鍔ㄩ噸鍚父鎴?5. 澶氶噸楠岃瘉锛氬潗鏍囬獙璇?+ 椤甸潰楠岃瘉+VLM 楠岃瘉
+6. 鏃犺秴鏃舵満鍒讹細绛夊緟鐢ㄦ埛纭鎴栬嚜鍔ㄦ仮澶?"""
 
 import sys, os, json, time, cv2, numpy as np
 from pathlib import Path
@@ -28,7 +25,7 @@ DEVICE_ADDR = "192.168.1.12:16512"
 ADB_PATH = str(PROJECT_ROOT / "3rd-part" / "adb" / "adb.exe")
 
 class HighReliabilityFlowExecutor:
-    """高可靠标准流执行引擎"""
+    """楂樺彲闈犳爣鍑嗘祦鎵ц寮曟搸"""
     
     def __init__(self, flow_config: dict):
         self.flow_config = flow_config
@@ -62,26 +59,26 @@ class HighReliabilityFlowExecutor:
     def _adb_restart_game(self) -> bool:
         import subprocess
         try:
-            print("  [重启] 关闭游戏进程...")
+            print("  [閲嶅惎] 鍏抽棴娓告垙杩涚▼...")
             subprocess.run(
                 [ADB_PATH, "-s", DEVICE_ADDR, "shell", "am", "force-stop", "com.hypergryph.endfield"],
                 capture_output=True, timeout=10
             )
             time.sleep(2)
-            print("  [重启] 启动游戏...")
+            print("  [閲嶅惎] 鍚姩娓告垙...")
             subprocess.run(
                 [ADB_PATH, "-s", DEVICE_ADDR, "shell", "monkey", "-p", "com.hypergryph.endfield", "1"],
                 capture_output=True, timeout=10
             )
-            print("  [重启] 等待游戏启动...")
+            print("  [閲嶅惎] 绛夊緟娓告垙鍚姩...")
             time.sleep(15)
             return True
         except Exception as e:
-            print(f"  [重启错误] {e}")
+            print(f"  [閲嶅惎閿欒] {e}")
             return False
     
     def _capture_and_recognize(self, step_name: str) -> Dict[str, Any]:
-        """截图并执行识别"""
+        """鎴浘骞舵墽琛岃瘑鍒?""
         img_bytes = adb_screencap(serial=DEVICE_ADDR)
         if not img_bytes:
             return {"error": "screenshot_failed"}
@@ -91,23 +88,22 @@ class HighReliabilityFlowExecutor:
         if cv_img is None:
             return {"error": "decode_failed"}
         
-        # 旋转为横屏
-        rotated = cv2.rotate(cv_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        # 鏃嬭浆涓烘í灞?        rotated = cv2.rotate(cv_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
         resized = cv2.resize(rotated, (1280, 720))
         
-        # 保存截图
+        # 淇濆瓨鎴浘
         self.screenshots.append(cv_img.copy())
         
-        # 页面分析
+        # 椤甸潰鍒嗘瀽
         page_result = self.page_analyzer.analyze(resized)
         
-        # 模板匹配
+        # 妯℃澘鍖归厤
         template_results = []
-        # TODO: 根据配置执行模板匹配
+        # TODO: 鏍规嵁閰嶇疆鎵ц妯℃澘鍖归厤
         
-        # 颜色匹配
+        # 棰滆壊鍖归厤
         color_results = []
-        # TODO: 根据配置执行颜色匹配
+        # TODO: 鏍规嵁閰嶇疆鎵ц棰滆壊鍖归厤
         
         record = {
             "step": step_name,
@@ -122,7 +118,7 @@ class HighReliabilityFlowExecutor:
         return record
     
     def _detect_page_type(self, features: dict) -> str:
-        """根据特征检测页面类型"""
+        """鏍规嵁鐗瑰緛妫€娴嬮〉闈㈢被鍨?""
         left_bar = features.get("left_bar_brightness", 0)
         green = features.get("green_pixels_top_right", 0)
         brightness = features.get("full_brightness", 0)
@@ -139,34 +135,33 @@ class HighReliabilityFlowExecutor:
         return "unknown"
     
     def _handle_exit_dialog(self, max_retries: int = 3) -> bool:
-        """处理退出对话框"""
+        """澶勭悊閫€鍑哄璇濇"""
         for i in range(max_retries):
-            print(f"  [对话框] 尝试关闭 (尝试 {i+1}/{max_retries})")
-            self._adb_tap(960, 600)  # 点击底部中央
+            print(f"  [瀵硅瘽妗哴 灏濊瘯鍏抽棴 (灏濊瘯 {i+1}/{max_retries})")
+            self._adb_tap(960, 600)  # 鐐瑰嚮搴曢儴涓ぎ
             time.sleep(2)
             
             record = self._capture_and_recognize(f"close_dialog_{i+1}")
             if record.get("page_type") != "exit_dialog":
-                print("  [成功] 对话框已关闭")
+                print("  [鎴愬姛] 瀵硅瘽妗嗗凡鍏抽棴")
                 return True
         
-        # 重试失败，重启游戏
-        print("  [警告] 对话框无法关闭，尝试重启游戏...")
+        # 閲嶈瘯澶辫触锛岄噸鍚父鎴?        print("  [璀﹀憡] 瀵硅瘽妗嗘棤娉曞叧闂紝灏濊瘯閲嶅惎娓告垙...")
         if self._adb_restart_game():
-            print("  [成功] 游戏已重启")
+            print("  [鎴愬姛] 娓告垙宸查噸鍚?)
             self._capture_and_recognize("after_restart")
             return True
         
         return False
     
     def execute_flow(self, flow_name: str) -> Dict[str, Any]:
-        """执行标准流"""
+        """鎵ц鏍囧噯娴?""
         flow = self.flow_config.get("flows", {}).get(flow_name)
         if not flow:
             return {"error": f"Flow not found: {flow_name}"}
         
         print(f"\n{'='*60}")
-        print(f"执行标准流：{flow_name}")
+        print(f"鎵ц鏍囧噯娴侊細{flow_name}")
         print(f"{'='*60}\n")
         
         steps = flow.get("steps", [])
@@ -177,15 +172,15 @@ class HighReliabilityFlowExecutor:
             action = step.get("action", "tap")
             desc = step.get("desc", "")
             
-            print(f"\n[步骤] {step_id}: {desc}")
+            print(f"\n[姝ラ] {step_id}: {desc}")
             
-            # 执行动作
+            # 鎵ц鍔ㄤ綔
             if action == "check":
                 expect = step.get("expect", "")
                 record = self._capture_and_recognize(step_id)
                 page_type = self._detect_page_type(record.get("features", {}))
                 
-                # 处理退出对话框
+                # 澶勭悊閫€鍑哄璇濇
                 if page_type == "exit_dialog":
                     if not self._handle_exit_dialog():
                         return {"error": "Failed to close exit dialog", "step": step_id}
@@ -196,14 +191,13 @@ class HighReliabilityFlowExecutor:
                 results.append({"step": step_id, "action": action, "success": success, "page_type": page_type})
                 
             elif action == "tap":
-                # 使用识别结果或降级到参考坐标
-                use_recognition = step.get("use_recognition", False)
+                # 浣跨敤璇嗗埆缁撴灉鎴栭檷绾у埌鍙傝€冨潗鏍?                use_recognition = step.get("use_recognition", False)
                 fallback_coords = step.get("fallback_coords", [540, 360])
                 
                 if use_recognition:
-                    # TODO: 根据识别结果决定坐标
+                    # TODO: 鏍规嵁璇嗗埆缁撴灉鍐冲畾鍧愭爣
                     coords = fallback_coords
-                    print(f"  [识别] 使用参考坐标：{coords}")
+                    print(f"  [璇嗗埆] 浣跨敤鍙傝€冨潗鏍囷細{coords}")
                 else:
                     coords = fallback_coords
                 
@@ -219,8 +213,8 @@ class HighReliabilityFlowExecutor:
                 end = step.get("end", [540, 400])
                 duration = step.get("duration", 500)
                 
-                # TODO: 实现 swipe
-                print(f"  [滑动] {start} → {end} ({duration}ms)")
+                # TODO: 瀹炵幇 swipe
+                print(f"  [婊戝姩] {start} 鈫?{end} ({duration}ms)")
                 results.append({"step": step_id, "action": action, "success": True})
                 
             elif action == "back":
@@ -237,9 +231,9 @@ class HighReliabilityFlowExecutor:
                 results.append({"step": step_id, "action": action, "success": True})
                 
             elif action == "claim":
-                # 点击领取按钮
+                # 鐐瑰嚮棰嗗彇鎸夐挳
                 target = step.get("target", "claim_all")
-                coords = [810, 900]  # 默认领取坐标
+                coords = [810, 900]  # 榛樿棰嗗彇鍧愭爣
                 success = self._adb_tap(coords[0], coords[1])
                 results.append({"step": step_id, "action": action, "success": success, "target": target})
         
@@ -253,41 +247,41 @@ class HighReliabilityFlowExecutor:
 
 
 def main():
-    """主函数"""
-    # 加载配置
+    """涓诲嚱鏁?""
+    # 鍔犺浇閰嶇疆
     config_path = PROJECT_ROOT / "config" / "standard_flows" / "flows_config_v5.json"
     with open(config_path, 'r', encoding='utf-8') as f:
         flow_config = json.load(f)
     
-    # 创建执行器
-    executor = HighReliabilityFlowExecutor(flow_config)
+    # 鍒涘缓鎵ц鍣?    executor = HighReliabilityFlowExecutor(flow_config)
     
-    # 执行每日任务
+    # 鎵ц姣忔棩浠诲姟
     result = executor.execute_flow("daily_quest")
     
-    # 保存结果
+    # 淇濆瓨缁撴灉
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     record_dir = PROJECT_ROOT / "cache" / f"high_reliability_{timestamp}"
     record_dir.mkdir(parents=True, exist_ok=True)
     
-    # 保存识别记录
+    # 淇濆瓨璇嗗埆璁板綍
     with open(record_dir / "recognition_records.json", 'w', encoding='utf-8') as f:
         json.dump(result.get("recognition_records", []), f, ensure_ascii=False, indent=2)
     
-    # 保存执行结果
+    # 淇濆瓨鎵ц缁撴灉
     with open(record_dir / "execution_result.json", 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     
-    # 保存截图
+    # 淇濆瓨鎴浘
     for i, img in enumerate(executor.screenshots):
         cv2.imwrite(str(record_dir / f"screenshot_{i:03d}.png"), img)
     
     print(f"\n{'='*60}")
-    print(f"执行完成：{result.get('flow')}")
-    print(f"成功率：{sum(1 for r in result.get('results', []) if r.get('success'))}/{len(result.get('results', []))}")
-    print(f"记录保存：{record_dir}")
+    print(f"鎵ц瀹屾垚锛歿result.get('flow')}")
+    print(f"鎴愬姛鐜囷細{sum(1 for r in result.get('results', []) if r.get('success'))}/{len(result.get('results', []))}")
+    print(f"璁板綍淇濆瓨锛歿record_dir}")
     print(f"{'='*60}\n")
 
 
 if __name__ == "__main__":
     main()
+

@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""深度测试：MaaFw 点击是否真的发送 ADB 命令"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""娣卞害娴嬭瘯锛歁aaFw 鐐瑰嚮鏄惁鐪熺殑鍙戦€?ADB 鍛戒护"""
 import sys, os, time, subprocess, hashlib
 from pathlib import Path
 
@@ -20,7 +20,7 @@ def adb_tap(x, y):
 def hash_img(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()[:8] if data else "none"
 
-# ── 初始化 MaaFw ──
+# 鈹€鈹€ 鍒濆鍖?MaaFw 鈹€鈹€
 _maafw = None
 try:
     from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig, MAAFW_AVAILABLE
@@ -33,59 +33,59 @@ try:
         )
         _maafw = MaaFwTouchExecutor(cfg)
         if _maafw.connect():
-            print(f"[MaaFw] 连接成功, uuid={_maafw._uuid}")
+            print(f"[MaaFw] 杩炴帴鎴愬姛, uuid={_maafw._uuid}")
         else:
-            print("[MaaFw] 连接失败")
+            print("[MaaFw] 杩炴帴澶辫触")
             sys.exit(1)
 except Exception as e:
-    print(f"[MaaFw] 异常: {e}")
+    print(f"[MaaFw] 寮傚父: {e}")
     sys.exit(1)
 
-print("\n=== 测试: 连续截图观察自然变化 ===")
+print("\n=== 娴嬭瘯: 杩炵画鎴浘瑙傚療鑷劧鍙樺寲 ===")
 for i in range(3):
     data = adb_screencap()
-    print(f"  截图 {i+1}: hash={hash_img(data)}, 大小={len(data)}")
+    print(f"  鎴浘 {i+1}: hash={hash_img(data)}, 澶у皬={len(data)}")
     time.sleep(1)
 
-print("\n=== 测试: MaaFw click 后截图 ===")
-# 先截图
+print("\n=== 娴嬭瘯: MaaFw click 鍚庢埅鍥?===")
+# 鍏堟埅鍥?
 before = adb_screencap()
-print(f"  点击前: hash={hash_img(before)}")
+print(f"  鐐瑰嚮鍓? hash={hash_img(before)}")
 
-# MaaFw 点击
+# MaaFw 鐐瑰嚮
 print(f"  MaaFw click (800, 40)...")
 t0 = time.time()
 ok = _maafw.click(800, 40)
 t1 = time.time()
-print(f"  结果: {ok}, 耗时: {t1-t0:.2f}s")
+print(f"  缁撴灉: {ok}, 鑰楁椂: {t1-t0:.2f}s")
 
-time.sleep(3)  # 等 UI 响应
+time.sleep(3)  # 绛?UI 鍝嶅簲
 
 after = adb_screencap()
-print(f"  点击后: hash={hash_img(after)}")
-print(f"  变化: {hash_img(before)} -> {hash_img(after)}")
+print(f"  鐐瑰嚮鍚? hash={hash_img(after)}")
+print(f"  鍙樺寲: {hash_img(before)} -> {hash_img(after)}")
 
-print("\n=== 测试: 直接 ADB tap 后截图 ===")
+print("\n=== 娴嬭瘯: 鐩存帴 ADB tap 鍚庢埅鍥?===")
 before2 = adb_screencap()
-print(f"  点击前: hash={hash_img(before2)}")
+print(f"  鐐瑰嚮鍓? hash={hash_img(before2)}")
 
 print(f"  ADB tap (800, 40)...")
 t0 = time.time()
 ok = adb_tap(800, 40)
 t1 = time.time()
-print(f"  结果: {ok}, 耗时: {t1-t0:.2f}s")
+print(f"  缁撴灉: {ok}, 鑰楁椂: {t1-t0:.2f}s")
 
 time.sleep(3)
 
 after2 = adb_screencap()
-print(f"  点击后: hash={hash_img(after2)}")
-print(f"  变化: {hash_img(before2)} -> {hash_img(after2)}")
+print(f"  鐐瑰嚮鍚? hash={hash_img(after2)}")
+print(f"  鍙樺寲: {hash_img(before2)} -> {hash_img(after2)}")
 
-print("\n=== 对比分析 ===")
-# 如果 MaaFw 和 ADB 都点击同一位置，结果应该相似
-# 如果 MaaFw 点击没生效，MaaFw 前后的 hash 变化应该和自然变化一样小
-# 而 ADB tap 前后的 hash 变化应该更大（因为 UI 变化）
+print("\n=== 瀵规瘮鍒嗘瀽 ===")
+# 濡傛灉 MaaFw 鍜?ADB 閮界偣鍑诲悓涓€浣嶇疆锛岀粨鏋滃簲璇ョ浉浼?
+# 濡傛灉 MaaFw 鐐瑰嚮娌＄敓鏁堬紝MaaFw 鍓嶅悗鐨?hash 鍙樺寲搴旇鍜岃嚜鐒跺彉鍖栦竴鏍峰皬
+# 鑰?ADB tap 鍓嶅悗鐨?hash 鍙樺寲搴旇鏇村ぇ锛堝洜涓?UI 鍙樺寲锛?
 
-# 计算自然变化幅度
-print("注意：如果 MaaFw 点击后截图与点击前几乎相同（仅动画噪声），")
-print("而 ADB tap 后截图明显不同（UI 导航），则说明 MaaFw 点击未生效。")
+# 璁＄畻鑷劧鍙樺寲骞呭害
+print("娉ㄦ剰锛氬鏋?MaaFw 鐐瑰嚮鍚庢埅鍥句笌鐐瑰嚮鍓嶅嚑涔庣浉鍚岋紙浠呭姩鐢诲櫔澹帮級锛?)
+print("鑰?ADB tap 鍚庢埅鍥炬槑鏄句笉鍚岋紙UI 瀵艰埅锛夛紝鍒欒鏄?MaaFw 鐐瑰嚮鏈敓鏁堛€?)

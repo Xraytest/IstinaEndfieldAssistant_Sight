@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-直接测试 MaaFw 的 ADB 命令执行能力
-使用 post_shell 验证 MaaFw 是否能正常发送 ADB 命令
+鐩存帴娴嬭瘯 MaaFw 鐨?ADB 鍛戒护鎵ц鑳藉姏
+浣跨敤 post_shell 楠岃瘉 MaaFw 鏄惁鑳芥甯稿彂閫?ADB 鍛戒护
 """
 import sys, time, subprocess
 from pathlib import Path
@@ -22,43 +22,43 @@ cfg = MaaFwTouchConfig(
 )
 _maafw = MaaFwTouchExecutor(cfg)
 if not _maafw.connect():
-    print("MaaFw 连接失败")
+    print("MaaFw 杩炴帴澶辫触")
     sys.exit(1)
 
-print(f"MaaFw 连接成功, uuid={_maafw._uuid}")
-print(f"MaaFw 分辨率: {_maafw.get_resolution()}")
+print(f"MaaFw 杩炴帴鎴愬姛, uuid={_maafw._uuid}")
+print(f"MaaFw 鍒嗚鲸鐜? {_maafw.get_resolution()}")
 
-# ── 测试1: post_shell ──
+# 鈹€鈹€ 娴嬭瘯1: post_shell 鈹€鈹€
 print("\n" + "="*60)
-print("测试1: MaaFw post_shell - 执行简单命令")
+print("娴嬭瘯1: MaaFw post_shell - 鎵ц绠€鍗曞懡浠?)
 print("="*60)
 
-# 执行 shell 命令
+# 鎵ц shell 鍛戒护
 job = _maafw._controller.post_shell("echo 'MaaFw_TEST_OK'")
 job.wait()
 print(f"  job.succeeded: {job.succeeded}")
 print(f"  shell_output: {_maafw._controller.shell_output}")
 
-# ── 测试2: 直接 ADB 对比 ──
+# 鈹€鈹€ 娴嬭瘯2: 鐩存帴 ADB 瀵规瘮 鈹€鈹€
 print("\n" + "="*60)
-print("测试2: 直接 ADB shell 对比")
+print("娴嬭瘯2: 鐩存帴 ADB shell 瀵规瘮")
 print("="*60)
 r = subprocess.run(ADB + ["shell", "echo", "ADB_TEST_OK"], capture_output=True, timeout=10, text=True)
 print(f"  stdout: {r.stdout.strip()}")
 print(f"  stderr: {r.stderr.strip()}")
 print(f"  returncode: {r.returncode}")
 
-# ── 测试3: MaaFw post_shell 执行 input tap ──
+# 鈹€鈹€ 娴嬭瘯3: MaaFw post_shell 鎵ц input tap 鈹€鈹€
 print("\n" + "="*60)
-print("测试3: MaaFw post_shell 执行 input tap")
+print("娴嬭瘯3: MaaFw post_shell 鎵ц input tap")
 print("="*60)
 
-# 先截图
+# 鍏堟埅鍥?
 before = subprocess.run(ADB + ["exec-out", "screencap", "-p"], capture_output=True, timeout=15)
 h_before = hash(before.stdout) % 1000000
-print(f"  点击前截图 hash: {h_before}")
+print(f"  鐐瑰嚮鍓嶆埅鍥?hash: {h_before}")
 
-# 用 post_shell 执行 input tap
+# 鐢?post_shell 鎵ц input tap
 job = _maafw._controller.post_shell("input tap 400 960")
 job.wait()
 print(f"  post_shell job.succeeded: {job.succeeded}")
@@ -68,17 +68,17 @@ time.sleep(2)
 
 after = subprocess.run(ADB + ["exec-out", "screencap", "-p"], capture_output=True, timeout=15)
 h_after = hash(after.stdout) % 1000000
-print(f"  点击后截图 hash: {h_after}")
-print(f"  变化: {h_before} -> {h_after}")
+print(f"  鐐瑰嚮鍚庢埅鍥?hash: {h_after}")
+print(f"  鍙樺寲: {h_before} -> {h_after}")
 
-# ── 测试4: MaaFw post_click ──
+# 鈹€鈹€ 娴嬭瘯4: MaaFw post_click 鈹€鈹€
 print("\n" + "="*60)
-print("测试4: MaaFw post_click (对比)")
+print("娴嬭瘯4: MaaFw post_click (瀵规瘮)")
 print("="*60)
 
 before2 = subprocess.run(ADB + ["exec-out", "screencap", "-p"], capture_output=True, timeout=15)
 h_before2 = hash(before2.stdout) % 1000000
-print(f"  点击前截图 hash: {h_before2}")
+print(f"  鐐瑰嚮鍓嶆埅鍥?hash: {h_before2}")
 
 ok = _maafw.click(400, 960)
 print(f"  MaaFw click: {ok}")
@@ -87,14 +87,15 @@ time.sleep(2)
 
 after2 = subprocess.run(ADB + ["exec-out", "screencap", "-p"], capture_output=True, timeout=15)
 h_after2 = hash(after2.stdout) % 1000000
-print(f"  点击后截图 hash: {h_after2}")
-print(f"  变化: {h_before2} -> {h_after2}")
+print(f"  鐐瑰嚮鍚庢埅鍥?hash: {h_after2}")
+print(f"  鍙樺寲: {h_before2} -> {h_after2}")
 
 print("\n" + "="*60)
-print("结论")
+print("缁撹")
 print("="*60)
 print(f"""
-如果测试1(post_shell echo)成功 → MaaFw 的 ADB 通道正常
-如果测试3(post_shell input tap)有截图变化 → MaaFw 的 ADB shell 执行正常
-如果测试4(post_click)无截图变化 → post_click 内部有问题
+濡傛灉娴嬭瘯1(post_shell echo)鎴愬姛 鈫?MaaFw 鐨?ADB 閫氶亾姝ｅ父
+濡傛灉娴嬭瘯3(post_shell input tap)鏈夋埅鍥惧彉鍖?鈫?MaaFw 鐨?ADB shell 鎵ц姝ｅ父
+濡傛灉娴嬭瘯4(post_click)鏃犳埅鍥惧彉鍖?鈫?post_click 鍐呴儴鏈夐棶棰?
 """)
+

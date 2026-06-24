@@ -1,14 +1,11 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-验证 exit_dialog 修复效果 — 基于 MaaEnd 的 CancelButton 思路
+楠岃瘉 exit_dialog 淇鏁堟灉 鈥?鍩轰簬 MaaEnd 鐨?CancelButton 鎬濊矾
 
-测试方法：
-1. 触发退出对话框
-2. 使用多坐标尝试关闭
-3. 通过画面变化验证是否成功
-4. 统计成功率
-
-参考：MaaEnd 的 CancelButton 节点（全屏模板匹配）
+娴嬭瘯鏂规硶锛?1. 瑙﹀彂閫€鍑哄璇濇
+2. 浣跨敤澶氬潗鏍囧皾璇曞叧闂?3. 閫氳繃鐢婚潰鍙樺寲楠岃瘉鏄惁鎴愬姛
+4. 缁熻鎴愬姛鐜?
+鍙傝€冿細MaaEnd 鐨?CancelButton 鑺傜偣锛堝叏灞忔ā鏉垮尮閰嶏級
 """
 
 import subprocess, time, cv2, numpy as np, sys, os
@@ -34,7 +31,7 @@ def screencap():
     return cv2.imdecode(np.frombuffer(r.stdout, np.uint8), cv2.IMREAD_COLOR)
 
 def screen_diff(img1, img2):
-    """计算两张图片的差异像素数"""
+    """璁＄畻涓ゅ紶鍥剧墖鐨勫樊寮傚儚绱犳暟"""
     if img1 is None or img2 is None:
         return 0
     d = cv2.absdiff(img1, img2)
@@ -43,7 +40,7 @@ def screen_diff(img1, img2):
     return cv2.countNonZero(t)
 
 def detect_golden(img):
-    """检测金色元素数量"""
+    """妫€娴嬮噾鑹插厓绱犳暟閲?""
     if img is None:
         return 0
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -54,7 +51,7 @@ def detect_golden(img):
     return len([c for c in contours if cv2.contourArea(c) > 30])
 
 def classify_by_gold(gold_count):
-    """基于金色元素数量判断页面类型"""
+    """鍩轰簬閲戣壊鍏冪礌鏁伴噺鍒ゆ柇椤甸潰绫诲瀷"""
     if 12 <= gold_count <= 16:
         return "exit_dialog"
     elif 18 <= gold_count <= 21:
@@ -66,30 +63,25 @@ def classify_by_gold(gold_count):
 
 def close_with_multi_coords():
     """
-    多坐标尝试关闭退出对话框
+    澶氬潗鏍囧皾璇曞叧闂€€鍑哄璇濇
     
-    返回：(success, best_coord, best_diff)
+    杩斿洖锛?success, best_coord, best_diff)
     """
-    # 候选坐标：基于 1920x1080 分辨率，覆盖取消按钮的可能位置
-    cancel_candidates = [
-        (600, 750),   # 默认估计
-        (550, 730),   # 偏左上
-        (650, 770),   # 偏右下
-        (580, 740),   # 偏左
-        (620, 760),   # 偏右
-        (540, 720),   # 更左上
-        (660, 780),   # 更右下
-        (560, 750),   # 左中
-        (640, 750),   # 右中
-        (600, 730),   # 中上
-        (600, 770),   # 中下
+    # 鍊欓€夊潗鏍囷細鍩轰簬 1920x1080 鍒嗚鲸鐜囷紝瑕嗙洊鍙栨秷鎸夐挳鐨勫彲鑳戒綅缃?    cancel_candidates = [
+        (600, 750),   # 榛樿浼拌
+        (550, 730),   # 鍋忓乏涓?        (650, 770),   # 鍋忓彸涓?        (580, 740),   # 鍋忓乏
+        (620, 760),   # 鍋忓彸
+        (540, 720),   # 鏇村乏涓?        (660, 780),   # 鏇村彸涓?        (560, 750),   # 宸︿腑
+        (640, 750),   # 鍙充腑
+        (600, 730),   # 涓笂
+        (600, 770),   # 涓笅
     ]
     
     best_coord = None
     best_diff = 0
     
     for i, (cx, cy) in enumerate(cancel_candidates):
-        # 截图
+        # 鎴浘
         before = screencap()
         if before is None:
             continue
@@ -98,43 +90,42 @@ def close_with_multi_coords():
         page_before = classify_by_gold(gold_before)
         
         if page_before != "exit_dialog":
-            return True, best_coord, best_diff  # 已经不在退出对话框
+            return True, best_coord, best_diff  # 宸茬粡涓嶅湪閫€鍑哄璇濇
         
-        # 点击
+        # 鐐瑰嚮
         tap(cx, cy)
         time.sleep(1.5)
         
-        # 截图验证
+        # 鎴浘楠岃瘉
         after = screencap()
         if after is None:
             continue
         
-        # 计算画面变化
+        # 璁＄畻鐢婚潰鍙樺寲
         diff = screen_diff(before, after)
         gold_after = detect_golden(after)
         page_after = classify_by_gold(gold_after)
         
-        # 记录最佳坐标
-        if diff > best_diff:
+        # 璁板綍鏈€浣冲潗鏍?        if diff > best_diff:
             best_diff = diff
             best_coord = (cx, cy)
         
-        # 判断是否成功关闭
+        # 鍒ゆ柇鏄惁鎴愬姛鍏抽棴
         if diff > 500000 and page_after != "exit_dialog":
-            print(f"  [成功] ({cx}, {cy}) diff={diff:,} {page_before}->{page_after}")
+            print(f"  [鎴愬姛] ({cx}, {cy}) diff={diff:,} {page_before}->{page_after}")
             return True, (cx, cy), diff
         elif diff > 200000 and gold_after < 12:
-            print(f"  [可能成功] ({cx}, {cy}) diff={diff:,} 金色减少")
+            print(f"  [鍙兘鎴愬姛] ({cx}, {cy}) diff={diff:,} 閲戣壊鍑忓皯")
             return True, (cx, cy), diff
         
-        # 恢复退出对话框状态（按返回）
+        # 鎭㈠閫€鍑哄璇濇鐘舵€侊紙鎸夎繑鍥烇級
         back()
         time.sleep(1)
     
     return False, best_coord, best_diff
 
 def close_with_back():
-    """使用 back 键关闭退出对话框"""
+    """浣跨敤 back 閿叧闂€€鍑哄璇濇"""
     before = screencap()
     back()
     time.sleep(1.5)
@@ -145,7 +136,7 @@ def close_with_back():
         gold_after = detect_golden(after)
         page_after = classify_by_gold(gold_after)
         
-        print(f"  [back] diff={diff:,} 页面={page_after} (金色={gold_after})")
+        print(f"  [back] diff={diff:,} 椤甸潰={page_after} (閲戣壊={gold_after})")
         
         if page_after != "exit_dialog":
             return True, None, diff
@@ -153,50 +144,48 @@ def close_with_back():
     return False, None, 0
 
 def run_test_round(round_num, total_rounds):
-    """运行一轮测试"""
+    """杩愯涓€杞祴璇?""
     print(f"\n{'='*60}")
-    print(f"测试轮次 {round_num}/{total_rounds}")
+    print(f"娴嬭瘯杞 {round_num}/{total_rounds}")
     print("="*60)
     
-    # 确保在世界页面
-    print("[准备] 确保在世界页面...")
+    # 纭繚鍦ㄤ笘鐣岄〉闈?    print("[鍑嗗] 纭繚鍦ㄤ笘鐣岄〉闈?..")
     for _ in range(5):
         back()
         time.sleep(0.5)
     time.sleep(1)
     
-    # 触发退出对话框
-    print("[触发] 按返回键触发退出对话框...")
+    # 瑙﹀彂閫€鍑哄璇濇
+    print("[瑙﹀彂] 鎸夎繑鍥為敭瑙﹀彂閫€鍑哄璇濇...")
     back()
     time.sleep(2)
     
-    # 验证是否出现退出对话框
+    # 楠岃瘉鏄惁鍑虹幇閫€鍑哄璇濇
     img = screencap()
     gold = detect_golden(img)
     page = classify_by_gold(gold)
     
-    print(f"[当前] 页面={page} (金色={gold})")
+    print(f"[褰撳墠] 椤甸潰={page} (閲戣壊={gold})")
     
     if page != "exit_dialog":
-        print(f"[跳过] 未检测到退出对话框")
+        print(f"[璺宠繃] 鏈娴嬪埌閫€鍑哄璇濇")
         return None
     
-    # 方法 1：多坐标尝试
-    print("\n[方法 1] 多坐标尝试...")
+    # 鏂规硶 1锛氬鍧愭爣灏濊瘯
+    print("\n[鏂规硶 1] 澶氬潗鏍囧皾璇?..")
     success1, coord1, diff1 = close_with_multi_coords()
     
-    # 验证结果
+    # 楠岃瘉缁撴灉
     time.sleep(1)
     img = screencap()
     gold = detect_golden(img)
     page = classify_by_gold(gold)
     
     if page != "exit_dialog":
-        print(f"[结果] 方法 1 成功，当前页面={page}")
+        print(f"[缁撴灉] 鏂规硶 1 鎴愬姛锛屽綋鍓嶉〉闈?{page}")
         return {"method": "multi_coords", "coord": coord1, "diff": diff1, "success": True}
     
-    # 方法 2：back 键
-    print("\n[方法 2] back 键...")
+    # 鏂规硶 2锛歜ack 閿?    print("\n[鏂规硶 2] back 閿?..")
     success2, coord2, diff2 = close_with_back()
     
     time.sleep(1)
@@ -205,30 +194,30 @@ def run_test_round(round_num, total_rounds):
     page = classify_by_gold(gold)
     
     if page != "exit_dialog":
-        print(f"[结果] 方法 2 成功，当前页面={page}")
+        print(f"[缁撴灉] 鏂规硶 2 鎴愬姛锛屽綋鍓嶉〉闈?{page}")
         return {"method": "back", "coord": coord2, "diff": diff2, "success": True}
     
-    print("[结果] 所有方法失败")
+    print("[缁撴灉] 鎵€鏈夋柟娉曞け璐?)
     return {"method": "none", "coord": None, "diff": 0, "success": False}
 
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--rounds", type=int, default=3, help="测试轮次数")
-    parser.add_argument("--single", action="store_true", help="单轮测试")
+    parser.add_argument("--rounds", type=int, default=3, help="娴嬭瘯杞鏁?)
+    parser.add_argument("--single", action="store_true", help="鍗曡疆娴嬭瘯")
     args = parser.parse_args()
     
     print("\n" + "="*70)
-    print("Exit Dialog 修复验证")
+    print("Exit Dialog 淇楠岃瘉")
     print("="*70)
     
     if args.single:
         result = run_test_round(1, 1)
         if result:
-            print(f"\n结果：{result}")
+            print(f"\n缁撴灉锛歿result}")
         return 0
     
-    # 多轮测试
+    # 澶氳疆娴嬭瘯
     results = []
     for i in range(args.rounds):
         result = run_test_round(i + 1, args.rounds)
@@ -236,18 +225,18 @@ def main():
             results.append(result)
         time.sleep(2)
     
-    # 统计
+    # 缁熻
     print("\n" + "="*70)
-    print("统计结果")
+    print("缁熻缁撴灉")
     print("="*70)
     
     success_count = sum(1 for r in results if r["success"])
-    print(f"\n总轮次：{len(results)}")
-    print(f"成功：{success_count}")
-    print(f"失败：{len(results) - success_count}")
-    print(f"成功率：{success_count/len(results)*100:.1f}%" if results else "N/A")
+    print(f"\n鎬昏疆娆★細{len(results)}")
+    print(f"鎴愬姛锛歿success_count}")
+    print(f"澶辫触锛歿len(results) - success_count}")
+    print(f"鎴愬姛鐜囷細{success_count/len(results)*100:.1f}%" if results else "N/A")
     
-    # 方法分布
+    # 鏂规硶鍒嗗竷
     methods = {}
     for r in results:
         method = r["method"]
@@ -255,18 +244,17 @@ def main():
             methods[method] = 0
         methods[method] += 1
     
-    print("\n方法分布:")
+    print("\n鏂规硶鍒嗗竷:")
     for method, count in methods.items():
         print(f"  {method}: {count}")
     
-    # 最佳坐标
-    coords = [r["coord"] for r in results if r["coord"]]
+    # 鏈€浣冲潗鏍?    coords = [r["coord"] for r in results if r["coord"]]
     if coords:
         from collections import Counter
         coord_counts = Counter(str(c) for c in coords)
-        print("\n最佳坐标分布:")
+        print("\n鏈€浣冲潗鏍囧垎甯?")
         for coord_str, count in coord_counts.most_common(3):
-            print(f"  {coord_str}: {count}次")
+            print(f"  {coord_str}: {count}娆?)
     
     return 0 if success_count > 0 else 1
 
@@ -274,7 +262,8 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as e:
-        print(f"\n[错误] {e}")
+        print(f"\n[閿欒] {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
+

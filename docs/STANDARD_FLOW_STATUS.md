@@ -197,7 +197,7 @@
 ### 1. test_all_flows.py
 
 ```bash
-python scripts/test_all_flows.py
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/test_all_flows.py
 ```
 
 检查所有标准流的配置正确性。
@@ -206,24 +206,24 @@ python scripts/test_all_flows.py
 
 ```bash
 # 扫描所有菜单入口坐标
-python scripts/verify_menu_entries.py --scan-all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/verify_menu_entries.py --scan-all
 
 # 单独验证基建入口
-python scripts/verify_menu_entries.py --target base
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/verify_menu_entries.py --target base
 
 # 单独验证角色入口
-python scripts/verify_menu_entries.py --target char
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/verify_menu_entries.py --target char
 ```
 
 ### 3. capture_page_profiles.py
 
 ```bash
 # 采集页面特征样本
-python scripts/capture_page_profiles.py --type world --count 10
-python scripts/capture_page_profiles.py --type quest_panel --count 5
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/capture_page_profiles.py --type world --count 10
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/capture_page_profiles.py --type quest_panel --count 5
 
 # 更新特征数据库
-python scripts/capture_page_profiles.py --update
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/capture_page_profiles.py --update
 ```
 
 ## 待办事项
@@ -267,26 +267,26 @@ python scripts/capture_page_profiles.py --update
 
 ```bash
 # 执行单个流程
-python scripts/standard_flow_engine.py --flow daily_quest
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest
 
 # 执行所有流程
-python scripts/standard_flow_engine.py --flow all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow all
 
 # 本地模型运行
-python scripts/standard_flow_engine.py --flow daily_quest --local-only
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest --local-only
 ```
 
 ### 方式 2: 先验证再执行
 
 ```bash
 # 步骤 1: 验证菜单坐标
-python scripts/verify_menu_entries.py --scan-all
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/verify_menu_entries.py --scan-all
 
 # 步骤 2: 更新配置
 # 手动更新 config/standard_flows/flows_config.json
 
 # 步骤 3: 测试流程
-python scripts/standard_flow_engine.py --flow daily_quest
+C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe scripts/standard_flow_engine.py --flow daily_quest
 ```
 
 ## 已知限制

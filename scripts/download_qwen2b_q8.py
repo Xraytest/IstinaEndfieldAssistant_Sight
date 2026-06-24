@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
-"""下载Qwen3.5-2B Q8_0量化版本"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""涓嬭浇Qwen3.5-2B Q8_0閲忓寲鐗堟湰"""
 import os
 import requests
 
-# Q8_0版本，约2.1GB
+# Q8_0鐗堟湰锛岀害2.1GB
 url = "https://hf-mirror.com/TheBloke/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q8_0.gguf"
 save_dir = "models/qwen3.5-2b-qwen3.6-plus-distilled-f16"
 os.makedirs(save_dir, exist_ok=True)
@@ -31,3 +31,4 @@ try:
     print(f"\nDownload complete! File size: {downloaded / (1024*1024*1024):.2f} GB")
 except Exception as e:
     print(f"\nError: {e}")
+

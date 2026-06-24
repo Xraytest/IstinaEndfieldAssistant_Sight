@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""测试 ADB tap 坐标 - 像素差异分析"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""娴嬭瘯 ADB tap 鍧愭爣 - 鍍忕礌宸紓鍒嗘瀽"""
 import subprocess, time, cv2, numpy as np
 
 ADB = r"C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\adb\adb.exe"
@@ -17,32 +17,32 @@ def adb_screencap():
         return cv2.imdecode(np.frombuffer(r.stdout, dtype=np.uint8), cv2.IMREAD_COLOR)
     return None
 
-# 回到世界
-print("[前置] 回到世界...")
+# 鍥炲埌涓栫晫
+print("[鍓嶇疆] 鍥炲埌涓栫晫...")
 for _ in range(6):
     adb_back()
     time.sleep(0.3)
 time.sleep(2)
 
-# 基准截图
+# 鍩哄噯鎴浘
 img_base = adb_screencap()
 if img_base is None:
-    print("[ERROR] 基准截图失败")
+    print("[ERROR] 鍩哄噯鎴浘澶辫触")
     exit(1)
-print(f"[基准] 分辨率：{img_base.shape[1]}x{img_base.shape[0]}")
+print(f"[鍩哄噯] 鍒嗚鲸鐜囷細{img_base.shape[1]}x{img_base.shape[0]}")
 
-# 测试坐标 (基于 MaaFw 扫描结果 y=40 有效)
-# MaaFw 1280x720 → ADB 可能是 1280x720 或 1920x1080
+# 娴嬭瘯鍧愭爣 (鍩轰簬 MaaFw 鎵弿缁撴灉 y=40 鏈夋晥)
+# MaaFw 1280x720 鈫?ADB 鍙兘鏄?1280x720 鎴?1920x1080
 test_coords = [
-    ("MaaFw 最佳", 570, 40),
-    ("MaaFw 有效", 570, 28),
-    ("配置旧", 855, 33),
-    ("配置新", 855, 60),
-    ("旋转 1", 40, 570),
-    ("旋转 2", 60, 855),
+    ("MaaFw 鏈€浣?, 570, 40),
+    ("MaaFw 鏈夋晥", 570, 28),
+    ("閰嶇疆鏃?, 855, 33),
+    ("閰嶇疆鏂?, 855, 60),
+    ("鏃嬭浆 1", 40, 570),
+    ("鏃嬭浆 2", 60, 855),
 ]
 
-print("\n[测试] ADB tap + 像素差异分析")
+print("\n[娴嬭瘯] ADB tap + 鍍忕礌宸紓鍒嗘瀽")
 print("="*70)
 
 for name, x, y in test_coords:
@@ -51,22 +51,23 @@ for name, x, y in test_coords:
     
     img = adb_screencap()
     if img is None:
-        print(f"{name:12s} ({x:4d}, {y:4d}): 截图失败")
+        print(f"{name:12s} ({x:4d}, {y:4d}): 鎴浘澶辫触")
         adb_back()
         time.sleep(1)
         continue
     
-    # 像素差异
+    # 鍍忕礌宸紓
     diff = cv2.absdiff(img_base, img)
     gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY)
     changed = cv2.countNonZero(thresh)
     rate = changed / (thresh.shape[0] * thresh.shape[1]) * 100
     
-    status = "✅" if rate > 30 else ("⚠️" if rate > 10 else "❌")
+    status = "鉁? if rate > 30 else ("鈿狅笍" if rate > 10 else "鉂?)
     print(f"{status} {name:12s} ({x:4d}, {y:4d}): {changed:8d} px ({rate:5.1f}%)")
     
     adb_back()
     time.sleep(1)
 
-print("\n[结论] >30% 表示面板打开，<10% 表示无变化")
+print("\n[缁撹] >30% 琛ㄧず闈㈡澘鎵撳紑锛?10% 琛ㄧず鏃犲彉鍖?)
+

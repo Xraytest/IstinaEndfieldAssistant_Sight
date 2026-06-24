@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-??????æµ???§è???™¨ v3 - å®Œæ•´?????? OCR + ?Š¶????œº + å¢å¼º check ?Š¨ä½?
+??????å¨´???Ñ†???æ«’ v3 - ç€¹å±¾æš£?????? OCR + ?å§¸????æº€ + æ¾§ç‚²å·± check ?å§©æµ£?
 
-?œ¨??Ÿå?è®¾å¤?ä¸Šæ?§è?Œæ?????æµ?ï¼Œæ”¯???ï¼?1. PaddleOCR ?œ¬?œ°è¯????
-2. ?Š¶????œº??©å?•ï?ˆloop/check/find_and_clickï¼?3. å¢å¼º???check ?Š¨ä½œï?ˆOCR + é¡µé¢?????å™¨??Œæ¨¡å¼ï??4. è§?è§‰å?????
+?æ¹ª??ç†·?ç‚¶î†•æ¾¶?æ¶“å©ƒ?Ñ†?å±¾?????å¨´?é”›å±¾æ•®???é”›?1. PaddleOCR ?æ¹°?æ¹´ç’‡????
+2. ?å§¸????æº€??â•?æ›ª?å™oop/check/find_and_clické”›?3. æ¾§ç‚²å·±???check ?å§©æµ£æ»?åœ¤CR + æ¤¤ç”¸æ½°?????æ„¬æ«’??å±¾Äå¯®å¿¥??4. ç‘™?ç‘™å¤Š?????
 """
 
 import sys
@@ -22,7 +22,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 from standard_flow_engine import FlowConfig, FlowRecorder, Local2BEngine
 from core.capability.adb_utils import ADB, adb_screencap, list_devices
 
-# MaaFw è§¦æ§
+# MaaFw ç‘™ï¸½å¸¶
 try:
     from core.capability.device.touch.maafw_touch_adapter import MaaFwTouchExecutor, MaaFwTouchConfig
     MAAFW_AVAILABLE = True
@@ -30,7 +30,7 @@ except ImportError:
     MaaFwTouchExecutor = None
     MAAFW_AVAILABLE = False
 
-# OCR ??ŒçŠ¶????œº
+# OCR ??å²€å§¸????æº€
 try:
     from core.capability.ocr.ocr_manager import OCRManager
     OCR_MANAGER_AVAILABLE = True
@@ -47,7 +47,7 @@ except ImportError:
 
 
 class EnhancedFlowExecutor:
-    """å¢å¼º?????????æµ???§è?????- ?????? OCR + ?Š¶????œº"""
+    """æ¾§ç‚²å·±?????????å¨´???Ñ†?????- ?????? OCR + ?å§¸????æº€"""
     
     def __init__(self, config: FlowConfig, device_serial: str, use_ocr: bool = False, use_state_machine: bool = False):
         self.config = config
@@ -56,7 +56,7 @@ class EnhancedFlowExecutor:
         self.use_ocr = use_ocr
         self.use_state_machine = use_state_machine
         
-        # ??å?‹å??MaaFw è§¦æ§
+        # ??æ¿†?å¬ª??MaaFw ç‘™ï¸½å¸¶
         self._maafw = None
         if MAAFW_AVAILABLE:
             try:
@@ -68,107 +68,107 @@ class EnhancedFlowExecutor:
                 )
                 self._maafw = MaaFwTouchExecutor(maafw_config)
                 if self._maafw.connect():
-                    print(f"[MaaFw] è§¦æ§??å?‹å?–æ?å??ï¼????è¾¨ç??ï¼š{self._maafw.get_resolution()}")
+                    print(f"[MaaFw] ç‘™ï¸½å¸¶??æ¿†?å¬ª?æ ¨?æ„¬??é”›????æˆã„§??é”›æ­¿self._maafw.get_resolution()}")
                 else:
-                    print("[MaaFw] è¿æ¥å¤±è´¥")
+                    print("[MaaFw] æ©ç‚´å¸´æ¾¶è¾«è§¦")
             except Exception as e:
-                print(f"[MaaFw] ??å?‹å?–å??å¸¸ï?š{e}")
+                print(f"[MaaFw] ??æ¿†?å¬ª?æ §??ç”¯é©?æ­¿e}")
         
-        # ??å?‹å??OCR ç®¡ç?????        self.ocr_manager = None
+        # ??æ¿†?å¬ª??OCR ç» ï¼„?????        self.ocr_manager = None
         if use_ocr and OCR_MANAGER_AVAILABLE:
             try:
                 self.ocr_manager = OCRManager()
-                print(f"[OCR] OCR ç®¡ç???™¨??å?‹å?–æ?å??ï¼Œæ¨¡å¼ï?š{self.ocr_manager.ocr_mode}")
+                print(f"[OCR] OCR ç» ï¼„???æ«’??æ¿†?å¬ª?æ ¨?æ„¬??é”›å±¾Äå¯®å¿¥?æ­¿self.ocr_manager.ocr_mode}")
             except Exception as e:
-                print(f"[OCR] ??å?‹å?–å¤±è´¥ï?š{e}")
+                print(f"[OCR] ??æ¿†?å¬ª?æ §ã‘ç’ãƒ¯?æ­¿e}")
                 self.use_ocr = False
         
-        # ??å?‹å?–çŠ¶????œº
+        # ??æ¿†?å¬ª?æ «å§¸????æº€
         self.state_machine = None
         if use_state_machine and STATE_MACHINE_AVAILABLE:
             try:
                 self.state_machine = FlowStateMachine(ocr_manager=self.ocr_manager, device_manager=self)
-                print(f"[StateMachine] ?Š¶????œº??©å?•å·²?¯???)
+                print(f"[StateMachine] ?å§¸????æº€??â•?æ›å‡¡?æƒ???)
             except Exception as e:
-                print(f"[StateMachine] ??å?‹å?–å¤±è´¥ï?š{e}")
+                print(f"[StateMachine] ??æ¿†?å¬ª?æ §ã‘ç’ãƒ¯?æ­¿e}")
                 self.use_state_machine = False
     
     def _tap(self, x: int, y: int):
-        """??¹å‡» - ä½¿ç”¨ MaaFw"""
+        """??ç‘°åš® - æµ£è·¨æ•¤ MaaFw"""
         if self._maafw and self._maafw.connected:
             self._maafw.safe_press(x, y)
         else:
-            # ADB ??é??
+            # ADB ??ç‚º??
             import subprocess
             subprocess.run(["adb", "-s", self.device_serial, "shell", "input", "tap", str(x), str(y)])
     
     def _swipe(self, x1: int, y1: int, x2: int, y2: int, duration: int = 300):
-        """æ»‘åŠ¨ - ä½¿ç”¨ MaaFw"""
+        """å©Šæˆå§© - æµ£è·¨æ•¤ MaaFw"""
         if self._maafw and self._maafw.connected:
             self._maafw.safe_swipe(x1, y1, x2, y2, duration)
         else:
-            # ADB ??é??
+            # ADB ??ç‚º??
             import subprocess
             subprocess.run(["adb", "-s", self.device_serial, "shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration)])
     
     def _back(self):
-        """è¿”å?? - ä½¿ç”¨ MaaFw"""
+        """æ©æ–¿?? - æµ£è·¨æ•¤ MaaFw"""
         if self._maafw and self._maafw.connected:
             job = self._maafw.post_keyevent(4)  # KEYCODE_BACK
             if job:
                 job.wait()
         else:
-            # ADB ??é??
+            # ADB ??ç‚º??
             import subprocess
             subprocess.run(["adb", "-s", self.device_serial, "shell", "input", "keyevent", "4"])
     
     def _check_page_type(self, step_cfg: Dict[str, Any]) -> bool:
         """
-        å¢å¼º???check ?Š¨ä½? - ä½¿ç”¨ OCR + é¡µé¢?????å??        
+        æ¾§ç‚²å·±???check ?å§©æµ£? - æµ£è·¨æ•¤ OCR + æ¤¤ç”¸æ½°?????æ„¬??        
         Returns:
-            bool: æ£??Ÿ¥?˜¯?¦??å??        """
+            bool: å¦«??ç…¡?æ§¸?æƒ??æ„¬??        """
         success = False
         page_type = "unknown"
         
-        # ä¼˜å??ä½¿ç”¨ OCR ç®¡ç?????        if self.ocr_manager:
+        # æµ¼æ¨º??æµ£è·¨æ•¤ OCR ç» ï¼„?????        if self.ocr_manager:
             try:
-                print(f"  [CHECK] ä½¿ç”¨ OCR ç®¡ç???™¨æ£?æµ‹é¡µ???..")
+                print(f"  [CHECK] æµ£è·¨æ•¤ OCR ç» ï¼„???æ«’å¦«?å¨´å¬®ã€‰???..")
                 state = self.ocr_manager.capture_and_recognize(self.device_serial)
                 page_type = state.page_type
                 description = state.description
-                print(f"  [CHECK] é¡µé¢={page_type} ??è¿°={description}")
+                print(f"  [CHECK] æ¤¤ç”¸æ½°={page_type} ??å¿šå ª={description}")
                 
                 expected = step_cfg.get("expect")
                 if expected:
                     world_types = ("world", "world_transition", "world_map", "explore")
                     if page_type == expected or (expected == "world" and page_type in world_types):
-                        print(f"  [OK] é¡µé¢?Œ¹??é?????ï¼š{expected}")
+                        print(f"  [OK] æ¤¤ç”¸æ½°?å°®??å¶‰?????é”›æ­¿expected}")
                         success = True
                     else:
-                        print(f"  [WARN] é¡µé¢ä¸åŒ¹??ï?šæ?????={expected} å®é??={page_type}")
+                        print(f"  [WARN] æ¤¤ç”¸æ½°æ¶“å¶…å°®??å¶?æ°­?????={expected} ç€¹ç‚º??={page_type}")
                 else:
                     if page_type not in ("error", "unknown"):
                         success = True
-                        print(f"  [OK] é¡µé¢ç±»å?‹ï?š{page_type}")
+                        print(f"  [OK] æ¤¤ç”¸æ½°ç»«è¯²?å¬¶?æ­¿page_type}")
                 
             except Exception as e:
-                print(f"  [WARN] OCR æ£?æµ‹å¤±è´¥ï?š{e}")
+                print(f"  [WARN] OCR å¦«?å¨´å¬ªã‘ç’ãƒ¯?æ­¿e}")
         
         return success
     
     def execute_flow(self, flow_name: str) -> bool:
-        """??§è?Œæ?????æµ?""
+        """??Ñ†?å±¾?????å¨´?""
         flow_config = self.config.get_flow(flow_name)
         if not flow_config:
-            print(f"[ERROR] ?œª?‰¾??°æ??ç¨‹ï?š{flow_name}")
+            print(f"[ERROR] ?æ¹­?å£˜??ç‰ˆ??ç»‹å¬¶?æ­¿flow_name}")
             return False
         
         steps = flow_config.get("steps", [])
         nav_coords = self.config.get_variable("nav_coords", {})
         
         print(f"\n{'='*60}")
-        print(f"??§è?Œï?š{flow_name}")
-        print(f"æ­¥éª¤ï¼š{len(steps)}")
+        print(f"??Ñ†?å²‹?æ­¿flow_name}")
+        print(f"å§ãƒ©î€ƒé”›æ­¿len(steps)}")
         print(f"{'='*60}\n")
         
         all_success = True
@@ -178,13 +178,13 @@ class EnhancedFlowExecutor:
             step_action = step_cfg.get("action", "none")
             step_desc = step_cfg.get("desc", str(step_cfg))
             
-            print(f"\n[æ­¥éª¤ {step_id}/{len(steps)}] {step_desc}")
+            print(f"\n[å§ãƒ©î€ƒ {step_id}/{len(steps)}] {step_desc}")
             print("-" * 50)
             
             success = False
             
             if step_action == "check":
-                # ä½¿ç”¨å¢å¼º???check
+                # æµ£è·¨æ•¤æ¾§ç‚²å·±???check
                 success = self._check_page_type(step_cfg)
             
             elif step_action == "tap":
@@ -227,7 +227,7 @@ class EnhancedFlowExecutor:
                 success = True
             
             else:
-                print(f"  [WARN] ?œª?Ÿ¥?Š¨ä½œï?š{step_action}")
+                print(f"  [WARN] ?æ¹­?ç…¡?å§©æµ£æ»?æ­¿step_action}")
                 success = True
             
             status = "OK" if success else "FAIL"
@@ -240,47 +240,48 @@ class EnhancedFlowExecutor:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="??????æµ???§è???™¨ v3 - å¢å¼º???)
-    parser.add_argument("--flow", type=str, default="daily_quest", help="æµ?ç¨‹å?ç§°")
-    parser.add_argument("--device", type=str, default=None, help="è®¾å??åºå?—å??)
-    parser.add_argument("--use-ocr", action="store_true", help="?¯?”¨ OCR")
-    parser.add_argument("--use-state-machine", action="store_true", help="?¯?”¨?Š¶????œº")
-    parser.add_argument("--list-devices", action="store_true", help="??—å‡ºè®¾å??")
+    parser = argparse.ArgumentParser(description="??????å¨´???Ñ†???æ«’ v3 - æ¾§ç‚²å·±???)
+    parser.add_argument("--flow", type=str, default="daily_quest", help="å¨´?ç»‹å¬ª?å¶‡Ğ")
+    parser.add_argument("--device", type=str, default=None, help="ç’æƒ§??æ´å¿“?æ¥€??)
+    parser.add_argument("--use-ocr", action="store_true", help="?æƒ?æ•¤ OCR")
+    parser.add_argument("--use-state-machine", action="store_true", help="?æƒ?æ•¤?å§¸????æº€")
+    parser.add_argument("--list-devices", action="store_true", help="??æ¥€åš­ç’æƒ§??")
     
     args = parser.parse_args()
     
     if args.list_devices:
         devices = list_devices()
-        print("?¯?”¨è®¾å??:")
+        print("?å½²?æ•¤ç’æƒ§??:")
         for d in devices:
             print(f"  - {d}")
         return 0
     
     device_serial = args.device or list_devices()[0]
-    print(f"[è®¾å?‡] {device_serial}")
+    print(f"[ç’æƒ§?å˜³ {device_serial}")
     
-    # æ£??Ÿ¥è¿æ??    adb = ADB(serial=device_serial)
+    # å¦«??ç…¡æ©ç‚´??    adb = ADB(serial=device_serial)
     if not adb.check_connection():
-        print(f"[ERROR] è®¾å???œªè¿æ??)
+        print(f"[ERROR] ç’æƒ§???æ¹­æ©ç‚´??)
         return 1
     
-    # ?? è½½??ç½®
+    # ??çŠºæµ‡??å¶‡ç–†
     config = FlowConfig()
     
-    # ??›å»º??§è?????    executor = EnhancedFlowExecutor(
+    # ??æ¶˜ç¼“??Ñ†?????    executor = EnhancedFlowExecutor(
         config=config,
         device_serial=device_serial,
         use_ocr=args.use_ocr,
         use_state_machine=args.use_state_machine
     )
     
-    # ??§è?Œæ??ç¨?
-    print(f"\nå¼?å§‹æ?§è??{args.flow}...")
+    # ??Ñ†?å±¾??ç»‹?
+    print(f"\nå¯®?æ¿®å¬«?Ñ†??{args.flow}...")
     success = executor.execute_flow(args.flow)
     
-    print(f"\næµ?ç¨‹å?Œæ?ï?š{'??å??' if success else '??‰å¤±è´¥æ­¥éª?}")
+    print(f"\nå¨´?ç»‹å¬ª?å±¾?æ„¶?æ­¿'??æ„¬??' if success else '??å¤Šã‘ç’ãƒ¦î„æ¥ ?}")
     return 0 if success else 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

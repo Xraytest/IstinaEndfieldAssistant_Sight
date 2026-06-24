@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
-"""下载Phi-2 Q4_K_M模型（标准架构，兼容性好）"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""涓嬭浇Phi-2 Q4_K_M妯″瀷锛堟爣鍑嗘灦鏋勶紝鍏煎鎬уソ锛?""
 import os
 import requests
 
-# Phi-2 Q4_K_M - 约1.8GB，标准架构
-url = "https://hf-mirror.com/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf"
+# Phi-2 Q4_K_M - 绾?.8GB锛屾爣鍑嗘灦鏋?url = "https://hf-mirror.com/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K_M.gguf"
 save_dir = "models/phi-2"
 os.makedirs(save_dir, exist_ok=True)
 save_path = os.path.join(save_dir, "phi-2.Q4_K_M.gguf")
@@ -32,3 +31,4 @@ try:
     print(f"\nDownload complete! File size: {downloaded / (1024*1024*1024):.2f} GB")
 except Exception as e:
     print(f"\nError: {e}")
+

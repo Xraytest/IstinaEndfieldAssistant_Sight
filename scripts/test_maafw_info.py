@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""检查 MaaFw 内部状态和 ADB 连接"""
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+"""妫€鏌?MaaFw 鍐呴儴鐘舵€佸拰 ADB 杩炴帴"""
 import sys, json, subprocess
 from pathlib import Path
 
@@ -19,46 +19,47 @@ cfg = MaaFwTouchConfig(
 )
 _maafw = MaaFwTouchExecutor(cfg)
 if not _maafw.connect():
-    print("MaaFw 连接失败")
+    print("MaaFw 杩炴帴澶辫触")
     sys.exit(1)
 
-print(f"MaaFw 连接成功, uuid={_maafw._uuid}")
-print(f"MaaFw 分辨率: {_maafw.get_resolution()}")
+print(f"MaaFw 杩炴帴鎴愬姛, uuid={_maafw._uuid}")
+print(f"MaaFw 鍒嗚鲸鐜? {_maafw.get_resolution()}")
 
-# 获取控制器信息
+# 鑾峰彇鎺у埗鍣ㄤ俊鎭?
 if _maafw._controller:
     try:
         info = _maafw._controller.info
-        print(f"\n控制器信息:")
+        print(f"\n鎺у埗鍣ㄤ俊鎭?")
         print(json.dumps(info, indent=2, ensure_ascii=False))
     except Exception as e:
-        print(f"控制器信息获取失败: {e}")
+        print(f"鎺у埗鍣ㄤ俊鎭幏鍙栧け璐? {e}")
     
-    # 获取原始分辨率
+    # 鑾峰彇鍘熷鍒嗚鲸鐜?
     try:
         res = _maafw._controller.resolution
-        print(f"\ncontroller.resolution (原始): {res}")
+        print(f"\ncontroller.resolution (鍘熷): {res}")
     except Exception as e:
-        print(f"resolution 获取失败: {e}")
+        print(f"resolution 鑾峰彇澶辫触: {e}")
     
-    # 检查截图缓存
+    # 妫€鏌ユ埅鍥剧紦瀛?
     try:
         img = _maafw._controller.cached_image
         if img is not None:
-            print(f"cached_image 形状: {img.shape} (HxWxC)")
+            print(f"cached_image 褰㈢姸: {img.shape} (HxWxC)")
     except Exception as e:
-        print(f"cached_image 获取失败: {e}")
+        print(f"cached_image 鑾峰彇澶辫触: {e}")
 
-# 检查 ADB 设备
-print("\n=== ADB 设备列表 ===")
+# 妫€鏌?ADB 璁惧
+print("\n=== ADB 璁惧鍒楄〃 ===")
 r = subprocess.run(ADB[:1] + ["devices"], capture_output=True, timeout=10)
 print(r.stdout.decode())
 
-# 检查 MaaFw 是否在 ADB 中创建了额外连接
-print("=== ADB 连接状态 ===")
+# 妫€鏌?MaaFw 鏄惁鍦?ADB 涓垱寤轰簡棰濆杩炴帴
+print("=== ADB 杩炴帴鐘舵€?===")
 r = subprocess.run(ADB[:1] + ["shell", "dumpsys", "input"], capture_output=True, timeout=10)
 out = r.stdout.decode(errors='replace')
-# 查找 TouchStates
+# 鏌ユ壘 TouchStates
 for l in out.split("\n"):
     if "TouchStates" in l or "touch" in l.lower():
         print(l.strip())
+

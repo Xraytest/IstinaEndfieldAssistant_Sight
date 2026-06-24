@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+#!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-全标准流测试 — 强制重启 + 前置到world + 逐个流 + 结果汇总
+鍏ㄦ爣鍑嗘祦娴嬭瘯 鈥?寮哄埗閲嶅惎 + 鍓嶇疆鍒皐orld + 閫愪釜娴?+ 缁撴灉姹囨€?
 
-每次流执行后通过 back*6 回到 world
+姣忔娴佹墽琛屽悗閫氳繃 back*6 鍥炲埌 world
 """
 import subprocess, time, cv2, numpy as np, json, sys
 from pathlib import Path
@@ -37,7 +37,7 @@ def diff(a, b):
 
 
 def force_restart_and_enter_world():
-    """强制重启游戏并导航到world"""
+    """寮哄埗閲嶅惎娓告垙骞跺鑸埌world"""
     print("Force restart game...")
     subprocess.run([str(ADB), '-s', SER, 'shell', 'am', 'force-stop',
                    'com.hypergryph.endfield'], capture_output=True, timeout=10)
@@ -99,14 +99,14 @@ def resolve(raw, nav):
 
 
 def back_to_world():
-    """简单返回world"""
+    """绠€鍗曡繑鍥瀢orld"""
     for _ in range(8):
         bk(); time.sleep(0.3)
     time.sleep(1)
 
 
 def run_flow(flow, nav):
-    """执行流，返回屏幕变化的最大值"""
+    """鎵ц娴侊紝杩斿洖灞忓箷鍙樺寲鐨勬渶澶у€?""
     max_chg = 0
     for step in flow.get("steps", []):
         act = step.get("action", "none")
@@ -174,7 +174,7 @@ def main():
         results[fname] = passed
         print(f"  max_change={max_chg:,} -> {'PASS' if passed else 'FAIL'}")
 
-        # 返回world
+        # 杩斿洖world
         back_to_world()
 
     print("\n" + "=" * 50)
@@ -188,3 +188,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

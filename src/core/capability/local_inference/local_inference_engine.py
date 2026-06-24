@@ -151,16 +151,13 @@ class LocalInferenceEngine:
             if not os.path.exists(model_path):
                 logger.error(LogCategory.MAIN, "模型文件不存在", path=model_path)
                 return False
-            
-            # 加载模型
-            # 自动检测 clip 模型文件（mmproj-*.gguf）
-            clip_path = self._find_clip_model(model_path)
+
+            # 加载模型（不再自动检测 clip/mmproj 文件）
             self._llm = Llama(
                 model_path=model_path,
                 n_gpu_layers=gpu_layers,
                 n_ctx=n_ctx,
-                verbose=verbose,
-                clip_model_path=clip_path,
+                verbose=verbose
             )
             
             self._model_path = model_path
@@ -182,26 +179,6 @@ class LocalInferenceEngine:
         except Exception as e:
             logger.exception(LogCategory.MAIN, "本地推理引擎初始化失败", error=str(e))
             return False
-    
-    def _find_clip_model(self, model_path: str) -> Optional[str]:
-        """自动检测与主模型同目录的 clip 模型文件（mmproj-*.gguf）
-
-        Args:
-            model_path: 主模型文件路径
-
-        Returns:
-            clip 模型文件路径，未找到则返回 None
-        """
-        model_dir = os.path.dirname(model_path)
-        if not os.path.isdir(model_dir):
-            return None
-        for fname in os.listdir(model_dir):
-            if fname.startswith("mmproj-") and fname.endswith(".gguf"):
-                clip_path = os.path.join(model_dir, fname)
-                logger.info(LogCategory.MAIN, "检测到 clip 模型文件", path=clip_path)
-                return clip_path
-        logger.warning(LogCategory.MAIN, "未检测到 clip 模型文件（mmproj-*.gguf），多模态支持可能受限")
-        return None
 
     def initialize_with_model(
         self,

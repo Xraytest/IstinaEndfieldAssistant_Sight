@@ -8,9 +8,7 @@
       "display_name": "Qwen3.5-4B",
       "repo_id": "unsloth/Qwen3.5-4B-GGUF",
       "gguf_pattern": "Qwen3\\.5-4B-.*\\.gguf",
-      "mmproj_pattern": "mmproj-.*\\.gguf",
       "expected_gguf": "Qwen3.5-4B-Q8_0.gguf",
-      "expected_mmproj": "mmproj-F16.gguf",
       "required_vram_gb": 5.5,
       "description": "4B 参数，Q8 量化，适合入门级 GPU"
     },
@@ -20,9 +18,7 @@
       "display_name": "Qwen3.5-9B (推荐)",
       "repo_id": "unsloth/Qwen3.5-9B-GGUF",
       "gguf_pattern": "Qwen3\\.5-9B-.*\\.gguf",
-      "mmproj_pattern": "mmproj-.*\\.gguf",
       "expected_gguf": "Qwen3.5-9B-Q8_0.gguf",
-      "expected_mmproj": "mmproj-F16.gguf",
       "required_vram_gb": 11.5,
       "description": "9B 参数，Q8 量化，推荐配置"
     },
@@ -32,9 +28,7 @@
       "display_name": "Qwen3.6-27B",
       "repo_id": "unsloth/Qwen3.6-27B-GGUF",
       "gguf_pattern": "Qwen3\\.6-27B-.*\\.gguf",
-      "mmproj_pattern": "mmproj-.*\\.gguf",
       "expected_gguf": "Qwen3.6-27B-Q8_0.gguf",
-      "expected_mmproj": "mmproj-F16.gguf",
       "required_vram_gb": 33.0,
       "description": "27B 参数，Q8 量化，需要高端 GPU"
     },
@@ -44,9 +38,7 @@
       "display_name": "Qwen3.6-35B-A3B",
       "repo_id": "unsloth/Qwen3.6-35B-A3B-GGUF",
       "gguf_pattern": "Qwen3\\.6-35B-A3B-.*\\.gguf",
-      "mmproj_pattern": "mmproj-.*\\.gguf",
       "expected_gguf": "Qwen3.6-35B-A3B-Q8_0.gguf",
-      "expected_mmproj": "mmproj-F16.gguf",
       "required_vram_gb": 41.0,
       "description": "35B 参数，A3B 稀疏架构，需要顶级 GPU"
     }
