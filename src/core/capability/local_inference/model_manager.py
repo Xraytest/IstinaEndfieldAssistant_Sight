@@ -51,43 +51,43 @@ class ModelManager:
     4. 提供模型元数据
     """
     
-    # 模型注册表
+    # 模型注册表 - 与 config/models.json 保持一致
     MODEL_REGISTRY: Dict[str, Dict[str, Any]] = {
-        "qwen3.5-4b-ud-q4_k_xl": {
+        "qwen3.5-4b": {
             "modelscope_id": "unsloth/Qwen3.5-4B-GGUF",
-            "file_pattern": "*UD-Q4_K_XL*.gguf",
+            "file_pattern": "Qwen3\\.5-4B-.*\\.gguf",
             "size_gb": 2.8,
-            "description": "推荐模型，4B参数，Q4_K_XL量化，2.8GB，4GB显存可运行",
-            "quantization": "Q4_K_XL",
+            "description": "4B 参数，Q8 量化，适合入门级 GPU",
+            "quantization": "Q8_0",
             "parameters": "4B",
-            "recommended_gpu_memory_gb": 4,
+            "recommended_gpu_memory_gb": 5.5,
         },
-        "qwen3.5-2b-qwen3.6-plus-distilled-f16": {
-            "modelscope_id": "unsloth/Qwen3.5-2B-GGUF",
-            "file_pattern": "*Q8_K_XL*.gguf",
-            "size_gb": 2.8,
-            "description": "Qwen3.5-2B高精度模型，Q8_K_XL量化，2.8GB",
-            "quantization": "Q8_K_XL",
-            "parameters": "2B",
-            "recommended_gpu_memory_gb": 8,
-        },
-        "qwen3.5-9b-fp16": {
-            "modelscope_id": "unsloth/Qwen3.5-9B-FP16-GGUF",
-            "file_pattern": "*fp16*.gguf",
-            "size_gb": 18.0,
-            "description": "推荐模型，9B参数，FP16精度，16GB显存可运行",
-            "quantization": "FP16",
+        "qwen3.5-9b": {
+            "modelscope_id": "unsloth/Qwen3.5-9B-GGUF",
+            "file_pattern": "Qwen3\\.5-9B-.*\\.gguf",
+            "size_gb": 4.5,
+            "description": "9B 参数，Q8 量化，推荐配置",
+            "quantization": "Q8_0",
             "parameters": "9B",
-            "recommended_gpu_memory_gb": 16,
+            "recommended_gpu_memory_gb": 11.5,
         },
-        "qwen3.5-35b-a3b-fp16": {
-            "modelscope_id": "unsloth/Qwen3.5-35B-A3B-FP16-GGUF",
-            "file_pattern": "*fp16*.gguf",
-            "size_gb": 70.0,
-            "description": "高性能模型，35B参数，FP16精度，需要24GB+显存",
-            "quantization": "FP16",
+        "qwen3.6-27b": {
+            "modelscope_id": "unsloth/Qwen3.6-27B-GGUF",
+            "file_pattern": "Qwen3\\.6-27B-.*\\.gguf",
+            "size_gb": 14.0,
+            "description": "27B 参数，Q8 量化，需要高端 GPU",
+            "quantization": "Q8_0",
+            "parameters": "27B",
+            "recommended_gpu_memory_gb": 33.0,
+        },
+        "qwen3.6-35b-a3b": {
+            "modelscope_id": "unsloth/Qwen3.6-35B-A3B-GGUF",
+            "file_pattern": "Qwen3\\.6-35B-A3B-.*\\.gguf",
+            "size_gb": 18.0,
+            "description": "35B 参数，A3B 稀疏架构，需要顶级 GPU",
+            "quantization": "Q8_0",
             "parameters": "35B",
-            "recommended_gpu_memory_gb": 24,
+            "recommended_gpu_memory_gb": 41.0,
         },
         "gemma4-2b-q8_0": {
             "modelscope_id": "unsloth/gemma-4-2b-it-GGUF",
@@ -182,34 +182,115 @@ class ModelManager:
     
     def get_model_path(self, model_name: str) -> Optional[Path]:
         """
-        获取模型文件路径
-        
+        获取模型文件路径（支持多种目录命名方式）
+
         Args:
             model_name: 模型名称
-            
+
         Returns:
             模型文件路径，如果不存在返回None
         """
         if model_name not in self.MODEL_REGISTRY:
             return None
-        
+
+        registry_info = self.MODEL_REGISTRY[model_name]
+
+        # 策略1: 直接使用 model_name 作为目录名（向后兼容）
         model_dir = self._models_dir / model_name
-        if not model_dir.exists():
-            return None
-        
-        # 查找匹配的.gguf文件
-        file_pattern = self.MODEL_REGISTRY[model_name]["file_pattern"]
-        
+        if model_dir.exists():
+            file_path = self._find_gguf_in_dir(model_dir, registry_info["file_pattern"], model_name)
+            if file_path:
+                return file_path
+
+        # 策略2: 从 modelscope_id 推导可能的目录名
+        modelscope_id = registry_info["modelscope_id"]
+        # 提取仓库名部分，如 "unsloth/Qwen3.5-4B-GGUF" -> "Qwen3.5-4B-GGUF"
+        repo_name = modelscope_id.split('/')[-1] if '/' in modelscope_id else modelscope_id
+
+        # 尝试不同的命名变体
+        possible_dir_names = [
+            repo_name,
+            repo_name.replace('.', ''),  # 移除点号: Qwen3.5-4B-GGUF -> Qwen35-4B-GGUF
+            repo_name.replace('.', '_'),  # 替换为下划线
+            repo_name.upper(),
+            repo_name.lower(),
+        ]
+
+        for dir_name in possible_dir_names:
+            model_dir = self._models_dir / dir_name
+            if model_dir.exists():
+                file_path = self._find_gguf_in_dir(model_dir, registry_info["file_pattern"], model_name)
+                if file_path:
+                    return file_path
+
+        # 策略3: 递归扫描所有子目录，查找匹配的.gguf文件
+        for model_dir in self._models_dir.rglob("*"):
+            if model_dir.is_dir():
+                # 检查目录名是否可能匹配（基于 modelscope_id）
+                dir_name = model_dir.name
+                repo_name = modelscope_id.split('/')[-1] if '/' in modelscope_id else modelscope_id
+                # 检查目录名是否包含仓库名的关键部分（忽略大小写和分隔符）
+                normalized_dir = dir_name.lower().replace('.', '').replace('_', '').replace('-', '')
+                normalized_repo = repo_name.lower().replace('.', '').replace('_', '').replace('-', '')
+                if normalized_repo in normalized_dir or normalized_dir in normalized_repo:
+                    file_path = self._find_gguf_in_dir(model_dir, registry_info["file_pattern"], model_name)
+                    if file_path:
+                        return file_path
+
+        return None
+
+    def _find_gguf_in_dir(self, model_dir: Path, file_pattern: str, model_name: str = None) -> Optional[Path]:
+        """在指定目录中查找匹配的.gguf文件"""
+        # 收集所有.gguf文件
+        all_gguf_files = []
         for file_path in model_dir.iterdir():
             if file_path.is_file() and file_path.suffix == '.gguf':
-                if fnmatch.fnmatch(file_path.name, file_pattern):
-                    return file_path
-        
-        # 如果没有匹配到，返回第一个.gguf文件
-        gguf_files = list(model_dir.glob("*.gguf"))
-        if gguf_files:
-            return gguf_files[0]
-        
+                all_gguf_files.append(file_path)
+
+        if not all_gguf_files:
+            return None
+
+        # 步骤1: 尝试模式匹配
+        matching_files = []
+        for file_path in all_gguf_files:
+            if fnmatch.fnmatch(file_path.name, file_pattern):
+                matching_files.append(file_path)
+
+        if matching_files:
+            # 从匹配的文件中优先选择主模型（排除 mmproj 文件）
+            main_models = [f for f in matching_files if 'mmproj' not in f.name.lower()]
+            if main_models:
+                return main_models[0]
+            return matching_files[0]
+
+        # 步骤2: 如果没有模式匹配，尝试从 config/models.json 获取预期文件名
+        if model_name:
+            expected_file = self._get_expected_gguf_filename(model_name)
+            if expected_file:
+                expected_path = model_dir / expected_file
+                if expected_path.exists():
+                    return expected_path
+
+        # 步骤3: 最后，优先返回非 mmproj 的第一个.gguf文件
+        main_files = [f for f in all_gguf_files if 'mmproj' not in f.name.lower()]
+        if main_files:
+            return main_files[0]
+
+        return all_gguf_files[0]
+
+    def _get_expected_gguf_filename(self, model_name: str) -> Optional[str]:
+        """从 config/models.json 获取预期的GGUF文件名"""
+        try:
+            import json
+            config_path = Path(__file__).parent.parent.parent.parent.parent / "config" / "models.json"
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                for model_config in config.get("models", []):
+                    if model_config["id"] == model_name:
+                        return model_config.get("expected_gguf")
+        except Exception:
+            pass
         return None
     
     def is_model_downloaded(self, model_name: str) -> bool:
