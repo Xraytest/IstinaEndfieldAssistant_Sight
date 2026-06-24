@@ -50,7 +50,7 @@ class OCRManager:
         if touch_executor is not None:
             self.set_maafw_executor(touch_executor, "default")
 
-        self.logger.info("OCR 绠＄悊鍣ㄥ垵濮嬪寲瀹屾垚锛圡aaFw 鍐呯疆 OCR锛?)
+        self.logger.info("OCR 管理器初始化完成（MaaFw 提供 OCR）")
 
     def _load_config(self, config_path: str = None) -> Dict[str, Any]:
         """鍔犺浇 OCR 閰嶇疆"""
@@ -70,7 +70,7 @@ class OCRManager:
             "screen_resolution": {"width": 1280, "height": 720},
             "top_bar": {"y_range": [10, 80]},
             "overlay": {"roi": {"x_start": 950, "x_end": 1280, "y_start": 60, "y_end": 700}},
-            "claim_keywords": ["棰嗗彇", "鏀跺彇", "涓€閿鍙?, "瀹屾垚", "鎻愪氦", "棰嗗"],
+            "claim_keywords": ["领取", "收取", "一键领取", "完成", "提交", "领奖"],
         }
 
     def set_maafw_executor(self, executor, controller_id: str):
@@ -101,7 +101,7 @@ class OCRManager:
             if self.device_manager and hasattr(self.device_manager, 'get_touch_executor'):
                 self._maafw_executor = self.device_manager.get_touch_executor()
                 if self._maafw_executor:
-                    self.logger.info("宸蹭粠 device_manager 鑷姩鑾峰彇 MaaFw 鎵ц鍣?)
+                    self.logger.info("从 device_manager 自动获取 MaaFw 执行器")
                     self.set_maafw_executor(self._maafw_executor, "auto")
             
             if self._maafw_executor is None:
@@ -122,7 +122,7 @@ class OCRManager:
             return self._normalize_ocr_results(ocr_results)
 
         except Exception as e:
-            self.logger.error(f"MaaFw OCR 璇嗗埆寮傚父锛歿e}", exc_info=True)
+            self.logger.error(f"MaaFw OCR 识别失败: {e}", exc_info=True)
             return []
 
     def _normalize_ocr_results(self, results: Any) -> List[Dict]:
@@ -177,17 +177,17 @@ class OCRManager:
             # 1. OCR 璇嗗埆锛堥€氳繃 MaaFw锛?
             ocr_results = self.run_ocr(roi=roi, expected=expected)
             if not ocr_results:
-                return ScreenState(page_type="unknown", description="OCR 鏃犵粨鏋?)
+                return ScreenState(page_type="unknown", description="OCR 无结果")
 
             # 2. 鍐崇瓥妯″潡鍒嗘瀽
             state = self.decider.detect_screen_state(ocr_results)
 
-            self.logger.info(f"OCR 鍐崇瓥瀹屾垚锛歿state.page_type} - {state.description}")
+            self.logger.info(f"OCR 识别完成: {state.page_type} - {state.description}")
             return state
 
         except Exception as e:
-            self.logger.error(f"OCR 鍐崇瓥寮傚父锛歿e}", exc_info=True)
-            return ScreenState(page_type="error", description=f"OCR 寮傚父锛歿str(e)}")
+            self.logger.error(f"OCR 处理异常: {e}", exc_info=True)
+            return ScreenState(page_type="error", description=f"OCR 异常: {str(e)}")
 
     def build_llm_prompt(self, state: ScreenState, instruction: str,
                          history: List[Dict] = None) -> str:
@@ -203,29 +203,29 @@ class OCRManager:
             瀹屾暣鐨?LLM 鎻愮ず璇?
         """
         lines = [
-            "浣犳槸涓€涓槑鏃ユ柟鑸熺粓鏈湴娓告垙鍔╂墜銆傛牴鎹互涓嬪睆骞曚俊鎭墽琛屼换鍔°€?,
+            "你是一个明日方舟终末地游戏助手。根据以下屏幕信息执行操作：",
             "",
-            "銆愬睆骞曠姸鎬併€?,
+            "【屏幕状态】",
             state.to_llm_prompt(),
             "",
-            "銆愪换鍔℃寚浠ゃ€?,
+            "【操作指令】",
             instruction,
         ]
 
         if history and len(history) > 0:
             lines.append("")
-            lines.append("銆愬巻鍙蹭笂涓嬫枃銆?)
+            lines.append("【历史上下文】")
             for h in history[-3:]:  # 鏈€杩?3 姝?
-                role = "鎿嶄綔" if h.get("role") == "user" else "缁撴灉"
+                role = "操作" if h.get("role") == "user" else "结果"
                 content = h.get("content", "")[:100]
                 lines.append(f"- {role}: {content}")
 
         lines.append("")
-        lines.append("璇疯繑鍥?JSON 鏍煎紡鐨勬搷浣滃缓璁細")
+        lines.append("请返回 JSON 格式的动作建议：")
         lines.append('{')
         lines.append('  "action": "click|swipe|back|wait|navigate",')
-        lines.append('  "target": {"x": 123, "y": 456},  // 鍙€?)
-        lines.append('  "reason": "鎿嶄綔鍘熷洜璇存槑"')
+        lines.append('  "target": {"x": 123, "y": 456},  // 可选')
+        lines.append('  "reason": "操作原因说明"')
         lines.append('}')
 
         return "\n".join(lines)
@@ -249,25 +249,25 @@ class OCRManager:
 def main():
     """鐙珛娴嬭瘯"""
     print("=" * 60)
-    print("OCR 绠＄悊鍣?- 娴嬭瘯锛圡aaFw 鍐呯疆 OCR锛?)
+    print("OCR 管理器 - 测试（MaaFw 提供 OCR）")
     print("=" * 60)
 
     manager = OCRManager()
 
     # 娴嬭瘯宸茬煡鍧愭爣
     coords = manager.get_known_coords("tasks_button")
-    print(f"浠诲姟鎸夐挳鍧愭爣锛歿coords}")
+    print(f"任务按钮坐标: {coords}")
 
     # 娴嬭瘯鎻愮ず璇嶆瀯寤?
     mock_state = ScreenState(
         page_type="world_map_with_overlay",
         overlay_detected=True,
         overlay_texts=["姣忔棩浠诲姟", "棰嗗彇"],
-        claim_buttons=[(1035, 323, "涓€閿鍙?)]
+        claim_buttons=[(1035, 323, "一键领取")]
     )
 
-    prompt = manager.build_llm_prompt(mock_state, "妫€鏌ュ苟棰嗗彇姣忔棩浠诲姟濂栧姳")
-    print(f"\nLLM 鎻愮ず璇嶉瑙?\n{prompt[:500]}...")
+    prompt = manager.build_llm_prompt(mock_state, "检查并领取每日任务奖励")
+    print(f"\nLLM 提示词预览:\n{prompt[:500]}...")
 
 
 if __name__ == "__main__":
