@@ -452,7 +452,7 @@ if __name__ == "__main__":
     sys.path.insert(0, str(SRC_DIR))
 
     print("=" * 60)
-    print("璇嗗埆寮曟搸娴嬭瘯锛圡aaFw OCR + OpenCV 妯℃澘/棰滆壊鍖归厤锛?)
+    print("璇嗗埆寮曟搸娴嬭瘯锛圡aaFw OCR + OpenCV 妯℃澘/棰滆壊鍖归厤锛?")
     print("=" * 60)
 
     # 鎵撳嵃 MaaFw OCR 浣跨敤鏂囨。

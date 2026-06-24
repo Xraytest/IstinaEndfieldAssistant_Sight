@@ -1,4 +1,5 @@
 #!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
+# -*- coding: utf-8 -*-
 """
 鐘舵€佹満寮曟搸 - MaaEnd 寮?DAG 娴佺▼鎵ц绯荤粺
 
@@ -257,7 +258,7 @@ class StateMachineExecutor:
             if self._touch:
                 self._touch.click(x, y)
             else:
-                print("  [璀﹀憡] 鏃犺Е鎺ф墽琛屽櫒锛岃烦杩囩偣鍑?)
+                print("  [璀﹀憡] 鏃犺Е鎺ф墽琛屽櫒锛岃烦杩囩偣鍑?")
         elif action_type == "Swipe":
             begin = action_param.get("begin", [600, 600])
             end = action_param.get("end", [600, 300])
@@ -266,14 +267,14 @@ class StateMachineExecutor:
             if self._touch:
                 self._touch.swipe(begin[0], begin[1], end[0], end[1], duration)
             else:
-                print("  [璀﹀憡] 鏃犺Е鎺ф墽琛屽櫒锛岃烦杩囨粦鍔?)
+                print("  [璀﹀憡] 鏃犺Е鎺ф墽琛屽櫒锛岃烦杩囨粦鍔?")
         elif action_type == "ClickKey":
             key = action_param.get("key", 4)  # 榛樿杩斿洖閿?
             print(f"  [鍔ㄤ綔] 鎸夐敭 {key}")
             if self._touch:
                 self._touch.run_pipeline_task(f"Key{key}")
             else:
-                print("  [璀﹀憡] 鏃犺Е鎺ф墽琛屽櫒锛岃烦杩囨寜閿?)
+                print("  [璀﹀憡] 鏃犺Е鎺ф墽琛屽櫒锛岃烦杩囨寜閿?")
         elif action_type == "StopTask":
             # 鍋滄浠诲姟
             print("  [鍔ㄤ綔] 鍋滄浠诲姟")

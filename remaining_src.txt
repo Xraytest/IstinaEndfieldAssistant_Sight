@@ -1,1 +1,0 @@
-core\capability\output\device\touch\touch_manager.py
