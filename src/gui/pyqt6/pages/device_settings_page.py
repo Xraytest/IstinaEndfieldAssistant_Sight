@@ -470,7 +470,7 @@ class DeviceSettingsPage(QWidget):
             self.device_disconnected.emit()
 
     def _on_auto_connect_changed(self, state):
-        enabled = state == Qt.CheckState.Checked
+        enabled = self._auto_connect_cb.isChecked()
         self._config.setdefault('device', {})
         self._config['device']['auto_connect'] = enabled
         self.settings_changed.emit(self._config)
