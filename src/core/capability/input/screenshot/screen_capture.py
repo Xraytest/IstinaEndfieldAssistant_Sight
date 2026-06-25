@@ -139,7 +139,7 @@ class ScreenCapture:
         return True
 
     def _capture_via_maa_fallback(self) -> Optional[bytes]:
-        """通过 MAA Framework 截屏（回退方案），返回 base64 编码的 PNG 字节"""
+        """通过 MAA Framework 截屏（回退方案），返回 PNG 原始字节"""
         if self._touch_manager is None or not self._touch_manager.connected:
             return None
         if np is None or Image is None:
@@ -152,10 +152,10 @@ class ScreenCapture:
         # MAA 返回 numpy BGR → RGB → PIL → PNG → base64
         img_rgb = img[:, :, ::-1]  # BGR → RGB
         pil_image = Image.fromarray(img_rgb)
-        return self._image_to_base64(pil_image)
+        return self._image_to_png_bytes(pil_image)
 
     def _capture_via_adb(self, device_serial: str) -> Optional[bytes]:
-        """通过 ADB screencap 截屏（回退方案），返回 base64 编码的 PNG 字节"""
+        """通过 ADB screencap 截屏（回退方案），返回 PNG 原始字节"""
         adb_path = getattr(self.adb_manager, 'adb_path', 'adb')
 
         # 先尝试 exec-out（二进制直出，通常更可靠）
@@ -169,7 +169,7 @@ class ScreenCapture:
                 if png_data.startswith(b'\x89PNG\r\n\x1a\n'):
                     try:
                         image = Image.open(io.BytesIO(png_data))
-                        return self._image_to_base64(image)
+                        return self._image_to_png_bytes(image)
                     except Exception as img_error:
                         self.logger.warning(LogCategory.MAIN, "ADB exec-out 截图数据解析失败",
                                             device_serial=device_serial, error=str(img_error))
@@ -190,7 +190,7 @@ class ScreenCapture:
                 if png_data.startswith(b'\x89PNG\r\n\x1a\n') or png_data.startswith(b'\x89PNG\n\x1a\n'):
                     try:
                         image = Image.open(io.BytesIO(png_data))
-                        return self._image_to_base64(image)
+                        return self._image_to_png_bytes(image)
                     except Exception as img_error:
                         self.logger.warning(LogCategory.MAIN, "ADB shell 截图数据解析失败",
                                             device_serial=device_serial, error=str(img_error))
@@ -201,6 +201,32 @@ class ScreenCapture:
                                   device_serial=device_serial, error=str(e))
 
         return None
+
+    # ==================== 其他方法（回退到 ADB）====================
+
+    def _capture_via_nemu_ipc(self, device_serial: str) -> Optional[bytes]:
+        """MuMu IPC 截图（当前回退到 ADB）"""
+        self.logger.warning(LogCategory.MAIN, "nemu_ipc 方法未实现，回退到 ADB",
+                            device_serial=device_serial)
+        return self._capture_via_adb(device_serial)
+
+    def _capture_via_ldopengl(self, device_serial: str) -> Optional[bytes]:
+        """LDPlayer OpenGL 截图（当前回退到 ADB）"""
+        self.logger.warning(LogCategory.MAIN, "ldopengl 方法未实现，回退到 ADB",
+                            device_serial=device_serial)
+        return self._capture_via_adb(device_serial)
+
+    def _capture_via_droidcast(self, device_serial: str) -> Optional[bytes]:
+        """DroidCast 截图（当前回退到 ADB）"""
+        self.logger.warning(LogCategory.MAIN, "droidcast 方法未实现，回退到 ADB",
+                            device_serial=device_serial)
+        return self._capture_via_adb(device_serial)
+
+    def _capture_via_ascreencap(self, device_serial: str) -> Optional[bytes]:
+        """aScreenCap 截图（当前回退到 ADB）"""
+        self.logger.warning(LogCategory.MAIN, "ascreencap 方法未实现，回退到 ADB",
+                            device_serial=device_serial)
+        return self._capture_via_adb(device_serial)
 
     # ==================== scrcpy 方法 ====================
 
@@ -270,8 +296,8 @@ class ScreenCapture:
             # frame 是 RGB 格式的 numpy.ndarray
             pil_image = Image.fromarray(frame)
 
-            # 转换为 base64
-            return self._image_to_base64(pil_image)
+            # 返回 PNG 原始字节
+            return self._image_to_png_bytes(pil_image)
 
         except ScrcpyError as e:
             self.logger.error(LogCategory.MAIN, "scrcpy 截图失败", device_serial=device_serial, error=str(e))
@@ -378,7 +404,7 @@ class ScreenCapture:
             method_config: 方法配置
 
         Returns:
-            base64 编码的 PNG 字节，或 None（全部失败）
+            PNG 原始字节，或 None（全部失败）
         """
         # 定义降级链
         fallback_chain = {
@@ -404,11 +430,14 @@ class ScreenCapture:
                     base64_data = self._capture_via_maa_fallback()
                 elif method == 'adb':
                     base64_data = self._capture_via_adb(device_serial)
-                elif method in ('nemu_ipc', 'ldopengl', 'droidcast', 'ascreencap'):
-                    # 这些方法尚未完全实现，暂时回退
-                    self.logger.warning(LogCategory.MAIN, f"{method} 方法未实现，跳过",
-                                       device_serial=device_serial)
-                    continue
+                elif method == 'nemu_ipc':
+                    base64_data = self._capture_via_nemu_ipc(device_serial)
+                elif method == 'ldopengl':
+                    base64_data = self._capture_via_ldopengl(device_serial)
+                elif method == 'droidcast':
+                    base64_data = self._capture_via_droidcast(device_serial)
+                elif method == 'ascreencap':
+                    base64_data = self._capture_via_ascreencap(device_serial)
                 else:
                     self.logger.error(LogCategory.MAIN, "未知的截图方法", method=method)
                     continue
@@ -434,7 +463,7 @@ class ScreenCapture:
         捕获设备屏幕截图 —— 智能选择方法，支持自动降级
 
         Returns:
-            bytes: base64 编码的 PNG 图像，失败返回 None
+            bytes: PNG 原始字节，失败返回 None
         """
         if Image is None:
             self.logger.exception(LogCategory.MAIN, "PIL 库未初始化")
@@ -494,19 +523,18 @@ class ScreenCapture:
 
         return image
 
-    def _image_to_base64(self, image) -> bytes:
-        """将 PIL 图像转换为 Base64 编码的 PNG"""
+    def _image_to_png_bytes(self, image) -> bytes:
+        """将 PIL 图像转换为 PNG 字节流（原始二进制）"""
         start_time = time.time()
 
         buffer = io.BytesIO()
         image.save(buffer, format='PNG')
         png_data = buffer.getvalue()
-        base64_data = base64.b64encode(png_data)
 
         duration_ms = (time.time() - start_time) * 1000
-        self.logger.log_performance("image_to_base64", duration_ms, format="PNG")
+        self.logger.log_performance("image_to_png_bytes", duration_ms, format="PNG")
 
-        return base64_data
+        return png_data
 
     def get_device_info(self, device_serial: str) -> dict:
         """获取设备信息（优先从 scrcpy 获取分辨率）"""

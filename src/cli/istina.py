@@ -320,11 +320,11 @@ def _smoke_test_module(module_name: str, device_serial: str, llama_url: str) -> 
             adb_path = _adb_binary()
             mgr = ADBDeviceManager(adb_path=adb_path, timeout=10)
             capture = ScreenCapture(mgr)
-            b64 = capture.capture_screen(device_serial)
-            if not b64 or len(b64) < 1024:
-                _fail("capture_screen", f"size={len(b64) if b64 else 0}")
+            png_data = capture.capture_screen(device_serial)
+            if not png_data or len(png_data) < 1024:
+                _fail("capture_screen", f"size={len(png_data) if png_data else 0}")
             else:
-                _pass("capture_screen", f"size={len(b64)}")
+                _pass("capture_screen", f"size={len(png_data)}")
 
         elif module_name == "recognition":
             import numpy as np
