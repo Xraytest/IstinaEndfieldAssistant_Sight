@@ -144,6 +144,74 @@ class TestMainWindowMinimizeToTrayToggle:
             assert mw._minimize_to_tray is True
 
 
+class TestMinimizeToTrayProductionFlow:
+    """模拟生产环境完整流程：设置页切换 -> 主窗口接收 -> 关闭事件行为"""
+
+    def test_full_flow_check_then_close_minimizes_to_tray(self, qtbot):
+        from gui.pyqt6.main_window import MainWindow
+
+        mw = _make_main_window(qtbot)
+        mw._minimize_to_tray = False
+        mw._tray_available = False
+        mw._is_executing_standard_flow = False
+
+        # 步骤1：模拟设置页勾选托盘
+        with patch.object(mw, "_setup_tray") as setup_tray_mock, \
+             patch.object(mw, "_ensure_hidden_owner"), \
+             patch.object(mw, "_apply_toolwindow_to_process_windows"), \
+             patch.object(mw, "_persist_minimize_setting") as persist_mock:
+            mw._on_minimize_to_tray_changed(True)
+            setup_tray_mock.assert_called_once()
+            persist_mock.assert_called_once_with(True)
+            assert mw._minimize_to_tray is True
+
+        # 步骤2：模拟关闭窗口（托盘已重建，_tray_available 应为 True）
+        # 由于 _setup_tray 被 patch，我们需要手动设置 _tray_available
+        mw._tray_available = True
+        with patch.object(mw, "_ensure_hidden_owner"), \
+             patch.object(mw, "_apply_toolwindow_to_process_windows"), \
+             patch.object(mw, "hide"), \
+             patch.object(mw, "setWindowFlag"), \
+             patch.object(mw, "append_log"), \
+             patch("ctypes.windll.user32") as user32_mock:
+            user32_mock.GetWindowLongPtrW.return_value = 0
+            user32_mock.SetWindowLongPtrW.return_value = 0
+            event = MagicMock()
+            mw.closeEvent(event)
+            event.ignore.assert_called_once()
+            event.accept.assert_not_called()
+
+    def test_full_flow_uncheck_then_close_direct_exit(self, qtbot):
+        from gui.pyqt6.main_window import MainWindow
+
+        mw = _make_main_window(qtbot)
+        mw._minimize_to_tray = True
+        mw._tray_available = True
+        mw._is_executing_standard_flow = False
+        # 模拟已存在的托盘图标，以便取消时进入销毁分支
+        mw._tray_icon = MagicMock()
+
+        # 步骤1：模拟设置页取消勾选托盘
+        with patch.object(mw, "_setup_tray"), \
+             patch.object(mw, "_ensure_hidden_owner"), \
+             patch.object(mw, "_apply_toolwindow_to_process_windows"), \
+             patch.object(mw, "_persist_minimize_setting") as persist_mock:
+            mw._on_minimize_to_tray_changed(False)
+            persist_mock.assert_called_once_with(False)
+            assert mw._minimize_to_tray is False
+            assert mw._tray_available is False
+
+        # 步骤2：模拟关闭窗口（托盘已销毁，应直接退出）
+        with patch.object(mw, "_cleanup_before_exit") as cleanup_mock, \
+             patch("PyQt6.QtWidgets.QApplication.instance") as app_mock:
+            app_mock.return_value.quit = MagicMock()
+            event = MagicMock()
+            mw.closeEvent(event)
+            cleanup_mock.assert_called_once()
+            event.accept.assert_called_once()
+            app_mock.return_value.quit.assert_called_once()
+
+
 class TestMinimizeToTrayConfigPersistence:
     """配置持久化关键路径（反映生产环境写入与重载状态）"""
 
