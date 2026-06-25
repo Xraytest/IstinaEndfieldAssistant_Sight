@@ -240,16 +240,6 @@ class DeviceSettingsPage(QWidget):
         self._auto_connect_cb.stateChanged.connect(self._on_auto_connect_changed)
         device_layout.addWidget(self._auto_connect_cb)
 
-        # 上次连接设备
-        last_device_row = QHBoxLayout()
-        last_device_row.addWidget(QLabel("上次连接:"))
-        last_device_row.itemAt(0).widget().setStyleSheet(INFO_STYLE)
-        self._last_device_label = QLabel("无")
-        self._last_device_label.setStyleSheet(VAL_STYLE)
-        last_device_row.addWidget(self._last_device_label)
-        last_device_row.addStretch()
-        device_layout.addLayout(last_device_row)
-
         device_group.setLayout(device_layout)
         layout.addWidget(device_group)
 

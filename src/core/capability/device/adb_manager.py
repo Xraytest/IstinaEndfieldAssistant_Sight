@@ -140,8 +140,16 @@ class ADBDeviceManager:
                         self._connected_devices[serial] = device_info
 
             # 更新上次连接的设备（扫描到设备时自动记录）
-            if devices:
-                self._last_connected_device = devices[-1].serial
+            # 优先记录状态为 device 的设备；若无，再回退到最后一个设备
+            last_device = None
+            for d in devices:
+                if getattr(d, 'status', '') == 'device':
+                    last_device = d.serial
+                    break
+            if last_device is None and devices:
+                last_device = devices[-1].serial
+            if last_device is not None:
+                self._last_connected_device = last_device
 
             self.logger.debug(LogCategory.ADB, f"发现 {len(devices)} 个设备")
             return devices
