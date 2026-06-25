@@ -166,7 +166,7 @@ class ScreenCapture:
             result = subprocess.run(cmd, capture_output=True, timeout=self.adb_manager.timeout)
             if result.returncode == 0:
                 png_data = result.stdout
-                if png_data.startswith(b'\x89PNG\r\n\x1a\n'):
+                if self._is_png_data(png_data):
                     try:
                         image = Image.open(io.BytesIO(png_data))
                         return self._image_to_png_bytes(image)
@@ -187,7 +187,7 @@ class ScreenCapture:
             result = subprocess.run(cmd, capture_output=True, timeout=self.adb_manager.timeout)
             if result.returncode == 0:
                 png_data = result.stdout
-                if png_data.startswith(b'\x89PNG\r\n\x1a\n') or png_data.startswith(b'\x89PNG\n\x1a\n'):
+                if self._is_png_data(png_data):
                     try:
                         image = Image.open(io.BytesIO(png_data))
                         return self._image_to_png_bytes(image)
@@ -201,6 +201,21 @@ class ScreenCapture:
                                   device_serial=device_serial, error=str(e))
 
         return None
+
+    def _is_png_data(self, data: bytes) -> bool:
+        """检查数据是否为有效的 PNG 图像（支持多种换行符格式）"""
+        if not data:
+            return False
+        # 标准 PNG 魔数
+        if data.startswith(b'\x89PNG\r\n\x1a\n'):
+            return True
+        # 部分设备/ADB 版本可能只使用 \n
+        if data.startswith(b'\x89PNG\n\x1a\n'):
+            return True
+        # 某些情况下 screencap 输出可能包含额外文本，尝试查找 PNG 魔数
+        if b'\x89PNG\r\n\x1a\n' in data[:16] or b'\x89PNG\n\x1a\n' in data[:16]:
+            return True
+        return False
 
     # ==================== 其他方法（回退到 ADB）====================
 
