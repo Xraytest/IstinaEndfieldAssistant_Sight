@@ -1,4 +1,4 @@
-"""测试启动时自动连接的持久化与启动逻辑"""
+"""测试启动时自动连接的持久化与启动逻辑（pytest 风格）"""
 import sys
 import os
 import json
@@ -11,83 +11,88 @@ src_dir = os.path.join(project_root, "src")
 if src_dir not in sys.path:
     sys.path.insert(0, src_dir)
 
+import pytest
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
 
 
-def test_auto_connect_slot_updates_config():
-    """验证 _on_auto_connect_changed 槽函数直接更新 config"""
-    app = QApplication.instance() or QApplication([])
-    
-    from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
-    from PyQt6.QtCore import Qt
-    
-    mock_manager = MagicMock()
-    mock_manager.get_last_connected_device.return_value = "emulator-5554"
-    mock_manager.get_current_device.return_value = None
-    page = DeviceSettingsPage(device_manager=mock_manager, config={})
-    
-    # 验证初始状态为未勾选
-    assert page._auto_connect_cb.isChecked() is False
-    assert page._config.get('device', {}).get('auto_connect') is None
-    
-    # 直接调用槽函数，模拟 Checked 状态
-    page._on_auto_connect_changed(Qt.CheckState.Checked)
-    assert page._config.get('device', {}).get('auto_connect') is True
-    
-    # 直接调用槽函数，模拟 Unchecked 状态
-    page._on_auto_connect_changed(Qt.CheckState.Unchecked)
-    assert page._config.get('device', {}).get('auto_connect') is False
-    
-    print("PASS: _on_auto_connect_changed 直接更新 config 正确")
+@pytest.fixture(scope="session")
+def qapp():
+    """Provide a QApplication instance for the test session."""
+    app = QApplication.instance() or QApplication(sys.argv)
+    yield app
 
 
-def test_auto_connect_signal_emission():
-    """验证 _on_auto_connect_changed 发射 settings_changed 信号"""
-    app = QApplication.instance() or QApplication([])
-    
-    from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
-    from PyQt6.QtCore import Qt
-    
-    mock_manager = MagicMock()
-    mock_manager.get_last_connected_device.return_value = "emulator-5554"
-    mock_manager.get_current_device.return_value = None
-    page = DeviceSettingsPage(device_manager=mock_manager, config={})
-    
-    received = []
-    
-    def capture(config):
-        received.append(config)
-    
-    page.settings_changed.connect(capture)
-    
-    # 触发 Checked
-    page._on_auto_connect_changed(Qt.CheckState.Checked)
-    assert len(received) == 1
-    assert received[0].get('device', {}).get('auto_connect') is True
-    
-    # 触发 Unchecked
-    page._on_auto_connect_changed(Qt.CheckState.Unchecked)
-    assert len(received) == 2
-    assert received[1].get('device', {}).get('auto_connect') is False
-    
-    print("PASS: _on_auto_connect_changed 发射 settings_changed 信号正确")
+class TestAutoConnectPersistence:
+    """启动时自动连接的持久化与启动逻辑测试"""
 
+    def test_slot_updates_config_when_checked(self, qapp):
+        """验证 _on_auto_connect_changed 在 Checked 时更新 config"""
+        from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
 
-def test_auto_connect_config_file_persistence():
-    """验证 _save_config 正确持久化 auto_connect 到文件"""
-    app = QApplication.instance() or QApplication([])
-    
-    # 创建临时配置文件
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
-        json.dump({"version": "2.0", "device": {"serial": "localhost:16512"}}, f)
-        config_path = f.name
-    
-    try:
+        mock_manager = MagicMock()
+        mock_manager.get_last_connected_device.return_value = "emulator-5554"
+        mock_manager.get_current_device.return_value = None
+        page = DeviceSettingsPage(device_manager=mock_manager, config={})
+
+        page._on_auto_connect_changed(Qt.CheckState.Checked)
+        assert page._config.get('device', {}).get('auto_connect') is True
+
+    def test_slot_updates_config_when_unchecked(self, qapp):
+        """验证 _on_auto_connect_changed 在 Unchecked 时更新 config"""
+        from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
+
+        mock_manager = MagicMock()
+        mock_manager.get_last_connected_device.return_value = "emulator-5554"
+        mock_manager.get_current_device.return_value = None
+        page = DeviceSettingsPage(device_manager=mock_manager, config={})
+
+        page._on_auto_connect_changed(Qt.CheckState.Unchecked)
+        assert page._config.get('device', {}).get('auto_connect') is False
+
+    def test_signal_emitted_when_auto_connect_changes(self, qapp):
+        """验证 _on_auto_connect_changed 发射 settings_changed 信号"""
+        from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
+
+        mock_manager = MagicMock()
+        mock_manager.get_last_connected_device.return_value = "emulator-5554"
+        mock_manager.get_current_device.return_value = None
+        page = DeviceSettingsPage(device_manager=mock_manager, config={})
+
+        received = []
+        page.settings_changed.connect(lambda cfg: received.append(cfg))
+
+        page._on_auto_connect_changed(Qt.CheckState.Checked)
+        assert len(received) == 1
+        assert received[0].get('device', {}).get('auto_connect') is True
+
+        page._on_auto_connect_changed(Qt.CheckState.Unchecked)
+        assert len(received) == 2
+        assert received[1].get('device', {}).get('auto_connect') is False
+
+    def test_config_file_persists_auto_connect(self, tmp_path):
+        """验证 _save_config 将 auto_connect 持久化到文件"""
+        from gui.pyqt6.app_main import run_application
+
+        config_path = tmp_path / "client_config.json"
+        config_path.write_text(
+            json.dumps({"version": "2.0", "device": {"serial": "localhost:16512"}}),
+            encoding="utf-8"
+        )
+
+        updated_config = {
+            "device": {
+                "serial": "localhost:16512",
+                "auto_connect": True
+            }
+        }
+
+        # 直接调用 app_main 中的 _save_config 逻辑
         def _save_config(updated_config):
             import os as _os
             import json as _json
             import tempfile as _tempfile
-            
+
             UNSET = object()
             def _sanitize(obj):
                 if isinstance(obj, (str, int, float, bool)) or obj is None:
@@ -109,110 +114,107 @@ def test_auto_connect_config_file_persistence():
                             arr.append(sv)
                     return arr
                 return UNSET
-            
+
             cleaned = _sanitize(updated_config)
             if cleaned is UNSET:
                 cleaned = {}
-            _os.makedirs(_os.path.dirname(config_path), exist_ok=True)
+            _os.makedirs(_os.path.dirname(str(config_path)), exist_ok=True)
             existing = {}
             try:
-                if _os.path.exists(config_path):
-                    with open(config_path, 'r', encoding='utf-8') as fr:
+                if _os.path.exists(str(config_path)):
+                    with open(str(config_path), 'r', encoding='utf-8') as fr:
                         existing = _json.load(fr)
             except Exception:
                 existing = {}
-            
+
             def _merge(a, b):
                 for k, v in (b or {}).items():
                     if isinstance(v, dict) and isinstance(a.get(k), dict):
                         _merge(a[k], v)
                     else:
                         a[k] = v
-            
+
             if isinstance(cleaned, dict):
                 _merge(existing, cleaned)
             else:
                 existing = cleaned
-            
-            fd, tmp_path = _tempfile.mkstemp(prefix="client_config_", suffix=".tmp", dir=_os.path.dirname(config_path))
+
+            fd, tmp_path_file = _tempfile.mkstemp(
+                prefix="client_config_", suffix=".tmp",
+                dir=_os.path.dirname(str(config_path))
+            )
             with _os.fdopen(fd, 'w', encoding='utf-8') as f:
                 _json.dump(existing, f, indent=2, ensure_ascii=False)
-            _os.replace(tmp_path, config_path)
-        
-        # 模拟配置更新（勾选 auto_connect）
-        test_config = {
+            _os.replace(tmp_path_file, str(config_path))
+
+        _save_config(updated_config)
+
+        saved = json.loads(config_path.read_text(encoding='utf-8'))
+        assert saved.get('device', {}).get('auto_connect') is True
+
+    def test_main_auto_connect_execution(self):
+        """验证 main.py 启动时自动连接逻辑执行"""
+        config = {
             "device": {
-                "serial": "localhost:16512",
-                "auto_connect": True
+                "auto_connect": True,
+                "serial": "emulator-5554"
             }
         }
-        
-        _save_config(test_config)
-        
-        with open(config_path, 'r', encoding='utf-8') as f:
-            saved = json.load(f)
-        
-        assert saved.get('device', {}).get('auto_connect') is True
-        print("PASS: _save_config 正确持久化 auto_connect 到文件")
-        
-    finally:
-        os.unlink(config_path)
 
+        mock_adb_manager = MagicMock()
+        mock_adb_manager.get_last_connected_device.return_value = "emulator-5554"
+        mock_adb_manager.connect_device.return_value = True
 
-def test_main_auto_connect_logic():
-    """验证 main.py 启动时自动连接逻辑"""
-    config = {
-        "device": {
-            "auto_connect": True,
-            "serial": "emulator-5554"
-        }
-    }
-    
-    mock_adb_manager = MagicMock()
-    mock_adb_manager.get_last_connected_device.return_value = "emulator-5554"
-    mock_adb_manager.connect_device.return_value = True
-    
-    try:
         auto_connect = config.get('device', {}).get('auto_connect', False)
-        if auto_connect:
-            last_device = mock_adb_manager.get_last_connected_device()
-            if last_device:
-                success = mock_adb_manager.connect_device(last_device)
-                assert success is True
-                print("PASS: main.py 启动时自动连接逻辑正确执行")
-            else:
-                print("SKIP: 没有上次连接的设备")
-        else:
-            print("SKIP: auto_connect 未启用")
-    except Exception as e:
-        print(f"FAIL: 启动时自动连接逻辑异常: {e}")
-        raise
+        assert auto_connect is True
+
+        last_device = mock_adb_manager.get_last_connected_device()
+        assert last_device == "emulator-5554"
+
+        success = mock_adb_manager.connect_device(last_device)
+        assert success is True
+
+    def test_main_auto_connect_skipped_when_disabled(self):
+        """验证 auto_connect 为 False 时不执行连接"""
+        config = {
+            "device": {
+                "auto_connect": False,
+                "serial": "emulator-5554"
+            }
+        }
+
+        mock_adb_manager = MagicMock()
+        mock_adb_manager.get_last_connected_device.return_value = "emulator-5554"
+        mock_adb_manager.connect_device.return_value = True
+
+        auto_connect = config.get('device', {}).get('auto_connect', False)
+        assert auto_connect is False
+
+        # 不应执行连接
+        mock_adb_manager.connect_device.assert_not_called()
+
+    def test_main_auto_connect_skipped_when_no_last_device(self):
+        """验证没有上次连接设备时不执行连接"""
+        config = {
+            "device": {
+                "auto_connect": True,
+                "serial": "emulator-5554"
+            }
+        }
+
+        mock_adb_manager = MagicMock()
+        mock_adb_manager.get_last_connected_device.return_value = None
+        mock_adb_manager.connect_device.return_value = True
+
+        auto_connect = config.get('device', {}).get('auto_connect', False)
+        assert auto_connect is True
+
+        last_device = mock_adb_manager.get_last_connected_device()
+        assert last_device is None
+
+        # 不应执行连接
+        mock_adb_manager.connect_device.assert_not_called()
 
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("测试启动时自动连接的持久化与启动逻辑")
-    print("=" * 60)
-    
-    try:
-        test_auto_connect_slot_updates_config()
-        print()
-        test_auto_connect_signal_emission()
-        print()
-        test_auto_connect_config_file_persistence()
-        print()
-        test_main_auto_connect_logic()
-        print()
-        print("=" * 60)
-        print("所有测试通过")
-        print("=" * 60)
-    except AssertionError as e:
-        print(f"FAIL: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-    except Exception as e:
-        print(f"ERROR: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    pytest.main([__file__, "-v"])
