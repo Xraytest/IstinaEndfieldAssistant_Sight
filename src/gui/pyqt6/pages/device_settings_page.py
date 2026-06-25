@@ -85,6 +85,7 @@ class DeviceSettingsPage(QWidget):
         self._setup_ui()
         self._load_config_state()
         self._load_scheduled_tasks()
+        self._update_device_info()
 
     def _get_cache_dir(self) -> str:
         current = os.path.dirname(os.path.abspath(__file__))
