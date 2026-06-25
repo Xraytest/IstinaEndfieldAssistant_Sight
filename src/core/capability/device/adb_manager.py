@@ -138,6 +138,9 @@ class ADBDeviceManager:
                     # 跟踪已连接的设备（状态为 device）
                     if status == 'device':
                         self._connected_devices[serial] = device_info
+                        # 同步当前设备状态：若当前未设置，或当前设备已不在列表中，则更新
+                        if self._current_device is None or self._current_device not in self._connected_devices:
+                            self._current_device = serial
 
             # 更新上次连接的设备（扫描到设备时自动记录）
             # 优先记录状态为 device 的设备；若无，再回退到最后一个设备

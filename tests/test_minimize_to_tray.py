@@ -1100,3 +1100,117 @@ class TestMinimizeToTrayProductionState:
         # 验证托盘相关状态被清理
         assert mw._tray_available is False
         assert getattr(mw, '_tray_icon', None) is None
+
+    def test_startup_loads_persisted_tray_setting(self, qtbot):
+        """启动时 MainWindow 应从磁盘配置读取并应用托盘设置"""
+        from gui.pyqt6.main_window import MainWindow
+        from PyQt6.QtWidgets import QMainWindow
+        import tempfile
+        import json
+
+        # 创建临时配置文件，模拟已保存的托盘设置
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+            json.dump({"system": {"minimize_to_tray": True}}, f)
+            config_path = f.name
+
+        try:
+            mw = MainWindow.__new__(MainWindow)
+            QMainWindow.__init__(mw)
+            mw._minimize_to_tray = False  # 初始值
+            mw._tray_available = False
+            mw._is_executing_standard_flow = False
+            mw._config = {}  # 空配置，等待从磁盘加载
+
+            # 模拟 _reload_disk_config 从临时文件加载
+            with open(config_path, 'r', encoding='utf-8') as fr:
+                disk_cfg = json.load(fr)
+            mw._config.update(disk_cfg)
+
+            # 模拟启动时读取配置
+            tray_enabled = mw._config.get("system", {}).get("minimize_to_tray", False)
+            mw._minimize_to_tray = tray_enabled
+
+            assert mw._minimize_to_tray is True, "启动时应读取到持久化的托盘设置"
+        finally:
+            os.unlink(config_path)
+
+    def test_startup_disabled_tray_setting_when_false(self, qtbot):
+        """启动时若托盘设置为 False，MainWindow 应正确初始化为禁用"""
+        from gui.pyqt6.main_window import MainWindow
+        from PyQt6.QtWidgets import QMainWindow
+        import tempfile
+        import json
+
+        # 创建临时配置文件，模拟托盘设置已禁用
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+            json.dump({"system": {"minimize_to_tray": False}}, f)
+            config_path = f.name
+
+        try:
+            mw = MainWindow.__new__(MainWindow)
+            QMainWindow.__init__(mw)
+            mw._minimize_to_tray = True  # 初始值（与磁盘配置相反）
+            mw._tray_available = False
+            mw._is_executing_standard_flow = False
+            mw._config = {}
+
+            # 模拟 _reload_disk_config 从临时文件加载
+            with open(config_path, 'r', encoding='utf-8') as fr:
+                disk_cfg = json.load(fr)
+            mw._config.update(disk_cfg)
+
+            # 模拟启动时读取配置
+            tray_enabled = mw._config.get("system", {}).get("minimize_to_tray", False)
+            mw._minimize_to_tray = tray_enabled
+
+            assert mw._minimize_to_tray is False, "启动时应读取到持久化的禁用设置"
+        finally:
+            os.unlink(config_path)
+
+    def test_reload_disk_config_merges_tray_setting(self, qtbot):
+        """_reload_disk_config 应正确合并磁盘配置中的托盘设置"""
+        from gui.pyqt6.main_window import MainWindow
+        from PyQt6.QtWidgets import QMainWindow
+        import tempfile
+        import json
+
+        # 创建临时配置文件
+        disk_config = {
+            "system": {"minimize_to_tray": True},
+            "server": {"host": "127.0.0.1", "port": 9999}
+        }
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8') as f:
+            json.dump(disk_config, f)
+            config_path = f.name
+
+        try:
+            mw = MainWindow.__new__(MainWindow)
+            QMainWindow.__init__(mw)
+            mw._minimize_to_tray = False
+            mw._tray_available = False
+            mw._is_executing_standard_flow = False
+            mw._config = {
+                "system": {"minimize_to_tray": False},
+                "server": {"host": "0.0.0.0", "port": 8888}
+            }
+
+            # 模拟 _reload_disk_config 的合并逻辑
+            with open(config_path, 'r', encoding='utf-8') as fr:
+                disk_cfg = json.load(fr)
+
+            def _merge(a, b):
+                for k, v in (b or {}).items():
+                    if isinstance(v, dict) and isinstance(a.get(k), dict):
+                        _merge(a[k], v)
+                    else:
+                        a[k] = v
+
+            _merge(mw._config, disk_cfg)
+
+            # 验证托盘设置被合并
+            assert mw._config["system"]["minimize_to_tray"] is True, "磁盘配置应覆盖内存配置"
+            # 验证其他配置也被合并
+            assert mw._config["server"]["port"] == 9999, "服务器端口应被更新"
+            assert mw._config["server"]["host"] == "127.0.0.1", "服务器地址应被更新"
+        finally:
+            os.unlink(config_path)

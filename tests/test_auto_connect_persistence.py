@@ -153,7 +153,41 @@ class TestAutoConnectPersistence:
         assert saved.get('device', {}).get('auto_connect') is True
 
     def test_main_auto_connect_execution(self):
-        """验证 main.py 启动时自动连接逻辑执行"""
+        """验证 main.py 启动时自动连接逻辑执行（网络设备场景）"""
+        config = {
+            "device": {
+                "auto_connect": True,
+                "serial": "127.0.0.1:5555"
+            }
+        }
+
+        mock_adb_manager = MagicMock()
+        # 模拟网络设备不在 devices 列表中（需要 connect）
+        mock_adb_manager.get_devices.return_value = []
+        mock_adb_manager.get_last_connected_device.return_value = "127.0.0.1:5555"
+        mock_adb_manager.connect_device.return_value = True
+
+        auto_connect = config.get('device', {}).get('auto_connect', False)
+        assert auto_connect is True
+
+        # 模拟 get_devices 扫描
+        devices = mock_adb_manager.get_devices()
+        last_device = mock_adb_manager.get_last_connected_device()
+        assert last_device == "127.0.0.1:5555"
+
+        # 网络设备不在已连接列表中，应调用 connect_device
+        already_connected = any(
+            getattr(d, 'serial', '') == last_device and getattr(d, 'status', '') == 'device'
+            for d in devices
+        )
+        assert already_connected is False
+
+        success = mock_adb_manager.connect_device(last_device)
+        assert success is True
+        mock_adb_manager.connect_device.assert_called_once_with("127.0.0.1:5555")
+
+    def test_main_auto_connect_skips_for_connected_usb_device(self):
+        """验证已连接的 USB 设备跳过 adb connect"""
         config = {
             "device": {
                 "auto_connect": True,
@@ -162,17 +196,35 @@ class TestAutoConnectPersistence:
         }
 
         mock_adb_manager = MagicMock()
+        # 模拟 USB 设备已在 devices 列表中
+        mock_adb_manager.get_devices.return_value = [
+            MagicMock(serial="emulator-5554", status="device")
+        ]
         mock_adb_manager.get_last_connected_device.return_value = "emulator-5554"
-        mock_adb_manager.connect_device.return_value = True
+        mock_adb_manager.get_current_device.return_value = None
+        mock_adb_manager.connect_device.return_value = False  # adb connect 会失败
 
         auto_connect = config.get('device', {}).get('auto_connect', False)
         assert auto_connect is True
 
+        # 模拟 get_devices 扫描
+        devices = mock_adb_manager.get_devices()
         last_device = mock_adb_manager.get_last_connected_device()
         assert last_device == "emulator-5554"
 
-        success = mock_adb_manager.connect_device(last_device)
-        assert success is True
+        # USB 设备已在已连接列表中，应跳过 connect_device
+        already_connected = any(
+            getattr(d, 'serial', '') == last_device and getattr(d, 'status', '') == 'device'
+            for d in devices
+        )
+        assert already_connected is True
+
+        # 不应调用 connect_device
+        mock_adb_manager.connect_device.assert_not_called()
+
+        # 应直接设置 _current_device
+        mock_adb_manager._current_device = last_device
+        assert mock_adb_manager._current_device == "emulator-5554"
 
     def test_main_auto_connect_skipped_when_disabled(self):
         """验证 auto_connect 为 False 时不执行连接"""

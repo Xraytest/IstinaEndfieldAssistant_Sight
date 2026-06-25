@@ -412,16 +412,31 @@ class DeviceSettingsPage(QWidget):
         self._connect_btn.setText("连接中...")
 
         try:
-            success = self.device_manager.connect_device(serial)
-            if success:
+            # 检查设备是否已通过 adb devices 连接（USB 设备无需 adb connect）
+            devices = self.device_manager.get_devices()
+            already_connected = any(
+                getattr(d, 'serial', '') == serial and getattr(d, 'status', '') == 'device'
+                for d in devices
+            )
+
+            if already_connected:
+                # USB 设备已连接，直接设置为当前设备
+                self.device_manager._current_device = serial
                 self._update_connection_status(True, serial)
                 self._update_device_info()
                 self.device_connected.emit(serial)
             else:
-                QMessageBox.warning(self, "连接失败",
-                    f"无法连接到设备: {serial}\n\n"
-                    "请确认设备可用且 ADB 已正确配置。")
-                self._update_connection_status(False)
+                # 网络设备或未连接设备，调用 adb connect
+                success = self.device_manager.connect_device(serial)
+                if success:
+                    self._update_connection_status(True, serial)
+                    self._update_device_info()
+                    self.device_connected.emit(serial)
+                else:
+                    QMessageBox.warning(self, "连接失败",
+                        f"无法连接到设备: {serial}\n\n"
+                        "请确认设备可用且 ADB 已正确配置。")
+                    self._update_connection_status(False)
         except Exception as e:
             QMessageBox.critical(self, "连接错误", f"连接设备时出错: {e}")
             self._update_connection_status(False)
@@ -435,7 +450,10 @@ class DeviceSettingsPage(QWidget):
             return
 
         try:
-            self.device_manager.disconnect_device()
+            # 获取当前设备序列号，传递给 disconnect_device
+            current = self.device_manager.get_current_device()
+            if current:
+                self.device_manager.disconnect_device(current)
             self._update_connection_status(False)
             self.device_disconnected.emit()
         except Exception as e:

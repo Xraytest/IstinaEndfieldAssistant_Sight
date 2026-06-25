@@ -141,11 +141,26 @@ def main():
             if auto_connect:
                 last_device = adb_manager.get_last_connected_device()
                 if last_device:
-                    logger.info(LogCategory.MAIN, "启动时自动连接设备", device_serial=last_device)
-                    if adb_manager.connect_device(last_device):
-                        logger.info(LogCategory.MAIN, "启动时自动连接成功", device_serial=last_device)
+                    # 检查设备是否已经连接（USB 设备通过 adb devices 即可使用，无需 adb connect）
+                    already_connected = False
+                    try:
+                        devices = adb_manager.get_devices()
+                        already_connected = any(
+                            getattr(d, 'serial', '') == last_device and getattr(d, 'status', '') == 'device'
+                            for d in devices
+                        )
+                    except Exception:
+                        pass
+
+                    if already_connected:
+                        logger.info(LogCategory.MAIN, "设备已连接，跳过自动连接", device_serial=last_device)
+                        adb_manager._current_device = last_device
                     else:
-                        logger.warning(LogCategory.MAIN, "启动时自动连接失败", device_serial=last_device)
+                        logger.info(LogCategory.MAIN, "启动时自动连接设备", device_serial=last_device)
+                        if adb_manager.connect_device(last_device):
+                            logger.info(LogCategory.MAIN, "启动时自动连接成功", device_serial=last_device)
+                        else:
+                            logger.warning(LogCategory.MAIN, "启动时自动连接失败", device_serial=last_device)
         except Exception as e:
             logger.warning(LogCategory.MAIN, "启动时自动连接异常", error=str(e))
 
