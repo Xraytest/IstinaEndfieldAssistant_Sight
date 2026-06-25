@@ -135,6 +135,20 @@ def main():
         except Exception as e:
             logger.warning(LogCategory.MAIN, "启动时扫描设备失败", error=str(e))
 
+        # 启动时自动连接（如果配置启用）
+        try:
+            auto_connect = config.get('device', {}).get('auto_connect', False)
+            if auto_connect:
+                last_device = adb_manager.get_last_connected_device()
+                if last_device:
+                    logger.info(LogCategory.MAIN, "启动时自动连接设备", device_serial=last_device)
+                    if adb_manager.connect_device(last_device):
+                        logger.info(LogCategory.MAIN, "启动时自动连接成功", device_serial=last_device)
+                    else:
+                        logger.warning(LogCategory.MAIN, "启动时自动连接失败", device_serial=last_device)
+        except Exception as e:
+            logger.warning(LogCategory.MAIN, "启动时自动连接异常", error=str(e))
+
         logger.debug(LogCategory.MAIN, "初始化截屏模块")
         screen_capture = ScreenCapture(adb_manager=adb_manager)
         
