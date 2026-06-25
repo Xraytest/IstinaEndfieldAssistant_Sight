@@ -266,13 +266,14 @@ class ScrcpyCore:
             device = adb_client.device(self.device_serial)
             self._server_stream = device.shell(commands, stream=True)
 
-            # 设置超时
+            # 设置超时（增加超时时间，确保 MuMu 等模拟器有足够时间启动）
+            stream_timeout = 10.0
             if hasattr(self._server_stream, 'conn'):
-                self._server_stream.conn.settimeout(3)
+                self._server_stream.conn.settimeout(stream_timeout)
             elif hasattr(self._server_stream, 'socket'):
-                self._server_stream.socket.settimeout(3)
+                self._server_stream.socket.settimeout(stream_timeout)
 
-            # 读取初始输出，检查错误
+            # 读取初始输出，检查错误（增加重试和等待）
             self._check_server_startup_output()
 
         except Exception as e:
@@ -281,13 +282,30 @@ class ScrcpyCore:
     def _check_server_startup_output(self) -> None:
         """检查 server 启动输出，识别错误"""
         try:
-            # 读取初始字节
-            if hasattr(self._server_stream, 'read'):
-                ret = self._server_stream.read(10)
-            elif hasattr(self._server_stream, 'recv'):
-                ret = self._server_stream.recv(10)
-            else:
-                ret = b''
+            # 读取初始字节（增加重试，确保 server 完全启动）
+            max_retries = 5
+            retry_delay = 0.5
+            ret = b''
+            
+            for attempt in range(max_retries):
+                try:
+                    if hasattr(self._server_stream, 'read'):
+                        ret = self._server_stream.read(10)
+                    elif hasattr(self._server_stream, 'recv'):
+                        ret = self._server_stream.recv(10)
+                    else:
+                        ret = b''
+                    
+                    if ret:
+                        break
+                    
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                    else:
+                        raise
 
             # 检查错误
             if b'Aborted' in ret:
@@ -304,7 +322,10 @@ class ScrcpyCore:
             else:
                 # 读取并记录 INFO 信息
                 if hasattr(self._server_stream, 'read'):
-                    ret += self._server_stream.read(1024)
+                    try:
+                        ret += self._server_stream.read(1024)
+                    except Exception:
+                        pass
                 self.logger.info(f"Server startup: {ret}")
 
         except ScrcpyServerError:
@@ -379,6 +400,9 @@ class ScrcpyCore:
         """建立视频和控制 socket 连接"""
         self.logger.info(LogCategory.MAIN, "建立 scrcpy socket 连接", device_serial=self.device_serial)
 
+        # 等待 server 完全启动（MuMu 等模拟器可能需要更长时间）
+        time.sleep(1.0)
+
         # 建立视频 socket
         self._video_socket = self._create_video_socket()
         # 建立控制 socket
@@ -387,7 +411,7 @@ class ScrcpyCore:
         # 读取设备信息
         self._read_device_info()
 
-    def _create_video_socket(self, timeout: float = 3.0) -> socket.socket:
+    def _create_video_socket(self, timeout: float = 10.0) -> socket.socket:
         """创建视频 socket 连接"""
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -399,16 +423,16 @@ class ScrcpyCore:
                     1,  # AdbNetwork.LOCAL_ABSTRACT
                     "scrcpy"
                 )
-                sock.settimeout(3)
+                sock.settimeout(10.0)
                 self.logger.info(LogCategory.MAIN, "视频 socket 连接成功", device_serial=self.device_serial)
                 return sock
             except Exception as e:
                 self.logger.debug(LogCategory.MAIN, "视频 socket 连接重试", error=str(e))
-                time.sleep(0.1)
+                time.sleep(0.2)
 
         raise ScrcpyConnectionError("视频 socket 连接超时")
 
-    def _create_control_socket(self, timeout: float = 3.0) -> socket.socket:
+    def _create_control_socket(self, timeout: float = 10.0) -> socket.socket:
         """创建控制 socket 连接"""
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -418,12 +442,12 @@ class ScrcpyCore:
                     1,  # AdbNetwork.LOCAL_ABSTRACT
                     "scrcpy"
                 )
-                sock.settimeout(3)
+                sock.settimeout(10.0)
                 self.logger.info(LogCategory.MAIN, "控制 socket 连接成功", device_serial=self.device_serial)
                 return sock
             except Exception as e:
                 self.logger.debug(LogCategory.MAIN, "控制 socket 连接重试", error=str(e))
-                time.sleep(0.1)
+                time.sleep(0.2)
 
         raise ScrcpyConnectionError("控制 socket 连接超时")
 
