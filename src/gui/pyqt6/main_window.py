@@ -476,6 +476,12 @@ class MainWindow(QMainWindow):
         self._minimize_to_tray = enabled
         print(f"[托盘设置] MainWindow._minimize_to_tray set to {self._minimize_to_tray}")
         if enabled:
+            # 若托盘图标被销毁，重新创建
+            if getattr(self, '_tray_icon', None) is None:
+                try:
+                    self._setup_tray()
+                except Exception:
+                    pass
             # Ensure we have a hidden owner and aggressively convert any existing
             # top-level APPWINDOWs to TOOLWINDOW (catch windows created before toggle)
             try:
