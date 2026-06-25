@@ -26,22 +26,25 @@ def qapp():
 class TestSettingsPageMinimizeToTray:
     """SettingsPage 最小化到托盘信号与配置更新"""
 
-    def test_emit_checked_when_state_is_checked(self, qapp):
+    def test_emit_checked_when_checked(self, qapp):
         page = SettingsPage(config={})
         captured = []
         page.minimize_to_tray_changed.connect(lambda v: captured.append(v))
 
-        # Qt.Checked 通常 state=2
-        page._on_tray_changed(2)
+        # 勾选复选框（setChecked 会自动触发 stateChanged 信号）
+        page._tray_cb.setChecked(True)
         assert captured == [True]
         assert page._config.get("system", {}).get("minimize_to_tray") is True
 
-    def test_emit_unchecked_when_state_is_unchecked(self, qapp):
+    def test_emit_unchecked_when_unchecked(self, qapp):
         page = SettingsPage(config={})
         captured = []
         page.minimize_to_tray_changed.connect(lambda v: captured.append(v))
 
-        page._on_tray_changed(0)
+        # 先勾选，再取消勾选（setChecked 会自动触发 stateChanged 信号）
+        page._tray_cb.setChecked(True)
+        captured.clear()
+        page._tray_cb.setChecked(False)
         assert captured == [False]
         assert page._config.get("system", {}).get("minimize_to_tray") is False
 
@@ -50,7 +53,7 @@ class TestSettingsPageMinimizeToTray:
         captured = []
         page.minimize_to_tray_changed.connect(lambda v: captured.append(v))
 
-        page._on_tray_changed(Qt.CheckState.Checked)
+        page._tray_cb.setChecked(True)
         assert captured == [True]
 
     def test_load_config_sets_checkbox_and_emits(self, qapp):
@@ -64,7 +67,7 @@ class TestSettingsPageMinimizeToTray:
 
     def test_get_config_returns_updated_config(self, qapp):
         page = SettingsPage(config={"system": {"minimize_to_tray": False}})
-        page._on_tray_changed(2)
+        page._tray_cb.setChecked(True)
         cfg = page.get_config()
         assert cfg["system"]["minimize_to_tray"] is True
 
