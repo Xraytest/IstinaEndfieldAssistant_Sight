@@ -4,10 +4,26 @@
 """
 
 from core.service.page_analyzer.page_analyzer import HighPrecisionPageAnalyzerV2
+from .advanced_analyzer import (
+    PageType,
+    SpatialFeatures,
+    ColorFeatures,
+    TextureFeatures,
+    TemplateMatchResult,
+    PageAnalysisResult,
+    GameScreenAnalyzer as AdvancedGameScreenAnalyzer,
+)
 
 # 向后兼容别名
 GameScreenAnalyzer = HighPrecisionPageAnalyzerV2
 
 __all__ = [
+    "PageType",
+    "SpatialFeatures",
+    "ColorFeatures",
+    "TextureFeatures",
+    "TemplateMatchResult",
+    "PageAnalysisResult",
     "GameScreenAnalyzer",
+    "AdvancedGameScreenAnalyzer",
 ]
