@@ -1603,6 +1603,11 @@ class MainWindow(QMainWindow):
                 self.activateWindow()
             except Exception:
                 pass
+            # 延迟激活窗口，避免窗口尚未完全显示时 raise_/activateWindow 失效
+            try:
+                QTimer.singleShot(50, lambda: (self.raise_(), self.activateWindow()))
+            except Exception:
+                pass
             # 缩短延迟检查，仅用于验证 HWND 稳定性
             def _delayed_qt_restore():
                 try:
@@ -1706,6 +1711,11 @@ class MainWindow(QMainWindow):
             self.activateWindow()
         except Exception:
             self.showNormal()
+        # 延迟激活窗口，避免窗口尚未完全显示时 raise_/activateWindow 失效
+        try:
+            QTimer.singleShot(50, lambda: (self.raise_(), self.activateWindow()))
+        except Exception:
+            pass
         # 窗口显示后验证并重试设置 APPWINDOW（以防 Qt 在 restore 后重建 HWND 或重置样式）
         try:
             hwnd_local = int(self.winId())

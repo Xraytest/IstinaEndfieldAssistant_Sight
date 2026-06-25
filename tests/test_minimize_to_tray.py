@@ -296,10 +296,15 @@ class TestTrayRestoreWindowState:
                 raise_mock.assert_called()
                 activate_mock.assert_called()
                 # Qt 路径现在使用延迟检查，验证定时器被设置为 100ms
-                timer_mock.assert_called_once()
-                args, _ = timer_mock.call_args
-                assert args[0] == 100, f"Qt restore delay should be 100ms, got {args[0]}ms"
-                assert callable(args[1])
+                assert timer_mock.call_count == 2
+                # 第一个定时器应为延迟激活窗口（50ms）
+                first_call = timer_mock.call_args_list[0]
+                assert first_call[0][0] == 50, f"Qt activate delay should be 50ms, got {first_call[0][0]}ms"
+                assert callable(first_call[0][1])
+                # 第二个定时器应为延迟检查样式（100ms）
+                second_call = timer_mock.call_args_list[1]
+                assert second_call[0][0] == 100, f"Qt restore delay should be 100ms, got {second_call[0][0]}ms"
+                assert callable(second_call[0][1])
 
     def test_restore_win32_fallback_sets_appwindow(self, qtbot):
         """Win32 回退路径：验证 APPWINDOW 样式被正确设置"""
@@ -331,9 +336,9 @@ class TestTrayRestoreWindowState:
                 activate_mock.assert_called()
                 # Win32 回退应设置延迟定时器来应用 APPWINDOW
                 assert timer_mock.call_count >= 1
-                # 验证第一个定时器是延迟 100ms 应用 APPWINDOW
+                # 验证第一个定时器是延迟 50ms 激活窗口
                 first_call = timer_mock.call_args_list[0]
-                assert first_call[0][0] == 100
+                assert first_call[0][0] == 50
                 assert callable(first_call[0][1])
                 # 由于 QTimer.singleShot 被 mock，_win32_apply_appwindow 不会立即执行
                 # 验证它被作为延迟回调传入
@@ -395,12 +400,15 @@ class TestTrayRestoreWindowState:
                 show_mock.assert_called()
                 # owner 销毁应通过 QTimer 延迟调用，而非立即调用
                 destroy_mock.assert_not_called()
-                # 验证 QTimer.singleShot 被调用，延迟 100ms 后检查样式
-                timer_mock.assert_called_once()
-                args, _ = timer_mock.call_args
-                assert args[0] == 100, f"Qt restore delay should be 100ms, got {args[0]}ms"
-                # 回调应为 _delayed_qt_restore（闭包），而非直接销毁 owner
-                assert callable(args[1])
+                # 验证 QTimer.singleShot 被调用，包含延迟激活（50ms）和延迟检查（100ms）
+                assert timer_mock.call_count == 2
+                # 验证存在 100ms 的样式检查定时器
+                restore_timer_found = False
+                for call in timer_mock.call_args_list:
+                    if call[0][0] == 100 and callable(call[0][1]):
+                        restore_timer_found = True
+                        break
+                assert restore_timer_found, "Restore check timer not found"
 
     def test_restore_qt_path_sets_parent_none_and_pos(self, qtbot):
         """无原始父窗口句柄时，Qt 路径也应设置延迟检查回调"""
@@ -429,11 +437,14 @@ class TestTrayRestoreWindowState:
                  patch.object(mw, "_destroy_hidden_owner"):
                 mw._restore_from_tray()
                 show_mock.assert_called()
-                # 验证延迟检查回调被设置（100ms）
-                timer_mock.assert_called_once()
-                args, _ = timer_mock.call_args
-                assert args[0] == 100, f"Qt restore delay should be 100ms, got {args[0]}ms"
-                assert callable(args[1])
+                # 验证延迟检查回调被设置（包含 50ms 激活和 100ms 检查）
+                assert timer_mock.call_count == 2
+                restore_timer_found = False
+                for call in timer_mock.call_args_list:
+                    if call[0][0] == 100 and callable(call[0][1]):
+                        restore_timer_found = True
+                        break
+                assert restore_timer_found, "Restore check timer not found"
 
     def test_restore_win32_fallback_delays_owner_destruction(self, qtbot):
         """Win32 回退路径：owner 也应在窗口显示后再延迟销毁"""
@@ -623,9 +634,9 @@ class TestTrayRestoreWindowState:
                 show_mock.assert_called()
                 # Win32 回退应设置延迟定时器来应用 APPWINDOW
                 assert timer_mock.call_count >= 1
-                # 验证第一个定时器是延迟 100ms 应用 APPWINDOW，使用初始 hwnd
+                # 验证第一个定时器是延迟 50ms 激活窗口
                 first_call = timer_mock.call_args_list[0]
-                assert first_call[0][0] == 100
+                assert first_call[0][0] == 50
                 assert callable(first_call[0][1])
                 # 验证异步重试使用的 hwnd 是 showNormal 后的 hwnd (2000)
                 # 而不是 showNormal 前的旧 hwnd (1000)
@@ -672,10 +683,15 @@ class TestTrayRestoreWindowState:
                 raise_mock.assert_called()
                 activate_mock.assert_called()
                 # Qt 路径现在使用延迟检查，验证定时器被设置为 100ms
-                timer_mock.assert_called_once()
-                args, _ = timer_mock.call_args
-                assert args[0] == 100, f"Qt restore delay should be 100ms, got {args[0]}ms"
-                assert callable(args[1])
+                assert timer_mock.call_count == 2
+                # 第一个定时器应为延迟激活窗口（50ms）
+                first_call = timer_mock.call_args_list[0]
+                assert first_call[0][0] == 50, f"Qt activate delay should be 50ms, got {first_call[0][0]}ms"
+                assert callable(first_call[0][1])
+                # 第二个定时器应为延迟检查样式（100ms）
+                second_call = timer_mock.call_args_list[1]
+                assert second_call[0][0] == 100, f"Qt restore delay should be 100ms, got {second_call[0][0]}ms"
+                assert callable(second_call[0][1])
 
     def test_restore_window_remains_enabled(self, qtbot):
         """还原后窗口应保持启用状态，能够接收用户输入"""
