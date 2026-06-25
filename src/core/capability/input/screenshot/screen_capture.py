@@ -157,23 +157,50 @@ class ScreenCapture:
     def _capture_via_adb(self, device_serial: str) -> Optional[bytes]:
         """通过 ADB screencap 截屏（回退方案），返回 base64 编码的 PNG 字节"""
         adb_path = getattr(self.adb_manager, 'adb_path', 'adb')
+
+        # 先尝试 exec-out（二进制直出，通常更可靠）
         cmd = [adb_path, "-s", device_serial, "exec-out", "screencap", "-p"]
-        self.logger.debug(LogCategory.MAIN, "执行 ADB 截图命令", device_serial=device_serial)
+        self.logger.debug(LogCategory.MAIN, "执行 ADB 截图命令(exec-out)", device_serial=device_serial)
 
-        result = subprocess.run(cmd, capture_output=True, timeout=self.adb_manager.timeout)
-        if result.returncode != 0:
-            self.logger.exception(LogCategory.MAIN, "ADB 截图命令执行异常",
-                                  device_serial=device_serial, return_code=result.returncode)
-            return None
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=self.adb_manager.timeout)
+            if result.returncode == 0:
+                png_data = result.stdout
+                if png_data.startswith(b'\x89PNG\r\n\x1a\n'):
+                    try:
+                        image = Image.open(io.BytesIO(png_data))
+                        return self._image_to_base64(image)
+                    except Exception as img_error:
+                        self.logger.warning(LogCategory.MAIN, "ADB exec-out 截图数据解析失败",
+                                            device_serial=device_serial, error=str(img_error))
+        except subprocess.TimeoutExpired:
+            self.logger.exception(LogCategory.MAIN, "ADB exec-out 截图超时", device_serial=device_serial)
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "ADB exec-out 截图异常",
+                                  device_serial=device_serial, error=str(e))
 
-        png_data = result.stdout
-        if not png_data.startswith(b'\x89PNG\r\n\x1a\n'):
-            self.logger.exception(LogCategory.MAIN, "PNG 数据完整性验证异常",
-                                  device_serial=device_serial, size_bytes=len(png_data))
-            return None
+        # 回退到 shell screencap -p（兼容部分设备/ADB 版本）
+        cmd = [adb_path, "-s", device_serial, "shell", "screencap", "-p"]
+        self.logger.debug(LogCategory.MAIN, "执行 ADB 截图命令(shell)", device_serial=device_serial)
 
-        image = Image.open(io.BytesIO(png_data))
-        return self._image_to_base64(image)
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=self.adb_manager.timeout)
+            if result.returncode == 0:
+                png_data = result.stdout
+                if png_data.startswith(b'\x89PNG\r\n\x1a\n') or png_data.startswith(b'\x89PNG\n\x1a\n'):
+                    try:
+                        image = Image.open(io.BytesIO(png_data))
+                        return self._image_to_base64(image)
+                    except Exception as img_error:
+                        self.logger.warning(LogCategory.MAIN, "ADB shell 截图数据解析失败",
+                                            device_serial=device_serial, error=str(img_error))
+        except subprocess.TimeoutExpired:
+            self.logger.exception(LogCategory.MAIN, "ADB shell 截图超时", device_serial=device_serial)
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "ADB shell 截图异常",
+                                  device_serial=device_serial, error=str(e))
+
+        return None
 
     # ==================== scrcpy 方法 ====================
 

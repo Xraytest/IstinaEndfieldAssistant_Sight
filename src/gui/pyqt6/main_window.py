@@ -374,6 +374,9 @@ class MainWindow(QMainWindow):
         if self._settings_page:
             self._settings_page.minimize_to_tray_changed.connect(self._on_minimize_to_tray_changed)
 
+        if getattr(self, '_device_settings_page', None):
+            self._device_settings_page.settings_changed.connect(self.settings_changed.emit)
+
         if getattr(self, '_standard_reasoning_page', None):
             self._standard_reasoning_page.execution_state_changed.connect(
                 self._on_standard_flow_execution_state_changed

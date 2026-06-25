@@ -126,9 +126,15 @@ def main():
         logger.debug(LogCategory.MAIN, "初始化 ADB 设备管理器", adb_path=adb_path)
         adb_manager = ADBDeviceManager(
             adb_path=adb_path,
-            timeout=config.get('adb', {}).get('timeout', 10)
+            timeout=int(config.get('adb', {}).get('timeout', 30))
         )
-        
+
+        # 启动时扫描设备，确保 _last_connected_device 被正确设置
+        try:
+            adb_manager.get_devices()
+        except Exception as e:
+            logger.warning(LogCategory.MAIN, "启动时扫描设备失败", error=str(e))
+
         logger.debug(LogCategory.MAIN, "初始化截屏模块")
         screen_capture = ScreenCapture(adb_manager=adb_manager)
         

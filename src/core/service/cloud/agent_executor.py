@@ -62,6 +62,11 @@ class AgentExecutor:
             try:
                 adb_manager = getattr(self.screen_capture, 'adb_manager', None)
                 if adb_manager is not None:
+                    # 先尝试刷新设备列表，确保拿到当前可用设备
+                    try:
+                        adb_manager.get_devices()
+                    except Exception:
+                        pass
                     device_serial = adb_manager.get_current_device() or adb_manager.get_last_connected_device() or ""
             except Exception:
                 pass
