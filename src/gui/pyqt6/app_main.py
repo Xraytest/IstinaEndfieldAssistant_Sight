@@ -216,7 +216,7 @@ class PyQt6Application:
 
 def run_application(agent_executor=None, gui_client=None,
                     screen_capture=None, touch_executor=None,
-                    config=None, inference_manager=None):
+                    config=None, inference_manager=None, adb_manager=None):
     """
     Run the PyQt6 application with business logic components（纯本地版）
 
@@ -227,6 +227,7 @@ def run_application(agent_executor=None, gui_client=None,
         touch_executor: TouchManager instance for touch operations
         config: Configuration dictionary
         inference_manager: InferenceManager instance for local inference
+        adb_manager: ADBDeviceManager instance for device management
     """
     QApplication, _, _, _ = _get_qt()
     print("[应用主进程] 创建 QApplication...")
@@ -280,7 +281,8 @@ def run_application(agent_executor=None, gui_client=None,
         screen_capture=screen_capture,
         touch_executor=touch_executor,
         config=config,
-        inference_manager=inference_manager
+        inference_manager=inference_manager,
+        adb_manager=adb_manager
     )
 
     # 在显示窗口前创建 native hidden owner（提高 owner 稳定性）

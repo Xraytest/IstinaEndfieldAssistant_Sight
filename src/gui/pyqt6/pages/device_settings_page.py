@@ -380,6 +380,9 @@ class DeviceSettingsPage(QWidget):
             count = len(devices)
             self._scan_status_label.setText(f"发现 {count} 台设备" if count else "未发现设备")
 
+            # 扫描完成后更新上次连接设备显示
+            self._update_device_info()
+
         except Exception as e:
             self._scan_status_label.setText(f"扫描失败: {e}")
         finally:

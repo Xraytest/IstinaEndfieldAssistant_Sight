@@ -197,7 +197,7 @@ class MainWindow(QMainWindow):
                  min_width: int = 1280, min_height: int = 800, config: Optional[Dict[str, Any]] = None,
                  agent_executor: Optional[Any] = None, gui_client: Optional[Any] = None,
                  screen_capture: Optional[Any] = None, touch_executor: Optional[Any] = None,
-                 inference_manager: Optional[Any] = None) -> None:
+                 inference_manager: Optional[Any] = None, adb_manager: Optional[Any] = None) -> None:
         super().__init__(parent)
         try:
             self.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
@@ -224,10 +224,13 @@ class MainWindow(QMainWindow):
         self._touch_executor = touch_executor
         self._inference_manager = inference_manager
 
-        # 初始化 ADB 设备管理器
-        from core.capability.device.adb_manager import ADBDeviceManager
-        adb_path = self._config.get("device", {}).get("adb_path", "3rd-part/adb/adb.exe")
-        self._device_manager = ADBDeviceManager(adb_path=adb_path, timeout=10)
+        # 初始化 ADB 设备管理器（优先使用外部传入的实例，确保上次连接状态一致）
+        if adb_manager is not None:
+            self._device_manager = adb_manager
+        else:
+            from core.capability.device.adb_manager import ADBDeviceManager
+            adb_path = self._config.get("device", {}).get("adb_path", "3rd-part/adb/adb.exe")
+            self._device_manager = ADBDeviceManager(adb_path=adb_path, timeout=10)
 
         self._settings_page: Optional[SettingsPage] = None
         self._agent_page: Optional[AgentPage] = None

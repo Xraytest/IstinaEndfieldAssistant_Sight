@@ -205,7 +205,8 @@ def main():
             screen_capture=screen_capture,
             touch_executor=touch_executor,
             config=config,
-            inference_manager=inference_manager
+            inference_manager=inference_manager,
+            adb_manager=adb_manager
         )
         
         logger.info(LogCategory.MAIN, f"应用程序退出，退出码: {exit_code}")
