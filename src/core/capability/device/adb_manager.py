@@ -111,7 +111,7 @@ class ADBDeviceManager:
     def get_devices(self) -> List[AdbDeviceInfo]:
         """
         获取已连接的设备列表
-        
+
         Returns:
             List[AdbDeviceInfo]: 设备信息列表
         """
@@ -123,7 +123,7 @@ class ADBDeviceManager:
                 encoding='utf-8',
                 errors='ignore'
             )
-            
+
             devices = []
             self._connected_devices.clear()  # 清空旧状态
             lines = result.stdout.strip().split('\n')
@@ -139,12 +139,20 @@ class ADBDeviceManager:
                     if status == 'device':
                         self._connected_devices[serial] = device_info
 
+            # 更新上次连接的设备（扫描到设备时自动记录）
+            if devices:
+                self._last_connected_device = devices[-1].serial
+
             self.logger.debug(LogCategory.ADB, f"发现 {len(devices)} 个设备")
             return devices
-            
+
         except Exception as e:
             self.logger.exception(LogCategory.ADB, "获取设备列表异常", error=str(e))
             return []
+
+    def scan_devices(self) -> List[AdbDeviceInfo]:
+        """扫描已连接的设备（与 get_devices 兼容的别名）"""
+        return self.get_devices()
     
     def connect_device(self, address: str) -> bool:
         """

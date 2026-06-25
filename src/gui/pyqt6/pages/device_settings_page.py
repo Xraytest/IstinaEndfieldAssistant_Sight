@@ -421,6 +421,7 @@ class DeviceSettingsPage(QWidget):
             success = self.device_manager.connect_device(serial)
             if success:
                 self._update_connection_status(True, serial)
+                self._update_device_info()
                 self.device_connected.emit(serial)
             else:
                 QMessageBox.warning(self, "连接失败",
