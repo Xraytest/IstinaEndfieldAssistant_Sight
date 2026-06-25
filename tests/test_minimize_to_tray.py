@@ -375,7 +375,7 @@ class TestTrayRestoreWindowState:
                 # 验证 QTimer.singleShot 被调用，且回调为 _destroy_hidden_owner
                 timer_mock.assert_called_once()
                 args, _ = timer_mock.call_args
-                assert args[0] == 0
+                assert args[0] == 250, f"Owner destruction delay should be 250ms, got {args[0]}ms"
                 assert args[1] == destroy_mock
 
     def test_restore_win32_fallback_delays_owner_destruction(self, qtbot):
@@ -408,13 +408,20 @@ class TestTrayRestoreWindowState:
                 # Win32 回退路径中 owner 也不应立即销毁
                 destroy_mock.assert_not_called()
                 # Win32 回退路径中 singleShot 会被调用两次：
-                # 1) 延迟 owner 销毁，2) 异步重试 APPWINDOW 设置
+                # 1) 延迟 owner 销毁 (250ms)，2) 异步重试 APPWINDOW 设置 (250ms)
                 assert timer_mock.call_count >= 1
                 # 验证第一次调用为延迟 owner 销毁
                 first_call = timer_mock.call_args_list[0]
                 args, _ = first_call
-                assert args[0] == 0
+                assert args[0] == 250, f"Owner destruction delay should be 250ms, got {args[0]}ms"
                 assert args[1] == destroy_mock
+                # 验证第二次调用为异步重试 APPWINDOW 设置
+                if timer_mock.call_count >= 2:
+                    second_call = timer_mock.call_args_list[1]
+                    args2, _ = second_call
+                    assert args2[0] == 250, f"Async retry delay should be 250ms, got {args2[0]}ms"
+                    # 验证回调为 _win32_apply_appwindow
+                    assert callable(args2[1])
                 win32_mock.assert_called()
                 watcher_mock.assert_called()
 
@@ -471,3 +478,55 @@ class TestTrayRestoreWindowState:
                 show_mock.assert_called()
                 raise_mock.assert_called()
                 activate_mock.assert_called()
+
+    def test_restore_async_retry_uses_current_hwnd_after_showNormal(self, qtbot):
+        """Win32 回退路径：异步重试应使用 showNormal 后的当前 HWND，而非旧 HWND"""
+        mw = self._make_main_window(qtbot)
+        mw._orig_window_flags = mw.windowFlags()
+        mw._orig_hwnd_parent = 0
+
+        call_count = 0
+        def mock_winId():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return 1000  # 初始 hwnd（showNormal 前）
+            return 2000  # showNormal 后重建的 hwnd
+
+        mw.winId = mock_winId
+
+        with patch.object(mw, "_win32_apply_appwindow") as win32_mock, \
+             patch.object(mw, "_start_winid_watcher") as watcher_mock, \
+             patch.object(mw, "_dump_native_windows"), \
+             patch.object(mw, "_destroy_hidden_owner"), \
+             patch.object(mw, "append_log"), \
+             patch("ctypes.windll.user32") as user32_mock, \
+             patch("ctypes.windll.kernel32") as kernel32_mock, \
+             patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
+            user32_mock.GetWindowLongPtrW.return_value = 0x00000000
+            user32_mock.GetWindowLongW.return_value = 0x00000000
+            kernel32_mock.GetLastError.return_value = 0
+
+            with patch.object(mw, "showNormal") as show_mock, \
+                 patch.object(mw, "raise_"), \
+                 patch.object(mw, "activateWindow"), \
+                 patch.object(mw, "ensure_window_buttons"):
+                mw._restore_from_tray()
+                show_mock.assert_called()
+                # Win32 回退应使用初始 hwnd 调用
+                win32_mock.assert_called()
+                # 验证异步重试使用的 hwnd 是 showNormal 后的 hwnd (2000)
+                # 而不是 showNormal 前的旧 hwnd (1000)
+                assert timer_mock.call_count >= 1
+                # 第二次调用是异步重试
+                async_call = timer_mock.call_args_list[1]
+                args, _ = async_call
+                assert args[0] == 250
+                # 调用回调并检查传入的 hwnd
+                args[1]()
+                # 验证 _win32_apply_appwindow 被调用时使用了新 hwnd (2000)
+                # 最后一次调用的第一个参数应该是 2000
+                last_call = win32_mock.call_args_list[-1]
+                call_hwnd = last_call[0][0] if last_call[0] else last_call[1].get('hwnd', 0)
+                assert call_hwnd == 2000, f"Async retry should use current hwnd (2000), got {call_hwnd}"
+                watcher_mock.assert_called()

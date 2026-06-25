@@ -1625,7 +1625,7 @@ class MainWindow(QMainWindow):
                         except Exception:
                             pass
                     # 延迟销毁 owner，确保窗口完全显示并恢复父子关系后再清理
-                    QTimer.singleShot(0, self._destroy_hidden_owner)
+                    QTimer.singleShot(250, self._destroy_hidden_owner)
                 except Exception:
                     pass
                 try:
@@ -1670,14 +1670,14 @@ class MainWindow(QMainWindow):
             self.showNormal()
         # 延迟销毁 owner，确保窗口完全显示并恢复父子关系后再清理
         try:
-            QTimer.singleShot(0, self._destroy_hidden_owner)
+            QTimer.singleShot(250, self._destroy_hidden_owner)
         except Exception:
             pass
         # 异步验证并重试设置 APPWINDOW（以防 Qt 在 restore 后重建 HWND 或重置样式）
         try:
-            hwnd_local = int(hwnd)
+            hwnd_local = int(self.winId())
             orig_parent_local = int(orig_parent) if orig_parent else 0
-            QTimer.singleShot(120, lambda: self._win32_apply_appwindow(hwnd_local, orig_parent=orig_parent_local, tag='restore-async', retries=3))
+            QTimer.singleShot(250, lambda: self._win32_apply_appwindow(hwnd_local, orig_parent=orig_parent_local, tag='restore-async', retries=3))
         except Exception:
             pass
         # 启动 winId 变化 watcher，在恢复后短时间内监测并确保 APPWINDOW 被设置
