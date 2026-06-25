@@ -166,11 +166,23 @@ def main():
         # 通过 GUI Client 工厂函数创建 AgentExecutor
         logger.debug(LogCategory.MAIN, "通过 GUI Client 工厂函数初始化代理执行器")
         from core.service.gui_client import create_agent_executor
+        
+        # 获取当前设备序列号，确保截图时指定正确设备
+        device_serial = ""
+        try:
+            if adb_manager.get_current_device():
+                device_serial = adb_manager.get_current_device()
+            elif adb_manager.get_last_connected_device():
+                device_serial = adb_manager.get_last_connected_device()
+        except Exception:
+            pass
+        
         agent_executor = create_agent_executor(
             inference_manager=inference_manager,
             screen_capture=screen_capture,
             touch_executor=touch_executor,
             config=config,
+            device_serial=device_serial,
         )
 
         # 创建 GUIClient（GUI 层唯一推理入口，纯本地模式）

@@ -57,8 +57,17 @@ class AgentExecutor:
         if not self.screen_capture:
             return {"status": "error", "message": "Screen capture module not initialized"}
 
-        if self.device_serial:
-            screenshot_result = self.screen_capture.capture_screen(self.device_serial)
+        device_serial = self.device_serial
+        if not device_serial:
+            try:
+                adb_manager = getattr(self.screen_capture, 'adb_manager', None)
+                if adb_manager is not None:
+                    device_serial = adb_manager.get_current_device() or adb_manager.get_last_connected_device() or ""
+            except Exception:
+                pass
+        
+        if device_serial:
+            screenshot_result = self.screen_capture.capture_screen(device_serial)
         else:
             screenshot_result = None
         if not screenshot_result:

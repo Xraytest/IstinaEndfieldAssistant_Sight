@@ -1,4 +1,6 @@
 """Standard Reasoning page - select and execute standard flow tasks"""
+import os
+import json
 from typing import Optional, Dict, Any, List
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -91,6 +93,7 @@ class StandardReasoningPage(QWidget):
         self._flow_checkboxes: Dict[str, QCheckBox] = {}
         self._is_executing: bool = False
         self._setup_ui()
+        self._load_selected_flows()
         QTimer.singleShot(100, self._update_inference_mode_indicator)
 
     def _setup_ui(self):
@@ -146,6 +149,7 @@ class StandardReasoningPage(QWidget):
         for flow_id in standard_flows:
             cb = QCheckBox(flow_id.replace("_", " ").title())
             cb.setStyleSheet(CHECK_STYLE)
+            cb.stateChanged.connect(lambda state, fid=flow_id: self._on_flow_checkbox_changed(fid))
             self._flow_checkboxes[flow_id] = cb
             flow_list_layout.addWidget(cb)
         flow_layout.addWidget(flow_list)
@@ -311,6 +315,36 @@ class StandardReasoningPage(QWidget):
         import datetime
         ts = datetime.datetime.now().strftime("%H:%M:%S")
         self._log_text.append(f"[{ts}] {text}")
+
+    def _get_cache_dir(self) -> str:
+        current = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current))))
+        cache = os.path.join(root, "cache")
+        os.makedirs(cache, exist_ok=True)
+        return cache
+
+    def _load_selected_flows(self):
+        path = os.path.join(self._get_cache_dir(), "standard_flow_selection.json")
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            selected = data.get('selected_flows', [])
+            for flow_id, cb in self._flow_checkboxes.items():
+                cb.setChecked(flow_id in selected)
+        except Exception:
+            pass
+
+    def _save_selected_flows(self):
+        path = os.path.join(self._get_cache_dir(), "standard_flow_selection.json")
+        selected = [fid for fid, cb in self._flow_checkboxes.items() if cb.isChecked()]
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump({'selected_flows': selected}, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+
+    def _on_flow_checkbox_changed(self, flow_id: str):
+        self._save_selected_flows()
 
     def set_agent_executor(self, agent_executor):
         self.agent_executor = agent_executor
