@@ -222,11 +222,51 @@ class InferenceManager(QObject):
                        mode=self._current_mode,
                        local_available=self._local_available,
                        async_available=self._async_manager is not None)
-            
+
             return True
-            
+
         except Exception as e:
             logger.exception(LogCategory.MAIN, "推理管理器初始化失败", error=str(e))
+            return False
+
+    def ensure_started(self) -> bool:
+        """
+        确保推理管理器已启动（标准流推理启停控制）
+
+        如果推理管理器尚未初始化，或本地推理不可用，则尝试启动。
+        用于标准流执行前自动启动 llama.cpp，执行结束后可调用 shutdown() 停止。
+
+        Returns:
+            是否启动成功（本地推理可用）
+        """
+        try:
+            # 如果已经初始化且本地推理可用，直接返回
+            if self._initialized and self._local_available:
+                logger.debug(LogCategory.MAIN, "推理管理器已启动，跳过初始化")
+                return True
+
+            # 如果未初始化，执行完整初始化
+            if not self._initialized:
+                logger.info(LogCategory.MAIN, "推理管理器未初始化，开始启动")
+                if not self.initialize():
+                    logger.error(LogCategory.MAIN, "推理管理器初始化失败")
+                    return False
+
+            # 如果已初始化但本地推理不可用，尝试重新初始化本地引擎
+            if not self._local_available and self._inference_config.local_enabled:
+                logger.info(LogCategory.MAIN, "本地推理未启动，尝试启动本地引擎")
+                if not self._initialize_local_engine():
+                    logger.error(LogCategory.MAIN, "本地引擎启动失败")
+                    return False
+
+                # 确保异步管理器已初始化
+                if not self._async_manager and HAS_PYQT and HAS_ASYNC_WORKER:
+                    self._initialize_async_manager()
+
+            return self._local_available
+
+        except Exception as e:
+            logger.exception(LogCategory.MAIN, "推理管理器启动失败", error=str(e))
             return False
     
     def _initialize_async_manager(self) -> bool:

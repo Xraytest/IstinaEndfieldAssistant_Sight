@@ -268,13 +268,30 @@ class StandardReasoningPage(QWidget):
             flow_completed = pyqtSignal(str, bool, str)
             all_done = pyqtSignal()
 
-            def __init__(self, agent_executor, flow_ids, stop_flag_ref):
+            def __init__(self, agent_executor, flow_ids, stop_flag_ref, inference_manager=None):
                 super().__init__()
                 self.agent_executor = agent_executor
                 self.flow_ids = flow_ids
                 self._stop_flag = stop_flag_ref
+                self._inference_manager = inference_manager
 
             def run(self):
+                # 标准流启动前：确保 llama.cpp 已启动
+                started = False
+                if self._inference_manager is not None:
+                    try:
+                        started = self._inference_manager.ensure_started()
+                        if started:
+                            self.flow_completed.emit("system", True, "Llama.cpp started")
+                        else:
+                            self.flow_completed.emit("system", False, "Llama.cpp start failed")
+                    except Exception as e:
+                        self.flow_completed.emit("system", False, f"Llama.cpp start error: {e}")
+
+                if not started and self._inference_manager is not None:
+                    # 如果 llama.cpp 启动失败，仍然尝试执行（可能走云端回退）
+                    self.flow_completed.emit("system", False, "Proceeding without local inference")
+
                 for flow_id in self.flow_ids:
                     if self._stop_flag[0]:
                         self.flow_completed.emit(flow_id, False, "Stopped by user")
@@ -287,15 +304,27 @@ class StandardReasoningPage(QWidget):
                             self.flow_completed.emit(flow_id, False, result.get('message', 'Unknown'))
                     except Exception as e:
                         self.flow_completed.emit(flow_id, False, str(e))
+
+                # 标准流结束后：停止 llama.cpp 释放内存
+                if self._inference_manager is not None:
+                    try:
+                        self._inference_manager.shutdown()
+                        self.flow_completed.emit("system", True, "Llama.cpp stopped")
+                    except Exception as e:
+                        self.flow_completed.emit("system", False, f"Llama.cpp stop error: {e}")
+
                 self.all_done.emit()
 
         self._flow_stop_flag = [False]
-        self._flow_thread = FlowExecutionThread(self.agent_executor, selected, self._flow_stop_flag)
+        self._flow_thread = FlowExecutionThread(self.agent_executor, selected, self._flow_stop_flag, self.inference_manager)
         self._flow_thread.flow_completed.connect(self._on_flow_completed)
         self._flow_thread.all_done.connect(self._on_all_flows_done)
         self._flow_thread.start()
 
     def _on_flow_completed(self, flow_id: str, success: bool, message: str):
+        # 过滤系统消息（llama.cpp 启停日志），不在 UI 中显示
+        if flow_id == "system":
+            return
         status = "OK" if success else "FAIL"
         self._log(f"[{flow_id}] {status}: {message}")
 

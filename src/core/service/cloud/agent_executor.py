@@ -88,6 +88,12 @@ class AgentExecutor:
         img_b64 = base64.b64encode(img_bytes).decode("utf-8")
 
         if self.inference_manager is not None:
+            # 确保 llama.cpp 已启动（标准流启停控制）
+            try:
+                if hasattr(self.inference_manager, 'ensure_started'):
+                    self.inference_manager.ensure_started()
+            except Exception:
+                pass
             return self._process_with_inference_manager(instruction, img_b64)
 
         return {"status": "error", "message": "No inference method available"}
