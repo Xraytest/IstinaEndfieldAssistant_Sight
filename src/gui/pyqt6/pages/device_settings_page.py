@@ -491,6 +491,11 @@ class DeviceSettingsPage(QWidget):
             if current:
                 self._update_connection_status(True, current)
 
+    def showEvent(self, event):
+        """页面显示时刷新设备信息"""
+        super().showEvent(event)
+        self._update_device_info()
+
     # ── Schedule Handlers ──
 
     def _update_schedule_table(self):
