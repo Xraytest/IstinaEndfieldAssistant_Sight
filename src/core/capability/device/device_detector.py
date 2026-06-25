@@ -62,7 +62,7 @@ class DeviceDetector:
     # 推荐配置映射
     RECOMMENDATIONS = {
         DeviceType.MUMU: {
-            "screenshot": "nemu_ipc",
+            "screenshot": "adb",
             "control": "MaaTouch"
         },
         DeviceType.LDPLAYER: {
