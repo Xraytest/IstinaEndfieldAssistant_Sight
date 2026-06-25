@@ -1605,10 +1605,6 @@ class MainWindow(QMainWindow):
             hwnd = int(self.winId())
             ex_style = GetWindowLongPtr(hwnd, GWL_EXSTYLE)
             if ex_style & WS_EX_APPWINDOW:
-                try:
-                    self._dump_native_windows("after_restore_qt")
-                except Exception:
-                    pass
                 # 恢复之前设置的 owner（如存在）
                 try:
                     user32 = ctypes.windll.user32
@@ -1628,10 +1624,12 @@ class MainWindow(QMainWindow):
                             SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, 0)
                         except Exception:
                             pass
-                    try:
-                        self._destroy_hidden_owner()
-                    except Exception:
-                        pass
+                    # 延迟销毁 owner，确保窗口完全显示并恢复父子关系后再清理
+                    QTimer.singleShot(0, self._destroy_hidden_owner)
+                except Exception:
+                    pass
+                try:
+                    self._dump_native_windows("after_restore_qt")
                 except Exception:
                     pass
                 self.append_log(f"从托盘恢复 (Qt): winId={hwnd}, ex_style=0x{ex_style:08x}", "INFO")
@@ -1660,10 +1658,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         try:
-            self._destroy_hidden_owner()
-        except Exception:
-            pass
-        try:
             self._dump_native_windows("after_restore_win32")
         except Exception:
             pass
@@ -1674,6 +1668,11 @@ class MainWindow(QMainWindow):
             self.activateWindow()
         except Exception:
             self.showNormal()
+        # 延迟销毁 owner，确保窗口完全显示并恢复父子关系后再清理
+        try:
+            QTimer.singleShot(0, self._destroy_hidden_owner)
+        except Exception:
+            pass
         # 异步验证并重试设置 APPWINDOW（以防 Qt 在 restore 后重建 HWND 或重置样式）
         try:
             hwnd_local = int(hwnd)
