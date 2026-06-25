@@ -501,16 +501,39 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         else:
-            # 关闭托盘选项：销毁托盘图标，避免关闭窗口后进程仍驻留
+            # 关闭托盘选项：若窗口当前处于最小化到托盘状态，先恢复窗口显示
+            was_minimized = bool(self.windowState() & Qt.WindowState.WindowMinimized) or not self.isVisible()
+            if was_minimized:
+                try:
+                    # 恢复窗口标志
+                    if hasattr(self, '_orig_window_flags'):
+                        self.setWindowFlags(self._orig_window_flags)
+                    else:
+                        self.setWindowFlag(Qt.WindowType.Tool, False)
+                    # 修正 Win32 样式，确保恢复为正常窗口
+                    try:
+                        self._ensure_appwindow_style()
+                    except Exception:
+                        pass
+                    self.showNormal()
+                    try:
+                        self.raise_()
+                        self.activateWindow()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            # 销毁托盘图标，避免关闭窗口后进程仍驻留
             try:
                 tray = getattr(self, '_tray_icon', None)
                 if tray is not None:
                     tray.hide()
                     tray.deleteLater()
                     self._tray_icon = None
-                    self._tray_available = False
             except Exception:
                 pass
+            # 无论是否实际销毁托盘图标，只要取消勾选就标记托盘不可用
+            self._tray_available = False
             try:
                 self._uninstall_win_event_hook()
             except Exception:

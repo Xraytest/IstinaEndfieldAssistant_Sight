@@ -1006,3 +1006,94 @@ class TestMinimizeToTrayProductionState:
         assert mw.isEnabled() is True, "还原后窗口应保持启用"
         assert not (mw.windowState() & Qt.WindowState.WindowMinimized), \
             "还原后窗口不应处于最小化状态"
+
+    def test_uncheck_tray_restores_window_if_minimized(self, qtbot):
+        """取消勾选托盘时，若窗口处于最小化/隐藏状态，应先恢复窗口显示"""
+        from gui.pyqt6.main_window import MainWindow
+        from PyQt6.QtWidgets import QMainWindow
+
+        mw = MainWindow.__new__(MainWindow)
+        QMainWindow.__init__(mw)
+        mw._minimize_to_tray = True
+        mw._tray_available = True
+        mw._is_executing_standard_flow = False
+        mw._config = {"system": {"minimize_to_tray": True}}
+        mw.show()
+        qtbot.wait(100)
+        assert mw.isVisible() is True
+
+        # 模拟窗口已最小化到托盘的状态
+        mw._orig_window_flags = mw.windowFlags()
+        mw.hide()
+        mw.setWindowFlag(Qt.WindowType.Tool, True)
+        assert mw.isVisible() is False
+
+        # 取消勾选托盘选项
+        with patch.object(mw, "_ensure_hidden_owner"), \
+             patch.object(mw, "_apply_toolwindow_to_process_windows"), \
+             patch.object(mw, "_persist_minimize_setting"), \
+             patch.object(mw, "_uninstall_win_event_hook"), \
+             patch.object(mw, "_destroy_hidden_owner"), \
+             patch.object(mw, "_destroy_native_hidden_owner"), \
+             patch.object(mw, "_win32_apply_appwindow"), \
+             patch.object(mw, "append_log"), \
+             patch("ctypes.windll.user32") as user32_mock:
+            user32_mock.GetWindowLongPtrW.return_value = 0x00040000
+            user32_mock.GetWindowLongW.return_value = 0x00040000
+            user32_mock.SetWindowLongPtrW.return_value = 0
+            user32_mock.SetWindowLongW.return_value = 0
+            user32_mock.SetWindowPos.return_value = True
+
+            mw._on_minimize_to_tray_changed(False)
+
+        # 验证窗口被恢复显示
+        assert mw.isVisible() is True, "取消勾选后窗口应恢复可见"
+        assert mw.isEnabled() is True, "取消勾选后窗口应保持启用"
+        assert not (mw.windowState() & Qt.WindowState.WindowMinimized), \
+            "取消勾选后窗口不应处于最小化状态"
+        # 验证托盘相关状态被清理
+        assert mw._tray_available is False
+        assert getattr(mw, '_tray_icon', None) is None
+
+    def test_uncheck_tray_does_not_affect_visible_window(self, qtbot):
+        """取消勾选托盘时，若窗口正常显示，不应改变窗口状态"""
+        from gui.pyqt6.main_window import MainWindow
+        from PyQt6.QtWidgets import QMainWindow
+
+        mw = MainWindow.__new__(MainWindow)
+        QMainWindow.__init__(mw)
+        mw._minimize_to_tray = True
+        mw._tray_available = True
+        mw._is_executing_standard_flow = False
+        mw._config = {"system": {"minimize_to_tray": True}}
+        mw.show()
+        qtbot.wait(100)
+        assert mw.isVisible() is True
+        assert mw.isEnabled() is True
+
+        # 取消勾选托盘选项（窗口正常显示）
+        with patch.object(mw, "_ensure_hidden_owner"), \
+             patch.object(mw, "_apply_toolwindow_to_process_windows"), \
+             patch.object(mw, "_persist_minimize_setting"), \
+             patch.object(mw, "_uninstall_win_event_hook"), \
+             patch.object(mw, "_destroy_hidden_owner"), \
+             patch.object(mw, "_destroy_native_hidden_owner"), \
+             patch.object(mw, "_win32_apply_appwindow"), \
+             patch.object(mw, "append_log"), \
+             patch("ctypes.windll.user32") as user32_mock:
+            user32_mock.GetWindowLongPtrW.return_value = 0x00040000
+            user32_mock.GetWindowLongW.return_value = 0x00040000
+            user32_mock.SetWindowLongPtrW.return_value = 0
+            user32_mock.SetWindowLongW.return_value = 0
+            user32_mock.SetWindowPos.return_value = True
+
+            mw._on_minimize_to_tray_changed(False)
+
+        # 验证窗口状态不变
+        assert mw.isVisible() is True, "窗口应保持可见"
+        assert mw.isEnabled() is True, "窗口应保持启用"
+        assert not (mw.windowState() & Qt.WindowState.WindowMinimized), \
+            "窗口不应被最小化"
+        # 验证托盘相关状态被清理
+        assert mw._tray_available is False
+        assert getattr(mw, '_tray_icon', None) is None
