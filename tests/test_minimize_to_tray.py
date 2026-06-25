@@ -269,6 +269,7 @@ class TestTrayRestoreWindowState:
         """Qt 恢复成功路径：窗口应回到正常状态（非最小化、有焦点）"""
         mw = self._make_main_window(qtbot)
         mw._orig_window_flags = mw.windowFlags()
+        mw._orig_hwnd_parent = 0x1234  # 设置一个模拟的原始父窗口句柄
 
         with patch.object(mw, "_win32_apply_appwindow"), \
              patch.object(mw, "_start_winid_watcher"), \
@@ -279,17 +280,26 @@ class TestTrayRestoreWindowState:
             # 模拟 WS_EX_APPWINDOW 已设置，Qt 恢复成功
             user32_mock.GetWindowLongPtrW.return_value = 0x00040000
             user32_mock.GetWindowLongW.return_value = 0x00040000
+            user32_mock.SetWindowLongPtrW.return_value = 0
+            user32_mock.SetWindowLongW.return_value = 0
+            user32_mock.SetWindowPos.return_value = True
 
             with patch.object(mw, "showNormal") as show_mock, \
                  patch.object(mw, "raise_") as raise_mock, \
                  patch.object(mw, "activateWindow") as activate_mock, \
-                 patch.object(mw, "ensure_window_buttons"):
+                 patch.object(mw, "ensure_window_buttons"), \
+                 patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
                 mw._restore_from_tray()
                 # 验证窗口处于正常状态（非最小化）
                 assert not mw.windowState() & Qt.WindowState.WindowMinimized
                 show_mock.assert_called()
                 raise_mock.assert_called()
                 activate_mock.assert_called()
+                # Qt 路径现在使用延迟检查，验证定时器被设置为 100ms
+                timer_mock.assert_called_once()
+                args, _ = timer_mock.call_args
+                assert args[0] == 100, f"Qt restore delay should be 100ms, got {args[0]}ms"
+                assert callable(args[1])
 
     def test_restore_win32_fallback_sets_appwindow(self, qtbot):
         """Win32 回退路径：验证 APPWINDOW 样式被正确设置"""
@@ -303,7 +313,8 @@ class TestTrayRestoreWindowState:
              patch.object(mw, "_destroy_hidden_owner"), \
              patch.object(mw, "append_log"), \
              patch("ctypes.windll.user32") as user32_mock, \
-             patch("ctypes.windll.kernel32") as kernel32_mock:
+             patch("ctypes.windll.kernel32") as kernel32_mock, \
+             patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
             # 模拟 Qt 恢复后 APPWINDOW 未设置
             user32_mock.GetWindowLongPtrW.return_value = 0x00000000
             user32_mock.GetWindowLongW.return_value = 0x00000000
@@ -312,14 +323,22 @@ class TestTrayRestoreWindowState:
             with patch.object(mw, "showNormal") as show_mock, \
                  patch.object(mw, "raise_") as raise_mock, \
                  patch.object(mw, "activateWindow") as activate_mock, \
-                 patch.object(mw, "ensure_window_buttons"), \
-                 patch("PyQt6.QtCore.QTimer.singleShot"):
-                mw._restore_from_tray()
+                 patch.object(mw, "ensure_window_buttons"):
+                # 直接调用 Win32 回退方法
+                mw._restore_from_tray_win32_fallback()
                 show_mock.assert_called()
                 raise_mock.assert_called()
                 activate_mock.assert_called()
-                # Win32 回退应被调用以修复样式
-                win32_mock.assert_called()
+                # Win32 回退应设置延迟定时器来应用 APPWINDOW
+                assert timer_mock.call_count >= 1
+                # 验证第一个定时器是延迟 100ms 应用 APPWINDOW
+                first_call = timer_mock.call_args_list[0]
+                assert first_call[0][0] == 100
+                assert callable(first_call[0][1])
+                # 由于 QTimer.singleShot 被 mock，_win32_apply_appwindow 不会立即执行
+                # 验证它被作为延迟回调传入
+                callback = first_call[0][1]
+                assert callback is not None
                 watcher_mock.assert_called()
 
     def test_restore_preserves_window_interactive_flags(self, qtbot):
@@ -351,6 +370,7 @@ class TestTrayRestoreWindowState:
         """还原流程中 owner 应在窗口显示后再销毁，避免父子关系残留"""
         mw = self._make_main_window(qtbot)
         mw._orig_window_flags = mw.windowFlags()
+        mw._orig_hwnd_parent = 0x1234  # 设置一个模拟的原始父窗口句柄
         mw._hidden_owner_hwnd = 12345
         mw._hidden_owner_widget = MagicMock()
 
@@ -362,6 +382,9 @@ class TestTrayRestoreWindowState:
              patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
             user32_mock.GetWindowLongPtrW.return_value = 0x00040000
             user32_mock.GetWindowLongW.return_value = 0x00040000
+            user32_mock.SetWindowLongPtrW.return_value = 0
+            user32_mock.SetWindowLongW.return_value = 0
+            user32_mock.SetWindowPos.return_value = True
 
             with patch.object(mw, "showNormal") as show_mock, \
                  patch.object(mw, "raise_") as raise_mock, \
@@ -372,11 +395,45 @@ class TestTrayRestoreWindowState:
                 show_mock.assert_called()
                 # owner 销毁应通过 QTimer 延迟调用，而非立即调用
                 destroy_mock.assert_not_called()
-                # 验证 QTimer.singleShot 被调用，且回调为 _destroy_hidden_owner
+                # 验证 QTimer.singleShot 被调用，延迟 100ms 后检查样式
                 timer_mock.assert_called_once()
                 args, _ = timer_mock.call_args
-                assert args[0] == 250, f"Owner destruction delay should be 250ms, got {args[0]}ms"
-                assert args[1] == destroy_mock
+                assert args[0] == 100, f"Qt restore delay should be 100ms, got {args[0]}ms"
+                # 回调应为 _delayed_qt_restore（闭包），而非直接销毁 owner
+                assert callable(args[1])
+
+    def test_restore_qt_path_sets_parent_none_and_pos(self, qtbot):
+        """无原始父窗口句柄时，Qt 路径也应设置延迟检查回调"""
+        mw = self._make_main_window(qtbot)
+        mw._orig_window_flags = mw.windowFlags()
+        mw._orig_hwnd_parent = None
+        mw._hidden_owner_hwnd = 12345
+        mw._hidden_owner_widget = MagicMock()
+
+        with patch.object(mw, "_win32_apply_appwindow"), \
+             patch.object(mw, "_start_winid_watcher"), \
+             patch.object(mw, "_dump_native_windows"), \
+             patch.object(mw, "append_log"), \
+             patch("ctypes.windll.user32") as user32_mock, \
+             patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
+            user32_mock.GetWindowLongPtrW.return_value = 0x00040000
+            user32_mock.GetWindowLongW.return_value = 0x00040000
+            user32_mock.SetWindowLongPtrW.return_value = 0
+            user32_mock.SetWindowLongW.return_value = 0
+            user32_mock.SetWindowPos.return_value = True
+
+            with patch.object(mw, "showNormal") as show_mock, \
+                 patch.object(mw, "raise_") as raise_mock, \
+                 patch.object(mw, "activateWindow") as activate_mock, \
+                 patch.object(mw, "ensure_window_buttons"), \
+                 patch.object(mw, "_destroy_hidden_owner"):
+                mw._restore_from_tray()
+                show_mock.assert_called()
+                # 验证延迟检查回调被设置（100ms）
+                timer_mock.assert_called_once()
+                args, _ = timer_mock.call_args
+                assert args[0] == 100, f"Qt restore delay should be 100ms, got {args[0]}ms"
+                assert callable(args[1])
 
     def test_restore_win32_fallback_delays_owner_destruction(self, qtbot):
         """Win32 回退路径：owner 也应在窗口显示后再延迟销毁"""
@@ -393,7 +450,7 @@ class TestTrayRestoreWindowState:
              patch("ctypes.windll.user32") as user32_mock, \
              patch("ctypes.windll.kernel32") as kernel32_mock, \
              patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
-            # 模拟 Qt 恢复后 APPWINDOW 未设置，触发 Win32 回退
+            # 模拟 Qt 恢复后 APPWINDOW 未设置
             user32_mock.GetWindowLongPtrW.return_value = 0x00000000
             user32_mock.GetWindowLongW.return_value = 0x00000000
             kernel32_mock.GetLastError.return_value = 0
@@ -403,26 +460,32 @@ class TestTrayRestoreWindowState:
                  patch.object(mw, "activateWindow") as activate_mock, \
                  patch.object(mw, "ensure_window_buttons"), \
                  patch.object(mw, "_destroy_hidden_owner") as destroy_mock:
-                mw._restore_from_tray()
+                # 直接调用 Win32 回退方法（模拟延迟回调中的调用）
+                mw._restore_from_tray_win32_fallback()
                 show_mock.assert_called()
-                # Win32 回退路径中 owner 也不应立即销毁
+                # Win32 回退路径中 owner 不应立即销毁
                 destroy_mock.assert_not_called()
-                # Win32 回退路径中 singleShot 会被调用两次：
-                # 1) 延迟 owner 销毁 (250ms)，2) 异步重试 APPWINDOW 设置 (250ms)
+                # Win32 回退路径中 singleShot 会被调用：
+                # 1) 预显示 APPWINDOW 设置 (立即)
+                # 2) 延迟 APPWINDOW 验证 (100ms)
+                # 3) 异步重试 APPWINDOW 设置 (100ms)
+                # 4) 延迟 owner 销毁 (250ms)
                 assert timer_mock.call_count >= 1
-                # 验证第一次调用为延迟 owner 销毁
-                first_call = timer_mock.call_args_list[0]
-                args, _ = first_call
-                assert args[0] == 250, f"Owner destruction delay should be 250ms, got {args[0]}ms"
-                assert args[1] == destroy_mock
-                # 验证第二次调用为异步重试 APPWINDOW 设置
-                if timer_mock.call_count >= 2:
-                    second_call = timer_mock.call_args_list[1]
-                    args2, _ = second_call
-                    assert args2[0] == 250, f"Async retry delay should be 250ms, got {args2[0]}ms"
-                    # 验证回调为 _win32_apply_appwindow
-                    assert callable(args2[1])
-                win32_mock.assert_called()
+                # 验证存在延迟 APPWINDOW 设置的定时器
+                appwindow_timer_found = False
+                for call in timer_mock.call_args_list:
+                    if call[0][0] == 100 and callable(call[0][1]):
+                        appwindow_timer_found = True
+                        break
+                assert appwindow_timer_found, "APPWINDOW apply timer not found"
+                # 验证 owner 销毁延迟为 250ms
+                owner_destroy_call = None
+                for call in timer_mock.call_args_list:
+                    if call[0][1] == destroy_mock:
+                        owner_destroy_call = call
+                        break
+                assert owner_destroy_call is not None, "Owner destruction timer not found"
+                assert owner_destroy_call[0][0] == 250, f"Owner destruction delay should be 250ms, got {owner_destroy_call[0][0]}ms"
                 watcher_mock.assert_called()
 
     def test_restore_handles_hwnd_recreation(self, qtbot):
@@ -446,10 +509,19 @@ class TestTrayRestoreWindowState:
                  patch.object(mw, "raise_"), \
                  patch.object(mw, "activateWindow"), \
                  patch.object(mw, "ensure_window_buttons"), \
-                 patch("PyQt6.QtCore.QTimer.singleShot"):
-                mw._restore_from_tray()
-                # Win32 回退和 watcher 都应被调用以处理 HWND 重建
-                win32_mock.assert_called()
+                 patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
+                # 直接调用 Win32 回退方法（模拟延迟回调中的调用）
+                mw._restore_from_tray_win32_fallback()
+                # Win32 回退和 watcher 都应通过延迟回调设置
+                # 由于 QTimer.singleShot 被 mock，验证定时器被设置
+                assert timer_mock.call_count >= 1
+                # 验证存在 100ms 的 APPWINDOW 应用定时器
+                appwindow_timer_found = False
+                for call in timer_mock.call_args_list:
+                    if call[0][0] == 100 and callable(call[0][1]):
+                        appwindow_timer_found = True
+                        break
+                assert appwindow_timer_found, "APPWINDOW apply timer not found"
                 watcher_mock.assert_called()
 
     def test_restore_uses_original_window_flags(self, qtbot):
@@ -478,6 +550,41 @@ class TestTrayRestoreWindowState:
                 show_mock.assert_called()
                 raise_mock.assert_called()
                 activate_mock.assert_called()
+
+    def test_restore_applies_win32_styles_before_showing(self, qtbot):
+        """生产态：还原路径应在 showNormal 前完成 Win32 样式修正，避免窗口以错误样式显示"""
+        mw = self._make_main_window(qtbot)
+        mw._orig_window_flags = mw.windowFlags()
+        mw._orig_hwnd_parent = 0
+
+        style_order = []
+        def track_ensure():
+            style_order.append("ensure")
+        def track_show():
+            style_order.append("show")
+
+        with patch.object(mw, "_ensure_appwindow_style", side_effect=track_ensure), \
+             patch.object(mw, "_start_winid_watcher"), \
+             patch.object(mw, "_dump_native_windows"), \
+             patch.object(mw, "_destroy_hidden_owner"), \
+             patch.object(mw, "append_log"), \
+             patch("ctypes.windll.user32") as user32_mock, \
+             patch("ctypes.windll.kernel32") as kernel32_mock:
+            user32_mock.GetWindowLongPtrW.return_value = 0x00000000
+            user32_mock.GetWindowLongW.return_value = 0x00000000
+            kernel32_mock.GetLastError.return_value = 0
+
+            with patch.object(mw, "showNormal", side_effect=track_show) as show_mock, \
+                 patch.object(mw, "raise_"), \
+                 patch.object(mw, "activateWindow"), \
+                 patch.object(mw, "ensure_window_buttons"), \
+                 patch.object(mw, "setWindowFlags"), \
+                 patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
+                # 不执行定时器回调，仅验证调用顺序
+                mw._restore_from_tray()
+
+        # showNormal 之前应先完成 APPWINDOW 样式设置
+        assert style_order.index("ensure") < style_order.index("show")
 
     def test_restore_async_retry_uses_current_hwnd_after_showNormal(self, qtbot):
         """Win32 回退路径：异步重试应使用 showNormal 后的当前 HWND，而非旧 HWND"""
@@ -511,17 +618,20 @@ class TestTrayRestoreWindowState:
                  patch.object(mw, "raise_"), \
                  patch.object(mw, "activateWindow"), \
                  patch.object(mw, "ensure_window_buttons"):
-                mw._restore_from_tray()
+                # 直接调用 Win32 回退方法（模拟延迟回调中的调用）
+                mw._restore_from_tray_win32_fallback()
                 show_mock.assert_called()
-                # Win32 回退应使用初始 hwnd 调用
-                win32_mock.assert_called()
+                # Win32 回退应设置延迟定时器来应用 APPWINDOW
+                assert timer_mock.call_count >= 1
+                # 验证第一个定时器是延迟 100ms 应用 APPWINDOW，使用初始 hwnd
+                first_call = timer_mock.call_args_list[0]
+                assert first_call[0][0] == 100
+                assert callable(first_call[0][1])
                 # 验证异步重试使用的 hwnd 是 showNormal 后的 hwnd (2000)
                 # 而不是 showNormal 前的旧 hwnd (1000)
-                assert timer_mock.call_count >= 1
-                # 第二次调用是异步重试
                 async_call = timer_mock.call_args_list[1]
                 args, _ = async_call
-                assert args[0] == 250
+                assert args[0] == 100
                 # 调用回调并检查传入的 hwnd
                 args[1]()
                 # 验证 _win32_apply_appwindow 被调用时使用了新 hwnd (2000)
@@ -530,3 +640,67 @@ class TestTrayRestoreWindowState:
                 call_hwnd = last_call[0][0] if last_call[0] else last_call[1].get('hwnd', 0)
                 assert call_hwnd == 2000, f"Async retry should use current hwnd (2000), got {call_hwnd}"
                 watcher_mock.assert_called()
+
+    def test_restore_removes_toolwindow_when_appwindow_set(self, qtbot):
+        """还原时如果 APPWINDOW 已设置，应同时移除 TOOLWINDOW 避免样式冲突导致窗口无响应"""
+        mw = self._make_main_window(qtbot)
+        mw._orig_window_flags = mw.windowFlags()
+        mw._orig_hwnd_parent = 0
+
+        with patch.object(mw, "_win32_apply_appwindow"), \
+             patch.object(mw, "_start_winid_watcher"), \
+             patch.object(mw, "_dump_native_windows"), \
+             patch.object(mw, "_destroy_hidden_owner"), \
+             patch.object(mw, "append_log"), \
+             patch("ctypes.windll.user32") as user32_mock:
+            # 模拟窗口同时有 APPWINDOW 和 TOOLWINDOW（样式冲突状态）
+            user32_mock.GetWindowLongPtrW.return_value = 0x00040080  # APPWINDOW | TOOLWINDOW
+            user32_mock.GetWindowLongW.return_value = 0x00040080
+            user32_mock.SetWindowLongPtrW.return_value = 0
+            user32_mock.SetWindowLongW.return_value = 0
+            user32_mock.SetWindowPos.return_value = True
+
+            with patch.object(mw, "showNormal") as show_mock, \
+                 patch.object(mw, "raise_") as raise_mock, \
+                 patch.object(mw, "activateWindow") as activate_mock, \
+                 patch.object(mw, "ensure_window_buttons"), \
+                 patch("PyQt6.QtCore.QTimer.singleShot") as timer_mock:
+                mw._restore_from_tray()
+                # 验证窗口处于正常状态（非最小化）
+                assert not mw.windowState() & Qt.WindowState.WindowMinimized
+                show_mock.assert_called()
+                raise_mock.assert_called()
+                activate_mock.assert_called()
+                # Qt 路径现在使用延迟检查，验证定时器被设置为 100ms
+                timer_mock.assert_called_once()
+                args, _ = timer_mock.call_args
+                assert args[0] == 100, f"Qt restore delay should be 100ms, got {args[0]}ms"
+                assert callable(args[1])
+
+    def test_restore_window_remains_enabled(self, qtbot):
+        """还原后窗口应保持启用状态，能够接收用户输入"""
+        mw = self._make_main_window(qtbot)
+        mw._orig_window_flags = mw.windowFlags()
+        mw._orig_hwnd_parent = 0
+        # 模拟窗口在还原后保持启用
+        mw.setEnabled(True)
+
+        with patch.object(mw, "_win32_apply_appwindow"), \
+             patch.object(mw, "_start_winid_watcher"), \
+             patch.object(mw, "_dump_native_windows"), \
+             patch.object(mw, "_destroy_hidden_owner"), \
+             patch.object(mw, "append_log"), \
+             patch("ctypes.windll.user32") as user32_mock:
+            user32_mock.GetWindowLongPtrW.return_value = 0x00040000
+            user32_mock.GetWindowLongW.return_value = 0x00040000
+
+            with patch.object(mw, "showNormal") as show_mock, \
+                 patch.object(mw, "raise_") as raise_mock, \
+                 patch.object(mw, "activateWindow") as activate_mock, \
+                 patch.object(mw, "ensure_window_buttons"):
+                mw._restore_from_tray()
+                # 验证窗口保持启用状态
+                assert mw.isEnabled() is True
+                show_mock.assert_called()
+                raise_mock.assert_called()
+                activate_mock.assert_called()

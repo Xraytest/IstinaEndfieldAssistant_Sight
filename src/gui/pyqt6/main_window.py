@@ -281,14 +281,22 @@ class MainWindow(QMainWindow):
 
             GWL_EXSTYLE = -20
             WS_EX_APPWINDOW = 0x00040000
+            WS_EX_TOOLWINDOW = 0x00000080
+
+            try:
+                GetWindowLongPtr = user32.GetWindowLongPtrW
+                SetWindowLongPtr = user32.SetWindowLongPtrW
+            except AttributeError:
+                GetWindowLongPtr = user32.GetWindowLongW
+                SetWindowLongPtr = user32.SetWindowLongW
 
             # 获取当前 ExStyle
-            ex_style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            ex_style = GetWindowLongPtr(hwnd, GWL_EXSTYLE)
 
-            # 添加 WS_EX_APPWINDOW
-            if not (ex_style & WS_EX_APPWINDOW):
-                new_ex_style = ex_style | WS_EX_APPWINDOW
-                user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_ex_style)
+            # 添加 WS_EX_APPWINDOW 并移除 WS_EX_TOOLWINDOW，避免样式冲突
+            if not (ex_style & WS_EX_APPWINDOW) or (ex_style & WS_EX_TOOLWINDOW):
+                new_ex_style = (ex_style & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
+                SetWindowLongPtr(hwnd, GWL_EXSTYLE, new_ex_style)
 
                 # 刷新窗口样式
                 # 修复：移除 SWP_NOACTIVATE，允许窗口正常激活，避免模态对话框显示后主窗口无响应
@@ -1584,61 +1592,91 @@ class MainWindow(QMainWindow):
                 self.setWindowFlags(self._orig_window_flags)
             else:
                 self.setWindowFlag(Qt.WindowType.Tool, False)
-            # 确保系统按钮标志正确设置
-            self.ensure_window_buttons()
-            QApplication.processEvents()
+            # 立即修正 Win32 样式，确保窗口显示前已移除 TOOLWINDOW、设置 APPWINDOW
+            try:
+                self._ensure_appwindow_style()
+            except Exception:
+                pass
             self.showNormal()
             try:
                 self.raise_()
                 self.activateWindow()
             except Exception:
                 pass
-            # 诊断：检查 native ex_style，若已包含 APPWINDOW 则认为 Qt 恢复成功
-            import ctypes
-            user32 = ctypes.windll.user32
-            GWL_EXSTYLE = -20
-            WS_EX_APPWINDOW = 0x00040000
-            try:
-                GetWindowLongPtr = user32.GetWindowLongPtrW
-            except AttributeError:
-                GetWindowLongPtr = user32.GetWindowLongW
-            hwnd = int(self.winId())
-            ex_style = GetWindowLongPtr(hwnd, GWL_EXSTYLE)
-            if ex_style & WS_EX_APPWINDOW:
-                # 恢复之前设置的 owner（如存在）
+            # 缩短延迟检查，仅用于验证 HWND 稳定性
+            def _delayed_qt_restore():
                 try:
+                    import ctypes
                     user32 = ctypes.windll.user32
+                    GWL_EXSTYLE = -20
+                    WS_EX_APPWINDOW = 0x00040000
+                    WS_EX_TOOLWINDOW = 0x00000080
+                    try:
+                        GetWindowLongPtr = user32.GetWindowLongPtrW
+                    except AttributeError:
+                        GetWindowLongPtr = user32.GetWindowLongW
                     try:
                         SetWindowLongPtr = user32.SetWindowLongPtrW
                     except AttributeError:
                         SetWindowLongPtr = user32.SetWindowLongW
-                    GWLP_HWNDPARENT = -8
-                    orig_parent = getattr(self, '_orig_hwnd_parent', 0)
-                    if orig_parent:
+                    hwnd = int(self.winId())
+                    ex_style = GetWindowLongPtr(hwnd, GWL_EXSTYLE)
+                    if ex_style & WS_EX_APPWINDOW:
+                        # 恢复之前设置的 owner（如存在）
                         try:
-                            SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, orig_parent)
+                            GWLP_HWNDPARENT = -8
+                            orig_parent = getattr(self, '_orig_hwnd_parent', 0)
+                            if orig_parent:
+                                try:
+                                    SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, orig_parent)
+                                except Exception:
+                                    pass
+                            else:
+                                try:
+                                    SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, 0)
+                                except Exception:
+                                    pass
+                            # 再次移除 TOOLWINDOW，确保样式冲突导致窗口无响应
+                            new_style = (ex_style & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
+                            try:
+                                SetWindowLongPtr(hwnd, GWL_EXSTYLE, new_style)
+                            except Exception:
+                                pass
+                            # 强制刷新窗口，确保 Win32 立即应用变更
+                            SWP_NOSIZE = 0x0001
+                            SWP_NOMOVE = 0x0002
+                            SWP_NOZORDER = 0x0004
+                            SWP_FRAMECHANGED = 0x0020
+                            flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED
+                            try:
+                                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, flags)
+                            except Exception:
+                                pass
+                            # 延迟销毁 owner
+                            QTimer.singleShot(250, self._destroy_hidden_owner)
                         except Exception:
                             pass
+                        try:
+                            self._dump_native_windows("after_restore_qt")
+                        except Exception:
+                            pass
+                        self.append_log(f"从托盘恢复 (Qt): winId={hwnd}, ex_style=0x{ex_style:08x}", "INFO")
+                        return
                     else:
-                        try:
-                            SetWindowLongPtr(hwnd, GWLP_HWNDPARENT, 0)
-                        except Exception:
-                            pass
-                    # 延迟销毁 owner，确保窗口完全显示并恢复父子关系后再清理
-                    QTimer.singleShot(250, self._destroy_hidden_owner)
-                except Exception:
-                    pass
+                        self.append_log(f"Qt 恢复后 APPWINDOW 未设置 (0x{ex_style:08x}), 使用 Win32 回退", "INFO")
+                except Exception as e:
+                    self.append_log(f"延迟 Qt 恢复检查失败: {e}", "ERROR")
+                # 触发 Win32 回退
                 try:
-                    self._dump_native_windows("after_restore_qt")
+                    self._restore_from_tray_win32_fallback()
                 except Exception:
                     pass
-                self.append_log(f"从托盘恢复 (Qt): winId={hwnd}, ex_style=0x{ex_style:08x}", "INFO")
-                return
-            else:
-                self.append_log(f"Qt 恢复后 APPWINDOW 未设置 (0x{ex_style:08x}), 使用 Win32 回退", "INFO")
+            QTimer.singleShot(100, _delayed_qt_restore)
+            return
         except Exception as e:
             self.append_log(f"尝试使用 Qt 恢复失败: {e}", "ERROR")
-        # Win32 回退
+    def _restore_from_tray_win32_fallback(self):
+        """Win32 回退：窗口显示前先应用 APPWINDOW 样式，避免无响应"""
         import ctypes
         user32 = ctypes.windll.user32
         GWL_EXSTYLE = -20
@@ -1653,36 +1691,43 @@ class MainWindow(QMainWindow):
         hwnd = int(self.winId())
         orig_parent = getattr(self, '_orig_hwnd_parent', 0)
         try:
-            # 使用封装的重试逻辑以应对 HWND 重建
-            self._win32_apply_appwindow(hwnd, orig_parent=orig_parent, tag='restore', retries=3)
-        except Exception:
-            pass
-        try:
-            self._dump_native_windows("after_restore_win32")
+            self._dump_native_windows("before_restore_win32")
         except Exception:
             pass
         self.append_log(f"从托盘恢复 (Win32): winId={hwnd}, orig_parent={orig_parent}", "INFO")
+        # 窗口显示前先应用 APPWINDOW 样式，确保窗口可见时已具备正确样式
+        try:
+            self._win32_apply_appwindow(hwnd, orig_parent=orig_parent, tag='restore-pre', retries=3)
+        except Exception:
+            pass
         try:
             self.showNormal()
             self.raise_()
             self.activateWindow()
         except Exception:
             self.showNormal()
-        # 延迟销毁 owner，确保窗口完全显示并恢复父子关系后再清理
+        # 窗口显示后验证并重试设置 APPWINDOW（以防 Qt 在 restore 后重建 HWND 或重置样式）
         try:
-            QTimer.singleShot(250, self._destroy_hidden_owner)
+            hwnd_local = int(self.winId())
+            orig_parent_local = int(orig_parent) if orig_parent else 0
+            QTimer.singleShot(100, lambda: self._win32_apply_appwindow(hwnd_local, orig_parent=orig_parent_local, tag='restore', retries=3))
         except Exception:
             pass
         # 异步验证并重试设置 APPWINDOW（以防 Qt 在 restore 后重建 HWND 或重置样式）
         try:
             hwnd_local = int(self.winId())
             orig_parent_local = int(orig_parent) if orig_parent else 0
-            QTimer.singleShot(250, lambda: self._win32_apply_appwindow(hwnd_local, orig_parent=orig_parent_local, tag='restore-async', retries=3))
+            QTimer.singleShot(100, lambda: self._win32_apply_appwindow(hwnd_local, orig_parent=orig_parent_local, tag='restore-async', retries=3))
+        except Exception:
+            pass
+        # 延迟销毁 owner，确保窗口完全显示并恢复父子关系后再清理
+        try:
+            QTimer.singleShot(250, self._destroy_hidden_owner)
         except Exception:
             pass
         # 启动 winId 变化 watcher，在恢复后短时间内监测并确保 APPWINDOW 被设置
         try:
-            self._start_winid_watcher(duration_ms=2500, interval_ms=120, role='restore')
+            self._start_winid_watcher(duration_ms=1500, interval_ms=100, role='restore')
         except Exception:
             pass
 
@@ -1737,7 +1782,10 @@ class MainWindow(QMainWindow):
     def get_settings_page(self) -> Optional[SettingsPage]:
         return self._settings_page
     def set_status(self, message: str) -> None:
-        self._status_bar.showMessage(message)
+        status_bar = getattr(self, '_status_bar', None)
+        if status_bar is None:
+            return
+        status_bar.showMessage(message)
 
     def set_version(self, version: str) -> None:
         self._navigation_bar.set_version(version)
@@ -1867,11 +1915,16 @@ class MainWindow(QMainWindow):
     def showEvent(self, event):
         """窗口首次显示时确保正确的几何尺寸和布局"""
         from PyQt6.QtCore import QEvent
-        if event.type() == QEvent.Type.Show and not self._window_shown:
+        window_shown = getattr(self, '_window_shown', False)
+        if event.type() == QEvent.Type.Show and not window_shown:
             self._window_shown = True
-            self.setWindowTitle(self._title)
+            title = getattr(self, '_title', None)
+            if title:
+                self.setWindowTitle(title)
             self.ensure_window_buttons()
-            self.resize(max(self._min_width, 1280), max(self._min_height, 800))
+            min_width = getattr(self, '_min_width', 1280)
+            min_height = getattr(self, '_min_height', 800)
+            self.resize(max(min_width, 1280), max(min_height, 800))
             self._ensure_appwindow_style()
         super().showEvent(event)
 
