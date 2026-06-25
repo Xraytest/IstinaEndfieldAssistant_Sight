@@ -230,15 +230,17 @@ class MainWindow(QMainWindow):
         self._settings_page: Optional[SettingsPage] = None
         self._agent_page: Optional[AgentPage] = None
 
+        self._is_executing_standard_flow: bool = False
         self._window_shown: bool = False
+
+        # 初始化托盘状态（必须在 _setup_ui() 之前，因为 _setup_tray() 异常处理可能需要访问）
+        tray_enabled = self._config.get("system", {}).get("minimize_to_tray", False)
+        self._minimize_to_tray = tray_enabled
+        self._tray_available = False
 
         self._setup_window()
         self._setup_ui()
         self._setup_connections()
-
-        # 从配置加载托盘初始状态（setup_connections 之前 emit 的信号未被连接)
-        tray_enabled = self._config.get("system", {}).get("minimize_to_tray", False)
-        self._minimize_to_tray = tray_enabled
 
     def _setup_window(self) -> None:
         self.setWindowTitle(self._title)
@@ -359,9 +361,16 @@ class MainWindow(QMainWindow):
             self._settings_page.check_update_requested.connect(self.check_update_requested.emit)
 
         if self._settings_page:
-            self._settings_page.model_download_requested.connect(self._on_model_download_requested)
-            self._settings_page.model_remove_requested.connect(self._on_model_remove_requested)
             self._settings_page.minimize_to_tray_changed.connect(self._on_minimize_to_tray_changed)
+
+        if getattr(self, '_standard_reasoning_page', None):
+            self._standard_reasoning_page.execution_state_changed.connect(
+                self._on_standard_flow_execution_state_changed
+            )
+
+    def _on_standard_flow_execution_state_changed(self, is_executing: bool):
+        """槽：标准流执行状态变化"""
+        self._is_executing_standard_flow = is_executing
 
     def _on_page_changed(self, page_id: str) -> None:
         page_names = {
@@ -385,60 +394,6 @@ class MainWindow(QMainWindow):
     def _refresh_gpu_status(self):
         if self._settings_page:
             self._settings_page._start_gpu_check()
-
-    def _on_model_download_requested(self, model_name: str):
-        self.append_log(f"模型下载: {model_name}", "INFO")
-        models_dir = self._get_models_dir()
-        os.makedirs(models_dir, exist_ok=True)
-
-        class DownloadThread(QThread):
-            progress = pyqtSignal(int)
-            finished = pyqtSignal(bool, str)
-
-            def run(self):
-                try:
-                    self.progress.emit(30)
-                    import time
-                    time.sleep(0.5)
-                    model_path = os.path.join(models_dir, f"{model_name}.gguf")
-                    with open(model_path, 'w') as f:
-                        f.write(f"# Placeholder for {model_name} model\n")
-                    self.progress.emit(100)
-                    self.finished.emit(True, f"Model saved to {model_path}")
-                except Exception as e:
-                    self.finished.emit(False, str(e))
-
-        self._download_thread = DownloadThread()
-        self._download_thread.finished.connect(
-            lambda s, m: self.append_log(f"下载{'成功' if s else '失败'}: {m}", "INFO" if s else "ERROR")
-        )
-        self._download_thread.start()
-
-    def _on_model_remove_requested(self, model_name: str):
-        self.append_log(f"模型删除请求: {model_name}", "INFO")
-        reply = QMessageBox.question(self, "确认删除",
-                                      f"删除模型 '{model_name}'？\n此操作不可撤销。",
-                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                      QMessageBox.StandardButton.No)
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-        models_dir = self._get_models_dir()
-        model_path = os.path.join(models_dir, f"{model_name}.gguf")
-        if os.path.exists(model_path):
-            try:
-                os.remove(model_path)
-                self.append_log(f"模型已删除: {model_name}", "INFO")
-            except Exception as e:
-                self.append_log(f"模型删除失败: {e}", "ERROR")
-                QMessageBox.critical(self, "删除失败", f"无法删除模型文件:\n{e}")
-        else:
-            self.append_log(f"模型文件不存在: {model_path}", "WARNING")
-        if self._settings_page:
-            self._settings_page._scan_local_models()
-
-    def _get_models_dir(self) -> str:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-        return os.path.join(project_root, "models")
 
     # ── 系统托盘 ──────────────────────────────────────────────────
 
@@ -496,28 +451,59 @@ class MainWindow(QMainWindow):
                 pass
         except Exception as e:
             self._tray_available = False
+            # 如果配置启用了托盘但实际不可用，自动禁用并同步 UI 状态
+            if self._minimize_to_tray:
+                self._minimize_to_tray = False
+                self._config.setdefault('system', {})['minimize_to_tray'] = False
+                try:
+                    self._persist_minimize_setting(False)
+                except Exception:
+                    pass
+                if hasattr(self, '_settings_page') and self._settings_page:
+                    try:
+                        self._settings_page._tray_cb.setChecked(False)
+                    except Exception:
+                        pass
 
     def _on_minimize_to_tray_changed(self, enabled: bool):
         self._minimize_to_tray = enabled
+        if enabled:
+            # Ensure we have a hidden owner and aggressively convert any existing
+            # top-level APPWINDOWs to TOOLWINDOW (catch windows created before toggle)
+            try:
+                self._ensure_hidden_owner()
+            except Exception:
+                pass
+            try:
+                self._apply_toolwindow_to_process_windows(tag='minimize-on-toggle', aggressive=False)
+            except Exception:
+                pass
+        else:
+            # 关闭托盘选项：销毁托盘图标，避免关闭窗口后进程仍驻留
+            try:
+                tray = getattr(self, '_tray_icon', None)
+                if tray is not None:
+                    tray.hide()
+                    tray.deleteLater()
+                    self._tray_icon = None
+                    self._tray_available = False
+            except Exception:
+                pass
+            try:
+                self._uninstall_win_event_hook()
+            except Exception:
+                pass
+            try:
+                self._destroy_hidden_owner()
+            except Exception:
+                pass
+            try:
+                self._destroy_native_hidden_owner()
+            except Exception:
+                pass
+        # 无论启用/禁用都强制持久化，避免关闭选项后仍然托盘
         try:
-            if enabled:
-                # Ensure we have a hidden owner and aggressively convert any existing
-                # top-level APPWINDOWs to TOOLWINDOW (catch windows created before toggle)
-                try:
-                    self._ensure_hidden_owner()
-                except Exception:
-                    pass
-                try:
-                    self._apply_toolwindow_to_process_windows(tag='minimize-on-toggle', aggressive=False)
-                except Exception:
-                    pass
-                # 强制持久化最小化到托盘设置（防止 settings 保存被其它问题吞掉）
-                try:
-                    self._persist_minimize_setting(enabled)
-                except Exception:
-                    pass
-                except Exception:
-                    pass
+            self._persist_minimize_setting(enabled)
         except Exception:
             pass
 
@@ -687,8 +673,8 @@ class MainWindow(QMainWindow):
         try:
             import json, tempfile, os as _os
             current = os.path.dirname(os.path.abspath(__file__))
-            # 统一路径：项目根目录
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current)))
+            # 统一路径：项目根目录（src/gui/pyqt6 -> src/gui -> src -> <项目根>）
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current))))
             config_path = _os.path.join(project_root, "config", "client_config.json")
 
             _os.makedirs(_os.path.dirname(config_path), exist_ok=True)
@@ -716,8 +702,8 @@ class MainWindow(QMainWindow):
         try:
             import json, sys
             current = os.path.dirname(os.path.abspath(__file__))
-            # 统一路径：项目根目录
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current)))
+            # 统一路径：项目根目录（src/gui/pyqt6 -> src/gui -> src -> <项目根>）
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current))))
             config_path = os.path.join(project_root, 'config', 'client_config.json')
             
             disk_cfg = None
@@ -736,7 +722,7 @@ class MainWindow(QMainWindow):
             if disk_cfg is None:
                 print("[配置加载] 未读取到配置内容")
                 return
-            
+
             # Merge disk_cfg into self._config (shallow merge with dict recursion)
             def _merge(a, b):
                 for k, v in (b or {}).items():
@@ -749,10 +735,6 @@ class MainWindow(QMainWindow):
                 self._config = {}
             _merge(self._config, disk_cfg)
             print(f"[配置加载] 成功合并磁盘配置到内存")
-            
-            # 输出关键配置用于验证
-            system_minimize = self._config.get('system', {}).get('minimize_to_tray', 'N/A')
-            print(f"[配置验证] system.minimize_to_tray = {system_minimize}")
             
         except Exception as e:
             print(f"[配置加载] 加载配置失败：{e}")
@@ -1768,8 +1750,30 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self.window_closed.emit()
-        # 最小化到托盘时：关闭按钮触发最小化到托盘（隐藏窗口），不弹出确认
-        if self._minimize_to_tray and hasattr(self, '_tray_icon'):
+
+        # 优先级1：正在执行标准流 → 必须确认退出（托盘选项在此情况下不生效）
+        if getattr(self, '_is_executing_standard_flow', False):
+            reply = QMessageBox.question(
+                self, '确认退出',
+                '正在执行标准流，确定要退出吗？',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._cleanup_before_exit()
+                event.accept()
+                try:
+                    app = QApplication.instance()
+                    if app is not None:
+                        app.quit()
+                except Exception:
+                    pass
+            else:
+                event.ignore()
+            return
+
+        # 优先级2：启用了托盘且托盘可用 → 静默最小化到托盘，不提醒
+        if self._minimize_to_tray and getattr(self, '_tray_available', False):
             # 保存原始窗口标志
             if not hasattr(self, '_orig_window_flags'):
                 self._orig_window_flags = self.windowFlags()
@@ -1814,28 +1818,31 @@ class MainWindow(QMainWindow):
                 self.append_log(f"Win32 托盘设置失败：{e}", "INFO")
             event.ignore()
             return
-        # 未启用托盘时：弹出退出确认
-        reply = QMessageBox.question(self, '确认退出',
-                                     '退出伊丝蒂娜·终末地助手？',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                     QMessageBox.StandardButton.No)
-        if reply == QMessageBox.StandardButton.Yes:
-            # 在真正退出前卸载 WinEvent hook 和 native owner
-            try:
-                self._uninstall_win_event_hook()
-            except Exception:
-                pass
-            try:
-                self._destroy_hidden_owner()
-            except Exception:
-                pass
-            try:
-                self._destroy_native_hidden_owner()
-            except Exception:
-                pass
-            event.accept()
-        else:
-            event.ignore()
+
+        # 优先级3：其他情况 → 直接退出，不弹提醒
+        self._cleanup_before_exit()
+        event.accept()
+        try:
+            app = QApplication.instance()
+            if app is not None:
+                app.quit()
+        except Exception:
+            pass
+
+    def _cleanup_before_exit(self):
+        """退出前统一清理"""
+        try:
+            self._uninstall_win_event_hook()
+        except Exception:
+            pass
+        try:
+            self._destroy_hidden_owner()
+        except Exception:
+            pass
+        try:
+            self._destroy_native_hidden_owner()
+        except Exception:
+            pass
 
 
     def showEvent(self, event):

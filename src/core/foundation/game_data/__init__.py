@@ -1,6 +1,6 @@
 """游戏数据模块"""
 
-from .game_coords import (
+from ..game_coords import (
     SCREEN_WIDTH,
     SCREEN_HEIGHT,
     ADB_WIDTH,

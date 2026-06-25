@@ -77,6 +77,7 @@ CHECK_STYLE = """
 
 class StandardReasoningPage(QWidget):
     """Standard Reasoning - select and execute standard flow tasks"""
+    execution_state_changed = pyqtSignal(bool)  # True=执行中, False=空闲
 
     def __init__(self, agent_executor=None, parent=None,
                  screen_capture=None, touch_executor=None, config=None,
@@ -88,6 +89,7 @@ class StandardReasoningPage(QWidget):
         self.inference_manager = inference_manager
         self._config = config or {}
         self._flow_checkboxes: Dict[str, QCheckBox] = {}
+        self._is_executing: bool = False
         self._setup_ui()
         QTimer.singleShot(100, self._update_inference_mode_indicator)
 
@@ -255,6 +257,8 @@ class StandardReasoningPage(QWidget):
         self._execute_btn.setEnabled(False)
         self._exec_stop_btn.setEnabled(True)
         self._flow_status.setText("RUNNING")
+        self._is_executing = True
+        self.execution_state_changed.emit(True)
 
         class FlowExecutionThread(QThread):
             flow_completed = pyqtSignal(str, bool, str)
@@ -295,6 +299,8 @@ class StandardReasoningPage(QWidget):
         self._execute_btn.setEnabled(True)
         self._exec_stop_btn.setEnabled(False)
         self._flow_status.setText("All flows completed.")
+        self._is_executing = False
+        self.execution_state_changed.emit(False)
 
     def _stop_execution(self):
         self._flow_stop_flag[0] = True

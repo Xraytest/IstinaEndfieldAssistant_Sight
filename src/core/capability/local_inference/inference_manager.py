@@ -719,30 +719,7 @@ class InferenceManager(QObject):
     def get_available_models(self) -> List[ModelInfo]:
         """获取可用模型列表"""
         return self._model_manager.get_all_models()
-    
-    def download_model(
-        self,
-        model_name: str,
-        progress_callback: Optional[Callable[[int, str], None]] = None
-    ) -> bool:
-        """
-        下载模型
-        
-        Args:
-            model_name: 模型名称
-            progress_callback: 进度回调
-            
-        Returns:
-            是否下载成功
-        """
-        try:
-            result = self._model_manager.download_model(model_name, progress_callback)
-            return result is not None
-        except Exception as e:
-            logger.exception(LogCategory.MAIN, "模型下载失败", 
-                           model_name=model_name, error=str(e))
-            return False
-    
+
     def clear_prompt_cache(self):
         """清除prompt缓存"""
         if self._local_engine:
@@ -842,9 +819,9 @@ class InferenceManager(QObject):
 
         # 实际保存到文件的逻辑
         try:
-            # 确定项目根目录
+            # 确定项目根目录（src/core/capability/local_inference -> src -> <项目根>）
             current = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current)))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current))))
             config_path = os.path.join(project_root, "config", "client_config.json")
 
             # 读取现有配置

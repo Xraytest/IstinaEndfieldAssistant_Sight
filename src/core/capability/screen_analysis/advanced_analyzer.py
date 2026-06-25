@@ -314,8 +314,8 @@ class GameScreenAnalyzer:
         # 金色元素空间分布熵
         if features.golden_count > 0:
             centroids = [cv2.moments(c) for c in valid_gold]
-            centroids = [(m["M10"]/(m["M00"]+1e-6), m["M01"]/(m["M00"]+1e-6))
-                        for m in centroids if m["M00"] > 0]
+            centroids = [(m.get("m10", 0)/(m.get("m00", 0)+1e-6), m.get("m01", 0)/(m.get("m00", 0)+1e-6))
+                        for m in centroids if m.get("m00", 0) > 0]
             if centroids:
                 cx = np.mean([c[0] for c in centroids])
                 cy = np.mean([c[1] for c in centroids])

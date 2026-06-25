@@ -295,7 +295,8 @@ def run_application(agent_executor=None, gui_client=None,
         """统一保存到项目根目录的配置文件"""
         # 确定唯一配置文件路径：项目根目录
         _f = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(_f)))
+        # src/gui/pyqt6 -> src/gui -> src -> <项目根>
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(_f))))
         config_path = os.path.join(project_root, "config", "client_config.json")
 
         try:

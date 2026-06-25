@@ -1,13 +1,13 @@
 #!C:\Users\cheng\Documents\ArkStudio\IstinaAI\IstinaEndfieldAssistant_Sight\3rd-part\python\python.exe
 """
-楂樼簿搴﹂〉闈㈠垎鏋愬櫒 v2 鈥?鍩轰簬 MaaEnd 寮忓婧愯瀺鍚堣瘑鍒?
+HighPrecisionPageAnalyzer v2 - based on MaaEnd multi-template fusion recognition
 
-瀹屽叏寮冪敤棰滆壊鍒嗗竷/鍍忕礌璁℃暟銆備娇鐢細
-1. TemplateMatch 鈥?妯℃澘鍖归厤瀹氫綅鐗瑰畾 UI 鍏冪礌锛堣繑鍥?bbox+center锛?
-2. ColorMatch (杞粨) 鈥?妫€娴嬬壒瀹氶鑹茬殑杩為€氬尯鍩熶綔涓?UI 鍏冪礌锛堣繑鍥?bboxes+centers锛?
-3. And/Or 缁勫悎 鈥?澶氭潯浠惰瀺鍚?
+Fully uses color distribution/element counting. Features:
+1. TemplateMatch - template matching to determine UI elements (returns bbox+center)
+2. ColorMatch (HSV) - uses HSV color space intervals as UI elements (returns bboxes+centers)
+3. And/Or combination - multi-condition fusion
 
-鍙傝€冿細MaaEnd-2/assets/resource/pipeline/Common/
+Reference: MaaEnd-2/assets/resource/pipeline/Common/
 """
 
 import cv2
@@ -23,25 +23,25 @@ from core.capability.recognition import RecognitionEngine
 
 
 class HighPrecisionPageAnalyzerV2:
-    """椤甸潰鍒嗘瀽鍣?v2 鈥?鍏ㄩ噺澶氭簮铻嶅悎锛屾棤棰滆壊鍒嗗竷
-    
-    鎵€鏈夎瘑鍒粨鏋滆繑鍥?bbox/center 鍧愭爣淇℃伅锛屼緵 LLM 鍐崇瓥浣跨敤銆?
+    """Page analyzer v2 - highly multi-template fusion, no color distribution
+
+    All recognition results return bbox/center coordinate info for LLM decision use.
     """
 
     def __init__(self):
         self.engine = RecognitionEngine()
 
     def analyze(self, img: np.ndarray) -> Dict[str, Any]:
-        """澶氳妭鐐圭煭璺尮閰嶃€傚厛绮剧‘鍚庡娉涳細妯℃澘浼樺厛浜庨鑹茶疆寤?
-        
-        杩斿洖鏍煎紡锛?
+        """Multi-shortcut template matching. Priority: template first, then color: svm
+
+        Return format:
         {
             "page_type": str,
             "confidence": float,
             "detail": {
                 "method": str,
-                "bbox": [x1, y1, x2, y2],  # 杈圭晫妗?
-                "center": [cx, cy],         # 涓績鐐?
+                "bbox": [x1, y1, x2, y2],  # bounding box
+                "center": [cx, cy],         # center coordinates
                 ...
             },
             "features": {...}
@@ -62,7 +62,7 @@ class HighPrecisionPageAnalyzerV2:
                 return {"page_type": name, "confidence": 0.85, "detail": detail,
                         "features": features}
 
-        # 鎵€鏈夐〉闈㈡娴嬪け璐?鈫?妫€鏌ユ槸鍚﹀湪娓告垙鍐?
+        # All page checks failed -> check if in game
         in_game = self._check_in_game(img, w, h)
         if not in_game:
             return {"page_type": "not_in_game", "confidence": 0.9,
@@ -73,22 +73,22 @@ class HighPrecisionPageAnalyzerV2:
                 "features": features}
 
     def _extract_features(self, img: np.ndarray, w: int, h: int) -> Dict[str, Any]:
-        """鎻愬彇 VLM 鎻愮ず璇嶆墍闇€鐨勭敾闈㈢壒寰?""
+        """Extract features needed for VLM prompts"""
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # 宸︿晶杈规爮浜害
+        # Left sidebar brightness
         left_bar = gray[:, max(0, w//20):w//6]
         left_bar_brightness = float(np.mean(left_bar)) if left_bar.size > 0 else 0
 
-        # 鍙充笂瑙掔豢鑹插儚绱?
+        # Top-right green pixels
         green_lower = np.array([35, 50, 50])
         green_upper = np.array([85, 255, 255])
         green_mask = cv2.inRange(hsv, green_lower, green_upper)
         top_right_green = green_mask[0:h//5, max(0, w*3//4):w]
         green_pixels_top_right = int(cv2.countNonZero(top_right_green))
 
-        # 鍏ㄥ睆浜害
+        # Full screen brightness
         full_brightness = float(np.mean(gray))
 
         return {
@@ -97,12 +97,14 @@ class HighPrecisionPageAnalyzerV2:
             "full_brightness": full_brightness,
         }
 
-    # 鈹€鈹€ 鍚勯〉闈㈡娴?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    # ============================================================
+    # Page checks
+    # ============================================================
 
     def _check_exit_dialog(self, img, w, h):
-        """閫€鍑哄璇濇锛欳ancelButton SIFT + 閲戣壊杞粨鍙岄獙璇?
-        
-        杩斿洖鍖呭惈 bbox 鍜?center 鍧愭爣淇℃伅銆?
+        """Exit dialog detection (CancelButton SIFT + green pixel verification)
+
+        Returns content bbox and center coordinate info.
         """
         ok_color, rc = self.engine.recognize(img, {
             "type": "ColorMatch",
@@ -141,9 +143,9 @@ class HighPrecisionPageAnalyzerV2:
         return False, {}
 
     def _check_quest_panel(self, img, w, h):
-        """浠诲姟闈㈡澘锛歍askIcon SIFT
-        
-        杩斿洖鍖呭惈 bbox 鍜?center 鍧愭爣淇℃伅銆?
+        """Quest panel: TaskIcon SIFT
+
+        Returns content bbox and center coordinate info.
         """
         ok, r = self.engine.recognize(img, {
             "type": "TemplateMatch",
@@ -158,8 +160,8 @@ class HighPrecisionPageAnalyzerV2:
                 "center": r.get("center"),
                 "confidence": r.get("confidence", 0)
             }
-        
-        # 鍥為€€锛氶噾鑹茶疆寤?
+
+        # Fallback: gold color region
         ok_color, rc = self.engine.recognize(img, {
             "type": "ColorMatch",
             "roi": [min(600, w-400), 30, min(400, w-600), min(250, h-30)],
@@ -178,9 +180,9 @@ class HighPrecisionPageAnalyzerV2:
         return False, {}
 
     def _check_world(self, img, w, h):
-        """涓栫晫椤甸潰锛歐orldMenu SIFT 鍖归厤 鎴?缁胯壊璧勬簮鍥炬爣
-        
-        杩斿洖鍖呭惈 bbox 鍜?center 鍧愭爣淇℃伅銆?
+        """World page: WorldMenu SIFT match and green resource icon
+
+        Returns content bbox and center coordinate info.
         """
         ok, r = self.engine.recognize(img, {
             "type": "TemplateMatch",
@@ -196,7 +198,7 @@ class HighPrecisionPageAnalyzerV2:
                 "confidence": r.get("confidence", 0)
             }
 
-        # 鏂瑰紡 B: 鍙充笂瑙掔豢鑹茶祫婧愬浘鏍囷紙杞粨妫€娴嬶級
+        # Method B: top-right green resource icon map (HSV check)
         rx = max(0, w-500)
         ok_green, rc = self.engine.recognize(img, {
             "type": "ColorMatch",
@@ -217,9 +219,9 @@ class HighPrecisionPageAnalyzerV2:
         return False, {}
 
     def _check_menu(self, img, w, h):
-        """绯荤粺鑿滃崟锛氬簳閮ㄩ噾榛勮壊杞粨
-        
-        杩斿洖鍖呭惈 bboxes 鍜?centers 鍧愭爣淇℃伅銆?
+        """System menu: bottom-left gold color
+
+        Returns bboxes and centers coordinate info.
         """
         ry = max(0, h-500)
         ok, rc = self.engine.recognize(img, {
@@ -240,11 +242,11 @@ class HighPrecisionPageAnalyzerV2:
         return False, {}
 
     def _check_enter_game(self, img, w, h):
-        """杩涘叆娓告垙鍑嗗鐢婚潰锛氬皻鏃犲彲闈犳娴嬫柟寮忥紝鏆傝烦杩?""
+        """Game start preparation screen: hard to recognize, skip directly"""
         return False, {}
 
     def _check_in_game(self, img, w, h):
-        """妫€鏌ユ槸鍚﹀湪 Endfield 娓告垙鍐咃細鍏ㄥ睆鎼滅储閲戣壊 UI 鍏冪礌"""
+        """Check if in Endfield game: full screen yellow-green UI elements"""
         ok, r = self.engine.recognize(img, {
             "type": "ColorMatch",
             "roi": [0, 0, w, h],
@@ -255,7 +257,7 @@ class HighPrecisionPageAnalyzerV2:
         })
         return ok
 
-# 鍚戝悗鍏煎鍒悕
+# Backward compatible alias
 HighPrecisionPageAnalyzer = HighPrecisionPageAnalyzerV2
 
 if __name__ == "__main__":
@@ -271,8 +273,7 @@ if __name__ == "__main__":
         img = cv2.imdecode(np.frombuffer(r.stdout, np.uint8), cv2.IMREAD_COLOR)
         analyzer = HighPrecisionPageAnalyzerV2()
         result = analyzer.analyze(img)
-        print(f"[椤甸潰] {result['page_type']} (缃俊搴?{result['confidence']:.2f})")
-        print(f"[璇︽儏] {result['detail']}")
+        print(f"[Page] {result['page_type']} (confidence: {result['confidence']:.2f})")
+        print(f"[Detail] {result['detail']}")
     else:
-        print("[閿欒] 鎴浘澶辫触")
-
+        print("[Error] Screenshot failed")

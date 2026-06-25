@@ -50,7 +50,7 @@ class OCRManager:
         if touch_executor is not None:
             self.set_maafw_executor(touch_executor, "default")
 
-        self.logger.info("OCR 管理器初始化完成（MaaFw 提供 OCR）")
+        self.logger.info(LogCategory.INFERENCE, "OCR 管理器初始化完成（MaaFw 提供 OCR）")
 
     def _load_config(self, config_path: str = None) -> Dict[str, Any]:
         """鍔犺浇 OCR 閰嶇疆"""

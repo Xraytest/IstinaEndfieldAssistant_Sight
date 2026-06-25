@@ -8,8 +8,8 @@
     "mode": "local_only",
     "local": {
       "enabled": true,
-      "model_name": "qwen3.5-2b",
-      "model_path": "../../models/qwen3.5-2b-Q8_0.gguf",
+      "model_name": "qwen3.5-4b-ud-q6_k_xl",
+      "model_path": "C:\\Users\\cheng\\Documents\\ArkStudio\\IstinaAI\\IstinaEndfieldAssistant_Sight\\models\\unsloth\\Qwen3_5-4B-GGUF\\Qwen3.5-4B-UD-Q6_K_XL.gguf",
       "llama_server_url": "http://127.0.0.1:8080",
       "llama_server_exe": "../../3rd-part/llama-server/llama-server.exe",
       "gpu_layers": 40,

@@ -496,23 +496,22 @@ class TouchManager:
         Returns:
             bool: 是否执行成功
         """
-        if not self._connected or not self._controller:
+        if not self._connected or not self._current_method:
             self.logger.exception(LogCategory.MAIN, "设备未连接")
             return False
 
+        executor = self._executors.get(self._current_method)
+        if not executor:
+            self.logger.error(LogCategory.MAIN, "触控执行器未初始化", method=self._current_method)
+            return False
+
         try:
-            # 坐标直接透传，不做任何缩放
-
-            job = self._controller.post_swipe(x1, y1, x2, y2, duration)
-            job.wait()
-
-            if job.succeeded:
-                self.logger.debug(LogCategory.MAIN, "滑动执行成功",
-                                x1=x1, y1=y1, x2=x2, y2=y2, duration=duration)
-                return True
+            if hasattr(executor, 'safe_swipe'):
+                return executor.safe_swipe(x1, y1, x2, y2, duration)
+            elif hasattr(executor, 'swipe'):
+                return executor.swipe(x1, y1, x2, y2, duration)
             else:
-                self.logger.exception(LogCategory.MAIN, "滑动执行失败",
-                                x1=x1, y1=y1, x2=x2, y2=y2)
+                self.logger.error(LogCategory.MAIN, "执行器不支持滑动操作", method=self._current_method)
                 return False
         except Exception as e:
             self.logger.exception(LogCategory.MAIN, "滑动执行异常", error=str(e))
@@ -530,31 +529,22 @@ class TouchManager:
         Returns:
             bool: 是否执行成功
         """
-        if not self._connected or not self._controller:
+        if not self._connected or not self._current_method:
             self.logger.exception(LogCategory.MAIN, "设备未连接")
             return False
 
-        try:
-            # 坐标直接透传，不做任何缩放
+        executor = self._executors.get(self._current_method)
+        if not executor:
+            self.logger.error(LogCategory.MAIN, "触控执行器未初始化", method=self._current_method)
+            return False
 
-            # 长按通过touch_down + delay + touch_up实现
-            job = self._controller.post_touch_down(x, y)
-            job.wait()
-            if not job.succeeded:
-                return False
-            
-            # 等待指定时长
-            import time
-            time.sleep(duration / 1000.0)
-            
-            job = self._controller.post_touch_up()
-            job.wait()
-            
-            if job.succeeded:
-                self.logger.debug(LogCategory.MAIN, "长按执行成功", x=x, y=y, duration=duration)
-                return True
+        try:
+            if hasattr(executor, 'safe_long_press'):
+                return executor.safe_long_press(x, y, duration)
+            elif hasattr(executor, 'long_press'):
+                return executor.long_press(x, y, duration)
             else:
-                self.logger.exception(LogCategory.MAIN, "长按执行失败", x=x, y=y)
+                self.logger.error(LogCategory.MAIN, "执行器不支持长按操作", method=self._current_method)
                 return False
         except Exception as e:
             self.logger.exception(LogCategory.MAIN, "长按执行异常", error=str(e))
