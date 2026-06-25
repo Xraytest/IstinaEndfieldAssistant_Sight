@@ -1,0 +1,63 @@
+{
+  "tests": [
+    {
+      "name": "pre_touch_screenshot",
+      "pass": true,
+      "detail": "size=1732727, time=1386.5ms"
+    },
+    {
+      "name": "tap_action",
+      "pass": true,
+      "detail": "success=True, time=42.7ms"
+    },
+    {
+      "name": "post_tap_screenshot",
+      "pass": true,
+      "detail": "size=1732727, time=975.0ms"
+    },
+    {
+      "name": "tap_change_detection",
+      "pass": false,
+      "detail": "diff_score=0.00, diff_std=0.00, changed=False"
+    },
+    {
+      "name": "swipe_action",
+      "pass": true,
+      "detail": "success=True, time=340.3ms"
+    },
+    {
+      "name": "post_swipe_screenshot",
+      "pass": true,
+      "detail": "size=1732727, time=1000.2ms"
+    },
+    {
+      "name": "swipe_change_detection",
+      "pass": false,
+      "detail": "diff_score=0.00, diff_std=0.00, changed=False"
+    },
+    {
+      "name": "touch_validation",
+      "pass": true,
+      "detail": "tap_changed=False, swipe_changed=False, mechanism_pass=True"
+    }
+  ],
+  "all_pass": true,
+  "device": {
+    "serial": "192.168.1.12:16512",
+    "type": "DeviceType.MUMU"
+  },
+  "metrics": {
+    "pre_touch_screenshot_time_ms": 1386.5,
+    "pre_touch_screenshot_size": 1732727,
+    "tap_action_time_ms": 42.7,
+    "post_tap_screenshot_time_ms": 975.0,
+    "post_tap_screenshot_size": 1732727,
+    "tap_diff_score": 0.0,
+    "tap_diff_std": 0.0,
+    "swipe_action_time_ms": 340.3,
+    "post_swipe_screenshot_time_ms": 1000.2,
+    "post_swipe_screenshot_size": 1732727,
+    "swipe_diff_score": 0.0,
+    "swipe_diff_std": 0.0
+  }
+}

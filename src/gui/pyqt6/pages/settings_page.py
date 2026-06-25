@@ -123,9 +123,11 @@ class SettingsPage(QWidget):
         return w
 
     def _on_tray_changed(self, state):
-        enabled = state == Qt.CheckState.Checked
+        enabled = state == 2 or state == Qt.CheckState.Checked
+        print(f"[托盘设置] checkbox state={state}, enabled={enabled}")
         self._config.setdefault('system', {})
         self._config['system']['minimize_to_tray'] = enabled
+        print(f"[托盘设置] config updated: {self._config['system']}")
         self.settings_changed.emit(self._config)
         self.minimize_to_tray_changed.emit(enabled)
 

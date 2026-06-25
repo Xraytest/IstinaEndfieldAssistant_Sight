@@ -211,10 +211,12 @@ class MainWindow(QMainWindow):
         self._min_width = min_width
         self._min_height = min_height
         self._config = config or {}
+        print(f"[主窗口初始化] 初始 config.system.minimize_to_tray={self._config.get('system', {}).get('minimize_to_tray')}")
         try:
             self._reload_disk_config()
         except Exception:
             pass
+        print(f"[主窗口初始化] 重载后 config.system.minimize_to_tray={self._config.get('system', {}).get('minimize_to_tray')}")
 
         self._agent_executor = agent_executor
         self._gui_client = gui_client
@@ -235,6 +237,7 @@ class MainWindow(QMainWindow):
 
         # 初始化托盘状态（必须在 _setup_ui() 之前，因为 _setup_tray() 异常处理可能需要访问）
         tray_enabled = self._config.get("system", {}).get("minimize_to_tray", False)
+        print(f"[主窗口初始化] tray_enabled from config={tray_enabled}")
         self._minimize_to_tray = tray_enabled
         self._tray_available = False
 
@@ -451,6 +454,9 @@ class MainWindow(QMainWindow):
                 pass
         except Exception as e:
             self._tray_available = False
+            import traceback
+            print(f"[托盘初始化] 系统托盘创建失败：{e}")
+            traceback.print_exc()
             # 如果配置启用了托盘但实际不可用，自动禁用并同步 UI 状态
             if self._minimize_to_tray:
                 self._minimize_to_tray = False
@@ -466,7 +472,9 @@ class MainWindow(QMainWindow):
                         pass
 
     def _on_minimize_to_tray_changed(self, enabled: bool):
+        print(f"[托盘设置] MainWindow received: enabled={enabled}")
         self._minimize_to_tray = enabled
+        print(f"[托盘设置] MainWindow._minimize_to_tray set to {self._minimize_to_tray}")
         if enabled:
             # Ensure we have a hidden owner and aggressively convert any existing
             # top-level APPWINDOWs to TOOLWINDOW (catch windows created before toggle)
@@ -687,11 +695,15 @@ class MainWindow(QMainWindow):
                     cfg = {}
             cfg.setdefault('system', {})
             cfg['system']['minimize_to_tray'] = bool(enabled)
+            print(f"[配置保存] 即将写入 minimize_to_tray={enabled} 到 {config_path}")
             fd, tmp_path = tempfile.mkstemp(prefix="client_config_", suffix=".tmp", dir=_os.path.dirname(config_path))
             with _os.fdopen(fd, 'w', encoding='utf-8') as f:
                 json.dump(cfg, f, indent=2, ensure_ascii=False)
             _os.replace(tmp_path, config_path)
             print(f"[配置保存] minimize_to_tray={enabled} 已保存到 {config_path}")
+            with open(config_path, 'r', encoding='utf-8') as f:
+                saved = json.load(f)
+            print(f"[配置保存] 磁盘验证: system.minimize_to_tray={saved.get('system', {}).get('minimize_to_tray')}")
         except Exception as e:
             print(f"[配置保存] 保存失败：{e}")
 
@@ -730,12 +742,13 @@ class MainWindow(QMainWindow):
                         _merge(a[k], v)
                     else:
                         a[k] = v
-            
+
             if not isinstance(self._config, dict):
                 self._config = {}
             _merge(self._config, disk_cfg)
             print(f"[配置加载] 成功合并磁盘配置到内存")
-            
+            print(f"[配置加载] system.minimize_to_tray={self._config.get('system', {}).get('minimize_to_tray')}")
+
         except Exception as e:
             print(f"[配置加载] 加载配置失败：{e}")
             import traceback
@@ -1773,6 +1786,7 @@ class MainWindow(QMainWindow):
             return
 
         # 优先级2：启用了托盘且托盘可用 → 静默最小化到托盘，不提醒
+        print(f"[关闭事件] closeEvent: _minimize_to_tray={self._minimize_to_tray}, _tray_available={getattr(self, '_tray_available', False)}")
         if self._minimize_to_tray and getattr(self, '_tray_available', False):
             # 保存原始窗口标志
             if not hasattr(self, '_orig_window_flags'):
