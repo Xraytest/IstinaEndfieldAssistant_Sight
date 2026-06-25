@@ -247,7 +247,7 @@ class ScreenCapture:
 
     def _ensure_scrcpy_started(self, device_serial: str) -> None:
         """
-        确保 scrcpy 已启动（延迟初始化）
+        确保 scrcpy 已启动（延迟初始化 + 自动恢复）
 
         Args:
             device_serial: 设备序列号
@@ -258,10 +258,18 @@ class ScreenCapture:
         if self._scrcpy_core is not None and self._scrcpy_core.is_alive():
             return  # 已启动且运行中
 
-        # 如果已有实例但已停止，清理
+        # 如果已有实例但已停止，尝试自动恢复
         if self._scrcpy_core is not None:
-            self._scrcpy_core.stop()
-            self._scrcpy_core = None
+            self.logger.warning(LogCategory.MAIN, "scrcpy 实例已停止，尝试自动恢复",
+                                device_serial=device_serial)
+            if self._scrcpy_core.restart():
+                self.logger.info(LogCategory.MAIN, "scrcpy 自动恢复成功",
+                                 device_serial=device_serial)
+                return
+            else:
+                self.logger.error(LogCategory.MAIN, "scrcpy 自动恢复失败，创建新实例",
+                                   device_serial=device_serial)
+                self._scrcpy_core = None
 
         # 创建并启动新的 scrcpy 核心
         self.logger.info(LogCategory.MAIN, "启动 scrcpy 视频流", device_serial=device_serial)
@@ -285,27 +293,35 @@ class ScreenCapture:
 
     def _capture_via_scrcpy(self, device_serial: str) -> Optional[bytes]:
         """
-        通过 scrcpy 视频流截屏（带错误处理）
+        通过 scrcpy 视频流截屏（带错误处理和自动恢复）
 
         Args:
             device_serial: 设备序列号
 
         Returns:
-            base64 编码的 PNG 字节，或 None（失败）
+            PNG 原始字节，或 None（失败）
         """
         if not SCRCPY_AVAILABLE or ScrcpyCore is None:
             self.logger.warning(LogCategory.MAIN, "scrcpy 不可用，跳过", device_serial=device_serial)
             return None
 
         try:
-            # 确保 scrcpy 已启动
+            # 确保 scrcpy 已启动（包含自动恢复）
             self._ensure_scrcpy_started(device_serial)
 
-            # 获取最新帧
+            # 获取最新帧（包含健康检查）
             frame = self._scrcpy_core.get_latest_frame()
             if frame is None:
-                self.logger.warning(LogCategory.MAIN, "scrcpy 无可用帧", device_serial=device_serial)
-                return None
+                self.logger.warning(LogCategory.MAIN, "scrcpy 无可用帧，尝试重新启动",
+                                    device_serial=device_serial)
+                # 尝试重新启动 scrcpy
+                if self._scrcpy_core:
+                    self._scrcpy_core.stop()
+                    self._scrcpy_core = None
+                self._ensure_scrcpy_started(device_serial)
+                frame = self._scrcpy_core.get_latest_frame() if self._scrcpy_core else None
+                if frame is None:
+                    return None
 
             # 将 numpy 数组转换为 PIL Image
             # frame 是 RGB 格式的 numpy.ndarray

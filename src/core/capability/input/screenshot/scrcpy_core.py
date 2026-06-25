@@ -152,6 +152,9 @@ class ScrcpyCore:
                          device_serial=self.device_serial,
                          jar_path=str(self.jar_path))
 
+        # 启动前检查：确保设备在线
+        self._preflight_check()
+
         try:
             self._server_start()
             self._socket_setup()
@@ -167,6 +170,28 @@ class ScrcpyCore:
                 raise
             raise ScrcpyServerError(f"scrcpy 启动失败: {e}") from e
 
+    def _preflight_check(self) -> None:
+        """启动前检查：确保设备和 ADB 可用"""
+        try:
+            # 检查设备是否在线
+            devices = self.adb_manager.get_devices()
+            device_found = any(d.serial == self.device_serial and d.status == 'device' for d in devices)
+            if not device_found:
+                raise ScrcpyServerError(f"设备不在线: {self.device_serial}")
+
+            # 检查 ADB 连接是否正常
+            try:
+                self.adb_manager.shell_command(self.device_serial, "echo ok", timeout=5)
+            except Exception as e:
+                raise ScrcpyServerError(f"ADB 连接异常: {e}") from e
+
+            self.logger.debug(LogCategory.MAIN, "启动前检查通过",
+                               device_serial=self.device_serial)
+        except ScrcpyError:
+            raise
+        except Exception as e:
+            raise ScrcpyServerError(f"启动前检查失败: {e}") from e
+
     def stop(self) -> None:
         """停止 scrcpy，清理所有资源"""
         self.logger.info(LogCategory.MAIN, "停止 scrcpy", device_serial=self.device_serial)
@@ -179,19 +204,10 @@ class ScrcpyCore:
                 self.logger.warning(LogCategory.MAIN, "解码线程未正常退出", device_serial=self.device_serial)
 
         # 关闭 socket
-        if self._control_socket:
-            try:
-                self._control_socket.close()
-            except Exception as e:
-                self.logger.warning(LogCategory.MAIN, "关闭控制 socket 异常", error=str(e))
-            self._control_socket = None
-
-        if self._video_socket:
-            try:
-                self._video_socket.close()
-            except Exception as e:
-                self.logger.warning(LogCategory.MAIN, "关闭视频 socket 异常", error=str(e))
-            self._video_socket = None
+        self._cleanup_socket(self._control_socket)
+        self._control_socket = None
+        self._cleanup_socket(self._video_socket)
+        self._video_socket = None
 
         # 关闭 shell 流
         if self._server_stream:
@@ -203,6 +219,19 @@ class ScrcpyCore:
 
         self.logger.info(LogCategory.MAIN, "scrcpy 已停止", device_serial=self.device_serial)
 
+    def restart(self) -> bool:
+        """重启 scrcpy（用于自动恢复）"""
+        self.logger.info(LogCategory.MAIN, "重启 scrcpy", device_serial=self.device_serial)
+        try:
+            self.stop()
+            time.sleep(1.0)
+            self.start()
+            return True
+        except Exception as e:
+            self.logger.error(LogCategory.MAIN, "重启 scrcpy 失败", error=str(e))
+            self._cleanup_on_error()
+            return False
+
     def get_latest_frame(self) -> Optional[np.ndarray]:
         """
         获取最新解码帧（rgb24 格式）
@@ -210,9 +239,31 @@ class ScrcpyCore:
         Returns:
             numpy.ndarray: 形状为 (H, W, 3) 的 RGB 图像数组，或 None（无可用帧）
         """
+        # 运行时健康检查
+        self._health_check()
+        
         if self._last_frame is not None:
             return self._last_frame.copy()
         return None
+
+    def _health_check(self) -> None:
+        """运行时健康检查：确保 scrcpy 还在正常工作"""
+        if not self._scrcpy_alive:
+            return
+
+        # 检查解码线程是否还活着
+        if self._stream_loop_thread is None or not self._stream_loop_thread.is_alive():
+            self.logger.warning(LogCategory.MAIN, "解码线程已停止",
+                                device_serial=self.device_serial)
+            self._scrcpy_alive = False
+            return
+
+        # 检查是否长时间没有收到新帧（超过 5 秒）
+        if self._last_frame_time > 0 and (time.time() - self._last_frame_time) > 5.0:
+            self.logger.warning(LogCategory.MAIN, "长时间未收到新帧",
+                                device_serial=self.device_serial,
+                                last_frame_time=self._last_frame_time)
+            # 不立即停止，但记录警告
 
     def get_resolution(self) -> Tuple[int, int]:
         """获取设备分辨率"""
@@ -411,11 +462,15 @@ class ScrcpyCore:
         # 读取设备信息
         self._read_device_info()
 
-    def _create_video_socket(self, timeout: float = 10.0) -> socket.socket:
+    def _create_video_socket(self, timeout: float = 15.0) -> socket.socket:
         """创建视频 socket 连接"""
         start_time = time.time()
+        attempt = 0
         while time.time() - start_time < timeout:
             try:
+                # 清理旧 socket（如果有）
+                self._cleanup_socket(self._video_socket)
+                
                 # 使用 adbutils 的 create_connection
                 # LOCAL_ABSTRACT = 1 (abstract namespace)
                 sock = self.adb_manager.create_connection(
@@ -423,33 +478,54 @@ class ScrcpyCore:
                     1,  # AdbNetwork.LOCAL_ABSTRACT
                     "scrcpy"
                 )
-                sock.settimeout(10.0)
-                self.logger.info(LogCategory.MAIN, "视频 socket 连接成功", device_serial=self.device_serial)
+                sock.settimeout(15.0)
+                self.logger.info(LogCategory.MAIN, "视频 socket 连接成功",
+                                 device_serial=self.device_serial, attempt=attempt)
                 return sock
             except Exception as e:
-                self.logger.debug(LogCategory.MAIN, "视频 socket 连接重试", error=str(e))
-                time.sleep(0.2)
+                self.logger.debug(LogCategory.MAIN, "视频 socket 连接重试",
+                                  device_serial=self.device_serial,
+                                  attempt=attempt, error=str(e))
+                time.sleep(0.5)
+                attempt += 1
 
         raise ScrcpyConnectionError("视频 socket 连接超时")
 
-    def _create_control_socket(self, timeout: float = 10.0) -> socket.socket:
+    def _create_control_socket(self, timeout: float = 15.0) -> socket.socket:
         """创建控制 socket 连接"""
         start_time = time.time()
+        attempt = 0
         while time.time() - start_time < timeout:
             try:
+                # 清理旧 socket（如果有）
+                self._cleanup_socket(self._control_socket)
+                
                 sock = self.adb_manager.create_connection(
                     self.device_serial,
                     1,  # AdbNetwork.LOCAL_ABSTRACT
                     "scrcpy"
                 )
-                sock.settimeout(10.0)
-                self.logger.info(LogCategory.MAIN, "控制 socket 连接成功", device_serial=self.device_serial)
+                sock.settimeout(15.0)
+                self.logger.info(LogCategory.MAIN, "控制 socket 连接成功",
+                                 device_serial=self.device_serial, attempt=attempt)
                 return sock
             except Exception as e:
-                self.logger.debug(LogCategory.MAIN, "控制 socket 连接重试", error=str(e))
-                time.sleep(0.2)
+                self.logger.debug(LogCategory.MAIN, "控制 socket 连接重试",
+                                  device_serial=self.device_serial,
+                                  attempt=attempt, error=str(e))
+                time.sleep(0.5)
+                attempt += 1
 
         raise ScrcpyConnectionError("控制 socket 连接超时")
+
+    def _cleanup_socket(self, sock: Optional[socket.socket]) -> None:
+        """清理 socket 连接"""
+        if sock is None:
+            return
+        try:
+            sock.close()
+        except Exception:
+            pass
 
     def _read_device_info(self) -> None:
         """从视频 socket 读取设备名称和分辨率"""
@@ -507,6 +583,9 @@ class ScrcpyCore:
         """
         self.logger.debug(LogCategory.MAIN, "解码循环开始", device_serial=self.device_serial)
 
+        consecutive_errors = 0
+        max_consecutive_errors = 5
+
         while self._scrcpy_alive:
             try:
                 # 读取 H.264 数据（最多 64KB）
@@ -529,17 +608,33 @@ class ScrcpyCore:
                         # 更新分辨率（可能因设备旋转而变化）
                         self._resolution = (frame.width, frame.height)
 
+                # 重置错误计数
+                consecutive_errors = 0
+
             except (BlockingIOError, InvalidDataError):
                 # 非阻塞模式下无数据，或无效数据
                 time.sleep(0.001)
+                consecutive_errors += 1
             except (ConnectionError, OSError) as e:
                 if self._scrcpy_alive:
-                    self.logger.error(LogCategory.MAIN, f"视频流 socket 错误: {e}", device_serial=self.device_serial)
+                    self.logger.error(LogCategory.MAIN, f"视频流 socket 错误: {e}",
+                                      device_serial=self.device_serial)
+                    # 尝试恢复连接
+                    if consecutive_errors < max_consecutive_errors:
+                        self.logger.warning(LogCategory.MAIN, "尝试恢复视频流连接",
+                                            device_serial=self.device_serial)
+                        time.sleep(1.0)
+                        consecutive_errors += 1
+                        continue
                     raise ScrcpyConnectionError(f"Socket 错误: {e}") from e
                 break
             except Exception as e:
-                self.logger.error(LogCategory.MAIN, f"解码循环异常: {e}", device_serial=self.device_serial)
-                raise ScrcpyDecodeError(f"解码失败: {e}") from e
+                self.logger.error(LogCategory.MAIN, f"解码循环异常: {e}",
+                                  device_serial=self.device_serial)
+                consecutive_errors += 1
+                if consecutive_errors >= max_consecutive_errors:
+                    raise ScrcpyDecodeError(f"解码失败: {e}") from e
+                time.sleep(0.5)
 
         self.logger.debug(LogCategory.MAIN, "解码循环结束", device_serial=self.device_serial)
 
