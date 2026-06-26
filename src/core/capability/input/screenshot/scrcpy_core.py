@@ -318,7 +318,7 @@ class ScrcpyCore:
             self._server_stream = device.shell(commands, stream=True)
 
             # 设置超时（增加超时时间，确保 MuMu 等模拟器有足够时间启动）
-            stream_timeout = 10.0
+            stream_timeout = 30.0
             if hasattr(self._server_stream, 'conn'):
                 self._server_stream.conn.settimeout(stream_timeout)
             elif hasattr(self._server_stream, 'socket'):
@@ -470,7 +470,7 @@ class ScrcpyCore:
             try:
                 # 清理旧 socket（如果有）
                 self._cleanup_socket(self._video_socket)
-                
+
                 # 使用 adbutils 的 create_connection
                 # LOCAL_ABSTRACT = 1 (abstract namespace)
                 sock = self.adb_manager.create_connection(
@@ -478,7 +478,7 @@ class ScrcpyCore:
                     1,  # AdbNetwork.LOCAL_ABSTRACT
                     "scrcpy"
                 )
-                sock.settimeout(15.0)
+                sock.settimeout(30.0)
                 self.logger.info(LogCategory.MAIN, "视频 socket 连接成功",
                                  device_serial=self.device_serial, attempt=attempt)
                 return sock
@@ -499,13 +499,13 @@ class ScrcpyCore:
             try:
                 # 清理旧 socket（如果有）
                 self._cleanup_socket(self._control_socket)
-                
+
                 sock = self.adb_manager.create_connection(
                     self.device_serial,
                     1,  # AdbNetwork.LOCAL_ABSTRACT
                     "scrcpy"
                 )
-                sock.settimeout(15.0)
+                sock.settimeout(30.0)
                 self.logger.info(LogCategory.MAIN, "控制 socket 连接成功",
                                  device_serial=self.device_serial, attempt=attempt)
                 return sock

@@ -449,6 +449,11 @@ class ScreenCapture:
 
         chain = fallback_chain.get(primary_method, [primary_method, 'adb'])
 
+        # strict 模式：禁用降级，只使用首选方法
+        strict = self.config.get('screen', {}).get('strict', False)
+        if strict:
+            chain = chain[:1]
+
         for i, method in enumerate(chain):
             try:
                 self.logger.info(LogCategory.MAIN, f"尝试截图方法 ({i+1}/{len(chain)})",

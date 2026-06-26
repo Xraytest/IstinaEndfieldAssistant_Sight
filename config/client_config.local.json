@@ -23,7 +23,7 @@
   "device": {
     "adb_path": "../../3rd-part/adb/adb.exe",
     "default_host": "localhost:16512",
-    "screenshot_method": "maa",
+    "screenshot_method": "scrcpy",
     "timeout": 30
   },
   
