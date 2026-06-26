@@ -1,0 +1,6 @@
+Defaulting to user installation because normal site-packages is not writeable
+Looking in indexes: https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+Collecting av
+  Using cached https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/6b/f2/53a7cd34adb6a971d7e6d99663e74db286966c9db8afdca17472fdf0f98e/av-17.1.0-cp311-abi3-win_amd64.whl (28.0 MB)
+Installing collected packages: av
+Successfully installed av-17.1.0

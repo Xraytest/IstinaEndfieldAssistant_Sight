@@ -1,0 +1,19 @@
+Defaulting to user installation because normal site-packages is not writeable
+Looking in indexes: https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+Collecting adbutils
+  Using cached https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/d3/b5/da4d7929d2e4db4fe811efcde669e178539e1695ddc33a9c2741998df805/adbutils-2.12.0-py3-none-win_amd64.whl (3.3 MB)
+Requirement already satisfied: requests in c:\users\cheng\appdata\roaming\python\python312\site-packages (from adbutils) (2.34.2)
+Collecting deprecation<3.0,>=2.0.6 (from adbutils)
+  Using cached https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/02/c3/253a89ee03fc9b9682f1541728eb66db7db22148cd94f89ab22528cd1e1b/deprecation-2.1.0-py2.py3-none-any.whl (11 kB)
+Collecting retry2<1.0,>=0.9 (from adbutils)
+  Using cached https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/97/49/1cae6d9b932378cc75f902fa70648945b7ea7190cb0d09ff83b47de3e60a/retry2-0.9.5-py2.py3-none-any.whl (6.0 kB)
+Requirement already satisfied: Pillow in c:\users\cheng\appdata\roaming\python\python312\site-packages (from adbutils) (12.2.0)
+Requirement already satisfied: packaging in c:\users\cheng\appdata\roaming\python\python312\site-packages (from deprecation<3.0,>=2.0.6->adbutils) (26.2)
+Collecting decorator>=3.4.2 (from retry2<1.0,>=0.9->adbutils)
+  Using cached https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/05/7f/798705f5296a58ca505d600456748d1be48078eac8a7050d8a98bc9edb89/decorator-5.3.1-py3-none-any.whl (10 kB)
+Requirement already satisfied: charset_normalizer<4,>=2 in c:\users\cheng\appdata\roaming\python\python312\site-packages (from requests->adbutils) (3.4.7)
+Requirement already satisfied: idna<4,>=2.5 in c:\users\cheng\appdata\roaming\python\python312\site-packages (from requests->adbutils) (3.18)
+Requirement already satisfied: urllib3<3,>=1.26 in c:\users\cheng\appdata\roaming\python\python312\site-packages (from requests->adbutils) (2.7.0)
+Requirement already satisfied: certifi>=2023.5.7 in c:\users\cheng\appdata\roaming\python\python312\site-packages (from requests->adbutils) (2026.5.20)
+Installing collected packages: deprecation, decorator, retry2, adbutils
+Successfully installed adbutils-2.12.0 decorator-5.3.1 deprecation-2.1.0 retry2-0.9.5

@@ -309,37 +309,23 @@ class ScreenCapture:
             # 确保 scrcpy 已启动（包含自动恢复）
             self._ensure_scrcpy_started(device_serial)
 
-            # 获取最新帧（包含健康检查）
             frame = self._scrcpy_core.get_latest_frame()
             if frame is None:
-                self.logger.warning(LogCategory.MAIN, "scrcpy 无可用帧，尝试重新启动",
+                self.logger.warning(LogCategory.MAIN, "scrcpy 无可用帧",
                                     device_serial=device_serial)
-                # 尝试重新启动 scrcpy
-                if self._scrcpy_core:
-                    self._scrcpy_core.stop()
-                    self._scrcpy_core = None
-                self._ensure_scrcpy_started(device_serial)
-                frame = self._scrcpy_core.get_latest_frame() if self._scrcpy_core else None
-                if frame is None:
-                    return None
+                return None
 
-            # 将 numpy 数组转换为 PIL Image
-            # frame 是 RGB 格式的 numpy.ndarray
             pil_image = Image.fromarray(frame)
-
-            # 返回 PNG 原始字节
             return self._image_to_png_bytes(pil_image)
 
         except ScrcpyError as e:
             self.logger.error(LogCategory.MAIN, "scrcpy 截图失败", device_serial=device_serial, error=str(e))
-            # scrcpy 失败时停止核心，由上层决定是否回退
             if self._scrcpy_core:
                 self._scrcpy_core.stop()
                 self._scrcpy_core = None
             return None
         except Exception as e:
             self.logger.exception(LogCategory.MAIN, "scrcpy 截图异常", device_serial=device_serial, error=str(e))
-            # 使用错误处理器决定是否重试
             if self._error_handler.should_retry(e, attempt=0):
                 self.logger.info(LogCategory.MAIN, "scrcpy 截图异常将重试")
             return None

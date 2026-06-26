@@ -22,7 +22,8 @@ from core.foundation.paths import get_project_root, get_adb_path
 
 # ── 项目路径 ──────────────────────────────────────────────────────
 ADB_PATH = get_adb_path(__file__)
-DEVICE_SERIAL = "localhost:16512"
+DEFAULT_DEVICE_SERIAL = "localhost:16512"
+DEVICE_SERIAL = DEFAULT_DEVICE_SERIAL
 
 
 # ── 异常 ──────────────────────────────────────────────────────────
@@ -79,6 +80,16 @@ def adb_screencap(serial: str = DEVICE_SERIAL, timeout: int = 15) -> Optional[by
         return None
     except Exception:
         return None
+
+
+def adb_swipe(x1: int, y1: int, x2: int, y2: int, duration: int = 300, serial: str = DEVICE_SERIAL, timeout: int = 15) -> bool:
+    """ADB 滑动"""
+    try:
+        cmd = [ADB_PATH, "-s", serial, "shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration)]
+        r = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        return r.returncode == 0
+    except Exception:
+        return False
 
 
 def adb_screencap_unique(serial: str = DEVICE_SERIAL, timeout: int = 15,
@@ -164,6 +175,15 @@ class ADB:
             cmd = [ADB_PATH, "-s", self.serial, "get-state"]
             r = subprocess.run(cmd, capture_output=True, timeout=5)
             return r.returncode == 0 and r.stdout.decode().strip() == "device"
+        except Exception:
+            return False
+
+    def keyevent(self, keycode: int) -> bool:
+        """发送 ADB keyevent"""
+        try:
+            cmd = [ADB_PATH, "-s", self.serial, "shell", "input", "keyevent", str(keycode)]
+            r = subprocess.run(cmd, capture_output=True, timeout=5)
+            return r.returncode == 0
         except Exception:
             return False
 

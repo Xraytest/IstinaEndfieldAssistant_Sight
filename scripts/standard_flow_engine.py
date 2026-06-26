@@ -23,7 +23,7 @@ from datetime import datetime
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
-sys.path.insert(0, str(PROJECT_ROOT / "3rd-party" / "python-packages"))
+sys.path.insert(0, str(PROJECT_ROOT / "3rd-part" / "python-packages"))
 
 from core.capability.adb_utils import ADB
 from core.foundation.game_data import Coords
@@ -50,7 +50,7 @@ def _get_scrcpy_screen_capture(device_addr: str = "localhost:16512") -> ScreenCa
     global _scrcpy_screen_capture
     if _scrcpy_screen_capture is None:
         adb_manager = ADBDeviceManager(
-            adb_path=str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe"),
+            adb_path=str(PROJECT_ROOT / "3rd-part" / "adb" / "adb.exe"),
             timeout=30
         )
         # 强制 scrcpy，禁用任何回退
@@ -666,7 +666,7 @@ class Local2BEngine:
     def _find_llama_server(self) -> str:
         project_root = Path(__file__).resolve().parent.parent
         candidates = [
-            project_root / "3rd-party" / "llama-cpp" / "llama-server.exe",
+            project_root / "3rd-part" / "llama-cpp" / "llama-server.exe",
             Path("C:/Users/xray/Desktop/workflow/llamacpp/llamacpp-cuda124/llama-server.exe"),
         ]
         for c in candidates:
@@ -1027,15 +1027,23 @@ class VisualAnalyzer:
 class StandardFlowExecutor:
     """基于配置的标准流执行器"""
 
-    def __init__(self, config: FlowConfig, model_engine: Local2BEngine = None, recorder: FlowRecorder = None, 
+    EXPECTED_ASPECT = 9 / 16
+    EXPECTED_ASPECT_TOLERANCE = 0.05
+
+    def __init__(self, config: FlowConfig, model_engine: Local2BEngine = None, recorder: FlowRecorder = None,
                  device_addr: str = "localhost:16512", adb_path: str = None):
         self.config = config
         self.model = model_engine or Local2BEngine()
         self.recorder = recorder
         self.device_addr = device_addr
-        self.adb_path = adb_path or str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe")
+        self.adb_path = adb_path or str(PROJECT_ROOT / "3rd-part" / "adb" / "adb.exe")
         self.adb = ADB(device_addr)
         self._stop_requested = False
+        self._last_hash = None
+
+        # 强制要求 9:16 竖屏分辨率
+        self._native_width, self._native_height = self._get_device_resolution()
+        self._ensure_portrait_ratio()
 
         # 初始化 MaaFramework 触控（所有触控必须通过 MaaFw 而非直接 ADB）
         self._maafw = None
@@ -1066,44 +1074,68 @@ class StandardFlowExecutor:
     def stop(self):
         self._stop_requested = True
 
+    def _get_device_resolution(self) -> tuple[int, int]:
+        """获取设备物理分辨率"""
+        try:
+            r = subprocess.run(
+                [self.adb_path, "-s", self.device_addr, "shell", "wm", "size"],
+                capture_output=True, text=True, timeout=10
+            )
+            for line in r.stdout.splitlines():
+                if "Physical size:" in line:
+                    size_str = line.split("Physical size:")[1].strip()
+                    w, h = size_str.split("x")
+                    return int(w), int(h)
+        except Exception:
+            pass
+        return 0, 0
+
+    def _ensure_portrait_ratio(self):
+        """要求设备为 9:16 竖屏比例，否则中止标准流"""
+        w, h = self._native_width, self._native_height
+        if w <= 0 or h <= 0:
+            raise RuntimeError(f"无法获取设备分辨率：{self.device_addr}")
+        ratio = w / h
+        expected = self.EXPECTED_ASPECT
+        if abs(ratio - expected) > self.EXPECTED_ASPECT_TOLERANCE:
+            raise RuntimeError(
+                f"标准流仅支持 9:16 竖屏设备；当前设备 {self.device_addr} 分辨率为 {w}x{h}，"
+                f"宽高比={ratio:.3f}，与预期 {expected:.3f} 偏差过大。"
+            )
+
     # ── MaaFw 触控路由 ──────────────────────────────────────
-    def _tap(self, x: int, y: int) -> bool:
-        """触控点击：使用 MaaFw（优先），回退 ADB subprocess"""
+    def _tap_normalized(self, x: float, y: float) -> bool:
+        """触控点击：使用归一化坐标 (0-1)，内部转换为设备原生分辨率"""
+        nx, ny = self._normalize_coords([x, y])
         if self._maafw and self._maafw.connected:
-            return self._maafw.click(x, y)
+            return self._maafw.click(nx, ny)
         import subprocess
         try:
             r = subprocess.run(
-                [self.adb_path, "-s", self.device_addr, "shell", "input", "tap", str(x), str(y)],
+                [self.adb_path, "-s", self.device_addr, "shell", "input", "tap", str(nx), str(ny)],
                 capture_output=True, timeout=5
             )
             return r.returncode == 0
         except Exception:
             return False
 
-    def _swipe(self, x1: int, y1: int, x2: int, y2: int, duration: int = 300) -> bool:
-        """触控滑动：优先 MaaFw，回退 ADB"""
+    def _swipe_normalized(self, x1: float, y1: float, x2: float, y2: float, duration: int = 300) -> bool:
+        """触控滑动：使用归一化坐标 (0-1)"""
+        nx1, ny1 = self._normalize_coords([x1, y1])
+        nx2, ny2 = self._normalize_coords([x2, y2])
         if self._maafw and self._maafw.connected:
-            return self._maafw.swipe(x1, y1, x2, y2, duration)
+            return self._maafw.swipe(nx1, ny1, nx2, ny2, duration)
         from core.capability.adb_utils import adb_swipe
-        return adb_swipe(x1, y1, x2, y2, duration)
+        return adb_swipe(nx1, ny1, nx2, ny2, duration, serial=self.device_addr)
 
     def _back(self) -> bool:
-        """返回键：MaaFw keyevent(4)（优先），回退 ADB subprocess"""
+        """返回键：MaaFw keyevent(4)（优先），回退 ADB"""
         if self._maafw and self._maafw.connected:
             job = self._maafw.post_keyevent(4)
             if job is not None:
                 job.wait()
                 return job.succeeded
-        import subprocess
-        try:
-            r = subprocess.run(
-                [self.adb_path, "-s", self.device_addr, "shell", "input", "keyevent", "4"],
-                capture_output=True, timeout=5
-            )
-            return r.returncode == 0
-        except Exception:
-            return False
+        return bool(self.adb.keyevent(4))
 
     def _extract_action(self, analysis: str, expected_action: str) -> tuple[str, Optional[list], Dict]:
         """从模型分析文本中提取动作（不依赖JSON）"""
@@ -1190,17 +1222,17 @@ class StandardFlowExecutor:
             time.sleep(3)
             self._maafw.start_app("com.hypergryph.endfield")
         else:
-            adb_path = str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe")
-            subprocess.run([adb_path, "-s", f'{device_addr}', "shell", "am", "force-stop", "com.hypergryph.endfield"],
+            adb_path = str(PROJECT_ROOT / "3rd-part" / "adb" / "adb.exe")
+            subprocess.run([adb_path, "-s", f'{self.device_addr}', "shell", "am", "force-stop", "com.hypergryph.endfield"],
                           capture_output=True, timeout=10)
             time.sleep(3)
-            subprocess.run([adb_path, "-s", f'{device_addr}', "shell",
+            subprocess.run([adb_path, "-s", f'{self.device_addr}', "shell",
                           "monkey", "-p", "com.hypergryph.endfield",
                           "-c", "android.intent.category.LAUNCHER", "1"],
                           capture_output=True, timeout=15)
         time.sleep(30)
         for _ in range(3):
-            self._tap(540, 960)
+            self._tap_normalized(540 / self._native_width, 960 / self._native_height)
             time.sleep(2)
 
     def execute_flow(self, flow_name: str) -> bool:
@@ -1244,34 +1276,39 @@ class StandardFlowExecutor:
                     self._verify_screen_change()
                     success = True
                 else:
-                    coords = nav_coords.get(target, [540, 360])
+                    coords = nav_coords.get(target, [0.5, 0.5])
                     print(f"  [NAV] 导航到 {target}: {coords}")
-                    self._tap(coords[0], coords[1])
+                    self._tap_normalized(coords[0], coords[1])
                     self.adb.wait(step_cfg.get("wait", 2))
                     self._verify_screen_change()
                     success = True
 
-            # === tap: 点击指定坐标 ===
+            # === tap: 点击指定坐标（归一化坐标 0-1）===
             elif step_action == "tap":
                 coords_raw = step_cfg.get("coords")
                 if isinstance(coords_raw, str) and "{{" in coords_raw:
                     var_key = coords_raw.strip("{}").strip()
-                    coords = self.config.get_variable(var_key, nav_coords.get(step_cfg.get("target",""), [540, 360]))
+                    coords = self.config.get_variable(var_key, nav_coords.get(step_cfg.get("target",""), [0.5, 0.5]))
                 elif isinstance(coords_raw, list):
                     coords = coords_raw
                 else:
-                    coords = nav_coords.get(step_cfg.get("target",""), [540, 360])
+                    coords = nav_coords.get(step_cfg.get("target",""), [0.5, 0.5])
+
+                # 支持绝对像素坐标自动归一化
+                if coords and (coords[0] > 1 or coords[1] > 1):
+                    coords = [coords[0] / self._native_width, coords[1] / self._native_height]
+
                 print(f"  [TAP] 点击 {coords}")
-                self._tap(coords[0], coords[1])
+                self._tap_normalized(coords[0], coords[1])
                 self.adb.wait(step_cfg.get("wait", 2))
                 self._verify_screen_change()
                 success = self._verify_tap_result(step_cfg, coords)
 
             # === claim: 一键领取 ===
             elif step_action == "claim":
-                coords = nav_coords.get("claim_all", [960, 540])
+                coords = nav_coords.get("claim_all", [0.5, 0.5])
                 print(f"  [CLAIM] 领取: {coords}")
-                self._tap(coords[0], coords[1])
+                self._tap_normalized(coords[0], coords[1])
                 self.adb.wait(2)
                 self._verify_screen_change()
                 success = True
@@ -1319,11 +1356,11 @@ class StandardFlowExecutor:
 
             # === swipe: 滑动/移动 ===
             elif step_action == "swipe":
-                start_coords = step_cfg.get("start", [200, 1700])
-                end_coords = step_cfg.get("end", [200, 1400])
+                start_coords = step_cfg.get("start", [0.11, 0.89])
+                end_coords = step_cfg.get("end", [0.11, 0.73])
                 duration_ms = step_cfg.get("duration", 1000)
                 print(f"  [SWIPE] {start_coords} -> {end_coords} ({duration_ms}ms)")
-                self._swipe(start_coords[0], start_coords[1],
+                self._swipe_normalized(start_coords[0], start_coords[1],
                            end_coords[0], end_coords[1], duration_ms)
                 self.adb.wait(1)
                 self._verify_screen_change()
@@ -1421,6 +1458,104 @@ class StandardFlowExecutor:
         result = self.page_analyzer.analyze(cv_img)
         return result["page_type"], result["confidence"], result["features"]
 
+    def _to_native_x(self, norm_x: float) -> int:
+        return int(norm_x * self._native_width)
+
+    def _to_native_y(self, norm_y: float) -> int:
+        return int(norm_y * self._native_height)
+
+    def _normalize_coords(self, coords: list) -> tuple:
+        return self._to_native_x(coords[0]), self._to_native_y(coords[1])
+
+    def _capture_annotated_screenshot(self, tag: str = "world_annotated") -> Optional[str]:
+        """截取当前画面，并在图上标注 YOLO 检测框与 OCR 区域后保存"""
+        import cv2
+        import numpy as np
+
+        img_bytes = scrcpy_screencap(device_addr=self.device_addr)
+        if not img_bytes or len(img_bytes) <= 100:
+            print("[标注] 截图失败，跳过保存")
+            return None
+
+        np_img = np.frombuffer(img_bytes, dtype=np.uint8)
+        cv_img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+        if cv_img is None:
+            print("[标注] 图片解码失败")
+            return None
+
+        annotated = cv_img.copy()
+        h, w = annotated.shape[:2]
+
+        # 1. YOLO 绿色框图
+        yolo_count = 0
+        try:
+            yolo_model = self.screen_analyzer._get_yolo()
+            if yolo_model is not None:
+                results = yolo_model(annotated, verbose=False)
+                for r in results:
+                    boxes = r.boxes
+                    if boxes is not None:
+                        for box in boxes:
+                            cls_id = int(box.cls[0])
+                            cls_name = r.names[cls_id]
+                            conf = float(box.conf[0])
+                            if conf > 0.3:
+                                xyxy = box.xyxy[0].tolist()
+                                x1, y1, x2, y2 = map(int, xyxy)
+                                cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                                label = f"{cls_name} {conf:.2f}"
+                                cv2.putText(annotated, label, (x1, max(0, y1 - 10)),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                                yolo_count += 1
+        except Exception as e:
+            print(f"[标注] YOLO 绘制失败: {e}")
+
+        # 2. OCR 蓝色区域框图
+        ocr_region_count = 0
+        try:
+            top_bar = (0, 0, w, int(h * 0.12))
+            cv2.rectangle(annotated, (top_bar[0], top_bar[1]), (top_bar[2], top_bar[3]), (255, 0, 0), 2)
+            cv2.putText(annotated, "OCR: top HUD", (top_bar[0] + 5, top_bar[3] - 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+            ocr_region_count += 1
+
+            bottom_bar = (0, int(h * 0.85), w, h)
+            cv2.rectangle(annotated, (bottom_bar[0], bottom_bar[1]), (bottom_bar[2], bottom_bar[3]), (255, 0, 0), 2)
+            cv2.putText(annotated, "OCR: bottom HUD", (bottom_bar[0] + 5, bottom_bar[1] + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+            ocr_region_count += 1
+
+            ocr_text = self.screen_analyzer._ocr_via_vlm(cv_img)
+            if ocr_text and ocr_text != "无文字":
+                text_overlay = ocr_text[:200].replace('\n', ' | ')
+                overlay_y = h - 30
+                cv2.rectangle(annotated, (0, overlay_y - 20), (w, h), (0, 0, 0), -1)
+                cv2.putText(annotated, f"OCR: {text_overlay}", (10, overlay_y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+        except Exception as e:
+            print(f"[标注] OCR 区域绘制失败: {e}")
+
+        save_dir = self.recorder.screenshots_dir if self.recorder else str(PROJECT_ROOT / "cache" / "annotated_screenshots")
+        os.makedirs(save_dir, exist_ok=True)
+
+        ts = int(time.time())
+        fname = f"{tag}_{ts}_{yolo_count}yolo_{ocr_region_count}ocr.png"
+        fpath = os.path.join(save_dir, fname)
+        cv2.imwrite(fpath, annotated)
+        print(f"[标注] 已保存: {fpath} (YOLO={yolo_count} OCR区域={ocr_region_count})")
+        return fpath
+
+    def _save_world_annotation_if_needed(self, cv_img, page_type: str, confidence: float):
+        """仅在确认进入主世界后，保存一份带标注的截图"""
+        if cv_img is None:
+            return
+        if page_type != "world":
+            return
+        try:
+            self._capture_annotated_screenshot(tag="world_annotated")
+        except Exception as e:
+            print(f"[标注] 保存失败: {e}")
+
     def _verify_tap_result(self, step_cfg: dict, coords: list) -> bool:
         """验证 tap 后是否到达预期页面，若路由错误则恢复重试"""
         page, confidence, features = self._analyze_page()
@@ -1460,7 +1595,7 @@ class StandardFlowExecutor:
             print("  [恢复] 退出对话框，尝试关闭...")
             cancel_candidates = [(600, 750), (540, 720), (660, 780), (580, 730), (620, 770)]
             for cx, cy in cancel_candidates:
-                self._tap(cx, cy)
+                self._tap_normalized(cx / self._native_width, cy / self._native_height)
                 self.adb.wait(1.5)
                 p, _, _ = self._analyze_page()
                 if p != "exit_dialog":
@@ -1503,7 +1638,7 @@ class StandardFlowExecutor:
             print("  [PATROL] 尝试点击确认/关闭按钮...")
             confirm_btns = [(540, 960), (640, 660), (540, 700), (400, 660)]
             for x, y in confirm_btns:
-                self._tap(x, y)
+                self._tap_normalized(x / self._native_width, y / self._native_height)
                 time.sleep(1)
 
             # 按返回键
@@ -1513,7 +1648,7 @@ class StandardFlowExecutor:
 
             # 再点一次屏幕中央
             print("  [PATROL] 点击屏幕中央...")
-            self._tap(540, 500)
+            self._tap_normalized(540 / self._native_width, 500 / self._native_height)
             time.sleep(1)
 
         except Exception as e:
@@ -1609,9 +1744,11 @@ class StandardFlowExecutor:
             if action == "tap":
                 coords = data.get("coords")
                 if coords and len(coords) == 2:
-                    x, y = int(coords[0]), int(coords[1])
+                    x, y = float(coords[0]), float(coords[1])
+                    if x > 1 or y > 1:
+                        x, y = x / self._native_width, y / self._native_height
                     print(f"  [ADB] 点击 ({x}, {y})")
-                    success = self._tap(x, y)
+                    success = self._tap_normalized(x, y)
                     if not success:
                         print(f"  [ADB-ERROR] 点击失败 (返回 {success})")
                         return False, "ADB点击失败", data
@@ -1621,13 +1758,13 @@ class StandardFlowExecutor:
                     if "signin" in target or "签到" in target:
                         coords = self.config.get_variable("coords.signin_entry", [640, 360])
                         print(f"  [ADB] 使用预设坐标签到: {coords}")
-                        success = self._tap(*coords)
+                        success = self._tap_normalized(*self._normalize_coords(coords))
                         if not success:
                             return False, "ADB点击失败", data
                     elif "claim" in target or "领取" in target:
                         coords = self.config.get_variable("coords.claim_all", [960, 540])
                         print(f"  [ADB] 使用预设坐标领取: {coords}")
-                        success = self._tap(*coords)
+                        success = self._tap_normalized(*self._normalize_coords(coords))
                         if not success:
                             return False, "ADB点击失败", data
                     else:
@@ -1649,7 +1786,7 @@ class StandardFlowExecutor:
             elif action == "claim":
                 coords = self.config.get_variable("coords.claim_all", [960, 540])
                 print(f"  [ADB] 领取按钮: {coords}")
-                success = self._tap(*coords)
+                success = self._tap_normalized(*self._normalize_coords(coords))
                 if not success:
                     return False, "ADB点击失败", data
                 self.adb.wait(1)
@@ -1660,13 +1797,13 @@ class StandardFlowExecutor:
                 coords = data.get("coords")
                 if coords and len(coords) == 2:
                     print(f"  [ADB] 关闭弹窗: {coords}")
-                    success = self._tap(coords[0], coords[1])
+                    success = self._tap_normalized(*self._normalize_coords(coords))
                     if not success:
                         return False, "ADB点击失败", data
                 else:
                     # 默认取消按钮位置
                     print("  [ADB] 关闭弹窗: 默认位置 (400, 660)")
-                    success = self._tap(400, 660)
+                    success = self._tap_normalized(*self._normalize_coords([400, 660]))
                     if not success:
                         return False, "ADB点击失败", data
                 self.adb.wait(1)
@@ -1791,7 +1928,7 @@ def main():
         return 0
 
     # 正常执行模式
-    adb_path = str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe")
+    adb_path = str(PROJECT_ROOT / "3rd-part" / "adb" / "adb.exe")
     executor = StandardFlowExecutor(config, engine, recorder, device_addr, adb_path)
 
     # 初始化 MaaFw 触控（用于前置导航点击）
@@ -1799,7 +1936,7 @@ def main():
     if MAAFW_AVAILABLE:
         try:
             _maafw_config = MaaFwTouchConfig(
-                adb_path=str(PROJECT_ROOT / "3rd-party" / "adb" / "adb.exe"),
+                adb_path=str(PROJECT_ROOT / "3rd-part" / "adb" / "adb.exe"),
                 address=f'{device_addr}',
                 screencap_methods=MaaFwTouchConfig.SCREENCAP_ADB_SHELL,
                 input_methods=MaaFwTouchConfig.INPUT_ADB_SHELL,
@@ -1817,6 +1954,11 @@ def main():
         """前置触控：仅使用 ADB 原生 tap（避免 MaaFw 坐标空间混淆和 fortl 崩溃）"""
         return subprocess.run([adb_path, "-s", f'{device_addr}', "shell", "input", "tap", str(x), str(y)],
                             capture_output=True, timeout=5).returncode == 0
+
+    def _preamble_tap_normalized(x: float, y: float):
+        nx = int(x * executor._native_width)
+        ny = int(y * executor._native_height)
+        return _preamble_tap(nx, ny)
 
     # 确保游戏运行
     print("\n[前置] 启动游戏...")
@@ -1837,7 +1979,7 @@ def main():
     time.sleep(12)
     # 连续点击中央跳过所有弹窗和标题（10次，每次间隔2秒）
     for i in range(10):
-        _preamble_tap(960, 540)
+        _preamble_tap_normalized(0.5, 0.5)
         time.sleep(2)
     # 等待加载画面完成
     print("  等待加载完成...")
@@ -1855,9 +1997,34 @@ def main():
 
     def _classify_page(cv_img):
         """使用多特征分析器判断页面类型"""
-        if cv_img is None:
+        if cv_img is None or getattr(cv_img, 'size', 0) == 0:
             return {"page_type": "unknown", "confidence": 0.0, "features": {}}
-        return _page_analyzer.analyze(cv_img)
+        try:
+            return _page_analyzer.analyze(cv_img)
+        except Exception as e:
+            print(f"  [前置] 页面分析异常: {e}")
+            return {"page_type": "unknown", "confidence": 0.0, "features": {}}
+
+    def _is_world_by_screen_analyzer(cv_img) -> bool:
+        """使用 ScreenAnalyzer 的 YOLO/OCR 关键词分类，作为 world 的兜底判断"""
+        if cv_img is None or getattr(cv_img, 'size', 0) == 0:
+            return False
+        try:
+            analysis = _analyzer.analyze(cv_img)
+            page_type = analysis.get("page_type", "")
+            if page_type == "world":
+                return True
+            text = analysis.get("ocr_text", "").lower()
+            yolo_classes = [o["class"] for o in analysis.get("yolo_objects", [])]
+            if "person" in yolo_classes and any(kw in text for kw in ["探索", "工业", "基地"]):
+                return True
+            if "person" in yolo_classes:
+                return True
+            if any(kw in text for kw in ["探索", "工业", "基地"]):
+                return True
+        except Exception as e:
+            print(f"  [前置] ScreenAnalyzer 兜底判断异常: {e}")
+        return False
 
     def _classify_with_vlm(cv_img, expected_page="world", step_desc=""):
         """OpenCV 优先，不确定时 VLM 介入决策"""
@@ -1918,9 +2085,9 @@ def main():
             (580, 730),   # 偏左
             (620, 770),   # 偏右
         ]
-        
+
         for cx, cy in cancel_candidates:
-            _preamble_tap(cx, cy)
+            _preamble_tap_normalized(cx / executor._native_width, cy / executor._native_height)
             time.sleep(1.5)
 
             # 验证是否关闭成功
@@ -1953,19 +2120,25 @@ def main():
                 page_type = page_result["page_type"]
                 confidence = page_result["confidence"]
                 features = page_result["features"]
-                
+
                 # 同时保留旧的 VLM 分析（用于 OCR 文本）
                 analysis = _analyzer.analyze(cv_img)
                 ocr_text = analysis.get("ocr_text", "")[:80]
                 page = page_type  # 更新 page 变量用于后续分支判断
-                
+
                 print(f"  [前置 {preamble_attempt+1}/8] 页面={page_type} (置信度 {confidence:.2f})")
                 print(f"    特征：left_bar={features.get('left_bar_brightness', 0):.1f} green={features.get('green_pixels_top_right', 0):.0f} OCR={ocr_text}")
 
-                # 成功条件：world 页面且置信度 > 0.5
-                if page_type == "world" and confidence > 0.5:
+                # 仅在确认进入主世界后保存标注图，避免把退出提示等无效画面当成目标
+                is_world = (page_type == "world" and confidence > 0.5) or _is_world_by_screen_analyzer(cv_img)
+                if is_world:
                     print("[前置] ✅ 已进入游戏世界")
                     nav_success = True
+                    try:
+                        if executor:
+                            executor._save_world_annotation_if_needed(cv_img, "world", confidence)
+                    except Exception as e:
+                        print(f"[前置] 主世界标注截图失败: {e}")
                     break
                 elif page_type == "quest_panel":
                     # 在任务面板，按返回
@@ -2008,7 +2181,7 @@ def main():
                     time.sleep(5)
         else:
             time.sleep(3)
-    
+
     if not nav_success:
         print(f"[前置] ⚠️  未能确认进入世界页面 (最终页面={page})")
         print("[提示] 将继续执行流程，但可能会失败")
