@@ -3,6 +3,7 @@ Scrcpy 视频流核心实现 - 基于 StarRailCopilot 设计
 使用 scrcpy-server v1.25 + PyAV 解码，提供低延迟持续视频流
 """
 import os
+import select
 import socket
 import struct
 import threading
@@ -235,7 +236,6 @@ class ScrcpyCore:
         self.logger.info(LogCategory.MAIN, "重启 scrcpy", device_serial=self.device_serial)
         try:
             self.stop()
-            time.sleep(1.0)
             self.start()
             return True
         except Exception as e:
@@ -304,7 +304,6 @@ class ScrcpyCore:
             self.adb_manager.shell_command(self.device_serial, "killall -9 app_process 2>/dev/null; true", timeout=5)
             # 清理本地 socket 文件
             self.adb_manager.shell_command(self.device_serial, "rm -f /data/local/tmp/scrcpy.log 2>/dev/null; true", timeout=5)
-            time.sleep(0.5)
         except Exception as e:
             self.logger.debug(LogCategory.MAIN, "清理旧 server 失败", error=str(e))
 
@@ -348,8 +347,14 @@ class ScrcpyCore:
             # 不阻塞读取 server 输出，直接进入 socket 建连，由后续连接结果判断是否启动成功
             pass
 
-            # 给 server 极短启动时间，避免 socket 建连过早
-            time.sleep(0.5)
+            # 快速探测 server 是否已开始输出，避免过早建连
+            try:
+                if hasattr(self._server_stream, 'read'):
+                    self._server_stream.read(64)
+                elif hasattr(self._server_stream, 'recv'):
+                    self._server_stream.recv(64)
+            except Exception:
+                pass
 
         except Exception as e:
             raise ScrcpyServerError(f"执行 server 命令失败: {e}") from e
@@ -375,10 +380,10 @@ class ScrcpyCore:
                         break
 
                     if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
+                        pass
                 except Exception:
                     if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
+                        pass
 
             if b'Aborted' in ret:
                 raise ScrcpyServerError('Server aborted (可能 JAR 文件不存在)')
@@ -468,9 +473,6 @@ class ScrcpyCore:
         # 设置 ADB 端口转发（tunnel_forward 模式）
         self._setup_port_forward()
 
-        # 减少固定等待，优先靠 socket 重试加速首帧建连
-        time.sleep(0.3)
-
         # 建立视频 socket，带快速重试，兼容 server 尚未完全准备好
         self._video_socket = self._create_video_socket(timeout=12.0)
 
@@ -508,12 +510,28 @@ class ScrcpyCore:
                 sock = socket.create_connection(("127.0.0.1", self.FORWARD_PORT), timeout=3)
                 self.logger.info(LogCategory.MAIN, "视频 socket 连接成功",
                                  device_serial=self.device_serial, attempt=attempt)
+
+                # 等待 server 开始输出，避免过早返回未就绪 socket
+                try:
+                    sock.settimeout(3.0)
+                    ready = select.select([sock], [], [], 3.0)[0]
+                    if not ready:
+                        raise ScrcpyConnectionError("server 尚未开始输出")
+                    peek = sock.recv(1, socket.MSG_PEEK)
+                    if not peek:
+                        raise ScrcpyConnectionError("server 已关闭连接")
+                except Exception as e:
+                    self.logger.debug(LogCategory.MAIN, "视频 socket 尚未就绪，将重试",
+                                      device_serial=self.device_serial, error=str(e))
+                    self._cleanup_socket(sock)
+                    attempt += 1
+                    continue
+
                 return sock
             except Exception as e:
                 self.logger.debug(LogCategory.MAIN, "视频 socket 连接重试",
                                   device_serial=self.device_serial,
                                   attempt=attempt, error=str(e))
-                time.sleep(0.1)
                 attempt += 1
 
         raise ScrcpyConnectionError("视频 socket 连接超时")
@@ -536,7 +554,6 @@ class ScrcpyCore:
                 self.logger.debug(LogCategory.MAIN, "控制 socket 连接重试",
                                   device_serial=self.device_serial,
                                   attempt=attempt, error=str(e))
-                time.sleep(0.5)
                 attempt += 1
 
         raise ScrcpyConnectionError("控制 socket 连接超时")
@@ -636,7 +653,6 @@ class ScrcpyCore:
             if self._stream_loop_thread.is_alive():
                 self.logger.debug(LogCategory.MAIN, "解码线程已启动", device_serial=self.device_serial)
                 break
-            time.sleep(0.01)
         else:
             raise ScrcpyDecodeError("解码线程启动失败")
 
@@ -735,6 +751,8 @@ class ScrcpyCore:
         """精确接收 n 字节"""
         data = b''
         while len(data) < n:
+            self.logger.debug(LogCategory.MAIN, f"recv_exact waiting {n-len(data)} bytes from fd={self._video_socket.fileno()} timeout={self._video_socket.gettimeout()}",
+                              device_serial=self.device_serial)
             chunk = self._video_socket.recv(n - len(data))
             if not chunk:
                 self.logger.warning(LogCategory.MAIN, f"socket 返回空数据，已接收 {len(data)}/{n} 字节",
@@ -935,7 +953,6 @@ class ScrcpyCore:
             for x, y in points[1:]:
                 if not self.send_touch(x, y, self.TOUCH_ACTION_MOVE):
                     return False
-                time.sleep(interval)
 
             # 发送 UP
             xn, yn = points[-1]

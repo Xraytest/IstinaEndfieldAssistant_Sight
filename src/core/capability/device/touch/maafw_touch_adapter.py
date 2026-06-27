@@ -48,6 +48,7 @@ class MaaFwTouchConfig:
     # MaaAdbScreencapMethodEnum: Default=0, AdbShell=1, RawWithGzip=2, RawByNetcat=3, EncodeToFile=4, Minicap=5
     # MaaAdbInputMethodEnum: Default=0, MiniTouch=2, MaaTouch=3 (AdbShell=1 已弃用)
     SCREENCAP_ADB_SHELL: int = 1
+    INPUT_ADB_SHELL: int = 1
     
     # 触控参数
     press_duration_ms: int = 50
@@ -117,9 +118,9 @@ class MaaFwTouchExecutor:
             # 这里我们直接标记为已加载，因为导入时已完成初始化
             self._library_loaded = True
             # 降低日志级别到 Fatal（关键修复！避免触发 Windows 事件监听器）
-            from maa.define import MaaLogLevel
             try:
-                Library.set_log_level(MaaLogLevel.MaaLogFatal)
+                from maa.define import MaaLoggingLevel
+                Library.set_log_level(MaaLoggingLevel.MaaLogFatal)
                 self.logger.debug(LogCategory.MAIN, "已设置 MAA 日志级别为 Fatal（禁用窗口事件）")
             except Exception as e:
                 self.logger.warning(LogCategory.MAIN, "设置日志级别失败（不影响功能）", error=str(e))

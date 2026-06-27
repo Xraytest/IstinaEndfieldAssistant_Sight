@@ -1,6 +1,6 @@
 {
-  "version": "4.0",
-  "_note": "2026-06-14 基于 MaaEnd 设计模式完善。✓=world 验证有效 ?=面板内未验证 →=需通过菜单间接到达",
+  "version": "5.0",
+  "_note": "2026-06-14 对齐 MaaEnd 页面体系与标准流定义。所有页面引用已更新至 endfield_world_model.json v6.0。",
   "variables": {
     "nav_coords": {
       "_comment": "ADB原生1080x1920物理坐标 (MaaFw 1280x720 x1.5)",
@@ -103,15 +103,54 @@
     "pages": {
       "world_map": "world_map",
       "main_menu": "main_menu",
-      "quest_ui": "quest_ui",
+      "quest_panel": "quest_panel",
       "base_industry": "base_industry",
       "character": "character",
       "explore": "explore",
       "loading": "loading",
       "exit_dialog": "exit_dialog",
       "delivery": "delivery",
-      "dungeon": "dungeon"
+      "dungeon": "dungeon",
+      "signin": "signin",
+      "event_center": "event_center",
+      "settings": "settings",
+      "inventory": "inventory",
+      "combat_report": "combat_report",
+      "announcement": "announcement"
     }
+  },
+  "recognition_config": {
+    "task_icon": {
+      "type": "template",
+      "name": "quest_icon",
+      "roi": [800, 40, 120, 80],
+      "threshold": 0.7
+    },
+    "claim_button": {
+      "type": "ocr",
+      "expected": ["一键领取", "领取奖励", "确认"],
+      "roi": [400, 500, 480, 200],
+      "threshold": 0.6
+    },
+    "exit_dialog": {
+      "type": "ocr",
+      "expected": ["退出", "取消", "确认"],
+      "roi": [300, 400, 680, 320],
+      "threshold": 0.6
+    }
+  },
+  "vlm_prompts": {
+    "quest_panel_open": "验证任务面板已打开：画面中应显示任务列表、标签页（每日/每周/活动）和一键领取按钮",
+    "weekly_tab_active": "验证已切换到周常标签页：画面中应显示周常任务列表，标签页高亮",
+    "base_industry_open": "验证基建面板已打开：画面中应显示设施状态、生产队列和收集资源按钮",
+    "event_center_open": "验证活动中心已打开：画面中应显示活动卡片列表和活动倒计时",
+    "signin_open": "验证签到界面已打开：画面中应显示签到日历和领取按钮",
+    "settings_open": "验证设置界面已打开：画面中应显示设置分类列表",
+    "inventory_open": "验证背包界面已打开：画面中应显示物品网格列表",
+    "combat_report_open": "验证战斗汇报已打开：画面中应显示战斗结果和奖励列表",
+    "announcement_open": "验证公告界面已打开：画面中应显示公告列表",
+    "dungeon_open": "验证副本界面已打开：画面中应显示关卡信息、敌人配置和开始战斗按钮",
+    "explore_open": "验证探索界面已打开：画面中应显示探索区域和任务目标"
   },
   "flows": {
     "daily_quest": {
@@ -119,13 +158,18 @@
       "description": "完成每日任务并领取奖励（参考 MaaEnd DijiangRewards 导航模式）",
       "_status": "基于 MaaEnd 设计模式完善：导航分离 + 状态检测 + 滑动查找 + 错误恢复",
       "_design": "MaaEnd 模式：Navigation(打开面板)→StatusCheck(确认页面)→ScrollFind(滑动查找)→Claim(领取)→Back(返回)",
+      "required_pages": ["world_map", "quest_panel"],
+      "recognition_config": ["task_icon", "claim_button"],
+      "vlm_prompts": ["quest_panel_open"],
       "steps": [
         {
           "id": "open_quest_panel",
           "action": "tap",
           "coords": "{{nav_coords.quest_icon}}",
           "wait": 3,
-          "desc": "打开任务面板 (860,80) ✓ 已验证"
+          "desc": "打开任务面板 (860,80) ✓ 已验证",
+          "vlm_confirm": true,
+          "vlm_prompt": "{{vlm_prompts.quest_panel_open}}"
         },
         {
           "id": "claim_daily_rewards",
@@ -147,11 +191,14 @@
       "description": "完成周常任务并领取奖励（参考 MaaEnd BAKER 筛选模式）",
       "_status": "基于 MaaEnd BAKER 设计：Tab 切换→滑动查找→筛选未读→领取",
       "_design": "MaaEnd BAKER 模式：SwitchTab(切换标签)→SwipeFilter(滑动筛选)→FilterUnread(查找可领取)→Claim(领取)",
+      "required_pages": ["world_map", "quest_panel"],
+      "recognition_config": ["task_icon", "claim_button"],
+      "vlm_prompts": ["quest_panel_open", "weekly_tab_active"],
       "steps": [
         {
           "id": "ensure_world",
           "action": "check",
-          "expect": "world",
+          "expect": "world_map",
           "desc": "确保在探索界面"
         },
         {
@@ -161,9 +208,7 @@
           "wait": 4,
           "desc": "打开任务面板 (860,80) ✓",
           "vlm_confirm": true,
-          "vlm_prompt": "确认画面右上角有任务图标 (黄色感叹号或任务按钮)",
-          "vlm_verify": true,
-          "vlm_verify_prompt": "验证任务面板已打开（画面中有任务列表或任务相关 UI 元素）"
+          "vlm_prompt": "{{vlm_prompts.quest_panel_open}}"
         },
         {
           "id": "verify_quest_panel",
@@ -180,7 +225,7 @@
           "vlm_confirm": true,
           "vlm_prompt": "确认任务面板内有周常/每周事务标签页",
           "vlm_verify": true,
-          "vlm_verify_prompt": "验证已切换到周常标签页（画面中显示周常任务列表）"
+          "vlm_verify_prompt": "{{vlm_prompts.weekly_tab_active}}"
         },
         {
           "id": "scroll_weekly_list",
@@ -222,7 +267,7 @@
         {
           "id": "verify_world_return",
           "action": "check",
-          "expect": "world",
+          "expect": "world_map",
           "desc": "验证已返回世界地图"
         }
       ]

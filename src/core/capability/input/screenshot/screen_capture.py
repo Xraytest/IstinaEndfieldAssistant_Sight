@@ -494,11 +494,8 @@ class ScreenCapture:
         current_time = time.time()
         time_since_last = current_time - self.last_capture_time
         if time_since_last < self.min_interval:
-            wait_time = self.min_interval - time_since_last
-            self.logger.debug(LogCategory.MAIN, f"截图间隔不足，等待 {wait_time:.3f} 秒",
+            self.logger.debug(LogCategory.MAIN, f"截图间隔不足，跳过等待",
                               device_serial=device_serial)
-            time.sleep(wait_time)
-            current_time = time.time()
 
         start_time = current_time
 

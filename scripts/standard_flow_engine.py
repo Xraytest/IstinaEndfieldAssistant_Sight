@@ -20,6 +20,9 @@ from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import cv2
+import numpy as np
+
 from _path_setup import PROJECT_ROOT, SRC_DIR, ensure_path
 ensure_path()
 
@@ -170,14 +173,14 @@ class FlowConfig:
 
 
 # ══════════════════════════════════════════════════════════════════
-# 多源画面分析器 — MaaFw 金色元素 + OCR 文字 + VLM 综合判断
+# 多源画面分析器 — OCR + YOLO + LLM 行为决策
 # ══════════════════════════════════════════════════════════════════
 
 class ScreenAnalyzer:
-    """多源画面分析器：YOLO 元素检测 + 金色元素 + OCR 文字 + VLM 综合判断"""
+    """多源画面分析器：YOLO 元素检测 + OCR 文字 + LLM 行为决策"""
 
     def __init__(self, maafw_executor=None, llama_url="http://127.0.0.1:8080"):
-        self._maafw = maafw_executor
+        self._maafw_executor = maafw_executor
         self._llama_url = llama_url
         self._yolo = None
 
@@ -201,7 +204,7 @@ class ScreenAnalyzer:
             "page_type": "unknown",
             "yolo_objects": [],
             "ocr_text": "",
-            "vlm_judgment": "",
+            "llm_action": None,
             "sources": []
         }
 
@@ -211,15 +214,20 @@ class ScreenAnalyzer:
         if yolo_objects:
             result["sources"].append("yolo")
 
-        # 2. OCR 文字识别（VLM）
-        ocr_text = self._ocr_via_vlm(img)
+        # 2. OCR 文字识别（优先 MaaFw，其次 VLM，最后 PaddleOCR）
+        ocr_text = self._ocr_via_maafw(img)
+        if not ocr_text:
+            ocr_text = self._ocr_via_vlm(img)
+        if not ocr_text:
+            ocr_text = self._ocr_via_paddle(img)
         result["ocr_text"] = ocr_text
         if ocr_text:
             result["sources"].append("ocr")
 
-        # 3. VLM 综合判断（融合 YOLO + OCR 信息）
-        result["vlm_judgment"] = self._vlm_classify(img, yolo_objects, ocr_text)
-        result["sources"].append("vlm")
+        # 3. LLM 行为决策（输入 OCR + YOLO，输出动作）
+        result["llm_action"] = self._llm_decide_action(img, yolo_objects, ocr_text)
+        if result["llm_action"]:
+            result["sources"].append("llm")
 
         # 4. 关键词快速分类
         result["page_type"] = self._classify_by_keywords(ocr_text, yolo_objects)
@@ -258,11 +266,96 @@ class ScreenAnalyzer:
 
 
 
-    def _ocr_via_vlm(self, img) -> str:
-        """通过 llama-server VLM 做 OCR 文字提取（禁用 thinking 模式）
+    def _ocr_via_maafw(self, img) -> str:
+        """通过 MaaFramework 原生 OCR 识别文字（优先使用）
 
-        超时 15 秒，失败返回空字符串以允许关键词分类器降级工作。
+        基于 MaaEnd 的 OCR 思路：直接调用 MaaFw 的 OCR 识别能力，
+        避免 VLM 延迟和 PaddleOCR OneDNN 问题。
+
+        Args:
+            img: OpenCV 图像
+
+        Returns:
+            识别到的文字，每行一个
         """
+        try:
+            from pathlib import Path
+            from maa.define import AlgorithmEnum
+            from maa.pipeline import JOCR
+
+            maafw = getattr(self, '_maafw_executor', None)
+            if maafw is None or not getattr(maafw, '_connected', False) or maafw._tasker is None:
+                return ""
+
+            if img is None or img.size == 0:
+                return ""
+
+            model_loaded = False
+            model_candidates = [
+                Path(__file__).resolve().parent.parent / "models" / "ocr",
+                Path(__file__).resolve().parent.parent / "assets" / "model" / "ocr",
+                Path(r'C:\Users\cheng\AppData\Local\MaaXYZ\MaaMCP\resource\model\ocr'),
+            ]
+            for model_path in model_candidates:
+                if model_path.is_dir():
+                    try:
+                        model_job = maafw._resource.post_ocr_model(model_path)
+                        if model_job is not None:
+                            model_job.wait()
+                        if model_job is not None and model_job.succeeded:
+                            model_loaded = True
+                            break
+                    except Exception as e:
+                        print(f"  [OCR] 加载模型失败 {model_path}: {e}")
+
+            if not model_loaded:
+                print("  [OCR] 未找到可用 OCR 模型目录，跳过 MaaFw OCR")
+                return ""
+
+            roi = getattr(maafw._controller, 'cached_image', None)
+            if roi is not None and hasattr(roi, 'shape'):
+                roi = (0, 0, roi.shape[1], roi.shape[0])
+            else:
+                roi = (0, 0, 0, 0)
+
+            param = JOCR(roi=roi, expected=[], replace=[])
+            job = maafw._tasker.post_recognition(AlgorithmEnum.OCR, param, img)
+            if job is None:
+                return ""
+
+            try:
+                job.wait()
+            except Exception:
+                pass
+
+            if not job.succeeded:
+                return ""
+
+            recognition_detail = maafw._tasker.get_recognition_detail(job.job_id)
+            if recognition_detail is None:
+                try:
+                    task_detail = job.get()
+                    node = task_detail.nodes[0]
+                    recognition_detail = node.recognition
+                except Exception as e:
+                    print(f"  [OCR] 获取识别结果失败: {e}")
+                    return ""
+
+            if not recognition_detail or not recognition_detail.hit:
+                return ""
+
+            texts = []
+            for result in recognition_detail.all_results:
+                text = getattr(result, 'text', '')
+                if text:
+                    texts.append(text)
+            return "\n".join(texts)
+        except Exception as e:
+            print(f"  [OCR] MaaFw OCR 失败: {e}")
+            return ""
+
+    def _call_llm_with_image(self, img, prompt: str) -> str:
+        """统一 LLM 图像调用入口，避免重复实现 VLM 请求逻辑"""
         import cv2, base64, json, urllib.request
         try:
             _, buf = cv2.imencode('.png', img)
@@ -271,7 +364,7 @@ class ScreenAnalyzer:
                 f"{self._llama_url}/v1/chat/completions",
                 data=json.dumps({
                     "messages": [{"role": "user", "content": [
-                        {"type": "text", "text": "列出画面中所有可见的文字，每行一个。如果没有文字就说'无文字'。不要添加任何解释。"},
+                        {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
                     ]}],
                     "max_tokens": 300,
@@ -282,60 +375,99 @@ class ScreenAnalyzer:
             )
             resp = json.loads(urllib.request.urlopen(req, timeout=15).read())
             content = resp["choices"][0]["message"].get("content", "").strip()
-            # 如果 content 为空但有 reasoning_content，使用 reasoning_content
             if not content:
                 content = resp["choices"][0]["message"].get("reasoning_content", "").strip()
             return content
         except Exception as e:
-            print(f"  [OCR] VLM 不可用: {e}")
+            print(f"  [LLM] 调用失败: {e}")
             return ""
 
-    def _vlm_classify(self, img, yolo_objects: list, ocr_text: str) -> str:
-        """VLM 综合判断画面类型（融合 YOLO + 金色元素 + OCR 信息）
+    def _ocr_via_paddle(self, img) -> str:
+        """本地 PaddleOCR 兜底：直接从画面提取文字，避免 LLM 不可用时 OCR 为空"""
+        try:
+            from paddleocr import PaddleOCR
+            import tempfile, os
+            if not hasattr(self, '_paddle_ocr') or self._paddle_ocr is None:
+                self._paddle_ocr = PaddleOCR(use_angle_cls=False, show_log=False)
+            fd, tmp_path = tempfile.mkstemp(suffix='.png')
+            os.close(fd)
+            import cv2
+            cv2.imwrite(tmp_path, img)
+            result = self._paddle_ocr.ocr(tmp_path, cls=False)
+            os.remove(tmp_path)
+            lines = []
+            if result and result[0]:
+                for line in result[0]:
+                    text = line[1][0].strip()
+                    if text:
+                        lines.append(text)
+            return "\n".join(lines)
+        except Exception as e:
+            print(f"  [OCR] PaddleOCR 失败: {e}")
+            return ""
 
-        超时 15 秒，失败返回空字符串，由关键词分类器兜底。
+    def _llm_decide_action(self, img, yolo_objects: list, ocr_text: str) -> dict:
+        """统一 LLM 决策：输入 OCR + YOLO + 画面，输出行为动作
+
+        返回结构：
+        {
+            "suggested_action": "tap|swipe|back|wait|claim|navigate|skip",
+            "target": "目标描述",
+            "coordinates": [x, y],
+            "reason": "理由"
+        }
         """
-        import cv2, base64, json, urllib.request
         try:
             yolo_summary = "YOLO检测: " + (", ".join(
                 f"{o['class']}({o['confidence']})" for o in yolo_objects[:10]
             ) if yolo_objects else "无检测")
-            golden_summary = "金色元素：已弃用"  # 金色元素机制已移除
 
             prompt = (
                 f"OCR文字: {ocr_text[:300]}\n"
-                f"{yolo_summary}\n"
-                f"{golden_summary}\n\n"
-                "请判断当前画面属于哪种类型, 只回答一个词: title(标题/登录画面), loading(加载中), "
-                "world(探索世界), quest_panel(任务面板), settings(设置菜单), other(其他)"
+                f"{yolo_summary}\n\n"
+                "请分析当前画面并返回 JSON 决策：{\n  \"suggested_action\": \"tap|swipe|back|wait|claim|navigate|skip\",\n  \"target\": \"目标元素中文描述\",\n  \"coordinates\": [x, y],\n  \"reason\": \"一句话理由\"\n}\n"
             )
 
-            _, buf = cv2.imencode('.png', img)
-            img_b64 = base64.b64encode(buf).decode()
-            req = urllib.request.Request(
-                f"{self._llama_url}/v1/chat/completions",
-                data=json.dumps({
-                    "messages": [{"role": "user", "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}}
-                    ]}],
-                    "max_tokens": 100,
-                    "temperature": 0,
-                    "chat_template_kwargs": {"enable_thinking": False}
-                }).encode(),
-                headers={"Content-Type": "application/json"}
-            )
-            resp = json.loads(urllib.request.urlopen(req, timeout=15).read())
-            content = resp["choices"][0]["message"].get("content", "").strip()
-            if not content:
-                content = resp["choices"][0]["message"].get("reasoning_content", "").strip()
-            return content
+            text = self._call_llm_with_image(img, prompt)
+            parsed = self._parse_action_json(text)
+            if parsed:
+                return parsed
+            return {
+                "suggested_action": "back",
+                "target": "未知",
+                "coordinates": None,
+                "reason": text[:120] if text else "LLM 无响应"
+            }
         except Exception as e:
-            print(f"  [VLM] 分类不可用: {e}")
-            return ""
+            print(f"  [LLM] 决策失败: {e}")
+            return {
+                "suggested_action": "back",
+                "target": "未知",
+                "coordinates": None,
+                "reason": str(e)
+            }
+
+    @staticmethod
+    def _parse_action_json(text: str) -> dict:
+        """从 LLM 返回文本中提取动作 JSON"""
+        if not text:
+            return {}
+        try:
+            if text.strip().startswith("{"):
+                return json.loads(text)
+        except Exception:
+            pass
+        import re
+        m = re.search(r'\{[\s\S]*\}', text)
+        if m:
+            try:
+                return json.loads(m.group())
+            except Exception:
+                pass
+        return {}
 
     def _classify_by_keywords(self, ocr_text: str, yolo_objects: list) -> str:
-        """基于 OCR 关键词 + YOLO 快速分类（不依赖 VLM 和金色元素）"""
+        """基于 OCR 关键词 + YOLO 快速分类（不依赖 LLM）"""
         text = ocr_text.lower()
         yolo_classes = [o["class"] for o in yolo_objects]
 
@@ -883,6 +1015,23 @@ class Local2BEngine:
     def is_local(self) -> bool:
         return not self._using_api
 
+    def stop(self):
+        """停止本地 llama-server（标准流结束时调用）"""
+        if self._server_process is not None:
+            try:
+                self._server_process.terminate()
+                self._server_process.wait(timeout=5)
+            except Exception:
+                try:
+                    self._server_process.kill()
+                except Exception:
+                    pass
+            self._server_process = None
+        self._loaded = False
+        self._using_api = False
+        self._api_client = None
+        print("[2b] 本地模型服务已停止")
+
     def __del__(self):
         if self._server_process is not None:
             try:
@@ -1040,6 +1189,8 @@ class StandardFlowExecutor:
         self.adb = ADB(device_addr)
         self._stop_requested = False
         self._last_hash = None
+        self._model_started_for_flow = False
+        self._model_ensured_for_flow = False
 
         # 强制要求 9:16 竖屏分辨率
         self._native_width, self._native_height = self._get_device_resolution()
@@ -1073,6 +1224,33 @@ class StandardFlowExecutor:
 
     def stop(self):
         self._stop_requested = True
+        self._stop_model_if_started()
+
+    def _stop_model_if_started(self):
+        """若当前流程启用了本地模型，则在流程结束时停止"""
+        if self._model_started_for_flow and self.model is not None:
+            try:
+                self.model.stop()
+            except Exception as e:
+                print(f"[LLM] 停止模型失败: {e}")
+            finally:
+                self._model_started_for_flow = False
+                self._model_ensured_for_flow = False
+
+    def _ensure_model_for_flow(self) -> bool:
+        """按需启用模型：仅在流程内首次需要 LLM/VLM 时加载/确认"""
+        if self._model_ensured_for_flow:
+            return self._model_started_for_flow
+        self._model_ensured_for_flow = True
+        if self.model is None:
+            return False
+        try:
+            started = bool(self.model.load())
+        except Exception as e:
+            print(f"[LLM] 流程内加载模型失败: {e}")
+            started = False
+        self._model_started_for_flow = started
+        return started
 
     def _get_device_resolution(self) -> tuple[int, int]:
         """获取设备物理分辨率"""
@@ -1251,6 +1429,8 @@ class StandardFlowExecutor:
         print(f"{'='*60}\n")
 
         self._stop_requested = False
+        self._model_started_for_flow = False
+        self._model_ensured_for_flow = False
         all_success = True
 
         for i, step_cfg in enumerate(steps):
@@ -1525,7 +1705,9 @@ class StandardFlowExecutor:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
             ocr_region_count += 1
 
-            ocr_text = self.screen_analyzer._ocr_via_vlm(cv_img)
+            ocr_text = self.screen_analyzer._ocr_via_maafw(cv_img)
+            if not ocr_text:
+                ocr_text = self.screen_analyzer._ocr_via_paddle(cv_img)
             if ocr_text and ocr_text != "无文字":
                 text_overlay = ocr_text[:200].replace('\n', ' | ')
                 overlay_y = h - 30
@@ -1875,13 +2057,9 @@ def main():
         device_addr=device_addr
     ) if not args.analyze_only else None
 
-    # 初始化模型引擎
+    # 初始化模型引擎（不在这里硬编码加载；由流程内按需启用）
     engine = Local2BEngine()
-    ok = engine.load()
-    if not ok:
-        print("[ERROR] 模型加载失败")
-        return 1
-    if args.local_only and not engine.is_local():
+    if args.local_only and engine.is_local() is False:
         print("[ERROR] --local-only 但本地模型不可用")
         return 1
     model_type = "本地2B" if engine.is_local() else "API (exploration_deep)"
@@ -2043,39 +2221,6 @@ def main():
             result["vlm_action"] = vlm_result
         return result
 
-    # 保留旧的金色元素计数方法（用于降级/调试）
-    def _count_gold_elements(cv_img):
-        """计算金色元素数量（页面类型判断依据）"""
-        if cv_img is None:
-            return 0
-        # 旋转到横屏并 resize
-        img_rot = cv2.rotate(cv_img, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        img_resized = cv2.resize(img_rot, (1280, 720))
-        hsv = cv2.cvtColor(img_resized, cv2.COLOR_BGR2HSV)
-        lower_gold = np.array([25, 100, 100])
-        upper_gold = np.array([35, 255, 255])
-        mask = cv2.inRange(hsv, lower_gold, upper_gold)
-        kernel = np.ones((3,3),np.uint8)
-        dilated_mask = cv2.dilate(mask, kernel, iterations=2)
-        eroded_mask = cv2.erode(dilated_mask, kernel, iterations=1)
-        contours, _ = cv2.findContours(eroded_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        return len([c for c in contours if cv2.contourArea(c) > 50])
-    
-    def _classify_page_by_gold(gold_count):
-        """基于金色元素数量判断页面类型"""
-        if gold_count >= 22:
-            return "quest_panel"
-        elif gold_count >= 18:
-            return "world"
-        elif gold_count >= 15:
-            return "world_low_gold"
-        elif gold_count >= 12:
-            return "exit_dialog"
-        elif gold_count >= 8:
-            return "menu"
-        else:
-            return "other"
-    
     def _close_exit_dialog():
         """关闭退出对话框，尝试多个候选坐标"""
         cancel_candidates = [
