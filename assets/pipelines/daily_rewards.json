@@ -1,0 +1,18 @@
+{
+  "DailyRewardEnd": {
+    "post_delay": 0,
+    "pre_delay": 0
+  },
+  "DailyRewardStart": {
+    "next": [
+      "[JumpBack]DailyEmailRewardSub",
+      "[JumpBack]DailyTaskRewardSub",
+      "[JumpBack]DailyClaimDeliveryJobsRewardSub",
+      "[JumpBack]DailyProtocolPassRewardSub",
+      "[JumpBack]DailyEventRewardSub",
+      "DailyRewardEnd"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0
+  }
+}

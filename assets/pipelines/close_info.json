@@ -1,0 +1,139 @@
+{
+  "CloseButton": {
+    "action": {
+      "type": "Click"
+    },
+    "recognition": {
+      "param": {
+        "green_mask": true,
+        "roi": [
+          928,
+          10,
+          345,
+          281
+        ],
+        "template": [
+          "OpenGame/CloseButtonPC.png",
+          "OpenGame/CloseButton.png"
+        ],
+        "threshold": 0.65
+      },
+      "type": "TemplateMatch"
+    }
+  },
+  "CloseButtonType1": {
+    "action": {
+      "type": "Click"
+    },
+    "desc": "通用关闭按钮类型1：右上角 X，仅覆盖普通关闭按钮，不兼容 ESC 菜单",
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": {
+      "param": {
+        "any_of": [
+          "__CloseButtonType1",
+          "__CloseButtonType2",
+          "__CloseButtonType3",
+          "__CloseButtonType4",
+          "__CloseButtonType5"
+        ]
+      },
+      "type": "Or"
+    }
+  },
+  "CloseFastCollectCluesRewards": {
+    "action": {
+      "type": "Click"
+    },
+    "desc": "关闭快速收取线索奖励界面",
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": 150,
+    "rate_limit": 0,
+    "recognition": {
+      "param": {
+        "all_of": [
+          "CloseRewardsButton",
+          "CloseRewardsButtonText"
+        ]
+      },
+      "type": "And"
+    }
+  },
+  "CloseFastCollectProductionRewards": {
+    "action": {
+      "type": "Click"
+    },
+    "desc": "关闭快速收取产物奖励界面",
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": 150,
+    "rate_limit": 0,
+    "recognition": {
+      "param": {
+        "all_of": [
+          "CloseRewardsButton",
+          "CloseRewardsButtonText"
+        ]
+      },
+      "type": "And"
+    }
+  },
+  "CloseRewardsButton": {
+    "desc": "奖励关闭按钮：位于界面中下部，当前仅依赖按钮模板识别",
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "pre_wait_freezes": {
+      "time": 50,
+      "timeout": 1000
+    },
+    "rate_limit": 0,
+    "recognition": {
+      "param": {
+        "all_of": [
+          "__CloseRewardsButton"
+        ]
+      },
+      "type": "And"
+    }
+  },
+  "CloseRewardsButtonText": {
+    "desc": "识别奖励界面关闭按钮",
+    "recognition": {
+      "param": {
+        "expected": [
+          "获得奖励",
+          "獲得獎勵",
+          "(?i)Rewards\\s*Acquired",
+          "報酬一覧"
+        ],
+        "roi": [
+          537,
+          21,
+          209,
+          149
+        ]
+      },
+      "type": "OCR"
+    }
+  }
+}

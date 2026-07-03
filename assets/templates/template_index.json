@@ -1,0 +1,234 @@
+{
+  "modules": [
+    {
+      "name": "AccountSwitch",
+      "path": "AccountSwitch",
+      "template_count": 3
+    },
+    {
+      "name": "AutoEcoFarm",
+      "path": "AutoEcoFarm",
+      "template_count": 14
+    },
+    {
+      "name": "AutoEssence",
+      "path": "AutoEssence",
+      "template_count": 10
+    },
+    {
+      "name": "AutoFight",
+      "path": "AutoFight",
+      "template_count": 7
+    },
+    {
+      "name": "AutoSell",
+      "path": "AutoSell",
+      "template_count": 15
+    },
+    {
+      "name": "AutoStockpile",
+      "path": "AutoStockpile",
+      "template_count": 12
+    },
+    {
+      "name": "Baker",
+      "path": "Baker",
+      "template_count": 18
+    },
+    {
+      "name": "BatchAddFriends",
+      "path": "BatchAddFriends",
+      "template_count": 2
+    },
+    {
+      "name": "BatchUseDetector",
+      "path": "BatchUseDetector",
+      "template_count": 4
+    },
+    {
+      "name": "BetterSliding",
+      "path": "BetterSliding",
+      "template_count": 1
+    },
+    {
+      "name": "CheckEmail",
+      "path": "CheckEmail",
+      "template_count": 3
+    },
+    {
+      "name": "ClaimDijiangRewards",
+      "path": "ClaimDijiangRewards",
+      "template_count": 15
+    },
+    {
+      "name": "CloseInfo",
+      "path": "CloseInfo",
+      "template_count": 8
+    },
+    {
+      "name": "Common",
+      "path": "Common",
+      "template_count": 44
+    },
+    {
+      "name": "CreditShopping",
+      "path": "CreditShopping",
+      "template_count": 3
+    },
+    {
+      "name": "DailyRewards",
+      "path": "DailyRewards",
+      "template_count": 16
+    },
+    {
+      "name": "DeliveryJobs",
+      "path": "DeliveryJobs",
+      "template_count": 13
+    },
+    {
+      "name": "EnvironmentMonitoring",
+      "path": "EnvironmentMonitoring",
+      "template_count": 2
+    },
+    {
+      "name": "EssenceFilter",
+      "path": "EssenceFilter",
+      "template_count": 13
+    },
+    {
+      "name": "GearAssembly",
+      "path": "GearAssembly",
+      "template_count": 4
+    },
+    {
+      "name": "GiftOperator",
+      "path": "GiftOperator",
+      "template_count": 31
+    },
+    {
+      "name": "ImportBluePrints",
+      "path": "ImportBluePrints",
+      "template_count": 1
+    },
+    {
+      "name": "InScene",
+      "path": "InScene",
+      "template_count": 3
+    },
+    {
+      "name": "ItemTransfer",
+      "path": "ItemTransfer",
+      "template_count": 5
+    },
+    {
+      "name": "LevelUpOperator",
+      "path": "LevelUpOperator",
+      "template_count": 11
+    },
+    {
+      "name": "MapLocator",
+      "path": "MapLocator",
+      "template_count": 54
+    },
+    {
+      "name": "MapTracker",
+      "path": "MapTracker",
+      "template_count": 81
+    },
+    {
+      "name": "OpenGame",
+      "path": "OpenGame",
+      "template_count": 6
+    },
+    {
+      "name": "ProdManual",
+      "path": "ProdManual",
+      "template_count": 4
+    },
+    {
+      "name": "ProtocolSpace",
+      "path": "ProtocolSpace",
+      "template_count": 29
+    },
+    {
+      "name": "PullCountCalculator",
+      "path": "PullCountCalculator",
+      "template_count": 1
+    },
+    {
+      "name": "PuzzleSolver",
+      "path": "PuzzleSolver",
+      "template_count": 8
+    },
+    {
+      "name": "ReadWiki",
+      "path": "ReadWiki",
+      "template_count": 6
+    },
+    {
+      "name": "RealTimeTask",
+      "path": "RealTimeTask",
+      "template_count": 16
+    },
+    {
+      "name": "SceneManager",
+      "path": "SceneManager",
+      "template_count": 141
+    },
+    {
+      "name": "SeizeDeliveryJobs",
+      "path": "SeizeDeliveryJobs",
+      "template_count": 27
+    },
+    {
+      "name": "SellProduct",
+      "path": "SellProduct",
+      "template_count": 5
+    },
+    {
+      "name": "SimpleProductionBatch",
+      "path": "SimpleProductionBatch",
+      "template_count": 2
+    },
+    {
+      "name": "SimulationSpace",
+      "path": "SimulationSpace",
+      "template_count": 11
+    },
+    {
+      "name": "StashBackpack",
+      "path": "StashBackpack",
+      "template_count": 2
+    },
+    {
+      "name": "TPPoint",
+      "path": "TPPoint",
+      "template_count": 1
+    },
+    {
+      "name": "TrialOfSwordmancy",
+      "path": "TrialOfSwordmancy",
+      "template_count": 20
+    },
+    {
+      "name": "Valuables",
+      "path": "Valuables",
+      "template_count": 5
+    },
+    {
+      "name": "VisitFriends",
+      "path": "VisitFriends",
+      "template_count": 16
+    },
+    {
+      "name": "Weapon",
+      "path": "Weapon",
+      "template_count": 4
+    },
+    {
+      "name": "WebEvent",
+      "path": "WebEvent",
+      "template_count": 5
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "OpenGame": {
+    "next": [
+      "EnterGame",
+      "[JumpBack]ClickContinue",
+      "[JumpBack]CheckIn",
+      "[JumpBack]CollectRewards",
+      "[JumpBack]CheckInConfirmButton",
+      "[JumpBack]MonthlyCard",
+      "[JumpBack]WaitCloseGameButton",
+      "[JumpBack]CloseButton",
+      "[JumpBack]ConfirmCharacter",
+      "[JumpBack]LoginFailed",
+      "[JumpBack]WaitLoadingIcon",
+      "[JumpBack]WaitLoadingText",
+      "[JumpBack]WaitBlackScreen"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0
+  }
+}

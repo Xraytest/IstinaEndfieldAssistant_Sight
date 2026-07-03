@@ -1,0 +1,2053 @@
+{
+  "__ScenePrivateCloseErrorDialog": {
+    "action": "Click",
+    "desc": "关闭登录时错误弹窗提示",
+    "recognition": "TemplateMatch",
+    "roi": [
+      350,
+      180,
+      600,
+      350
+    ],
+    "template": "SceneManager/LoginDialogConfirm.png",
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapFilterClear": {
+    "action": "Click",
+    "desc": "在地图界面，清除筛选条件",
+    "next": [
+      "__ScenePrivateMapFilterClearAll"
+    ],
+    "post_wait_freezes": 200,
+    "recognition": "TemplateMatch",
+    "roi": [
+      0,
+      -120,
+      220,
+      120
+    ],
+    "template": "SceneManager/MapFilterNotChoose.png"
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang0Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang0Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang0Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang0Left.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang0Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang0Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang1Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang1Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang1Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang1Left.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang1Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang1Bottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang2Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang2Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang2Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang2Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldDijiang2Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapDijiang/Dijiang2Bottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring0Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring0Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring0Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring0Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring1Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring1Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring1Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring1Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring1Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring1Top.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring2Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring2Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring2Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring2Bottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring2Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring2Left.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring3Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring3Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring3Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring3Bottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring3Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring3Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring4Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring4Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring4Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring4Left.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginLodespring4Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginLodespring4Top.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark0Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark0Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark0Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark0Bottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark0Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark0Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark1Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark1Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark1Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark1Bottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark1Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark1Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark2Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark2Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark2Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark2Bottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark2Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark2Left.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark3Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark3Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark3Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark3Top.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark3Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark3Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark4Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark4Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark4Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark4Left.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumSciencePark4Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumSciencePark4Top.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumScienceParkInfraTry1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumScienceParkInfraCenter.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumScienceParkInfraTry2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumScienceParkInfraRight.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVOriginiumScienceParkInfraTry3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/OriginiumScienceParkInfraBottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau0Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau0Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau0Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      -60,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau0Bottom.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau0Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau0Left.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau1Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau1Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau1Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau1Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau1Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau1Top.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau2Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau2Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau2Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau2Right.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau2Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau2Top.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau3Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau3Center.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau3Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau3Left.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldValleyIVPowerPlateau3Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/ValleyIV/PowerPlateau3Top.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldWulingJingyuValley4Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapWuling/JingyuValley4Center.png",
+      "SceneManager/MapWuling/JingyuValley4Center1.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldWulingJingyuValley4Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      140,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapWuling/JingyuValley4Left.png",
+      "SceneManager/MapWuling/JingyuValley4Left1.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldWulingJingyuValley4Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapWuling/JingyuValley4Top.png",
+      "SceneManager/MapWuling/JingyuValley4Top1.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldWulingMarkerStone4Try1": {
+    "action": "Click",
+    "desc": "在地图界面找锚点 (首墩-栖云窟)",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      40,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapWuling/MarkerStone4Center.png",
+      "SceneManager/MapWuling/MarkerStone4Center1.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldWulingMarkerStone4Try2": {
+    "action": "Click",
+    "desc": "在地图界面找锚点 (首墩-栖云窟)",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      520
+    ],
+    "target_offset": [
+      -60,
+      40,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapWuling/MarkerStone4Right.png",
+      "SceneManager/MapWuling/MarkerStone4Right1.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMapUnknownEnterWorldWulingMarkerStone4Try3": {
+    "action": "Click",
+    "desc": "在地图界面找锚点 (首墩-栖云窟)",
+    "next": [
+      "__ScenePrivateMapTeleportConfirmWithSwipeAnchorClear"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        -100,
+        0,
+        100,
+        100
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      100,
+      100,
+      1080,
+      420
+    ],
+    "target_offset": [
+      40,
+      140,
+      -80,
+      -80
+    ],
+    "template": [
+      "SceneManager/MapWuling/MarkerStone4Top.png",
+      "SceneManager/MapWuling/MarkerStone4Top1.png"
+    ],
+    "threshold": 0.9
+  },
+  "__ScenePrivateMenuFriendsEnterMenuFriendsList": {
+    "action": "Click",
+    "desc": "从好友菜单进入好友列表",
+    "next": [
+      "__ScenePrivateMenuFriendsEnterMenuFriendsListSuccess"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      450,
+      0,
+      400,
+      70
+    ],
+    "template": [
+      "SceneManager/FriendsList1.png",
+      "SceneManager/FriendsList2.png"
+    ]
+  },
+  "__ScenePrivateWorldEnterMenuAICPlanClick": {
+    "action": {
+      "param": {
+        "custom_action": "AutoAltClickAction"
+      },
+      "type": "Custom"
+    },
+    "desc": "从大世界点击进入工业计划菜单",
+    "next": [
+      "__ScenePrivateAnyEnterMenuAICPlanSuccess"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      0,
+      0,
+      300,
+      100
+    ],
+    "template": [
+      "SceneManager/MenuAICPlan.png",
+      "SceneManager/MenuAICPlan2.png"
+    ]
+  },
+  "__ScenePrivateWorldSpaceExit": {
+    "action": "Custom",
+    "custom_action": "AutoAltClickAction",
+    "desc": "从大世界协议空间、好友飞船退出",
+    "next": [
+      "__ScenePrivateWorldSpaceExitConfirm",
+      "__ScenePrivateEndVisit"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": 200,
+    "recognition": "TemplateMatch",
+    "roi": [
+      0,
+      0,
+      100,
+      100
+    ],
+    "template": [
+      "SceneManager/WorldSpaceExit.png",
+      "SceneManager/WorldSpaceExit1.png"
+    ]
+  }
+}

@@ -1,0 +1,1228 @@
+{
+  "DeliveryJobsAcceptJobOnly": {
+    "action": "StopTask",
+    "desc": "仅接取任务，停止后续转交流程，并提醒用户",
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.DeliveryJobs.AcceptJobOnly"
+    }
+  },
+  "DeliveryJobsAuto": {
+    "desc": "自动选择起始地区运送委托",
+    "max_hit": 1,
+    "next": [
+      "DeliveryJobsAutoValleyIV",
+      "DeliveryJobsAutoWuling",
+      "DeliveryJobsLoop"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsAutoValleyIV": {
+    "any_of": [
+      "InRegionalDevelopmentValleyIV",
+      "DeliveryJobsInValleyIVLocalDepotNode"
+    ],
+    "desc": "自动选择四号谷地运送委托",
+    "next": [
+      "DeliveryJobsValleyIV",
+      "DeliveryJobsLoop"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "Or"
+  },
+  "DeliveryJobsAutoWuling": {
+    "any_of": [
+      "InRegionalDevelopmentWuling",
+      "DeliveryJobsInWulingLocalDepotNode"
+    ],
+    "desc": "自动选择武陵运送委托",
+    "next": [
+      "DeliveryJobsWuling",
+      "DeliveryJobsLoop"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "Or"
+  },
+  "DeliveryJobsBackToDepot": {
+    "all_of": [
+      "InWorld"
+    ],
+    "desc": "回到本地仓储界面",
+    "next": [
+      "[Anchor]DeliveryJobsGoToDepot"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsBackToDepotFromBid": {
+    "action": "Click",
+    "all_of": [
+      "CloseButtonType1",
+      "DeliveryJobsInCargoRedistributionBid"
+    ],
+    "desc": "从调度申请界面回到本地仓储界面",
+    "next": [
+      "InLocalDepotNode"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsCargoBid": {
+    "action": "Click",
+    "desc": "货物竞价",
+    "next": [
+      "DeliveryJobsInCargoRedistributionBid"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      789,
+      524,
+      220,
+      143
+    ],
+    "template": "DeliveryJobs/CargoBid.png",
+    "threshold": 0.8
+  },
+  "DeliveryJobsCargoFillToMax": {
+    "action": "Click",
+    "desc": "装满货物",
+    "next": [
+      "DeliveryJobsFillToMaxNextStep"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      1141,
+      156,
+      78,
+      89
+    ],
+    "template": "DeliveryJobs/CargoFillToMax.png",
+    "threshold": 0.8
+  },
+  "DeliveryJobsCheckCargoFilledToMax": {
+    "desc": "检查是否装满货物",
+    "next": [
+      "DeliveryJobsFillToMaxNextStep"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      1194,
+      139,
+      86,
+      115
+    ],
+    "template": "DeliveryJobs/CargoFilledToMax.png",
+    "threshold": 0.9
+  },
+  "DeliveryJobsCheckLocalDepotNodeOriginLodespringText": {
+    "desc": "检查本地仓储节点中是否有矿脉源区",
+    "expected": [
+      "矿脉源区",
+      "礦脈源區",
+      "(?i)Origin\\s*Lodespring",
+      "鉱山エリア",
+      "광맥 구역"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      67,
+      224,
+      1006,
+      95
+    ]
+  },
+  "DeliveryJobsCheckLocalDepotNodeOriginiumScienceParkText": {
+    "desc": "检查本地仓储节点中是否有源石研究园",
+    "expected": [
+      "源石研究园",
+      "源石研究園",
+      "(?i)Originium\\s*Science\\s*Park",
+      "源石研究パーク",
+      "오리지늄 연구 구역"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      67,
+      224,
+      1006,
+      95
+    ]
+  },
+  "DeliveryJobsCheckLocalDepotNodePowerPlateauText": {
+    "desc": "检查本地仓储节点中是否有供能高地",
+    "expected": [
+      "供能高地",
+      "(?i)Power\\s*Plateau",
+      "エネルギー高地",
+      "에너지 공급 고지"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      67,
+      224,
+      1006,
+      95
+    ]
+  },
+  "DeliveryJobsCheckLocalDepotNodeTestAreaText": {
+    "desc": "检查本地仓储节点中是否有试验园区",
+    "expected": [
+      "试验园区",
+      "實驗園區",
+      "(?i)Test\\s*Area",
+      "実験区域",
+      "실험 구역"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      67,
+      224,
+      1006,
+      95
+    ]
+  },
+  "DeliveryJobsCheckLocalDepotNodeWulingCityText": {
+    "desc": "检查本地仓储节点中是否有武陵城区",
+    "expected": [
+      "武陵城区",
+      "武陵城區",
+      "(?i)Wuling\\s*City",
+      "武陵城内",
+      "무릉성 도심"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      67,
+      224,
+      1006,
+      95
+    ]
+  },
+  "DeliveryJobsCheckOriginLodespringCargo": {
+    "desc": "检查矿脉源区的货物是否准备好",
+    "expected": [
+      "查看报价",
+      "查看報價",
+      "(?i)Check\\s*Bid",
+      "希望価格確認",
+      "货物装箱",
+      "貨物裝箱",
+      "(?i)Pack\\s*Goods",
+      "パッキング",
+      "화물 포장",
+      "입찰 보기"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodeOriginLodespringText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckOriginLodespringDeliveryJob": {
+    "desc": "检查矿脉源区的送货任务按钮",
+    "expected": [
+      "查看任务",
+      "查看任務",
+      "(?i)Check\\s*Mission",
+      "任務確認",
+      "임무 확인"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodeOriginLodespringText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckOriginiumScienceParkCargo": {
+    "desc": "检查源石研究园的货物是否准备好",
+    "expected": [
+      "查看报价",
+      "查看報價",
+      "(?i)Check\\s*Bid",
+      "希望価格確認",
+      "货物装箱",
+      "貨物裝箱",
+      "(?i)Pack\\s*Goods",
+      "パッキング",
+      "화물 포장",
+      "입찰 보기"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodeOriginiumScienceParkText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckOriginiumScienceParkDeliveryJob": {
+    "desc": "检查源石研究园的送货任务按钮",
+    "expected": [
+      "查看任务",
+      "查看任務",
+      "(?i)Check\\s*Mission",
+      "任務確認",
+      "임무 확인"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodeOriginiumScienceParkText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckPowerPlateauCargo": {
+    "desc": "检查供能高地的货物是否准备好",
+    "expected": [
+      "查看报价",
+      "查看報價",
+      "(?i)Check\\s*Bid",
+      "希望価格確認",
+      "货物装箱",
+      "貨物裝箱",
+      "(?i)Pack\\s*Goods",
+      "パッキング",
+      "화물 포장",
+      "입찰 보기"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodePowerPlateauText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckPowerPlateauDeliveryJob": {
+    "desc": "检查供能高地的送货任务按钮",
+    "expected": [
+      "查看任务",
+      "查看任務",
+      "(?i)Check\\s*Mission",
+      "任務確認",
+      "임무 확인"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodePowerPlateauText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckTaskTransferText": {
+    "desc": "检查转交任务文本",
+    "expected": [
+      "是否确认将送货任务委托给他人派送?",
+      "是否確定將送貨任務委託給他人運送？",
+      "(?i)Transfer\\s*delivery\\s*job\\s*to\\s*another\\s*courier\\s*\\?",
+      "配達任務を他人に委託しますか？",
+      "给他人派送",
+      "給他人運送",
+      "운송 임무를 다른 사람에게 위탁하시겠습니까?"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      401,
+      238,
+      494,
+      160
+    ]
+  },
+  "DeliveryJobsCheckTestAreaCargo": {
+    "desc": "检查试验园区的货物是否准备好",
+    "expected": [
+      "查看报价",
+      "查看報價",
+      "(?i)Check\\s*Bid",
+      "希望価格確認",
+      "货物装箱",
+      "貨物裝箱",
+      "(?i)Pack\\s*Goods",
+      "パッキング",
+      "화물 포장",
+      "입찰 보기"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodeTestAreaText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckTestAreaDeliveryJob": {
+    "desc": "检查试验园区的送货任务按钮",
+    "expected": [
+      "查看任务",
+      "查看任務",
+      "(?i)Check\\s*Mission",
+      "任務確認",
+      "임무 확인"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodeTestAreaText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckWulingCityCargo": {
+    "desc": "检查武陵城区的货物是否准备好",
+    "expected": [
+      "查看报价",
+      "查看報價",
+      "(?i)Check\\s*Bid",
+      "希望価格確認",
+      "货物装箱",
+      "貨物裝箱",
+      "(?i)Pack\\s*Goods",
+      "パッキング",
+      "화물 포장",
+      "입찰 보기"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodeWulingCityText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsCheckWulingCityDeliveryJob": {
+    "desc": "检查武陵城区的送货任务按钮",
+    "expected": [
+      "查看任务",
+      "查看任務",
+      "(?i)Check\\s*Mission",
+      "任務確認",
+      "임무 확인"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": "DeliveryJobsCheckLocalDepotNodeWulingCityText",
+    "roi_offset": [
+      -39,
+      286,
+      220,
+      62
+    ]
+  },
+  "DeliveryJobsClickScreenToContinue": {
+    "action": "Click",
+    "desc": "单击屏幕继续，会直接回到大世界界面。跳出循环",
+    "expected": [
+      "点击屏幕继续",
+      "按任意處繼續",
+      "(?i)Click\\s*to\\s*continue",
+      "クリックして続行",
+      "화면을 눌러 계속하기",
+      "Click to continue"
+    ],
+    "next": [
+      "DeliveryJobsBackToDepot"
+    ],
+    "order_by": "Expected",
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      527,
+      646,
+      222,
+      48
+    ]
+  },
+  "DeliveryJobsClickTransferJob": {
+    "action": "Click",
+    "desc": "单击转交任务",
+    "expected": [
+      "转交运送委托",
+      "轉交運送委託",
+      "(?i)Transfer\\s*Delivery\\s*Job",
+      "外部委託",
+      "(?i)Transfer\\s*Job",
+      "운송 의뢰 위탁"
+    ],
+    "next": [
+      "DeliveryJobsConfirmTaskTransfer"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      366,
+      620,
+      372,
+      63
+    ]
+  },
+  "DeliveryJobsConfirmTaskTransfer": {
+    "action": "Click",
+    "all_of": [
+      "YellowConfirmButtonType1",
+      "DeliveryJobsCheckTaskTransferText"
+    ],
+    "desc": "确认转交任务",
+    "next": [
+      "InLocalDepotNode"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsDeliverQuickly": {
+    "action": "Click",
+    "desc": "提示尽快送达，单击一下，会直接回到大世界界面。跳出循环",
+    "expected": [
+      "请尽快送达",
+      "請儘快送達",
+      "(?i)Deliver\\s*Quickly",
+      "早めに配達してください",
+      "최대한 빨리 배달하세요."
+    ],
+    "next": [
+      "DeliveryJobsBackToDepot",
+      "DeliveryJobsClickScreenToContinue"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      0,
+      0,
+      250,
+      250
+    ]
+  },
+  "DeliveryJobsDepotLocked": {
+    "desc": "仓储节点未解锁",
+    "next": [
+      "DeliveryJobsLoop"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      1179,
+      347,
+      36,
+      47
+    ],
+    "template": "DeliveryJobs/DepotLocked.png",
+    "threshold": 0.8
+  },
+  "DeliveryJobsEnterOriginLodespringCargo": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodeOriginLodespringText",
+      "DeliveryJobsCheckOriginLodespringCargo"
+    ],
+    "anchor": {
+      "DeliveryJobsSelectItemToFill": "DeliveryJobsSelectItemToFillValleyIV"
+    },
+    "box_index": 1,
+    "desc": "进入矿脉源区货物",
+    "next": [
+      "DeliveryJobsPackCargo"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterOriginLodespringDeliveryJob": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodeOriginLodespringText",
+      "DeliveryJobsCheckOriginLodespringDeliveryJob"
+    ],
+    "box_index": 1,
+    "desc": "矿脉源区：进入送货任务",
+    "max_hit": 1,
+    "next": [
+      "DeliveryJobsClickTransferJob"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterOriginiumScienceParkCargo": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodeOriginiumScienceParkText",
+      "DeliveryJobsCheckOriginiumScienceParkCargo"
+    ],
+    "anchor": {
+      "DeliveryJobsSelectItemToFill": "DeliveryJobsSelectItemToFillValleyIV"
+    },
+    "box_index": 1,
+    "desc": "进入源石研究园货物",
+    "next": [
+      "DeliveryJobsPackCargo"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterOriginiumScienceParkDeliveryJob": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodeOriginiumScienceParkText",
+      "DeliveryJobsCheckOriginiumScienceParkDeliveryJob"
+    ],
+    "box_index": 1,
+    "desc": "源石研究园：进入送货任务",
+    "max_hit": 1,
+    "next": [
+      "DeliveryJobsClickTransferJob"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterPowerPlateauCargo": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodePowerPlateauText",
+      "DeliveryJobsCheckPowerPlateauCargo"
+    ],
+    "anchor": {
+      "DeliveryJobsSelectItemToFill": "DeliveryJobsSelectItemToFillValleyIV"
+    },
+    "box_index": 1,
+    "desc": "进入供能高地货物",
+    "next": [
+      "DeliveryJobsPackCargo"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterPowerPlateauDeliveryJob": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodePowerPlateauText",
+      "DeliveryJobsCheckPowerPlateauDeliveryJob"
+    ],
+    "box_index": 1,
+    "desc": "供能高地：进入送货任务",
+    "max_hit": 1,
+    "next": [
+      "DeliveryJobsClickTransferJob"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterTestAreaCargo": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodeTestAreaText",
+      "DeliveryJobsCheckTestAreaCargo"
+    ],
+    "anchor": {
+      "DeliveryJobsSelectItemToFill": "DeliveryJobsSelectItemToFillWuling"
+    },
+    "box_index": 1,
+    "desc": "进入试验园区货物",
+    "next": [
+      "DeliveryJobsPackCargo"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterTestAreaDeliveryJob": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodeTestAreaText",
+      "DeliveryJobsCheckTestAreaDeliveryJob"
+    ],
+    "box_index": 1,
+    "desc": "试验园区：进入送货任务",
+    "max_hit": 1,
+    "next": [
+      "DeliveryJobsClickTransferJob"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterWulingCityCargo": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodeWulingCityText",
+      "DeliveryJobsCheckWulingCityCargo"
+    ],
+    "anchor": {
+      "DeliveryJobsSelectItemToFill": "DeliveryJobsSelectItemToFillWuling"
+    },
+    "box_index": 1,
+    "desc": "进入武陵城区货物",
+    "next": [
+      "DeliveryJobsPackCargo"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsEnterWulingCityDeliveryJob": {
+    "action": "Click",
+    "all_of": [
+      "DeliveryJobsCheckLocalDepotNodeWulingCityText",
+      "DeliveryJobsCheckWulingCityDeliveryJob"
+    ],
+    "box_index": 1,
+    "desc": "武陵城区：进入送货任务",
+    "max_hit": 1,
+    "next": [
+      "DeliveryJobsClickTransferJob"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsFillCorrespondingGoods": {
+    "action": "Click",
+    "desc": "手动填满对应货物，通过单击进度条最右侧",
+    "next": [
+      "DeliveryJobsSelectItemScrollUpClearHitCount"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      308,
+      583,
+      189,
+      122
+    ],
+    "target_offset": [
+      -75,
+      0,
+      0,
+      0
+    ],
+    "template": "DeliveryJobs/FillCorrespondingGoods.png",
+    "threshold": 0.9
+  },
+  "DeliveryJobsFillToMaxNextStep": {
+    "action": "Click",
+    "all_of": [
+      "YellowConfirmButtonType2",
+      "DeliveryJobsCheckCargoFilledToMax"
+    ],
+    "desc": "装满货物后下一步",
+    "next": [
+      "DeliveryJobsInCargoRedistributionBid",
+      "DeliveryJobsCargoBid"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsFinished": {
+    "desc": "自动转交运送委托完成。这个节点主要是为了调试界面看起来舒服",
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsInCargoPackGoods": {
+    "desc": "检查是否在货物装箱界面，货物装箱时进入的界面",
+    "expected": [
+      "货物装箱",
+      "貨物裝箱",
+      "(?i)Pack\\s*Goods",
+      "パッキング",
+      "화물 포장"
+    ],
+    "next": [
+      "DeliveryJobsSelectTypeOfGoodsToPackNextStep"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": {
+      "target": [
+        5,
+        140,
+        223,
+        157
+      ],
+      "time": 80
+    },
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      20,
+      1,
+      391,
+      54
+    ]
+  },
+  "DeliveryJobsInCargoRedistributionBid": {
+    "desc": "检查是否在调度申请界面，查看报价时进入的界面",
+    "expected": [
+      "调度申请",
+      "調度申請",
+      "(?i)Redistribution\\s*Bid",
+      "取引申請",
+      "관리 신청"
+    ],
+    "next": [
+      "DeliveryJobsOngoingDelivery",
+      "DeliveryJobsRedistributionBidNextStep"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": {
+      "target": [
+        5,
+        140,
+        223,
+        157
+      ],
+      "time": 80
+    },
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      20,
+      1,
+      391,
+      54
+    ]
+  },
+  "DeliveryJobsInValleyIVLocalDepotNode": {
+    "all_of": [
+      "InLocalDepotNode",
+      "DeliveryJobsCheckLocalDepotNodeOriginiumScienceParkText"
+    ],
+    "desc": "在四号谷地本地仓储节点界面",
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": {
+      "target": [
+        66,
+        221,
+        166,
+        124
+      ],
+      "time": 80
+    },
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsInWulingLocalDepotNode": {
+    "all_of": [
+      "InLocalDepotNode",
+      "DeliveryJobsCheckLocalDepotNodeWulingCityText"
+    ],
+    "desc": "在武陵本地仓储节点界面",
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": {
+      "target": [
+        66,
+        221,
+        166,
+        124
+      ],
+      "time": 80
+    },
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsLoop": {
+    "all_of": [
+      "InRegionalDevelopment"
+    ],
+    "desc": "主循环，仅支持从地区建设界面开始",
+    "next": [
+      "DeliveryJobsAuto",
+      "DeliveryJobsValleyIV",
+      "DeliveryJobsWuling",
+      "DeliveryJobsFinished"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsMain": {
+    "desc": "开始自动转交运送委托",
+    "next": [
+      "DeliveryJobsLoop",
+      "[JumpBack]SceneEnterMenuRegionalDevelopment"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsOngoingDelivery": {
+    "action": "StopTask",
+    "desc": "有待运送的货物，无法继续装箱流程，退出任务",
+    "expected": [
+      "有待运送的货物，请先完成送货",
+      "有待運送的貨物，請先完成送貨",
+      "(?i)Finish\\s*the\\s*ongoing\\s*delivery\\s*first",
+      "配達待ちの荷物を先に届けてください",
+      "有待运送的货物",
+      "有待運送的貨物",
+      "운송 대기 중인 화물 있음"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.DeliveryJobs.OngoingDelivery"
+    },
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      882,
+      575,
+      398,
+      143
+    ]
+  },
+  "DeliveryJobsPackCargo": {
+    "desc": "装箱货物",
+    "next": [
+      "DeliveryJobsInCargoPackGoods",
+      "DeliveryJobsInCargoRedistributionBid"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsRedistributionBidNextStep": {
+    "action": "Click",
+    "all_of": [
+      "YellowConfirmButtonType2",
+      "DeliveryJobsInCargoRedistributionBid"
+    ],
+    "desc": "调度申请后下一步",
+    "next": [
+      "DeliveryJobsBackToDepot",
+      "DeliveryJobsDeliverQuickly"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsSelectItemLoop": {
+    "desc": "选择要填充的物品，如果不在第一屏，向上滑动，再次寻找，直到找到或者滑动 5 次",
+    "expected": [
+      "本地仓储",
+      "本地區倉儲",
+      "(?i)Local\\s*Depot",
+      "地域在庫",
+      "지역 저장고"
+    ],
+    "next": [
+      "[Anchor]DeliveryJobsSelectItemToFill",
+      "[JumpBack]DeliveryJobsSelectItemScrollUp"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": {
+      "target": [
+        53,
+        180,
+        463,
+        392
+      ],
+      "time": 200
+    },
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      53,
+      180,
+      463,
+      392
+    ]
+  },
+  "DeliveryJobsSelectItemScrollUp": {
+    "action": "Swipe",
+    "begin": [
+      240,
+      540,
+      10,
+      10
+    ],
+    "desc": "如果要填充的物品不在第一屏，向上滑动屏幕",
+    "duration": 2000,
+    "end": [
+      240,
+      200,
+      10,
+      10
+    ],
+    "end_hold": 200,
+    "max_hit": 5,
+    "post_delay": 0,
+    "post_wait_freezes": 200,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsSelectItemScrollUpClearHitCount": {
+    "action": "Custom",
+    "custom_action": "ClearHitCount",
+    "custom_action_param": {
+      "nodes": [
+        "DeliveryJobsSelectItemScrollUp"
+      ],
+      "strict": false
+    },
+    "desc": "清除向上滑动屏幕的命中计数，下一个仓储节点可能也需要滑动",
+    "next": [
+      "DeliveryJobsFillToMaxNextStep"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsSelectItemToFillValleyIV": {
+    "action": "Click",
+    "desc": "选择要填充的物品（四号谷地）",
+    "next": [
+      "DeliveryJobsFillCorrespondingGoods"
+    ],
+    "order_by": "Score",
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": 80,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      37,
+      121,
+      503,
+      519
+    ],
+    "template": "DeliveryJobs/SandleafPowder.png",
+    "threshold": 0.95
+  },
+  "DeliveryJobsSelectItemToFillWuling": {
+    "action": "Click",
+    "desc": "选择要填充的物品（武陵）",
+    "next": [
+      "DeliveryJobsFillCorrespondingGoods"
+    ],
+    "order_by": "Score",
+    "post_delay": 0,
+    "pre_delay": 0,
+    "pre_wait_freezes": 80,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      37,
+      121,
+      503,
+      519
+    ],
+    "template": "DeliveryJobs/Yazhen.png",
+    "threshold": 0.95
+  },
+  "DeliveryJobsSelectTypeOfGoodsToPackNextStep": {
+    "action": "Click",
+    "all_of": [
+      "YellowConfirmButtonType2",
+      "DeliveryJobsInCargoPackGoods"
+    ],
+    "desc": "选择装箱货物类型后下一步",
+    "next": [
+      "DeliveryJobsCargoFillToMax"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "DeliveryJobsValleyIV": {
+    "action": "Custom",
+    "custom_action": "SubTask",
+    "custom_action_param": {
+      "sub": [
+        "SceneEnterMenuRegionalDevelopmentValleyIV"
+      ]
+    },
+    "desc": "四号谷地运送委托",
+    "max_hit": 1,
+    "next": [
+      "DeliveryJobsDepotLocked",
+      "DeliveryJobsValleyIVLoop"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsValleyIVLoop": {
+    "action": "Custom",
+    "anchor": {
+      "DeliveryJobsGoToDepot": "SceneEnterMenuRegionalDevelopmentValleyIVDepotNode"
+    },
+    "custom_action": "SubTask",
+    "custom_action_param": {
+      "sub": [
+        "SceneEnterMenuRegionalDevelopmentValleyIVDepotNode"
+      ]
+    },
+    "desc": "四号谷地运送委托主循环",
+    "max_hit": 1,
+    "next": [
+      "[JumpBack]DeliveryJobsEnterOriginiumScienceParkDeliveryJob",
+      "[JumpBack]DeliveryJobsEnterOriginLodespringDeliveryJob",
+      "[JumpBack]DeliveryJobsEnterPowerPlateauDeliveryJob",
+      "[JumpBack]DeliveryJobsEnterOriginiumScienceParkCargo",
+      "[JumpBack]DeliveryJobsEnterOriginLodespringCargo",
+      "[JumpBack]DeliveryJobsEnterPowerPlateauCargo",
+      "DeliveryJobsLoop",
+      "[JumpBack]SceneEnterMenuRegionalDevelopment"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsWuling": {
+    "action": "Custom",
+    "custom_action": "SubTask",
+    "custom_action_param": {
+      "sub": [
+        "SceneEnterMenuRegionalDevelopmentWuling"
+      ]
+    },
+    "desc": "武陵运送委托",
+    "max_hit": 1,
+    "next": [
+      "DeliveryJobsDepotLocked",
+      "DeliveryJobsWulingLoop"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "DeliveryJobsWulingLoop": {
+    "action": "Custom",
+    "anchor": {
+      "DeliveryJobsGoToDepot": "SceneEnterMenuRegionalDevelopmentWulingDepotNode"
+    },
+    "custom_action": "SubTask",
+    "custom_action_param": {
+      "sub": [
+        "SceneEnterMenuRegionalDevelopmentWulingDepotNode"
+      ]
+    },
+    "desc": "武陵运送委托主循环",
+    "max_hit": 1,
+    "next": [
+      "[JumpBack]DeliveryJobsEnterWulingCityDeliveryJob",
+      "[JumpBack]DeliveryJobsEnterTestAreaDeliveryJob",
+      "[JumpBack]DeliveryJobsEnterWulingCityCargo",
+      "[JumpBack]DeliveryJobsEnterTestAreaCargo",
+      "DeliveryJobsLoop",
+      "[JumpBack]SceneEnterMenuRegionalDevelopment"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  }
+}

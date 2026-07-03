@@ -1,0 +1,1068 @@
+{
+  "CreditShoppingBuyBlacklist": {
+    "action": "Click",
+    "all_of": [
+      "CreditIcon",
+      "NotSoldOut",
+      "CanAfford"
+    ],
+    "box_index": 2,
+    "desc": "强制购买剩余可购物品（选项：购买选项均未命中时操作=购买任意物品）",
+    "next": [
+      "CreditShoppingBuyItem"
+    ],
+    "pre_wait_freezes": 100,
+    "recognition": "And"
+  },
+  "CreditShoppingBuyConfirm": {
+    "action": {
+      "type": "Click"
+    },
+    "desc": "购买确认",
+    "next": [
+      "CreditShoppingClaimConfirm",
+      "CreditShoppingBuyFailed"
+    ],
+    "recognition": {
+      "param": {
+        "all_of": [
+          "YellowConfirmButtonType1"
+        ]
+      },
+      "type": "And"
+    }
+  },
+  "CreditShoppingBuyFailed": {
+    "action": "DoNothing",
+    "desc": "购买失败（已售罄/信用点不足）",
+    "lower": [
+      210,
+      94,
+      104
+    ],
+    "max_hit": 1,
+    "next": [
+      "CreditShoppingCloseDialog"
+    ],
+    "recognition": "ColorMatch",
+    "roi": [
+      571,
+      497,
+      133,
+      95
+    ],
+    "upper": [
+      210,
+      94,
+      104
+    ]
+  },
+  "CreditShoppingBuyItem": {
+    "desc": "购买商品文字识别",
+    "next": [
+      "CreditShoppingBuyItemOCR_ArsenalTicket",
+      "CreditShoppingBuyItemOCR_Oroberyl",
+      "CreditShoppingBuyItemOCR_TCreds",
+      "CreditShoppingBuyItemOCR_ElementaryCombatRecord",
+      "CreditShoppingBuyItemOCR_IntermediateCombatRecord",
+      "CreditShoppingBuyItemOCR_ElementaryCognitiveCarrier",
+      "CreditShoppingBuyItemOCR_ArmsInspector",
+      "CreditShoppingBuyItemOCR_ArmsINSPKit",
+      "CreditShoppingBuyItemOCR_CastDie",
+      "CreditShoppingBuyItemOCR_HeavyCastDie",
+      "CreditShoppingBuyItemOCR_Protodisk",
+      "CreditShoppingBuyItemOCR_Protoset",
+      "CreditShoppingBuyItemOCR_Protoprism",
+      "CreditShoppingBuyItemOCR_Protohedron"
+    ],
+    "recognition": {
+      "param": {
+        "all_of": [
+          "CreditShoppingBuyItemNameColor",
+          "CreditShoppingBuyItemName"
+        ],
+        "box_index": 1
+      },
+      "type": "And"
+    }
+  },
+  "CreditShoppingBuyItemName": {
+    "desc": "识别购买商品的文字(使用 CreditShoppingBuyItemNameColor 的 roi 作为识别区域)",
+    "expected": [
+      "购买商品",
+      "購買商品",
+      "(?i)Purchase",
+      "購入"
+    ],
+    "only_rec": true,
+    "recognition": "OCR",
+    "roi": "CreditShoppingBuyItemNameColor"
+  },
+  "CreditShoppingBuyItemNameColor": {
+    "desc": "物品名称文字颜色",
+    "recognition": {
+      "param": {
+        "count": 10,
+        "lower": [
+          0,
+          0,
+          110
+        ],
+        "method": 40,
+        "order_by": "Vertical",
+        "roi": [
+          172,
+          123,
+          245,
+          47
+        ],
+        "upper": [
+          0,
+          3,
+          200
+        ]
+      },
+      "type": "ColorMatch"
+    }
+  },
+  "CreditShoppingBuyItemOCR_ArmsINSPKit": {
+    "expected": [
+      "武器检查装置",
+      "武器檢查裝置",
+      "(?i)Arms\\s*INSP\\s*Kit",
+      "武器検査セット"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.ArmsINSPKit"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_ArmsInspector": {
+    "expected": [
+      "武器检查单元",
+      "武器檢查單元",
+      "(?i)Arms\\s*Inspector",
+      "武器検査ユニット"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.ArmsInspector"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_ArsenalTicket": {
+    "expected": [
+      "武库配额",
+      "武庫配額",
+      "(?i)Arsenal\\s*Ticket",
+      "武庫配給"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.ArsenalTicket"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_CastDie": {
+    "expected": [
+      "强固模具",
+      "強固模具",
+      "(?i)Cast\\s*Die",
+      "硬質金型"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.CastDie"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_ElementaryCognitiveCarrier": {
+    "expected": [
+      "初级认知载体",
+      "初級認知載體",
+      "(?i)Elementary\\s*Cognitive\\s*Carrier",
+      "初級認識媒体"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.ElementaryCognitiveCarrier"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_ElementaryCombatRecord": {
+    "expected": [
+      "初级作战记录",
+      "初級作戰紀錄",
+      "(?i)Elementary\\s*Combat\\s*Record",
+      "初級作戦記録"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.ElementaryCombatRecord"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_HeavyCastDie": {
+    "expected": [
+      "重型强固模具",
+      "重型強固模具",
+      "(?i)Heavy\\s*Cast\\s*Die",
+      "重硬質金型"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.HeavyCastDie"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_IntermediateCombatRecord": {
+    "expected": [
+      "中级作战记录",
+      "中級作戰紀錄",
+      "(?i)Intermediate\\s*Combat\\s*Record",
+      "中級作戦記録"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.IntermediateCombatRecord"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_Oroberyl": {
+    "expected": [
+      "嵌晶玉",
+      "(?i)Oroberyl",
+      "赤晶玉"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.Oroberyl"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_Protodisk": {
+    "expected": [
+      "协议圆盘",
+      "協議圓盤",
+      "(?i)Protodisk",
+      "協約ディスク"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.Protodisk"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_Protohedron": {
+    "expected": [
+      "协议棱柱组",
+      "協議稜柱組",
+      "(?i)Protohedron",
+      "協約角柱セット"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.Protohedron"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_Protoprism": {
+    "expected": [
+      "协议棱柱",
+      "協議稜柱",
+      "(?i)Protoprism",
+      "協約角柱"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.Protoprism"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_Protoset": {
+    "expected": [
+      "协议圆盘组",
+      "協議圓盤組",
+      "(?i)Protoset",
+      "協約ディスクセット"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.Protoset"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyItemOCR_TCreds": {
+    "expected": [
+      "折金票",
+      "(?i)T\\s*-\\s*Creds",
+      "折金券"
+    ],
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.buy_item.TCreds"
+    },
+    "next": [
+      "CreditShoppingBuyFailed",
+      "CreditShoppingBuyConfirm"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "OCR",
+    "roi": [
+      406,
+      135,
+      422,
+      146
+    ]
+  },
+  "CreditShoppingBuyPriority1": {
+    "action": "Click",
+    "all_of": [
+      "CreditIcon",
+      "NotSoldOut",
+      "CanAfford",
+      "BuyFirstOCR_Expected",
+      "IsDiscountPriority1",
+      "CreditShoppingPriority1ReserveCreditGate"
+    ],
+    "box_index": 4,
+    "desc": "优先购买（选项：优先购买物品、折扣设置、是否检测信用点阈值）",
+    "next": [
+      "CreditShoppingBuyItem"
+    ],
+    "pre_wait_freezes": 100,
+    "recognition": "And",
+    "target_offset": [
+      -30,
+      70,
+      0,
+      0
+    ]
+  },
+  "CreditShoppingBuyPriority2": {
+    "action": "Click",
+    "all_of": [
+      "CreditIcon",
+      "NotSoldOut",
+      "CanAfford",
+      "Priority2OCR_Expected",
+      "IsDiscountPriority2",
+      "CreditShoppingPriority2ReserveCreditGate"
+    ],
+    "box_index": 4,
+    "desc": "普通购买1（选项：普通购买1物品、折扣设置、是否检测信用点阈值）",
+    "next": [
+      "CreditShoppingBuyItem"
+    ],
+    "pre_wait_freezes": 100,
+    "recognition": "And",
+    "target_offset": [
+      -30,
+      70,
+      0,
+      0
+    ]
+  },
+  "CreditShoppingBuyPriority3": {
+    "action": "Click",
+    "all_of": [
+      "CreditIcon",
+      "NotSoldOut",
+      "CanAfford",
+      "Priority3OCR_Expected",
+      "IsDiscountPriority3",
+      "CreditShoppingPriority3ReserveCreditGate"
+    ],
+    "box_index": 4,
+    "desc": "普通购买2（选项：普通购买2物品、折扣设置、是否检测信用点阈值）",
+    "next": [
+      "CreditShoppingBuyItem"
+    ],
+    "pre_wait_freezes": 100,
+    "recognition": "And",
+    "target_offset": [
+      -30,
+      70,
+      0,
+      0
+    ]
+  },
+  "CreditShoppingBuySuccess": {
+    "desc": "购买成功的文字提示",
+    "recognition": {
+      "param": {
+        "expected": [
+          "购买成功",
+          "購買成功",
+          "(?i)Purchased",
+          "購入完了"
+        ],
+        "replace": [
+          [
+            "購",
+            "购"
+          ],
+          [
+            "買",
+            "买"
+          ]
+        ],
+        "roi": [
+          537,
+          21,
+          209,
+          149
+        ]
+      },
+      "type": "OCR"
+    }
+  },
+  "CreditShoppingCheckShopPage": {
+    "action": "Click",
+    "desc": "检测商店页面，点击信用交易所 Tab",
+    "next": [
+      "CreditShoppingInShop"
+    ],
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        412,
+        328,
+        127,
+        140
+      ],
+      "time": 100
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      796,
+      41,
+      296,
+      89
+    ],
+    "template": "CreditShopping/CreditShoppingTab.png",
+    "threshold": 0.8
+  },
+  "CreditShoppingClaimConfirm": {
+    "action": {
+      "type": "Click"
+    },
+    "desc": "获取信用点或物品后的通用确认节点",
+    "next": [
+      "CreditShoppingShopping"
+    ],
+    "pre_wait_freezes": {
+      "target": [
+        512,
+        387,
+        191,
+        42
+      ],
+      "time": 200,
+      "timeout": 1000
+    },
+    "recognition": {
+      "param": {
+        "all_of": [
+          "CloseRewardsButton",
+          "CreditShoppingClaimConfirmText"
+        ]
+      },
+      "type": "And"
+    }
+  },
+  "CreditShoppingClaimConfirmText": {
+    "desc": "获得奖励后的文字提示确认",
+    "recognition": {
+      "param": {
+        "any_of": [
+          "CloseRewardsButtonText",
+          "CreditShoppingBuySuccess"
+        ]
+      },
+      "type": "Or"
+    }
+  },
+  "CreditShoppingClaimCredit": {
+    "action": "Click",
+    "desc": "领取信用点",
+    "expected": [
+      "收取信用",
+      "(?i)Collect\\s*Credits",
+      "FP受取"
+    ],
+    "next": [
+      "CreditShoppingClaimConfirm"
+    ],
+    "recognition": "OCR",
+    "roi": [
+      26,
+      583,
+      254,
+      137
+    ]
+  },
+  "CreditShoppingCloseDialog": {
+    "desc": "关闭对话框",
+    "next": [
+      "CreditShoppingScanItem"
+    ],
+    "recognition": {
+      "param": {
+        "all_of": [
+          "CloseButtonType1"
+        ]
+      },
+      "type": "And"
+    }
+  },
+  "CreditShoppingInShop": {
+    "desc": "在商店里",
+    "next": [
+      "CreditShoppingClaimCredit",
+      "CreditShoppingNoCreditClaim"
+    ],
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        412,
+        328,
+        127,
+        140
+      ],
+      "time": 100
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": {
+      "param": {
+        "all_of": [
+          "CreditShoppingScanItemTabSelected"
+        ]
+      },
+      "type": "And"
+    }
+  },
+  "CreditShoppingInit": {
+    "action": "Custom",
+    "custom_action": "AttachToExpectedRegexAction",
+    "custom_action_param": {
+      "target": "BuyFirstOCR"
+    },
+    "desc": "初始化信用购物参数：优先购买（仅执行一次）",
+    "max_hit": 1,
+    "next": [
+      "CreditShoppingInitCanNotAffordPriority1"
+    ],
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingInitCanNotAffordPriority1": {
+    "action": "Custom",
+    "custom_action": "AttachToExpectedRegexAction",
+    "custom_action_param": {
+      "target": "BuyFirstOCR_CanNotAfford"
+    },
+    "desc": "初始化信用购物参数：优先购买买不起分支（仅执行一次）",
+    "max_hit": 1,
+    "next": [
+      "CreditShoppingInitPriority2"
+    ],
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingInitCanNotAffordPriority2": {
+    "action": "Custom",
+    "custom_action": "AttachToExpectedRegexAction",
+    "custom_action_param": {
+      "target": "Priority2OCR_CanNotAfford"
+    },
+    "desc": "初始化信用购物参数：普通购买1买不起分支（仅执行一次）",
+    "max_hit": 1,
+    "next": [
+      "CreditShoppingInitPriority3"
+    ],
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingInitCanNotAffordPriority3": {
+    "action": "Custom",
+    "custom_action": "AttachToExpectedRegexAction",
+    "custom_action_param": {
+      "target": "Priority3OCR_CanNotAfford"
+    },
+    "desc": "初始化信用购物参数：普通购买2买不起分支（仅执行一次）",
+    "max_hit": 1,
+    "next": [
+      "CreditShoppingScanItem"
+    ],
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingInitPriority2": {
+    "action": "Custom",
+    "custom_action": "AttachToExpectedRegexAction",
+    "custom_action_param": {
+      "target": "Priority2OCR"
+    },
+    "desc": "初始化信用购物参数：普通购买1（仅执行一次）",
+    "max_hit": 1,
+    "next": [
+      "CreditShoppingInitCanNotAffordPriority2"
+    ],
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingInitPriority3": {
+    "action": "Custom",
+    "custom_action": "AttachToExpectedRegexAction",
+    "custom_action_param": {
+      "target": "Priority3OCR"
+    },
+    "desc": "初始化信用购物参数：普通购买2（仅执行一次）",
+    "max_hit": 1,
+    "next": [
+      "CreditShoppingInitCanNotAffordPriority3"
+    ],
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingMain": {
+    "desc": "信用点购物主入口",
+    "next": [
+      "CreditShoppingShopping",
+      "CreditShoppingCheckShopPage",
+      "[JumpBack]SceneEnterMenuShop"
+    ]
+  },
+  "CreditShoppingNoCreditClaim": {
+    "action": "DoNothing",
+    "desc": "没有信用点可领取",
+    "expected": [
+      "无待领取信用",
+      "無待領取信用",
+      "(?i)No\\s*credits\\s*to\\s*claim",
+      "FP未獲得"
+    ],
+    "next": [
+      "CreditShoppingShopping"
+    ],
+    "recognition": "OCR",
+    "replace": [
+      [
+        "無",
+        "无"
+      ],
+      [
+        "領",
+        "领"
+      ]
+    ],
+    "roi": [
+      26,
+      583,
+      254,
+      137
+    ]
+  },
+  "CreditShoppingNothingToBuy": {
+    "desc": "没有合适的东西可以买了",
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.nothing_to_buy"
+    },
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingPriority1ReserveCreditGate": {
+    "desc": "优先购买的保留信用点准入判断",
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingPriority2ReserveCreditGate": {
+    "all_of": [
+      "CreditShoppingReserveCreditSatisfied"
+    ],
+    "desc": "普通购买1的保留信用点准入判断",
+    "recognition": "And"
+  },
+  "CreditShoppingPriority3ReserveCreditGate": {
+    "all_of": [
+      "CreditShoppingReserveCreditSatisfied"
+    ],
+    "desc": "普通购买2的保留信用点准入判断",
+    "recognition": "And"
+  },
+  "CreditShoppingPrudentRefresh": {
+    "action": {
+      "type": "Click"
+    },
+    "desc": "稳健模式下改为购买任意物品含无折扣（选项：稳健模式刷新、稳健刷新阈值）",
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.prudent_refresh_triggered"
+    },
+    "next": [
+      "CreditShoppingBuyItem"
+    ],
+    "pre_wait_freezes": 100,
+    "recognition": {
+      "param": {
+        "all_of": [
+          {
+            "recognition": {
+              "param": {
+                "custom_recognition": "ExpressionRecognition",
+                "custom_recognition_param": {
+                  "expression": "{CreditShoppingReserveCreditOCRInternal}-{RefreshCost}<400"
+                }
+              },
+              "type": "Custom"
+            }
+          },
+          {
+            "recognition": {
+              "param": {
+                "all_of": [
+                  "CreditIcon",
+                  "NotSoldOut",
+                  "CanAfford"
+                ],
+                "box_index": 2
+              },
+              "type": "And"
+            }
+          }
+        ],
+        "box_index": 1
+      },
+      "type": "And"
+    }
+  },
+  "CreditShoppingRefreshCountReached": {
+    "action": {
+      "type": "Click"
+    },
+    "desc": "刷新次数已用尽时直接购买（选项：没有可购买物品时=执行刷新）",
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.refresh_count_reached_triggered"
+    },
+    "next": [
+      "CreditShoppingBuyItem"
+    ],
+    "pre_wait_freezes": 100,
+    "recognition": {
+      "param": {
+        "all_of": [
+          "RefreshUsedUp",
+          {
+            "recognition": {
+              "param": {
+                "all_of": [
+                  "CreditIcon",
+                  "NotSoldOut",
+                  "CanAfford"
+                ],
+                "box_index": 2
+              },
+              "type": "And"
+            }
+          }
+        ],
+        "box_index": 1
+      },
+      "type": "And"
+    }
+  },
+  "CreditShoppingReserveCredit": {
+    "desc": "信用点低于保留阈值（选项：保留信用点阈值）",
+    "focus": {
+      "Node.Recognition.Succeeded": "$task.CreditShopping.reserve_credit_reached"
+    },
+    "recognition": {
+      "param": {
+        "custom_recognition": "ExpressionRecognition",
+        "custom_recognition_param": {
+          "expression": "{CreditShoppingReserveCreditOCRInternal}<300"
+        }
+      },
+      "type": "Custom"
+    }
+  },
+  "CreditShoppingReserveCreditOCRInternal": {
+    "desc": "识别当前信用点",
+    "recognition": {
+      "param": {
+        "all_of": [
+          "CreditShoppingReserveCreditOCRInternalColor",
+          "CreditShoppingReserveCreditOCRInternalText"
+        ],
+        "box_index": 1
+      },
+      "type": "And"
+    }
+  },
+  "CreditShoppingReserveCreditOCRInternalColor": {
+    "recognition": {
+      "param": {
+        "lower": [
+          198
+        ],
+        "method": 6,
+        "roi": [
+          1084,
+          0,
+          133,
+          66
+        ],
+        "upper": [
+          255
+        ]
+      },
+      "type": "ColorMatch"
+    }
+  },
+  "CreditShoppingReserveCreditOCRInternalText": {
+    "expected": "^\\d+$",
+    "only_rec": true,
+    "recognition": "OCR",
+    "roi": "CreditShoppingReserveCreditOCRInternalColor",
+    "roi_offset": [
+      -1,
+      -1,
+      2,
+      2
+    ]
+  },
+  "CreditShoppingReserveCreditSatisfied": {
+    "desc": "信用点高于等于保留阈值（选项：保留信用点阈值）",
+    "recognition": {
+      "param": {
+        "custom_recognition": "ExpressionRecognition",
+        "custom_recognition_param": {
+          "expression": "{CreditShoppingReserveCreditOCRInternal}>=300"
+        }
+      },
+      "type": "Custom"
+    }
+  },
+  "CreditShoppingScanItem": {
+    "all_of": [
+      "CreditShoppingScanItemTabSelected",
+      "RefreshButton"
+    ],
+    "desc": "货架快照门控（商店 Tab 已选中且可识别刷新花费）",
+    "next": [
+      "CreditShoppingScanItemAction"
+    ],
+    "recognition": "And"
+  },
+  "CreditShoppingScanItemAction": {
+    "action": "Custom",
+    "custom_action": "CreditShoppingScanItemAction",
+    "desc": "货架快照",
+    "next": [
+      "AutoGetCredits",
+      "CreditShoppingBuyPriority1",
+      "CreditShoppingBuyPriority2",
+      "CreditShoppingBuyPriority3",
+      "CreditShoppingReserveCredit",
+      "CreditShoppingRefreshCountReached",
+      "CreditShoppingPrudentRefresh",
+      "CreditShoppingBuyBlacklist",
+      "CreditShippingCanNotToBuy",
+      "ADBSpecial",
+      "RefreshItem",
+      "CreditShoppingNothingToBuy"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "DirectHit"
+  },
+  "CreditShoppingScanItemTabSelected": {
+    "desc": "信用交易所 Tab 已选中",
+    "recognition": "TemplateMatch",
+    "roi": [
+      813,
+      44,
+      293,
+      82
+    ],
+    "template": "CreditShopping/CreditShoppingTabSelected.png",
+    "threshold": 0.7
+  },
+  "CreditShoppingShopping": {
+    "desc": "信用购物",
+    "next": [
+      "CreditShoppingInit",
+      "CreditShoppingScanItem"
+    ],
+    "post_wait_freezes": {
+      "target": [
+        52,
+        98,
+        1186,
+        548
+      ],
+      "time": 200
+    },
+    "recognition": "TemplateMatch",
+    "roi": [
+      813,
+      44,
+      293,
+      82
+    ],
+    "template": "CreditShopping/CreditShoppingTabSelected.png",
+    "threshold": 0.7
+  }
+}

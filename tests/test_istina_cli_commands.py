@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+ISTINA_SCRIPT = PROJECT_ROOT / "src" / "cli" / "istina.py"
+VENV_PYTHON = PROJECT_ROOT / "venv" / "Scripts" / "python.exe"
+CLI = [str(VENV_PYTHON), str(ISTINA_SCRIPT)]
+
+
+def _run_cli(argv, env=None):
+    if env is None:
+        env = dict(os.environ)
+    proc = subprocess.run(CLI + argv, cwd=str(PROJECT_ROOT), capture_output=True, text=True, env=env)
+    out = proc.stdout.strip()
+    err = proc.stderr.strip()
+    parsed = None
+    if out:
+        try:
+            parsed = json.loads(out)
+        except json.JSONDecodeError:
+            parsed = out
+    return proc.returncode, parsed, err
+
+
+def test_cli_commands_output_valid_json() -> None:
+    for command in [["system", "env"], ["system", "disk"], ["device", "info"], ["nav", "hub"]]:
+        returncode, parsed, _ = _run_cli(command)
+        assert returncode in (0, 1)
+        assert parsed is not None
+        assert isinstance(parsed, dict)
+
+
+def test_device_info_returns_success_with_devices_list() -> None:
+    returncode, parsed, _ = _run_cli(["device", "info"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert "devices" in parsed
+    assert isinstance(parsed["devices"], list)
+
+
+def test_device_status_returns_success_with_adb_server_info() -> None:
+    returncode, parsed, _ = _run_cli(["device", "status"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert "adb_server" in parsed
+    assert "devices" in parsed
+
+
+def test_system_env_returns_success_with_env_dict() -> None:
+    returncode, parsed, _ = _run_cli(["system", "env"])
+    assert returncode == 0
+    assert parsed.get("status") == "success"
+    env = parsed.get("env")
+    assert isinstance(env, dict)
+    assert "python_version" in env
+    assert "os" in env
+    assert "cwd" in env
+
+
+def test_system_disk_returns_success_with_disk_usage() -> None:
+    returncode, parsed, _ = _run_cli(["system", "disk"])
+    assert returncode == 0
+    assert parsed.get("status") == "success"
+    assert parsed.get("path") == str(PROJECT_ROOT)
+    assert "free_bytes" in parsed
+    assert "total_bytes" in parsed
+
+
+def test_config_get_set_works(tmp_path) -> None:
+    config_file = tmp_path / "client_config.json"
+    config_file.write_text(json.dumps({"existing_key": "existing_value"}, ensure_ascii=False))
+
+    returncode_get, parsed_get, _ = _run_cli(["--config", str(config_file), "config", "get", "existing_key"])
+    assert returncode_get == 0
+    assert parsed_get.get("status") == "success"
+    assert parsed_get.get("value") == "existing_value"
+
+    returncode_set, parsed_set, _ = _run_cli(["--config", str(config_file), "config", "set", "new_key", "new_value"])
+    assert returncode_set == 0
+    assert parsed_set.get("status") == "success"
+    assert parsed_set.get("key") == "new_key"
+    assert parsed_set.get("value") == "new_value"
+
+
+def test_nav_command_returns_success_with_target() -> None:
+    returncode, parsed, _ = _run_cli(["nav", "hub"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert parsed.get("command") == "nav.to"
+    assert parsed.get("target") == "hub"
+
+
+def test_daily_returns_success() -> None:
+    returncode, parsed, _ = _run_cli(["daily"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert parsed.get("command") == "daily.run"
+    assert parsed.get("flow") == "daily_quest"
+
+
+def test_harvest_returns_success() -> None:
+    returncode, parsed, _ = _run_cli(["harvest"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert parsed.get("command") == "harvest.run"
+    assert parsed.get("flow") == "entity_harvest"
+
+
+def test_analyze_returns_success() -> None:
+    returncode, parsed, _ = _run_cli(["analyze"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert parsed.get("command") == "analyze.run"
+
+
+def test_explore_returns_success() -> None:
+    returncode, parsed, _ = _run_cli(["explore"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert parsed.get("command") == "explore.run"

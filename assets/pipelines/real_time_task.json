@@ -1,0 +1,35 @@
+{
+  "RealTimeTaskMain": {
+    "action": "Custom",
+    "attach": {
+      "skland_map_enable": false,
+      "skland_map_opacity": 100,
+      "video_browser_enable": false,
+      "video_browser_opacity": 100,
+      "video_browser_url": "https://www.bilibili.com"
+    },
+    "custom_action": "RealTimeTaskAction",
+    "custom_action_param": {
+      "nodes": [
+        "RealTimeAutoPat",
+        "AutoPickFalls",
+        "AutoPickInteractive",
+        "RealTimeAutoZipline",
+        "HandleTutorialGuide_RightUp",
+        "HandleTutorialGuide_LeftUp",
+        "CheckAnywhere",
+        "HandleTutorialPaging",
+        "HandleTutorialConfirm",
+        "CheckSpecialInfoPanel",
+        "RealTimeQuickTeleportList",
+        "RealTimeQuickTeleportDirect",
+        "PuzzleSolverOnScenePrepare",
+        "PuzzleSolverOnSceneMain",
+        "RealTimeAutoSkip",
+        "AutoFight",
+        "RealTimeSleep"
+      ]
+    },
+    "desc": "实时任务主入口"
+  }
+}

@@ -1,0 +1,247 @@
+{
+  "ControlNexusButton": {
+    "desc": "帝江号大世界中的控制枢纽按钮",
+    "next": [
+      "AltClickControlNexusButtonKeyDown"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      185,
+      3,
+      209,
+      96
+    ],
+    "template": "Common/Button/ControlNexusButton.png",
+    "threshold": 0.8
+  },
+  "DepotButton": {
+    "action": "Click",
+    "desc": "地区建设中的仓储节点按钮",
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      1007,
+      331,
+      40,
+      52
+    ],
+    "template": "Common/Button/DepotButton.png",
+    "threshold": 0.8
+  },
+  "EnterCameraModeButton": {
+    "action": "ClickKey",
+    "desc": "进入拍照按钮，位于大世界右侧界面",
+    "key": 82,
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      1118,
+      207,
+      158,
+      212
+    ],
+    "template": "Common/Button/EnterCameraModeButton.png",
+    "threshold": 0.9
+  },
+  "EnterCameraModeMenuButton": {
+    "action": "Custom",
+    "custom_action": "AutoAltClickAction",
+    "desc": "进入拍照按钮，位于交互菜单",
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      718,
+      387,
+      347,
+      178
+    ],
+    "template": "Common/Button/EnterCameraModeMenuButton.png",
+    "threshold": 0.9
+  },
+  "EnvironmentMonitoringButton": {
+    "action": "Click",
+    "desc": "环境监测按钮",
+    "method": 10001,
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      749,
+      419,
+      62,
+      73
+    ],
+    "template": "Common/Button/EnvironmentMonitoringButton.png",
+    "threshold": 0.9
+  },
+  "IncomeReportButton": {
+    "action": "Click",
+    "desc": "地区建设中的收支简报按钮",
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      -220,
+      0,
+      220,
+      220
+    ],
+    "template": "Common/Button/IncomeReportButton.png",
+    "threshold": 0.8
+  },
+  "ProtosyncMenuButton": {
+    "desc": "大世界中的协议同步器按钮",
+    "green_mask": true,
+    "next": [
+      "AltClickProtosyncMenuButtonKeyDown"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      -200,
+      0,
+      200,
+      200
+    ],
+    "template": "Common/Button/ProtosyncMenuButton.png"
+  },
+  "SeizeDeliveryJobsCancelTracking": {
+    "action": "Click",
+    "desc": "在目的地地图界面，取消任务追踪以防止追踪标志干扰后续识别",
+    "enabled": true,
+    "focus": {
+      "Node.Action.Starting": "成功识别目的地位置"
+    },
+    "next": [],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      1100,
+      560,
+      170,
+      150
+    ],
+    "template": "Common/Button/CancelButtonType1.png"
+  },
+  "ShutterButton": {
+    "action": "Click",
+    "desc": "快门按钮",
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      961,
+      465,
+      213,
+      183
+    ],
+    "template": "Common/Button/ShutterButton.png",
+    "threshold": 0.9
+  },
+  "TrialOfSwordmancyCloseTrialTarget": {
+    "action": "Click",
+    "desc": "关闭挑战目标界面",
+    "next": [
+      "TrialOfSwordmancyEnterTrialSuccess"
+    ],
+    "post_delay": 0,
+    "pre_delay": 500,
+    "recognition": "TemplateMatch",
+    "roi": [
+      1042,
+      176,
+      119,
+      119
+    ],
+    "template": "Common/Button/CloseButtonType4.png"
+  },
+  "__SeizeDeliveryJobsStartTrackingTask": {
+    "action": "Click",
+    "desc": "在任务详情页面，若没找到定位按钮，此时需要先点击开始追踪任务按钮",
+    "focus": {
+      "Node.Action.Starting": "点击开始追踪任务"
+    },
+    "max_hit": 5,
+    "next": [
+      "SeizeDeliveryJobsEnterWulingJobList"
+    ],
+    "order_by": "Score",
+    "recognition": "TemplateMatch",
+    "roi": [
+      1070,
+      570,
+      200,
+      140
+    ],
+    "template": "Common/Button/WhiteConfirmButtonType1.png"
+  }
+}

@@ -1,0 +1,58 @@
+# --- SampleProgram (entire folder) ---
+SampleProgram/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+
+# --- Virtual Environment ---
+venv/
+.venv/
+
+# --- IDE / AI Assistants ---
+.idea/
+.vscode/
+.claude/
+.qwen/
+
+# --- Third-party binaries ---
+3rd-part/
+
+# --- User config (contains secrets) ---
+config/client_config.json
+
+# --- Runtime data & logs ---
+data/
+debug/
+logs/
+src/logs/
+cache/
+explore_logs/
+
+# --- Temporary / generated files ---
+temp_*
+temp_*.json
+*.png
+*.jpg
+*.jpeg
+game_knowledge_base.json
+yolo11n.pt
+terminal_*
+
+# --- ML models ---
+models/
+
+# --- Metadata ---
+META-INF/
+
+# --- Dotenv ---
+.env
+.env.*
+
+# --- OS ---
+Thumbs.db
+.DS_Store

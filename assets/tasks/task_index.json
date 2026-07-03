@@ -1,0 +1,174 @@
+{
+  "tasks": [
+    {
+      "name": "AccountSwitch",
+      "path": "AccountSwitch.json"
+    },
+    {
+      "name": "AndroidOpenGame",
+      "path": "AndroidOpenGame.json"
+    },
+    {
+      "name": "AutoCollect",
+      "path": "AutoCollect.json"
+    },
+    {
+      "name": "AutoEcoFarm",
+      "path": "AutoEcoFarm.json"
+    },
+    {
+      "name": "AutoEssence",
+      "path": "AutoEssence.json"
+    },
+    {
+      "name": "AutoSell",
+      "path": "AutoSell.json"
+    },
+    {
+      "name": "AutoStockpile",
+      "path": "AutoStockpile.json"
+    },
+    {
+      "name": "AutoStockStaple",
+      "path": "AutoStockStaple.json"
+    },
+    {
+      "name": "AutoUseSpMedication",
+      "path": "AutoUseSpMedication.json"
+    },
+    {
+      "name": "BakerEntry",
+      "path": "BakerEntry.json"
+    },
+    {
+      "name": "BatchAddFriends",
+      "path": "BatchAddFriends.json"
+    },
+    {
+      "name": "BatchUseDetector",
+      "path": "BatchUseDetector.json"
+    },
+    {
+      "name": "ClaimSimulationRewards",
+      "path": "ClaimSimulationRewards.json"
+    },
+    {
+      "name": "Crafting",
+      "path": "Crafting.json"
+    },
+    {
+      "name": "CreditShopping",
+      "path": "CreditShopping.json"
+    },
+    {
+      "name": "DailyRewards",
+      "path": "DailyRewards.json"
+    },
+    {
+      "name": "DeliveryJobs",
+      "path": "DeliveryJobs.json"
+    },
+    {
+      "name": "DijiangRewards",
+      "path": "DijiangRewards.json"
+    },
+    {
+      "name": "EnvironmentMonitoring",
+      "path": "EnvironmentMonitoring.json"
+    },
+    {
+      "name": "EssenceFilter",
+      "path": "EssenceFilter.json"
+    },
+    {
+      "name": "GearAssembly",
+      "path": "GearAssembly.json"
+    },
+    {
+      "name": "GiftOperator",
+      "path": "GiftOperator.json"
+    },
+    {
+      "name": "ImportBluePrints",
+      "path": "ImportBluePrints.json"
+    },
+    {
+      "name": "ItemTransfer",
+      "path": "ItemTransfer.json"
+    },
+    {
+      "name": "ProtocolSpace",
+      "path": "ProtocolSpace.json"
+    },
+    {
+      "name": "PullCountCalculator",
+      "path": "PullCountCalculator.json"
+    },
+    {
+      "name": "PuzzleSolver",
+      "path": "PuzzleSolver.json"
+    },
+    {
+      "name": "ReadAllWiki",
+      "path": "ReadAllWiki.json"
+    },
+    {
+      "name": "RealTimeTask",
+      "path": "RealTimeTask.json"
+    },
+    {
+      "name": "ReceiveProdManual",
+      "path": "ReceiveProdManual.json"
+    },
+    {
+      "name": "ResourceRecycleStation",
+      "path": "ResourceRecycleStation.json"
+    },
+    {
+      "name": "SeizeDeliveryJobs",
+      "path": "SeizeDeliveryJobs.json"
+    },
+    {
+      "name": "SellProduct",
+      "path": "SellProduct.json"
+    },
+    {
+      "name": "SimpleProductionBatchStart",
+      "path": "SimpleProductionBatchStart.json"
+    },
+    {
+      "name": "StashBackpack",
+      "path": "StashBackpack.json"
+    },
+    {
+      "name": "TrialOfSwordmancy",
+      "path": "TrialOfSwordmancy.json"
+    },
+    {
+      "name": "VisitFriends",
+      "path": "VisitFriends.json"
+    },
+    {
+      "name": "Weapon",
+      "path": "Weapon.json"
+    },
+    {
+      "name": "WebEvent202605",
+      "path": "WebEvent202605.json"
+    }
+  ],
+  "presets": [
+    {
+      "name": "DailyFull",
+      "path": "preset\\DailyFull.json"
+    },
+    {
+      "name": "QuickDaily",
+      "path": "preset\\QuickDaily.json"
+    },
+    {
+      "name": "RealtimeAssist",
+      "path": "preset\\RealtimeAssist.json"
+    }
+  ]
+}

@@ -1,0 +1,398 @@
+{
+  "EnvironmentMonitoringButton": {
+    "action": "Click",
+    "desc": "环境监测按钮",
+    "method": 10001,
+    "post_delay": 0,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "TemplateMatch",
+    "roi": [
+      749,
+      419,
+      62,
+      73
+    ],
+    "template": "Common/Button/EnvironmentMonitoringButton.png",
+    "threshold": 0.9
+  },
+  "EnvironmentMonitoringCheckMarkerStoneMonitoringTerminalText": {
+    "desc": "检查首墩监测终端文本",
+    "expected": [
+      "首墩监测终端",
+      "首墩監測終端",
+      "(?i)Marker\\s*Stone\\s*Monitoring\\s*Terminal",
+      "マーカーストーン観測端末",
+      "마커 스톤 관측 단말기"
+    ],
+    "recognition": "OCR",
+    "roi": [
+      16,
+      57,
+      1034,
+      85
+    ]
+  },
+  "EnvironmentMonitoringCheckMonitoringTerminalText": {
+    "desc": "检查环境监测终端文本",
+    "expected": [
+      "环境监测终端",
+      "環境監測終端",
+      "(?i)Environment\\s*Monitoring\\s*Terminal",
+      "環境観測端末",
+      "환경 관측 단말기"
+    ],
+    "recognition": "OCR",
+    "roi": [
+      0,
+      0,
+      300,
+      62
+    ]
+  },
+  "EnvironmentMonitoringCheckOutskirtsMonitoringTerminalText": {
+    "desc": "检查城郊监测终端文本",
+    "expected": [
+      "城郊监测终端",
+      "城郊監測終端",
+      "(?i)Outskirts\\s*Monitoring\\s*Terminal",
+      "郊外観測端末",
+      "교외 관측 단말기"
+    ],
+    "recognition": "OCR",
+    "roi": [
+      16,
+      57,
+      1034,
+      85
+    ]
+  },
+  "EnvironmentMonitoringCheckPhotographyTarget": {
+    "desc": "检查是否达成拍照目标",
+    "recognition": "TemplateMatch",
+    "roi": [
+      0,
+      150,
+      200,
+      300
+    ],
+    "template": "EnvironmentMonitoring/TargetChecked.png"
+  },
+  "EnvironmentMonitoringEnterCameraMode": {
+    "action": "Custom",
+    "all_of": [
+      "EnterCameraModeMenuButton",
+      "InWorld"
+    ],
+    "custom_action": "AutoAltClickAction",
+    "desc": "进入拍照模式，会自动朝向任务目标",
+    "next": [
+      "EnvironmentMonitoringWaitShutterButton"
+    ],
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringFinish": {
+    "desc": "环境监测完成"
+  },
+  "EnvironmentMonitoringGoToMarkerStoneMonitoringTerminal": {
+    "desc": "前往首墩监测终端",
+    "next": [
+      "EnvironmentMonitoringInMarkerStoneMonitoringTerminal",
+      "EnvironmentMonitoringSelectMarkerStoneMonitoringTerminal",
+      "[JumpBack]SceneEnterMenuRegionalDevelopmentWulingEnvironmentMonitoring"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "EnvironmentMonitoringGoToOutskirtsMonitoringTerminal": {
+    "desc": "前往城郊监测终端",
+    "next": [
+      "EnvironmentMonitoringInOutskirtsMonitoringTerminal",
+      "EnvironmentMonitoringSelectOutskirtsMonitoringTerminal",
+      "[JumpBack]SceneEnterMenuRegionalDevelopmentWulingEnvironmentMonitoring"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0
+  },
+  "EnvironmentMonitoringInMarkerStoneMonitoringTerminal": {
+    "all_of": [
+      "EnvironmentMonitoringCheckMarkerStoneMonitoringTerminalText",
+      "EnvironmentMonitoringMarkerStoneMonitoringTerminalSelected"
+    ],
+    "desc": "检查是否在首墩监测终端",
+    "pre_wait_freezes": {
+      "target": [
+        63,
+        208,
+        1158,
+        71
+      ],
+      "time": 80
+    },
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringInMonitoringTerminal": {
+    "all_of": [
+      "EnvironmentMonitoringCheckMonitoringTerminalText"
+    ],
+    "desc": "检查是否在环境监测终端",
+    "pre_wait_freezes": {
+      "target": [
+        63,
+        208,
+        1158,
+        71
+      ],
+      "time": 80
+    },
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringInOutskirtsMonitoringTerminal": {
+    "all_of": [
+      "EnvironmentMonitoringCheckOutskirtsMonitoringTerminalText",
+      "EnvironmentMonitoringOutskirtsMonitoringTerminalSelected"
+    ],
+    "desc": "检查是否在城郊监测终端",
+    "pre_wait_freezes": {
+      "target": [
+        63,
+        208,
+        1158,
+        71
+      ],
+      "time": 80
+    },
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringLoop": {
+    "all_of": [
+      "EnvironmentMonitoringCheckOutskirtsMonitoringTerminalText"
+    ],
+    "desc": "环境监测循环",
+    "next": [
+      "[JumpBack]OutskirtsMonitoringTerminal",
+      "[JumpBack]MarkerStoneMonitoringTerminal",
+      "EnvironmentMonitoringFinish"
+    ],
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringMain": {
+    "desc": "环境监测主流程",
+    "next": [
+      "EnvironmentMonitoringLoop",
+      "[JumpBack]SceneEnterMenuRegionalDevelopmentWulingEnvironmentMonitoring"
+    ]
+  },
+  "EnvironmentMonitoringMarkerStoneMonitoringTerminalSelected": {
+    "count": 1000,
+    "desc": "首墩监测终端已选中",
+    "lower": [
+      0,
+      0,
+      200
+    ],
+    "method": 40,
+    "recognition": "ColorMatch",
+    "roi": "EnvironmentMonitoringCheckMarkerStoneMonitoringTerminalText",
+    "roi_offset": [
+      0,
+      20,
+      0,
+      0
+    ],
+    "upper": [
+      0,
+      10,
+      255
+    ]
+  },
+  "EnvironmentMonitoringOutskirtsMonitoringTerminalSelected": {
+    "count": 1000,
+    "desc": "城郊监测终端已选中",
+    "lower": [
+      0,
+      0,
+      200
+    ],
+    "method": 40,
+    "recognition": "ColorMatch",
+    "roi": "EnvironmentMonitoringCheckOutskirtsMonitoringTerminalText",
+    "roi_offset": [
+      0,
+      20,
+      0,
+      0
+    ],
+    "upper": [
+      0,
+      10,
+      255
+    ]
+  },
+  "EnvironmentMonitoringSelectMarkerStoneMonitoringTerminal": {
+    "action": "Click",
+    "all_of": [
+      "EnvironmentMonitoringCheckMarkerStoneMonitoringTerminalText",
+      "EnvironmentMonitoringInMonitoringTerminal"
+    ],
+    "desc": "选择首墩监测终端",
+    "next": [
+      "EnvironmentMonitoringInMarkerStoneMonitoringTerminal"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringSelectOutskirtsMonitoringTerminal": {
+    "action": "Click",
+    "all_of": [
+      "EnvironmentMonitoringCheckOutskirtsMonitoringTerminalText",
+      "EnvironmentMonitoringInMonitoringTerminal"
+    ],
+    "desc": "选择城郊监测终端",
+    "next": [
+      "EnvironmentMonitoringInOutskirtsMonitoringTerminal"
+    ],
+    "post_delay": 0,
+    "pre_delay": 0,
+    "rate_limit": 0,
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringShutterButtonHighlighted": {
+    "action": "Click",
+    "all_of": [
+      "ShutterButton",
+      {
+        "connected": true,
+        "count": 140,
+        "lower": [
+          20,
+          100,
+          160
+        ],
+        "method": 40,
+        "recognition": "ColorMatch",
+        "roi": "ShutterButton",
+        "roi_offset": [
+          -34,
+          -39,
+          69,
+          85
+        ],
+        "upper": [
+          38,
+          255,
+          255
+        ]
+      }
+    ],
+    "desc": "拍照按钮高亮，拍照",
+    "next": [
+      "[Anchor]EnvironmentMonitoringBackToTerminal"
+    ],
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringShutterButtonPhotographyTarget": {
+    "action": "Click",
+    "all_of": [
+      "ShutterButton",
+      "EnvironmentMonitoringCheckPhotographyTarget"
+    ],
+    "desc": "拍照目标达成，拍照",
+    "next": [
+      "[Anchor]EnvironmentMonitoringBackToTerminal"
+    ],
+    "recognition": "And"
+  },
+  "EnvironmentMonitoringSwipeScreenDown": {
+    "action": "Swipe",
+    "begin": [
+      520,
+      360
+    ],
+    "desc": "环境监测拍照，向下滑动屏幕调整朝向",
+    "end": [
+      520,
+      480
+    ],
+    "end_hold": 300
+  },
+  "EnvironmentMonitoringSwipeScreenLeft": {
+    "action": "Swipe",
+    "begin": [
+      520,
+      360
+    ],
+    "desc": "环境监测拍照，向左滑动屏幕调整朝向",
+    "end": [
+      280,
+      360
+    ],
+    "end_hold": 300
+  },
+  "EnvironmentMonitoringSwipeScreenRight": {
+    "action": "Swipe",
+    "begin": [
+      520,
+      360
+    ],
+    "desc": "环境监测拍照，向右滑动屏幕调整朝向",
+    "end": [
+      760,
+      360
+    ],
+    "end_hold": 300
+  },
+  "EnvironmentMonitoringSwipeScreenUp": {
+    "action": "Swipe",
+    "begin": [
+      520,
+      360
+    ],
+    "desc": "环境监测拍照，向上滑动屏幕调整朝向",
+    "end": [
+      520,
+      240
+    ],
+    "end_hold": 300
+  },
+  "EnvironmentMonitoringTakePhoto": {
+    "desc": "环境监测拍照",
+    "next": [
+      "EnvironmentMonitoringEnterCameraMode",
+      "EnvironmentMonitoringTakePhotoDirectly"
+    ]
+  },
+  "EnvironmentMonitoringTakePhotoDirectly": {
+    "desc": "直接进入拍照模式，如果朝向不对会失败",
+    "next": [
+      "EnterCameraModeClick",
+      "EnterCameraModeLongPress"
+    ]
+  },
+  "EnvironmentMonitoringWaitShutterButton": {
+    "all_of": [
+      "ShutterButton"
+    ],
+    "desc": "拍照按钮出现后等待稳定",
+    "next": [
+      "EnvironmentMonitoringShutterButtonHighlighted",
+      "EnvironmentMonitoringShutterButtonPhotographyTarget",
+      "[JumpBack][Anchor]EnvironmentMonitoringAdjustCamera"
+    ],
+    "pre_wait_freezes": 200,
+    "recognition": "And"
+  }
+}

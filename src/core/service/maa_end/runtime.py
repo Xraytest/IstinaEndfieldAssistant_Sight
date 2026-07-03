@@ -1,0 +1,380 @@
+"""
+MaaEnd runtime bridge - drives MaaFramework using SampleProgram/MaaEnd_Release assets.
+
+This module intentionally mirrors MaaEnd's execution model:
+- load interface.json + task JSONs
+- load pipeline resources via MaaFramework Resource
+- run task entries through Tasker.post_task(...) with option-derived pipeline_override
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from core.foundation.logger import get_logger, LogCategory
+
+MAAFW_AVAILABLE = False
+try:
+    from maa.resource import Resource
+    from maa.tasker import Tasker
+    from maa.controller import AdbController
+    from maa.toolkit import Toolkit
+    from maa.define import MaaAdbScreencapMethodEnum, MaaAdbInputMethodEnum, MaaLoggingLevel
+    MAAFW_AVAILABLE = True
+except ImportError:
+    Resource = None  # type: ignore[misc,assignment]
+    Tasker = None  # type: ignore[misc,assignment]
+    AdbController = None  # type: ignore[misc,assignment]
+    Toolkit = None  # type: ignore[misc,assignment]
+    MaaAdbScreencapMethodEnum = None  # type: ignore[misc,assignment]
+    MaaAdbInputMethodEnum = None  # type: ignore[misc,assignment]
+    MaaLoggingLevel = None  # type: ignore[misc,assignment]
+
+
+class MaaEndRuntime:
+    """Thin wrapper around MaaFramework that behaves like MaaEnd's runner."""
+
+    def __init__(self, maaend_root: Optional[str] = None, device_address: str = "localhost:16512", adb_path: str = "3rd-part/adb/adb.exe"):
+        self.logger = get_logger()
+        self._maaend_root = Path(maaend_root) if maaend_root else self._default_maaend_root()
+        self._device_address = device_address
+        adb_candidate = Path(adb_path)
+        self._adb_path = str(adb_candidate.resolve()) if adb_candidate.exists() else str(adb_candidate)
+        self._resource: Optional[Any] = None
+        self._tasker: Optional[Any] = None
+        self._controller: Optional[Any] = None
+        self._interface: Optional[Dict[str, Any]] = None
+        self._tasks: Dict[str, Dict[str, Any]] = {}
+        self._presets: Dict[str, Dict[str, Any]] = {}
+        self._option_defs: Dict[str, Dict[str, Any]] = {}
+        self._connected = False
+
+    def _default_maaend_root(self) -> Path:
+        return get_project_root() / "SampleProgram" / "MaaEnd_Release"
+
+    @property
+    def root(self) -> Path:
+        return self._maaend_root
+
+    @property
+    def connected(self) -> bool:
+        return self._connected
+
+    def load_interface(self) -> Dict[str, Any]:
+        path = self._maaend_root / "interface.json"
+        with open(path, "r", encoding="utf-8") as f:
+            self._interface = json.load(f)
+        return self._interface
+
+    def load_tasks(self) -> Dict[str, Dict[str, Any]]:
+        tasks_root = self._maaend_root / "tasks"
+        self._tasks = {}
+        self._option_defs = {}
+        for json_path in tasks_root.rglob("*.json"):
+            if json_path.name == "nodes.json":
+                continue
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                # 提取全局 option 定义（每个 JSON 文件顶层可能有 option 字典）
+                global_options = data.get("option")
+                if isinstance(global_options, dict):
+                    self._option_defs.update(global_options)
+                task_list = data.get("task", [])
+                for task in task_list:
+                    name = task.get("name")
+                    if name:
+                        self._tasks[name] = task
+                        self._tasks[name]["_source"] = str(json_path.relative_to(self._maaend_root))
+            except Exception as e:  # pragma: no cover
+                self.logger.debug(LogCategory.MAIN, "加载任务定义失败", path=str(json_path), error=str(e))
+        return self._tasks
+
+    def load_presets(self) -> Dict[str, Dict[str, Any]]:
+        preset_root = self._maaend_root / "tasks" / "preset"
+        self._presets = {}
+        if not preset_root.exists():
+            return self._presets
+        for json_path in preset_root.glob("*.json"):
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                preset_list = data.get("preset", [])
+                for preset in preset_list:
+                    name = preset.get("name")
+                    if name:
+                        self._presets[name] = preset
+                        self._presets[name]["_source"] = str(json_path.relative_to(self._maaend_root))
+            except Exception as e:  # pragma: no cover
+                self.logger.debug(LogCategory.MAIN, "加载预设失败", path=str(json_path), error=str(e))
+        return self._presets
+
+    def connect(self) -> bool:
+        if not MAAFW_AVAILABLE:
+            self.logger.error(LogCategory.MAIN, "MaaFramework 未安装，无法连接")
+            return False
+        try:
+            if MaaLoggingLevel is not None:
+                try:
+                    import maa as _maa
+                    _maa.Library.set_log_level(MaaLoggingLevel.MaaLogFatal)
+                except Exception:
+                    pass
+            if Toolkit is not None:
+                try:
+                    Toolkit.init_option(Path(self._maaend_root / "config") if (self._maaend_root / "config").exists() else Path(self._maaend_root))
+                except Exception:
+                    pass
+            self._resource = Resource()
+            input_method = 0
+            if MaaAdbInputMethodEnum is not None:
+                try:
+                    input_method = int(MaaAdbInputMethodEnum.Maatouch)
+                except Exception:
+                    input_method = 3
+            self._controller = AdbController(
+                adb_path=Path(self._adb_path),
+                address=self._device_address,
+                screencap_methods=int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0),
+                input_methods=input_method,
+                config={},
+            )
+            job = self._controller.post_connection()
+            job.wait()
+            if not job.succeeded:
+                self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败", address=self._device_address)
+                self._cleanup_partial()
+                return False
+            screencap_job = self._controller.post_screencap()
+            screencap_job.wait()
+            self._tasker = Tasker()
+            if not self._tasker.bind(self._resource, self._controller):
+                self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
+                self._cleanup_partial()
+                return False
+            self._connected = True
+            self.logger.info(LogCategory.MAIN, "MaaEnd runtime 连接成功", address=self._device_address)
+            return True
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "MaaEnd runtime 连接异常", error=str(e))
+            self._cleanup_partial()
+            return False
+
+    def _cleanup_partial(self) -> None:
+        """Clean up partially-created resources after a failed connect()."""
+        try:
+            if self._tasker is not None:
+                self._tasker = None
+        except Exception:
+            pass
+        try:
+            if self._controller is not None:
+                self._controller = None
+        except Exception:
+            pass
+        try:
+            if self._resource is not None:
+                self._resource = None
+        except Exception:
+            pass
+
+    def disconnect(self) -> None:
+        self._connected = False
+        self._tasker = None
+        self._controller = None
+        self._resource = None
+        self.logger.info(LogCategory.MAIN, "MaaEnd runtime 已断开")
+
+    def load_resource(self) -> bool:
+        if not self._connected or self._resource is None:
+            return False
+        try:
+            job = self._resource.post_bundle(self._maaend_root / "resource")
+            job.wait()
+            if not job.succeeded:
+                self.logger.error(LogCategory.MAIN, "Pipeline 资源加载失败")
+                return False
+            self.logger.info(LogCategory.MAIN, "Pipeline 资源加载成功")
+            return True
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "Pipeline 资源加载异常", error=str(e))
+            return False
+
+    def build_pipeline_override(self, task_name: str, options: Dict[str, Any]) -> Dict[str, Any]:
+        task = self._tasks.get(task_name)
+        if not task:
+            return {}
+        override: Dict[str, Any] = {}
+        task_options = task.get("option", [])
+        if not isinstance(task_options, list):
+            task_options = []
+        for opt_name in task_options:
+            value = options.get(opt_name)
+            if value is None:
+                continue
+            opt_def = self._option_defs.get(opt_name, {})
+            override.update(self._apply_option(opt_def, value))
+        base_override = task.get("pipeline_override") or {}
+        merged = self._merge_overrides(base_override, override)
+        return merged
+
+    def _apply_option(self, opt_def: Dict[str, Any], value: Any) -> Dict[str, Any]:
+        result: Dict[str, Any] = {}
+        opt_type = opt_def.get("type", "switch")
+        cases = opt_def.get("cases", [])
+        if opt_type == "switch":
+            case_name = value if isinstance(value, str) else ("Yes" if value else "No")
+            for case in cases:
+                if case.get("name") == case_name:
+                    result.update(case.get("pipeline_override") or {})
+                    nested_options = case.get("option") or []
+                    nested_defs = opt_def.get("option", {}) if isinstance(opt_def.get("option"), dict) else {}
+                    for nested_name in nested_options:
+                        nested_value = value.get(nested_name) if isinstance(value, dict) else None
+                        if nested_value is None:
+                            continue
+                        result.update(self._apply_option(nested_defs.get(nested_name, {}), nested_value))
+                    return result
+            default_case = opt_def.get("default_case")
+            if default_case:
+                for case in cases:
+                    if case.get("name") == default_case:
+                        result.update(case.get("pipeline_override") or {})
+                        return result
+            return result
+        if opt_type == "checkbox":
+            selected = value if isinstance(value, list) else ([value] if value else [])
+            default_case = opt_def.get("default_case") or []
+            active_cases = selected if selected else default_case
+            for case in cases:
+                if case.get("name") in active_cases:
+                    result.update(case.get("pipeline_override") or {})
+            return result
+        if opt_type == "select":
+            case_name = str(value)
+            default_case = str(opt_def.get("default_case")) if opt_def.get("default_case") is not None else None
+            active_case = case_name if case_name else default_case
+            for case in cases:
+                if case.get("name") == active_case:
+                    result.update(case.get("pipeline_override") or {})
+                    return result
+            return result
+        if opt_type == "input":
+            override_payload = opt_def.get("pipeline_override") or {}
+            merged_payload = self._resolve_input_tokens(override_payload, value)
+            result.update(merged_payload)
+            return result
+        return result
+
+    def _resolve_input_tokens(self, payload: Dict[str, Any], value: Any) -> Dict[str, Any]:
+        if not isinstance(value, dict):
+            return payload
+        resolved = json.loads(json.dumps(payload))
+        for key, val in resolved.items():
+            if isinstance(val, str):
+                resolved[key] = self._replace_tokens(val, value)
+            elif isinstance(val, dict):
+                resolved[key] = self._resolve_input_tokens(val, value)
+        return resolved
+
+    def _replace_tokens(self, text: str, values: Dict[str, Any]) -> str:
+        result = text
+        for token, replacement in values.items():
+            placeholder = "{" + token + "}"
+            if placeholder in result:
+                result = result.replace(placeholder, str(replacement))
+        return result
+
+    def _merge_overrides(self, base: Dict[str, Any], extra: Dict[str, Any]) -> Dict[str, Any]:
+        merged = json.loads(json.dumps(base)) if base else {}
+        for key, value in extra.items():
+            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+                merged[key] = self._merge_overrides(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+
+    def run_task(self, task_name: str, options: Optional[Dict[str, Any]] = None) -> bool:
+        if not self._connected or self._tasker is None:
+            self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行任务", task=task_name)
+            return False
+        task = self._tasks.get(task_name)
+        if not task:
+            self.logger.error(LogCategory.MAIN, "任务未定义", task=task_name)
+            return False
+        options = options or {}
+        override = self.build_pipeline_override(task_name, options)
+        entry = task.get("entry", task_name)
+        self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
+        try:
+            job = self._tasker.post_task(entry, override if override else {})
+            job.wait()
+            if job.succeeded:
+                self.logger.info(LogCategory.MAIN, "任务执行成功", task=task_name)
+                return True
+            self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
+            return False
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "任务执行异常", task=task_name, error=str(e))
+            return False
+
+    def run_preset(self, preset_name: str) -> bool:
+        preset = self._presets.get(preset_name)
+        if not preset:
+            self.logger.error(LogCategory.MAIN, "预设未定义", preset=preset_name)
+            return False
+        task_list = preset.get("task", [])
+        self.logger.info(LogCategory.MAIN, "开始执行预设", preset=preset_name, tasks=len(task_list))
+        for task_entry in task_list:
+            name = task_entry.get("name")
+            options = task_entry.get("option") or {}
+            if not self.run_task(name, options):
+                self.logger.warning(LogCategory.MAIN, "预设执行中断", preset=preset_name, failed_task=name)
+                return False
+        self.logger.info(LogCategory.MAIN, "预设执行完成", preset=preset_name)
+        return True
+
+    def interface(self) -> Dict[str, Any]:
+        return self._interface or self.load_interface()
+
+    def tasks(self) -> Dict[str, Dict[str, Any]]:
+        return self._tasks or self.load_tasks()
+
+    def presets(self) -> Dict[str, Dict[str, Any]]:
+        return self._presets or self.load_presets()
+
+    def task_groups(self) -> List[str]:
+        interface = self.interface()
+        return [g.get("name") for g in interface.get("group", []) if g.get("name")]
+
+    def controllers(self) -> List[Dict[str, Any]]:
+        return self.interface().get("controller", [])
+
+    def resources(self) -> List[Dict[str, Any]]:
+        return self.interface().get("resource", [])
+
+    def agents(self) -> List[Dict[str, Any]]:
+        return self.interface().get("agent", [])
+
+    def imported_task_paths(self) -> List[str]:
+        return self.interface().get("import", [])
+
+    def screenshot(self) -> Optional[bytes]:
+        if not self._connected or self._controller is None:
+            return None
+        try:
+            job = self._controller.post_screencap()
+            job.wait()
+            if not job.succeeded:
+                return None
+            cached = self._controller.cached_image
+            if cached is None:
+                return None
+            import cv2
+            success, buf = cv2.imencode(".png", cached)
+            return buf.tobytes() if success else None
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "截图失败", error=str(e))
+            return None
