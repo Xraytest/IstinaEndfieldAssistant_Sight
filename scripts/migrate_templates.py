@@ -7,7 +7,7 @@ into assets/templates/ organized by the same module/subdirectory naming.
 import shutil
 from pathlib import Path
 
-maaend_images = Path("SampleProgram/MaaEnd_Release/resource/image")
+maaend_images = Path("3rd-part/maaend/resource/image")
 target_root = Path("assets/templates")
 target_root.mkdir(parents=True, exist_ok=True)
 

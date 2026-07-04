@@ -52,7 +52,7 @@ project_root = get_project_root()
 
 ### MaaEnd Integration
 
-`MaaEndRuntime` (`src/core/service/maa_end/runtime.py`) wraps MaaFramework for pipeline tasks, OCR, and touch. Uses `SampleProgram/MaaEnd_Release/` for interface and task definitions.
+`MaaEndRuntime` (`src/core/service/maa_end/runtime.py`) wraps MaaFramework for pipeline tasks, OCR, and touch. Uses `3rd-part/maaend/` for interface and task definitions.
 
 ## Configuration
 

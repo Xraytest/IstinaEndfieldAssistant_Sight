@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
+from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QWidget, QStatusBar, QTabWidget
 
 from core.foundation.paths import ensure_src_path
@@ -18,10 +20,16 @@ ensure_src_path(__file__)
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        bridge_factory: Optional[Callable[[], CLIBridge]] = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("IstinaEndfieldAssistant Sight")
-        self._bridge = CLIBridge(self)
+        self._bridge = bridge_factory() if bridge_factory is not None else CLIBridge(self)
+        if self._bridge.parent() is None:
+            self._bridge.setParent(self)
 
         central = QWidget(self)
         layout = QVBoxLayout(central)
@@ -34,6 +42,18 @@ class MainWindow(QMainWindow):
 
         self._init_pages()
         self.resize(1280, 800)
+
+        QTimer.singleShot(0, self._async_warmup)
+
+    def _async_warmup(self) -> None:
+        """非阻塞预热 LLM / VLM 后端。"""
+        self._bridge.execute("llm start", {})
+        self._bridge.execute("vlm start", {})
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self._bridge.execute("llm stop", {})
+        self._bridge.execute("vlm stop", {})
+        super().closeEvent(event)
 
     def _init_pages(self) -> None:
         tabs = QTabWidget()

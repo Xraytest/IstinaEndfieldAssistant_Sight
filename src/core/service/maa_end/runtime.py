@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.foundation.logger import get_logger, LogCategory
+from core.foundation.paths import get_project_root
 
 MAAFW_AVAILABLE = False
 try:
@@ -52,7 +53,7 @@ class MaaEndRuntime:
         self._connected = False
 
     def _default_maaend_root(self) -> Path:
-        return get_project_root() / "SampleProgram" / "MaaEnd_Release"
+        return get_project_root() / "3rd-part" / "maaend"
 
     @property
     def root(self) -> Path:
@@ -86,8 +87,10 @@ class MaaEndRuntime:
                 for task in task_list:
                     name = task.get("name")
                     if name:
-                        self._tasks[name] = task
-                        self._tasks[name]["_source"] = str(json_path.relative_to(self._maaend_root))
+                        task_copy = dict(task)
+                        task_copy["_source"] = str(json_path.relative_to(self._maaend_root))
+                        task_copy["_option_defs"] = dict(global_options) if isinstance(global_options, dict) else {}
+                        self._tasks[name] = task_copy
             except Exception as e:  # pragma: no cover
                 self.logger.debug(LogCategory.MAIN, "加载任务定义失败", path=str(json_path), error=str(e))
         return self._tasks
@@ -210,11 +213,14 @@ class MaaEndRuntime:
         task_options = task.get("option", [])
         if not isinstance(task_options, list):
             task_options = []
+        option_defs = task.get("_option_defs")
+        if not isinstance(option_defs, dict) or not option_defs:
+            option_defs = self._option_defs
         for opt_name in task_options:
             value = options.get(opt_name)
             if value is None:
                 continue
-            opt_def = self._option_defs.get(opt_name, {})
+            opt_def = option_defs.get(opt_name, {})
             override.update(self._apply_option(opt_def, value))
         base_override = task.get("pipeline_override") or {}
         merged = self._merge_overrides(base_override, override)
@@ -296,6 +302,23 @@ class MaaEndRuntime:
                 merged[key] = value
         return merged
 
+    def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any]) -> bool:
+        if not self._connected or self._tasker is None:
+            self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行管道")
+            return False
+        self.logger.info(LogCategory.MAIN, "开始执行自定义管道", entry=entry)
+        try:
+            job = self._tasker.post_task(entry, pipeline_override if pipeline_override else {})
+            job.wait()
+            if job.succeeded:
+                self.logger.info(LogCategory.MAIN, "自定义管道执行成功", entry=entry)
+                return True
+            self.logger.warning(LogCategory.MAIN, "自定义管道执行失败", entry=entry)
+            return False
+        except Exception as e:
+            self.logger.exception(LogCategory.MAIN, "自定义管道执行异常", entry=entry, error=str(e))
+            return False
+
     def run_task(self, task_name: str, options: Optional[Dict[str, Any]] = None) -> bool:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行任务", task=task_name)
@@ -341,6 +364,11 @@ class MaaEndRuntime:
 
     def tasks(self) -> Dict[str, Dict[str, Any]]:
         return self._tasks or self.load_tasks()
+
+    def task_option_defs(self) -> Dict[str, Dict[str, Any]]:
+        if not self._tasks:
+            self.load_tasks()
+        return dict(self._option_defs)
 
     def presets(self) -> Dict[str, Dict[str, Any]]:
         return self._presets or self.load_presets()

@@ -32,8 +32,11 @@ class CLIBridge(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._process: Optional[QProcess] = None
+        self._pending_commands: List[List[str]] = []
+        self._current_command: Optional[List[str]] = None
         self._crash_count = 0
         self._max_crashes = 5
+        self._restart_pending = False
         self._python_path = sys.executable
         self._istina_path = str(get_project_root() / "src" / "cli" / "istina.py")
         self._last_command: List[str] = []
@@ -43,8 +46,8 @@ class CLIBridge(QObject):
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> None:
         params = params or {}
         args = self._build_args(command, params)
-        self._last_command = args
-        self._start_process(args)
+        self._pending_commands.append(args)
+        self._start_next_process()
 
     def _build_args(self, command: str, params: Dict[str, Any]) -> List[str]:
         args: List[str] = []
@@ -66,17 +69,27 @@ class CLIBridge(QObject):
         if current:
             args.append(current)
         for key, value in params.items():
+            if value is None:
+                continue
             if isinstance(value, bool):
                 if value:
                     args.append(f"--{key}")
+            elif isinstance(value, (dict, list, tuple)):
+                args.extend([f"--{key}", json.dumps(value, ensure_ascii=False)])
             else:
                 args.extend([f"--{key}", str(value)])
         return args
 
-    def _start_process(self, args: List[str]) -> None:
-        if self._process and self._process.state() != QProcess.ProcessState.NotRunning:
-            self._process.kill()
-            self._process.waitForFinished(1000)
+    def _start_next_process(self) -> None:
+        if self._process is not None and self._process.state() != QProcess.ProcessState.NotRunning:
+            return
+        if not self._pending_commands:
+            return
+
+        args = self._pending_commands.pop(0)
+        self._current_command = list(args)
+        self._last_command = list(args)
+        self._stdout_buffer = ""
 
         self._process = QProcess(self)
         self._process.readyReadStandardOutput.connect(self._on_stdout)
@@ -89,6 +102,8 @@ class CLIBridge(QObject):
         self._process.start(cmd[0], cmd[1:])
         if not self._process.waitForStarted(5000):
             self._handle_process_error("进程启动超时")
+            self._finalize_current_process()
+            self._start_next_process()
 
     def _on_stdout(self) -> None:
         data = bytes(self._process.readAllStandardOutput()).decode("utf-8", errors="replace")
@@ -113,25 +128,48 @@ class CLIBridge(QObject):
         self.logMessage.emit("CLI", data.strip())
 
     def _on_finished(self, exit_code: int, exit_status: QProcess.ExitStatus) -> None:
+        if self._restart_pending:
+            self._finalize_current_process()
+            return
         if exit_code != 0:
             self._handle_process_error(f"进程异常退出: {exit_code}")
+        else:
+            self._crash_count = 0
+        self._finalize_current_process()
+        self._start_next_process()
 
     def _on_error(self, error: QProcess.ProcessError) -> None:
         if error == QProcess.ProcessError.Crashed:
             self._crash_count += 1
             self.processCrashed.emit(self._crash_count)
-            if self._crash_count < self._max_crashes:
+            if self._crash_count < self._max_crashes and not self._restart_pending:
+                self._restart_pending = True
+                if self._current_command:
+                    self._pending_commands.insert(0, list(self._current_command))
                 QTimer.singleShot(1000, self._restart_last_command)
             else:
                 self._show_crash_dialog()
 
     def _restart_last_command(self) -> None:
-        if self._last_command:
-            self._start_process(self._last_command)
+        self._restart_pending = False
+        if self._current_command and (not self._pending_commands or self._pending_commands[0] != self._current_command):
+            self._pending_commands.insert(0, list(self._current_command))
+        self._finalize_current_process()
+        self._start_next_process()
 
     def _handle_process_error(self, message: str) -> None:
         self._logger.error(LogCategory.MAIN, "CLI 进程错误", error=message)
         self.commandError.emit(" ".join(self._last_command), message)
+
+    def _finalize_current_process(self) -> None:
+        if self._process is not None:
+            try:
+                self._process.deleteLater()
+            except Exception:
+                pass
+        self._process = None
+        self._current_command = None
+        self._restart_pending = False
 
     def _show_crash_dialog(self) -> None:
         QMessageBox.critical(

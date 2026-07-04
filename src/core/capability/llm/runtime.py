@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
 import subprocess
@@ -29,7 +30,10 @@ class LlamaServerRuntime:
     - 监听 127.0.0.1:9998
     - 启动后等待 /health 返回 ready
     - 健康检查失败 2 次视为不可用
+    - 退出时自动清理所有占用端口的残留进程
     """
+
+    _atexit_registered = False
 
     def __init__(self, config: Dict[str, Any]):
         self._config = config
@@ -38,6 +42,17 @@ class LlamaServerRuntime:
         self._cuda_failed = False
         self._logger = get_logger(__name__)
         self._default_port = int(config.get("port", 9998))
+        self._register_atexit()
+
+    def _register_atexit(self) -> None:
+        if LlamaServerRuntime._atexit_registered:
+            return
+        LlamaServerRuntime._atexit_registered = True
+        atexit.register(self._atexit_cleanup)
+
+    @staticmethod
+    def _atexit_cleanup() -> None:
+        LlamaServerRuntime.kill_all_on_ports([9997, 9998])
 
     @property
     def ready(self) -> bool:
@@ -59,6 +74,11 @@ class LlamaServerRuntime:
     def start(self) -> bool:
         if self._process and self._process.poll() is None:
             return self.health_check()
+
+        if self.health_check():
+            self._ready = True
+            self._logger.info("检测到已有 llama-server 运行在端口 %s", self._default_port)
+            return True
 
         llm_cfg = self._get_llm_config()
         if not llm_cfg.get("enabled", True):
@@ -89,24 +109,18 @@ class LlamaServerRuntime:
 
     def stop(self) -> None:
         self._ready = False
-        if self._process is None:
-            return
-        try:
-            self._process.terminate()
-            try:
-                self._process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self._process.kill()
-                self._process.wait(timeout=5)
-        except Exception as exc:
-            self._logger.warning("关闭 llama-server 失败: %s", exc)
-        finally:
-            self._process = None
+
+        # 1. 优雅关闭：发送 /shutdown
+        self._http_shutdown()
+
+        # 2. 终止跟踪的子进程
+        self._kill_tracked_process()
+
+        # 3. 清理端口上所有残留进程
+        self._kill_processes_on_port()
 
     def health_check(self) -> bool:
-        if self._process is None or self._process.poll() is not None:
-            self._ready = False
-            return False
+        # 优先 HTTP 检测，覆盖外部启动的服务
         try:
             import urllib.request
             url = f"http://127.0.0.1:{self._default_port}/health"
@@ -117,8 +131,98 @@ class LlamaServerRuntime:
                     return True
         except Exception:
             pass
+        # 无 HTTP 响应时才有进程检查
+        if self._process is not None and self._process.poll() is None:
+            return False
         self._ready = False
         return False
+
+    # ------------------------------------------------------------------
+    # 进程清理
+    # ------------------------------------------------------------------
+
+    def _http_shutdown(self) -> None:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{self._default_port}/shutdown",
+                method="POST",
+                data=b"",
+            )
+            urllib.request.urlopen(req, timeout=2)
+        except Exception:
+            pass
+
+    def _kill_tracked_process(self) -> None:
+        proc = self._process
+        if proc is None:
+            return
+        self._process = None
+        try:
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5)
+        except Exception as exc:
+            self._logger.warning("终止 llama-server PID %s 失败: %s", proc.pid, exc)
+
+    def _kill_processes_on_port(self) -> None:
+        pids = self._find_pids_on_port(self._default_port)
+        if not pids:
+            return
+        tracked_pid = self._process.pid if self._process and self._process.poll() is None else None
+        for pid in pids:
+            if tracked_pid is not None and pid == tracked_pid:
+                continue
+            try:
+                p = subprocess.Popen(
+                    ["taskkill", "/F", "/PID", str(pid)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                p.wait(timeout=5)
+                self._logger.info("清理端口 %s 残留进程 PID %s", self._default_port, pid)
+            except Exception as exc:
+                self._logger.debug("清理 PID %s 失败: %s", pid, exc)
+
+    @staticmethod
+    def _find_pids_on_port(port: int) -> set[int]:
+        try:
+            output = subprocess.check_output(
+                ["netstat", "-ano"],
+                timeout=5,
+                text=True,
+            )
+            pids: set[int] = set()
+            for line in output.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    parts = line.strip().split()
+                    if parts:
+                        try:
+                            pids.add(int(parts[-1]))
+                        except ValueError:
+                            pass
+            return pids
+        except Exception:
+            return set()
+
+    @classmethod
+    def kill_all_on_ports(cls, ports: list[int]) -> None:
+        """静态方法：强制清理指定端口上所有进程（无实例依赖）"""
+        for port in ports:
+            pids = cls._find_pids_on_port(port)
+            for pid in pids:
+                try:
+                    p = subprocess.Popen(
+                        ["taskkill", "/F", "/PID", str(pid)],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                    )
+                    p.wait(timeout=5)
+                except Exception:
+                    pass
 
     def _resolve_exe(self) -> Optional[Path]:
         candidates = [

@@ -8,7 +8,7 @@ import json
 import shutil
 from pathlib import Path
 
-maaend_tasks = Path("SampleProgram/MaaEnd_Release/tasks")
+maaend_tasks = Path("3rd-part/maaend/tasks")
 target_root = Path("assets/tasks")
 target_root.mkdir(parents=True, exist_ok=True)
 

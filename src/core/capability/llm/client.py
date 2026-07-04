@@ -49,6 +49,17 @@ class LlmClient:
             raise LlmClientError("LLM 返回内容为空: " + str(message))
         return str(content)
 
+    def health_check(self) -> bool:
+        """检查 llama-server 是否可达"""
+        import urllib.request
+        url = f"{self._base_url}/health"
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return resp.status == 200
+        except Exception:
+            return False
+
     def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         import json
         import urllib.request

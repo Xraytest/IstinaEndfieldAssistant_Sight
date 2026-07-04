@@ -126,14 +126,6 @@ class ADBDeviceManager:
         args += ["shell", "screencap", "-p"]
         return subprocess.check_output(args, timeout=self._timeout)
 
-    def run_adb(self, args: List[str], serial: Optional[str] = None) -> str:
-        adb = self._resolve_adb_path()
-        cmd = [adb]
-        if serial:
-            cmd += ["-s", serial]
-        cmd += args
-        return subprocess.check_output(cmd, text=True, timeout=self._timeout)
-
     def version(self) -> str:
         output = subprocess.check_output([self._resolve_adb_path(), "version"], text=True, timeout=self._timeout)
         return output.strip()

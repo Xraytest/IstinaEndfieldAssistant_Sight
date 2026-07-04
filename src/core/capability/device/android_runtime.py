@@ -23,7 +23,7 @@ import numpy as np
 from core.capability.device.adb_manager import ADBDeviceInfo, ADBDeviceManager
 from core.capability.device.touch_manager import TouchManager
 from core.foundation.logger import get_logger, LogCategory
-from core.foundation.paths import get_project_root
+from core.foundation.paths import get_cache_subdir, get_project_root
 
 
 class AndroidRuntimeError(Exception):
@@ -347,6 +347,7 @@ class _Daemon:
         if self._running:
             return
         self._running = True
+        self._tcp_port = self._pick_port()
         if hasattr(socket, "AF_UNIX"):
             self._server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             try:
@@ -358,7 +359,7 @@ class _Daemon:
                 self._server = None
         if self._server is None:
             self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._server.bind(("127.0.0.1", self._pick_port()))
+            self._server.bind(("127.0.0.1", self._tcp_port))
         self._server.listen(5)
         threading.Thread(target=self._accept_loop, daemon=True).start()
 
@@ -429,6 +430,9 @@ class _Daemon:
                 if method == "getDevices":
                     devices = self._adb_manager.get_devices()
                     return {"result": [{"serial": d.serial, "state": d.state} for d in devices]}
+                if method == "version":
+                    output = self._adb_manager.version()
+                    return {"result": output}
                 if method == "startScrcpy":
                     if self._scrcpy_session is None:
                         self._scrcpy_session = _ScrcpySession(self._adb_manager, self._logger)
@@ -518,12 +522,12 @@ class _Daemon:
 class AndroidRuntime:
     """跨进程单例客户端连接器，向守护进程发 JSON-RPC 请求。"""
 
-    def __init__(self, serial: str, adb_path: Optional[str] = None):
+    def __init__(self, serial: str, adb_path: str = "3rd-part/adb/adb.exe"):
         self._serial = serial
-        self._adb_path = adb_path or str(get_project_root() / "3rd-part" / "adb" / "adb.exe")
+        self._adb_path = str(get_project_root() / adb_path)
         safe_serial = serial.replace(":", "_")
-        self._socket_path = str(get_project_root() / "cache" / f"android-{safe_serial}.sock")
-        self._mmap_path = str(get_project_root() / "cache" / f"android-{safe_serial}.mmap")
+        self._socket_path = str(get_cache_subdir("ipc") / f"android-{safe_serial}.sock")
+        self._mmap_path = str(get_cache_subdir("ipc") / f"android-{safe_serial}.mmap")
         self._logger = get_logger(__name__)
         self._lock = threading.Lock()
         self._daemon: Optional[_Daemon] = None
@@ -553,7 +557,7 @@ class AndroidRuntime:
             if sock is None:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 daemon = self._get_daemon()
-                port = daemon._pick_port()
+                port = getattr(daemon, "_tcp_port", None) or daemon._pick_port()
                 sock.connect(("127.0.0.1", port))
         except Exception:
             if sock is not None:
@@ -586,6 +590,10 @@ class AndroidRuntime:
         for item in response.get("result", []) or []:
             devices.append(ADBDeviceInfo(serial=item.get("serial", ""), state=item.get("state", "device")))
         return devices
+
+    def version(self) -> str:
+        response = self._call("version")
+        return str(response.get("result", ""))
 
     def screenshot(self, serial: Optional[str] = None) -> Optional[bytes]:
         serial = serial or self._serial

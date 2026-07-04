@@ -21,7 +21,7 @@ def _disable_broken_project_logging() -> None:
 def test_istina_runtime_can_be_instantiated() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     assert runtime is not None
     assert isinstance(runtime.config, dict)
 
@@ -29,7 +29,7 @@ def test_istina_runtime_can_be_instantiated() -> None:
 def test_android_returns_android_runtime() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     android = runtime.android()
     assert android is not None
     assert type(android).__name__ == "AndroidRuntime"
@@ -40,8 +40,8 @@ def test_maaend_returns_maa_end_runtime() -> None:
     from core.service.maa_end import runtime as maa_end_runtime_module
     from core.service.maa_end.runtime import MaaEndRuntime
 
-    runtime = IstinaRuntime(config_path=None)
-    target_root = PROJECT_ROOT / "SampleProgram" / "MaaEnd_Release"
+    runtime = IstinaRuntime()
+    target_root = PROJECT_ROOT / "3rd-part" / "maaend"
     target_root.mkdir(parents=True, exist_ok=True)
 
     original_default = maa_end_runtime_module.MaaEndRuntime._default_maaend_root
@@ -58,7 +58,7 @@ def test_maaend_returns_maa_end_runtime() -> None:
 def test_execute_routes_task_run() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime(run_task_result=True)
 
     result = runtime.execute("task.run", {"name": "demo", "options": {}})
@@ -68,7 +68,7 @@ def test_execute_routes_task_run() -> None:
 def test_execute_routes_preset_run() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime(run_preset_result=True)
 
     result = runtime.execute("preset.run", {"name": "demo"})
@@ -78,7 +78,7 @@ def test_execute_routes_preset_run() -> None:
 def test_execute_routes_screenshot_returns_none() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime(screenshot_result=b"PNG")
 
     result = runtime.execute("screenshot", {})
@@ -88,7 +88,7 @@ def test_execute_routes_screenshot_returns_none() -> None:
 def test_execute_routes_system_connect() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime(connect_result=True, load_resource_result=True)
 
     result = runtime.execute("system.connect", {"serial": "serial1"})
@@ -99,7 +99,7 @@ def test_execute_routes_system_connect() -> None:
 def test_execute_routes_system_disconnect() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime()
     runtime._maaend._connected = True
 
@@ -111,7 +111,7 @@ def test_execute_routes_system_disconnect() -> None:
 def test_execute_routes_daily_run() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     result = runtime.execute("daily.run", {"options": {"a": 1}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -122,7 +122,7 @@ def test_execute_routes_daily_run() -> None:
 def test_execute_routes_harvest_run() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     result = runtime.execute("harvest.run", {"options": {}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -133,7 +133,7 @@ def test_execute_routes_harvest_run() -> None:
 def test_execute_routes_analyze_run() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     result = runtime.execute("analyze.run", {"options": {}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -143,7 +143,7 @@ def test_execute_routes_analyze_run() -> None:
 def test_execute_routes_explore_run() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     result = runtime.execute("explore.run", {"options": {}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -153,7 +153,7 @@ def test_execute_routes_explore_run() -> None:
 def test_execute_routes_nav_to() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     result = runtime.execute("nav.to", {"target": "main"})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -164,7 +164,7 @@ def test_execute_routes_nav_to() -> None:
 def test_execute_returns_none_for_unknown_command() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     result = runtime.execute("unknown.command", {})
     assert result is None
 

@@ -196,6 +196,7 @@ class MaaEndControlPage(QWidget):
         self._connected = False
         self._tasks_cache: Dict[str, Dict[str, Any]] = {}
         self._presets_cache: Dict[str, Dict[str, Any]] = {}
+        self._task_option_defs: Dict[str, Dict[str, Any]] = {}
         self._setup_ui()
         self._refresh_task_list()
         self._refresh_preset_list()
@@ -498,6 +499,7 @@ class MaaEndControlPage(QWidget):
             result = self._sync_execute("task list")
             if result and result.get("status") == "success":
                 self._tasks_cache = result.get("tasks") or {}
+                self._task_option_defs = result.get("task_option_defs") or {}
         self._task_list.clear()
         for name in sorted(self._tasks_cache.keys()):
             item = QListWidgetItem(_zh(name))
@@ -597,14 +599,6 @@ class MaaEndControlPage(QWidget):
         self._queue_items.clear()
         self._queue_list.clear()
 
-    def _run_queue(self):
-        if not self._queue_items or self._is_executing:
-            return
-        if not self._connected:
-            QMessageBox.warning(self, "未连接", "请先连接设备。")
-            return
-        self._start_execution(lambda: self._runtime_queue_runner())
-
     def _runtime_queue_runner(self) -> bool:
         items = list(self._queue_items)
         if not items:
@@ -657,7 +651,10 @@ class MaaEndControlPage(QWidget):
             hint.setStyleSheet(INFO_STYLE)
             self._option_form.addWidget(hint)
             return
-        option_defs = task.get("option", {}) if isinstance(task.get("option"), dict) else {}
+        option_defs = self._task_option_defs or {}
+        local_defs = task.get("_option_defs")
+        if isinstance(local_defs, dict) and local_defs:
+            option_defs = local_defs
         if not isinstance(option_defs, dict):
             option_defs = {}
         for name in option_names:
@@ -742,7 +739,10 @@ class MaaEndControlPage(QWidget):
         if not task:
             return options
         option_names = task.get("option", [])
-        option_defs = task.get("option", {}) if isinstance(task.get("option"), dict) else {}
+        option_defs = self._task_option_defs or {}
+        local_defs = task.get("_option_defs")
+        if isinstance(local_defs, dict) and local_defs:
+            option_defs = local_defs
         if not isinstance(option_defs, dict):
             option_defs = {}
         for name in option_names:
@@ -787,11 +787,11 @@ class MaaEndControlPage(QWidget):
 
     def _option_cache_path(self, task_name: str) -> str:
         try:
-            from core.foundation.paths import get_project_root
-            cache_dir = get_project_root() / "cache" / "maaend_options"
+            from core.foundation.paths import get_cache_subdir
+            cache_dir = get_cache_subdir("maaend/options")
         except Exception:
-            cache_dir = Path(__file__).resolve().parent.parent.parent.parent / "cache" / "maaend_options"
-        cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_dir = Path(__file__).resolve().parent.parent.parent.parent / "cache" / "maaend" / "options"
+            cache_dir.mkdir(parents=True, exist_ok=True)
         return str(cache_dir / f"{task_name}.json")
 
     # ------------------------------------------------------------------
@@ -930,4 +930,3 @@ class TaskRunWorker(QThread):
     def stop(self):
         self._stopped = True
         self.terminate()
-

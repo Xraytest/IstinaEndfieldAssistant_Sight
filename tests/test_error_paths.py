@@ -22,7 +22,7 @@ def _disable_broken_project_logging() -> None:
 def test_cli_handles_invalid_options_json_gracefully() -> None:
     from cli import istina as istina_module
 
-    runtime = istina_module.IstinaRuntime(config_path=None)
+    runtime = istina_module.IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime()
 
     result = istina_module._handle_daily(runtime, _Args({"options": "not-json"}))
@@ -66,7 +66,7 @@ def test_maa_end_runtime_connect_failure_returns_false() -> None:
     original = maa_end_runtime_module.MAAFW_AVAILABLE
     try:
         maa_end_runtime_module.MAAFW_AVAILABLE = False
-        runtime = MaaEndRuntime(maaend_root=str(PROJECT_ROOT / "SampleProgram" / "MaaEnd_Release"))
+        runtime = MaaEndRuntime(maaend_root=str(PROJECT_ROOT / "3rd-part" / "maaend"))
         assert runtime.connect() is False
     finally:
         maa_end_runtime_module.MAAFW_AVAILABLE = original
@@ -75,7 +75,7 @@ def test_maa_end_runtime_connect_failure_returns_false() -> None:
 def test_runtime_execute_with_none_params_does_not_crash() -> None:
     from core.service.runtime import IstinaRuntime
 
-    runtime = IstinaRuntime(config_path=None)
+    runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime()
     result = runtime.execute("task.run", None)
     assert isinstance(result, bool)

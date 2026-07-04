@@ -16,7 +16,7 @@ class TaskLoader:
         self._pipeline_loader = pipeline_loader or PipelineLoader()
         self._tasks_root = get_project_root() / "assets" / "tasks"
         self._maaend_tasks_root = (
-            get_project_root() / "SampleProgram" / "MaaEnd_Release" / "tasks"
+            get_project_root() / "3rd-part" / "maaend" / "tasks"
         )
         self._tasks: Dict[str, Dict[str, Any]] = {}
         self._option_defs: Dict[str, Dict[str, Any]] = {}

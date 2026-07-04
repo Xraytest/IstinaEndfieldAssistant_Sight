@@ -21,14 +21,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.foundation.paths import get_project_root, ensure_src_path
 from core.service.runtime import IstinaRuntime
-from cli.handlers import CLIDispatch
+from cli.handlers import CLIDispatch, _handle_daily, _handle_harvest, _handle_analyze, _handle_explore
 
 ensure_src_path(__file__)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="istina", description="IstinaAI unified CLI")
-    parser.add_argument("--config", default=None, help="config/client_config.json path")
+    parser.add_argument("--config", default=None, help="(已弃用) 仅用于 compat，始终从 config/client_config.json 加载")
     sub = parser.add_subparsers(dest="command")
 
     # system connect/disconnect/doctor/env/disk/perf
@@ -151,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_model_download.add_argument("name", help="模型名称")
     p_model_disk = p_model_sub.add_parser("disk", help="模型磁盘占用")
 
-    # llm prompt/status
+    # llm prompt/status/start/stop
     p_llm = sub.add_parser("llm", help="LLM 命令")
     p_llm_sub = p_llm.add_subparsers(dest="action")
     p_llm_prompt = p_llm_sub.add_parser("prompt", help="发送 prompt")
@@ -160,10 +160,42 @@ def build_parser() -> argparse.ArgumentParser:
     p_llm_prompt.add_argument("--temperature", default=None, help="temperature")
     p_llm_prompt.add_argument("--max-tokens", default=None, help="max_tokens")
     p_llm_status = p_llm_sub.add_parser("status", help="llama-server 状态")
+    p_llm_start = p_llm_sub.add_parser("start", help="预热启动 VLM 服务器")
+    p_llm_stop = p_llm_sub.add_parser("stop", help="停止 VLM 服务器")
+
+    # vlm analyze/status/start/stop
+    p_vlm = sub.add_parser("vlm", help="VLM 命令")
+    p_vlm_sub = p_vlm.add_subparsers(dest="action")
+    p_vlm_analyze = p_vlm_sub.add_parser("analyze", help="VLM 场景分析")
+    p_vlm_analyze.add_argument("--prompt", default="", help="自定义 prompt")
+    p_vlm_analyze.add_argument("--image", default=None, help="base64 图片数据（可选）")
+    p_vlm_status = p_vlm_sub.add_parser("status", help="VLM 服务器状态")
+    p_vlm_start = p_vlm_sub.add_parser("start", help="预热启动 VLM 服务器")
+    p_vlm_stop = p_vlm_sub.add_parser("stop", help="停止 VLM 服务器")
 
     # nav <target>
     p_nav = sub.add_parser("nav", help="导航到目标页面")
     p_nav.add_argument("target", help="目标页面")
+
+    # nav2 coords/entity/where/list-entities/list-maps — scrcpy-based 3D world navigation
+    p_nav2 = sub.add_parser("nav2", help="3D 场景导航 (scrcpy)")
+    p_nav2_sub = p_nav2.add_subparsers(dest="action")
+    p_n2c = p_nav2_sub.add_parser("to_coords", help="导航到坐标")
+    p_n2c.add_argument("map_name", help="地图名 (map01/map02/base01)")
+    p_n2c.add_argument("x", type=float, help="目标 X")
+    p_n2c.add_argument("y", type=float, help="目标 Y")
+    p_n2c.add_argument("--level", default=None, help="层级 (lv001 等)")
+    p_n2c.add_argument("--zone", default=None, help="zone_id 覆盖")
+    p_n2e = p_nav2_sub.add_parser("to_entity", help="导航到实体")
+    p_n2e.add_argument("name", help="实体名称/关键字")
+    p_n2e.add_argument("--limit", type=int, default=10, help="最大候选数")
+    p_n2w = p_nav2_sub.add_parser("where", help="当前玩家位置")
+    p_n2l = p_nav2_sub.add_parser("list_entities", help="列出实体")
+    p_n2l.add_argument("--category", default=None, help="分类筛选")
+    p_n2l.add_argument("--map", default=None, dest="map_name", help="地图筛选")
+    p_n2l.add_argument("--name", default=None, help="名称筛选")
+    p_n2l.add_argument("--limit", type=int, default=50, help="最大返回数")
+    p_n2m = p_nav2_sub.add_parser("list_maps", help="列出可用地图")
 
     return parser
 
@@ -178,16 +210,36 @@ def _json_dumps(result: Any) -> str:
 def main(argv: Optional[list] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    runtime = IstinaRuntime(config_path=args.config)
+    runtime = IstinaRuntime()
 
     try:
+        if args.command in ("llm", "vlm") and getattr(args, "action", None) in ("start", "stop"):
+            pass
+        else:
+            _auto_warmup(runtime, args)
+
         dispatch = CLIDispatch(runtime)
         result = dispatch.dispatch(args)
     except Exception as exc:
         result = {"status": "error", "message": str(exc)}
 
-    print(_json_dumps(result))
+    sys.stdout.buffer.write((_json_dumps(result) + "\n").encode("utf-8"))
+    sys.stdout.buffer.flush()
     return 0 if result.get("status") == "success" else 1
+
+
+def _auto_warmup(runtime: IstinaRuntime, args: argparse.Namespace) -> None:
+    """根据子命令自动预热对应的推理后端。"""
+    cmd = args.command
+    if cmd == "llm":
+        runtime.warmup_llm()
+    elif cmd == "vlm":
+        runtime.warmup_vlm()
+    elif cmd in ("scene", "analyze"):
+        if getattr(args, "action", None) == "analyze" and hasattr(args, "prompt"):
+            runtime.warmup_vlm()
+    elif cmd in ("daily", "harvest", "explore", "preset", "task", "nav", "nav2", "system", "device", "shell"):
+        pass
 
 
 if __name__ == "__main__":

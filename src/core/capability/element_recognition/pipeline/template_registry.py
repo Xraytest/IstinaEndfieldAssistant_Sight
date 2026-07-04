@@ -77,7 +77,7 @@ class TemplateRegistry:
     def load_maaend_module(self, module_name: str) -> int:
         if module_name.startswith("maaend:"):
             module_name = module_name.replace("maaend:", "", 1)
-        maaend_root = get_project_root() / "SampleProgram" / "MaaEnd_Release" / "resource" / "image"
+        maaend_root = get_project_root() / "3rd-part" / "maaend" / "resource" / "image"
         module_dir = maaend_root / module_name
         if not module_dir.is_dir():
             return 0

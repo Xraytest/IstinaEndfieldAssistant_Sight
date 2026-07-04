@@ -1,5 +1,5 @@
-# --- SampleProgram (entire folder) ---
-SampleProgram/
+# --- Third-party binaries ---
+3rd-part/
 
 # --- Python ---
 __pycache__/
@@ -42,6 +42,36 @@ temp_*.json
 game_knowledge_base.json
 yolo11n.pt
 terminal_*
+
+# --- Cache subdirectory documentation ---
+# cache/
+# ├── ipc/            — IPC socket/mmap (session-level, auto-cleaned)
+# ├── screenshot/     — Runtime debug screenshots
+# │   ├── debug/      — Ad-hoc debug captures
+# │   └── current/    — Current state snapshot
+# ├── flow/           — Standard flow test artifacts (TTL: 7 days)
+# │   ├── compare/    — Flow comparison test runs
+# │   ├── validate/   — Flow validation test runs
+# │   ├── video/      — Flow video recordings
+# │   ├── preflight/  — Preflight test runs
+# │   ├── weekly_quest/
+# │   ├── daily/      — Daily flow / MaaEnd daily runs
+# │   ├── comprehensive/
+# │   ├── exception/
+# │   └── scene/      — Scene detection captures
+# ├── analysis/       — Page/OCR/recognition analysis results
+# │   ├── page/       — Page analysis JSON
+# │   ├── ocr/        — OCR text output
+# │   ├── recognition/
+# │   ├── diagnosis/  — Diagnostic screenshots
+# │   └── elements/   — Element definitions
+# ├── llm/            — LLM server logs
+# ├── device/         — Device connection state
+# ├── session/        — User exploration sessions
+# │   ├── explore/    — Exploration session data
+# │   └── tasks/      — Task session data
+# └── maaend/         — MaaEnd runtime metadata
+#     └── options/    — Task option cache
 
 # --- ML models ---
 models/

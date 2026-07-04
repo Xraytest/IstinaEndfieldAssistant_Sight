@@ -38,7 +38,7 @@ class TemplateBackend:
 
     模板来源优先级：
     - assets/templates/ 下的模块化模板
-    - SampleProgram/MaaEnd_Release/resource/image/ 的 MaaEnd 模板
+    - 3rd-part/maaend/resource/image/ 的 MaaEnd 模板
     """
 
     def __init__(

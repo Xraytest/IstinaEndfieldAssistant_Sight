@@ -46,7 +46,7 @@ class PrtsFullIntelligencePage(QWidget):
 
     def _run_analysis(self) -> None:
         mode = self._mode_combo.currentText()
-        self._bridge.execute("analyze", {"mode": mode})
+        self._bridge.execute("analyze", {"options": {"mode": mode}})
 
     def _on_command_finished(self, command: str, result: dict) -> None:
         if command == "analyze":

@@ -16,7 +16,7 @@ class PipelineLoader:
     def __init__(self, registry: Optional[TemplateRegistry] = None):
         self._registry = registry or TemplateRegistry()
         self._pipelines_root = get_project_root() / "assets" / "pipelines"
-        self._maaend_root = get_project_root() / "SampleProgram" / "MaaEnd_Release" / "resource" / "pipeline"
+        self._maaend_root = get_project_root() / "3rd-part" / "maaend" / "resource" / "pipeline"
         self._loaded_modules: Set[str] = set()
 
     def load_module(self, module_name: str) -> PipelineGraph:

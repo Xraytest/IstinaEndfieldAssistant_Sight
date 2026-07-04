@@ -9,20 +9,24 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
+from numpy.typing import NDArray
+
 
 # 元素类型枚举
 ELEMENT_TYPES = (
-    "button",       # 可点击按钮
-    "text",         # 纯文本标签
-    "icon",         # 图标（任务、活动、菜单等）
-    "tab",          # 标签页
-    "toggle",       # 开关
-    "slider",       # 滑块
-    "input",        # 输入框
-    "list_item",    # 列表项
-    "region",       # 区域（颜色匹配得到的色块区域）
-    "yolo_object",  # YOLO 检测到的通用物体
-    "unknown",      # 未知类型
+    "button",        # 可点击按钮
+    "text",          # 纯文本标签
+    "icon",          # 图标（任务、活动、菜单等）
+    "tab",           # 标签页
+    "toggle",        # 开关
+    "slider",        # 滑块
+    "input",         # 输入框
+    "list_item",     # 列表项
+    "region",        # 区域（颜色匹配得到的色块区域）
+    "yolo_object",   # YOLO 检测到的通用物体
+    "vlm_detection", # VLM 多模态检测到的物体
+    "unknown",       # 未知类型
 )
 
 # 页面类型枚举（终末地特定）
@@ -126,3 +130,21 @@ class PageInfo:
             if e.label == label:
                 return e
         return None
+
+
+@dataclass
+class SceneAnalysis3D:
+    """VLM 3D 场景深度分析结果。
+
+    Attributes:
+        annotations: 解析后的 Function Call 标注列表
+        rendered_image: 绘制了标注的 OpenCV 图像
+        raw_text: VLM 返回的文本内容
+        raw_tool_calls: VLM 原始 tool_calls
+        usage: token 使用统计
+    """
+    annotations: Any = None
+    rendered_image: Optional[NDArray[Any]] = None
+    raw_text: str = ""
+    raw_tool_calls: List[Dict[str, Any]] = field(default_factory=list)
+    usage: Dict[str, Any] = field(default_factory=dict)

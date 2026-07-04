@@ -67,6 +67,12 @@ class CLIDispatch:
             return self._handle_model(args)
         if args.command == "nav":
             return self._handle_nav(args)
+        if args.command == "nav2":
+            return self._handle_nav2(args)
+        if args.command == "llm":
+            return self._handle_llm(args)
+        if args.command == "vlm":
+            return self._handle_vlm(args)
         return {"status": "error", "message": "unknown command"}
 
     def _handle_system(self, args: argparse.Namespace) -> Dict[str, Any]:
@@ -181,7 +187,24 @@ class CLIDispatch:
             return _handle_llm_prompt(self._runtime, args)
         if args.action == "status":
             return _handle_llm_status(self._runtime, args)
+        if args.action == "start":
+            return {"status": "success" if self._runtime.warmup_llm() else "error", "command": "llm.start"}
+        if args.action == "stop":
+            self._runtime.cooldown_llm()
+            return {"status": "success", "command": "llm.stop"}
         return {"status": "error", "message": "unknown llm action"}
+
+    def _handle_vlm(self, args: argparse.Namespace) -> Dict[str, Any]:
+        if args.action == "analyze":
+            return _handle_vlm_analyze(self._runtime, args)
+        if args.action == "status":
+            return _handle_vlm_status(self._runtime, args)
+        if args.action == "start":
+            return {"status": "success" if self._runtime.warmup_vlm() else "error", "command": "vlm.start"}
+        if args.action == "stop":
+            self._runtime.cooldown_vlm()
+            return {"status": "success", "command": "vlm.stop"}
+        return {"status": "error", "message": "unknown vlm action"}
 
     def _handle_daily(self, args: argparse.Namespace) -> Dict[str, Any]:
         return _handle_daily(self._runtime, args)
@@ -203,6 +226,9 @@ class CLIDispatch:
 
     def _handle_nav(self, args: argparse.Namespace) -> Dict[str, Any]:
         return _handle_nav(self._runtime, args)
+
+    def _handle_nav2(self, args: argparse.Namespace) -> Dict[str, Any]:
+        return _handle_nav2(self._runtime, args)
 
 
 # -------------------------
@@ -266,7 +292,12 @@ def _handle_task_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[
     tasks = runtime.execute("task.list", {})
     if not isinstance(tasks, dict):
         tasks = {}
-    return {"status": "success", "tasks": tasks}
+    task_option_defs = {}
+    try:
+        task_option_defs = runtime.maaend().task_option_defs()
+    except Exception:
+        task_option_defs = {}
+    return {"status": "success", "tasks": tasks, "task_option_defs": task_option_defs}
 
 
 def _handle_preset_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
@@ -698,6 +729,35 @@ def _handle_nav(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, A
     return runtime.execute("nav.to", {"target": args.target})
 
 
+def _handle_nav2(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    action = getattr(args, "action", None)
+    if action == "to_coords":
+        return runtime.execute("nav2.to_coords", {
+            "map_name": args.map_name,
+            "x": args.x,
+            "y": args.y,
+            "level_id": getattr(args, "level", None),
+            "zone": getattr(args, "zone", None),
+        })
+    if action == "to_entity":
+        return runtime.execute("nav2.to_entity", {
+            "name": args.name,
+            "limit": getattr(args, "limit", 10),
+        })
+    if action == "where":
+        return runtime.execute("nav2.where", {})
+    if action == "list_entities":
+        return runtime.execute("nav2.list_entities", {
+            "category": getattr(args, "category", None),
+            "map_name": getattr(args, "map_name", None),
+            "name": getattr(args, "name", None),
+            "limit": getattr(args, "limit", 50),
+        })
+    if action == "list_maps":
+        return runtime.execute("nav2.list_maps", {})
+    return {"status": "error", "message": f"unknown nav2 action: {action}"}
+
+
 def _handle_llm_prompt(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     params: Dict[str, Any] = {"prompt": args.text}
     system = getattr(args, "system", None)
@@ -713,14 +773,14 @@ def _handle_llm_prompt(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
 
 
 def _handle_llm_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    ready = runtime._llm_runtime.ready
-    if not ready:
-        started = runtime._llm_runtime.start()
-        ready = runtime._llm_runtime.ready
-    return {
-        "status": "success",
-        "enabled": runtime.config.get("llm", {}).get("enabled", True),
-        "ready": ready,
-        "port": runtime._llm_runtime.port,
-        "base_url": runtime._llm_runtime.base_url,
-    }
+    return runtime.execute("llm.status", {})
+
+
+def _handle_vlm_analyze(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    prompt = getattr(args, "prompt", "")
+    image = getattr(args, "image", None)
+    return runtime.execute("vlm.analyze", {"prompt": prompt, "image": image})
+
+
+def _handle_vlm_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    return runtime.execute("vlm.status", {})

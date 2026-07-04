@@ -23,6 +23,29 @@ def get_project_root() -> Path:
     return Path(__file__).resolve().parent.parent.parent.parent
 
 
+def get_cache_dir() -> Path:
+    """获取缓存根目录
+
+    Returns:
+        Path: 项目根目录下的 cache/
+    """
+    return get_project_root() / "cache"
+
+
+def get_cache_subdir(name: str) -> Path:
+    """获取缓存子目录（自动创建）
+
+    Args:
+        name: 子目录名，如 "ipc", "screenshot/debug"
+
+    Returns:
+        Path: cache/<name> 目录
+    """
+    p = get_cache_dir() / name
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
 def ensure_src_path(path: Optional[str] = None) -> None:
     """确保 src/ 在 sys.path 中
 

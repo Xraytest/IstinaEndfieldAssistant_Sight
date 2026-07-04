@@ -19,9 +19,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from core.foundation.paths import get_project_root
-from .element_info import ElementInfo, PageInfo
+from core.foundation.paths import get_cache_subdir, get_project_root
+from .element_info import ElementInfo, PageInfo, SceneAnalysis3D
 from .recognizer import EndfieldElementRecognizer
+from .backends.vlm_backend import VlmBackend
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +46,10 @@ class SceneUnderstandingService:
         enable_yolo: bool = False,
         template_threshold: float = 0.7,
         maaend_runtime=None,
+        vlm_backend: Optional[VlmBackend] = None,
     ):
         if not catalog_path:
-            catalog_path = str(get_project_root() / "data" / "page_catalog.json")
+            catalog_path = str(get_cache_subdir("analysis") / "page_catalog.json")
 
         self._catalog_path = catalog_path
         self._threshold = template_threshold
@@ -55,12 +57,19 @@ class SceneUnderstandingService:
         self.current_confidence: float = 0.0
         self.page_history: List[Dict[str, Any]] = []
         self._last_screen = None
+        self._vlm_backend = vlm_backend
 
         self.recognizer = EndfieldElementRecognizer(
             catalog_path=catalog_path,
             enable_yolo=enable_yolo,
             maaend_runtime=maaend_runtime,
+            vlm_backend=vlm_backend,
         )
+
+    def set_vlm_backend(self, vlm_backend: Optional[VlmBackend]) -> None:
+        """同步更新 VLM 后端，确保识别器和场景分析保持一致。"""
+        self._vlm_backend = vlm_backend
+        self.recognizer._vlm_backend = vlm_backend
 
     # ------------------------------------------------------------------
     # 公开 API
@@ -214,6 +223,27 @@ class SceneUnderstandingService:
     def list_available_templates(self) -> List[str]:
         """列出所有可用的模板名称。"""
         return self.recognizer.get_available_templates()
+
+    def analyze_scene_3d(
+        self,
+        screen: np.ndarray,
+        prompt: str = "",
+    ) -> Optional[SceneAnalysis3D]:
+        """VLM 3D 场景深度分析。
+
+        通过 VLM 理解当前画面的 3D 场景语义，
+        返回结构化标注结果（含渲染后的图像）。
+
+        Args:
+            screen: BGR 截图
+            prompt: VLM prompt（不传则使用默认 prompt）
+
+        Returns:
+            SceneAnalysis3D 或 None（VLM 未就绪时）
+        """
+        if self._vlm_backend is None:
+            return None
+        return self._vlm_backend.analyze_scene_3d(screen, prompt)
 
     def get_page_info(self, page_type: str) -> Optional[Dict[str, Any]]:
         """获取指定页面类型的签名定义。"""

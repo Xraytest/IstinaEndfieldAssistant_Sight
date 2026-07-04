@@ -7,7 +7,7 @@ and writes per-module files to assets/pipelines/.
 import json
 from pathlib import Path
 
-maaend_nodes = Path("SampleProgram/MaaEnd_Release/resource/pipeline/nodes.json")
+maaend_nodes = Path("3rd-part/maaend/resource/pipeline/nodes.json")
 pipelines_dir = Path("assets/pipelines")
 pipelines_dir.mkdir(parents=True, exist_ok=True)
 
