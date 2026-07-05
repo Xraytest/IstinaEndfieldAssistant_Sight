@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
     QHBoxLayout,
+    QLabel,
     QPushButton,
     QScrollArea,
     QTextEdit,
@@ -38,6 +39,11 @@ class PrtsFullIntelligencePage(QWidget):
         content_root = QVBoxLayout(content)
         content_root.setContentsMargins(16, 16, 16, 16)
         content_root.setSpacing(10)
+
+        title = QLabel("PRTS全智能")
+        content_root.addWidget(title)
+        hint = QLabel("页面暂为空。")
+        content_root.addWidget(hint)
 
         control_row = QHBoxLayout()
         control_row.setSpacing(8)

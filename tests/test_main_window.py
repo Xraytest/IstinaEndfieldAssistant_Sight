@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QProcess
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QListWidget, QStackedWidget
 from unittest.mock import MagicMock, patch
 
 
@@ -53,3 +53,36 @@ def test_main_window_bridge_returns_cli_bridge(qapp: QApplication) -> None:
         bridge = window.bridge()
         assert bridge is not None
         assert type(bridge).__name__ == "CLIBridge"
+
+
+def test_main_window_uses_left_navigation_and_correct_page_mapping(qapp: QApplication) -> None:
+    with patch("gui.pyqt6.cli_bridge.QProcess") as mock_qprocess:
+        mock_qprocess.ProcessState.NotRunning = QProcess.ProcessState.NotRunning
+        mock_qprocess.ProcessError.Crashed = QProcess.ProcessError.Crashed
+        mock_instance = MagicMock()
+        mock_instance.state.return_value = QProcess.ProcessState.NotRunning
+        mock_instance.waitForStarted.return_value = True
+        mock_qprocess.return_value = mock_instance
+
+        module = _load_main_window_module()
+        module.MaaEndControlPage._sync_execute = lambda self, command, timeout_ms=5000: {"status": "success"}
+        window = module.MainWindow()
+
+        nav = window.findChild(QListWidget, "mainNavigation")
+        stack = window.findChild(QStackedWidget)
+
+        assert nav is not None
+        assert stack is not None
+        assert [nav.item(i).text() for i in range(nav.count())] == [
+            "PRTS全智能",
+            "标准推理",
+            "设备",
+            "设置",
+            "日志",
+        ]
+        assert stack.count() == 5
+        assert type(stack.widget(0)).__name__ == "PrtsFullIntelligencePage"
+        assert all(nav.item(i).text() != "MaaEnd" for i in range(nav.count()))
+        labels = [w.text() for w in stack.widget(0).findChildren(module.QLabel)]
+        assert "PRTS全智能" in labels
+        assert "页面暂为空。" in labels

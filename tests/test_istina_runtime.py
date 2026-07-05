@@ -75,14 +75,14 @@ def test_execute_routes_preset_run() -> None:
     assert result is True
 
 
-def test_execute_routes_screenshot_returns_none() -> None:
+def test_execute_routes_screenshot_returns_bytes() -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime(screenshot_result=b"PNG")
 
     result = runtime.execute("screenshot", {})
-    assert result is None
+    assert result == b"PNG"
 
 
 def test_execute_routes_system_connect() -> None:

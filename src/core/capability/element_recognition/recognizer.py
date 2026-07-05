@@ -25,8 +25,6 @@ from .backends.template_backend import TemplateBackend
 from .backends.ocr_backend import OCRBackend
 from .backends.color_backend import ColorBackend
 from .backends.yolo_backend import YOLOBackend
-from .backends.vlm_backend import VlmBackend
-
 logger = logging.getLogger(__name__)
 
 
@@ -56,7 +54,6 @@ class EndfieldElementRecognizer:
         yolo_model_path: str = "yolo11n.pt",
         yolo_conf: float = 0.25,
         maaend_runtime=None,
-        vlm_backend: Optional[VlmBackend] = None,
     ):
         self._maaend_runtime = maaend_runtime
         self._catalog: Dict[str, Any] = {}
@@ -87,7 +84,6 @@ class EndfieldElementRecognizer:
             model_path=yolo_model_path,
             conf_threshold=yolo_conf,
         ) if enable_yolo else None
-        self._vlm_backend = vlm_backend
 
         # 传递 maa_tasker 到 template backend 的 pipeline runner
         if maa_tasker is not None:
@@ -137,10 +133,6 @@ class EndfieldElementRecognizer:
 
         if enable.get("yolo", True) and self._yolo_backend is not None:
             elems = self._yolo_backend.recognize(screen)
-            all_elements.extend(elems)
-
-        if enable.get("vlm", False) and self._vlm_backend is not None:
-            elems = self._vlm_backend.recognize(screen)
             all_elements.extend(elems)
 
         # Phase 2: 去重（相同位置 + 相同标签）

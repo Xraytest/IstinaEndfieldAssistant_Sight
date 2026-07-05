@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -10,6 +10,8 @@ from core.service.maa_end.runtime import MaaEndRuntime
 from .entity_db import Entity, EntityDatabase
 from .map_data_loader import MapDataLoader
 from .minimap_locator import MinimapLocator, MapPosition
+from core.capability.llm import LlmClient
+from .vlm_walk_navigator import VlmWalkNavigator, VlmWalkConfig
 
 
 class Navigator:
@@ -204,6 +206,105 @@ class Navigator:
             result.append({**m, "levels": levels})
         return {"status": "success", "maps": result}
 
+    # ------------------------------------------------------------------
+    # VLM-driven walk navigation
+    # ------------------------------------------------------------------
+
+    def to_coords_vlm(
+        self,
+        map_name: str,
+        x: float,
+        y: float,
+        level_id: Optional[str] = None,
+        zone_override: Optional[str] = None,
+        llm_client: Optional[LlmClient] = None,
+        max_steps: int = 40,
+        keyevent_fn: Optional[callable] = None,
+    ) -> Dict[str, Any]:
+        """Navigate to (x, y) using VLM-driven walking instead of blind-walk waypoints.
+
+        Falls back to NAVMESH if VLM client is unavailable or stuck detected.
+        """
+        self._logger.info("nav-vlm to coords: map=%s x=%.1f y=%.1f", map_name, x, y)
+
+        if llm_client is None:
+            self._logger.warning("no LLM client supplied, falling back to navmesh")
+            zone_id = zone_override or self._data.get_zone_id(map_name)
+            return self._navigate_navmesh(zone_id, map_name, level_id or "lv001", x, y)
+
+        frame = self._get_frame()
+        if frame is None:
+            return {"status": "error", "message": "no screenshot available"}
+
+        # Teleport if on different map
+        current_pos = self._locator.locate(frame)
+        if current_pos and current_pos.map_id not in (map_name, "unknown") and current_pos.map_id != "":
+            self._logger.info("different map (%s), teleporting first", current_pos.map_id)
+            target_level = level_id or "lv001"
+            self._teleport_to(map_name, target_level)
+
+        # Build input function from keyevent_fn or default fallback (logging only)
+        def default_input(key: str, duration: Optional[float]) -> None:
+            self._logger.info("[vlm-input] key=%s duration=%s (no keyevent_fn provided)", key, duration)
+
+        input_fn = keyevent_fn or default_input
+
+        walk_cfg = VlmWalkConfig(max_steps=max_steps)
+        walker = VlmWalkNavigator(
+            llm_client=llm_client,
+            screenshot_fn=self._screenshot_fn,
+            input_fn=input_fn,
+            locator=self._locator,
+            data_loader=self._data,
+            config=walk_cfg,
+        )
+
+        walk_result = walker.walk_to(
+            map_name=map_name,
+            target_x=x,
+            target_y=y,
+            level_id=level_id,
+        )
+
+        # If VLM walk failed or stuck, fall back to navmesh
+        if walk_result.get("status") != "success" and walk_cfg.fallback_to_navmesh:
+            self._logger.info("VLM walk did not converge, falling back to navmesh")
+            zone_id = zone_override or self._data.get_zone_id(map_name)
+            navmesh_result = self._navigate_navmesh(
+                zone_id, map_name, level_id or "lv001", x, y,
+            )
+            navmesh_result["vlm_walk"] = walk_result.get("history", [])
+            return navmesh_result
+
+        return walk_result
+
+    def to_entity_vlm(
+        self,
+        entity_name: str,
+        llm_client: Optional[LlmClient] = None,
+        max_steps: int = 40,
+        keyevent_fn: Optional[callable] = None,
+        limit: int = 10,
+    ) -> Dict[str, Any]:
+        """Navigate to a named entity using VLM-driven walking."""
+        matches = self._entities.find_by_name(entity_name, exact=False, limit=limit)
+        if not matches:
+            self._logger.warning("entity not found: %s", entity_name)
+            return {"status": "error", "message": f"entity '{entity_name}' not found"}
+
+        for entity in matches[:limit]:
+            result = self.to_coords_vlm(
+                map_name=entity.map_id,
+                x=entity.map_location[0],
+                y=entity.map_location[1],
+                level_id=entity.map_level_id,
+                llm_client=llm_client,
+                max_steps=max_steps,
+                keyevent_fn=keyevent_fn,
+            )
+            if result.get("status") == "success":
+                return result
+        return {"status": "error", "message": f"failed to reach '{entity_name}' via VLM"}
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------

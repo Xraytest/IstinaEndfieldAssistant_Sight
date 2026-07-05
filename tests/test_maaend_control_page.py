@@ -47,6 +47,7 @@ class _FakeSignal:
 class FakeCLIBridge:
     def __init__(self):
         self.commandFinished = _FakeSignal()
+        self.commandError = _FakeSignal()
         self._presets = {
             "TestPreset": {
                 "task": [
@@ -56,12 +57,16 @@ class FakeCLIBridge:
             }
         }
         self._tasks = {"TaskA": {}, "TaskB": {}}
+        self.calls = []
 
-    def execute(self, command: str):
+    def execute(self, command: str, params=None):
+        self.calls.append((command, params or {}))
         if command == "preset list":
             payload = {"status": "success", "presets": self._presets}
         elif command == "task list":
             payload = {"status": "success", "tasks": self._tasks}
+        elif command == "device info":
+            payload = {"status": "success", "devices": [{"serial": "localhost:16512", "status": "ready"}]}
         else:
             payload = {"status": "success"}
         self.commandFinished.emit(command, payload)
@@ -81,4 +86,48 @@ def test_apply_preset_button_replaces_queue():
 
     assert [entry["name"] for entry in page._queue_items] == ["TaskA", "TaskB"]
     assert page._queue_list.count() == 2
+    assert page._is_executing is False
+    assert not any(command == "system connect" for command, _ in bridge.calls)
+    app.quit()
+
+
+def test_control_page_uses_cjk_capable_font_for_chinese_ui():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+    page.show()
+    app.processEvents()
+
+    assert page._status_label.text() == "空闲"
+    assert page._run_preset_btn.text() == "应用预设"
+    assert page._status_label.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
+    assert page._run_preset_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
+    assert page._log_text.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
+    app.quit()
+
+
+def test_control_page_connect_uses_last_connected_device():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+
+    workspace_tmp = Path(__file__).resolve().parent.parent / ".tmp" / "test_control_page_connect"
+    config_dir = workspace_tmp / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "client_config.json").write_text(
+        '{"device":{"last_connected":"127.0.0.1:16384"}}',
+        encoding="utf-8",
+    )
+
+    original_get_project_root = sys.modules["core.foundation.paths"].get_project_root
+    sys.modules["core.foundation.paths"].get_project_root = lambda: workspace_tmp
+    try:
+        result = page._sync_execute("system connect", page._resolve_connect_params())
+    finally:
+        sys.modules["core.foundation.paths"].get_project_root = original_get_project_root
+
+    assert result is not None
+    assert ("system connect", {"serial": "127.0.0.1:16384"}) in bridge.calls
     app.quit()

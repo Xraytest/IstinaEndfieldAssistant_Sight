@@ -1,4 +1,4 @@
-"""IstinaAI CLI handlers
+﻿"""IstinaAI CLI handlers
 
 把 istina.py 的 main() 从“解析+处理”拆成“只解析路由，handler 负责执行”。
 """
@@ -69,10 +69,10 @@ class CLIDispatch:
             return self._handle_nav(args)
         if args.command == "nav2":
             return self._handle_nav2(args)
+        if args.command == "nav3":
+            return self._handle_nav3(args)
         if args.command == "llm":
             return self._handle_llm(args)
-        if args.command == "vlm":
-            return self._handle_vlm(args)
         return {"status": "error", "message": "unknown command"}
 
     def _handle_system(self, args: argparse.Namespace) -> Dict[str, Any]:
@@ -194,18 +194,6 @@ class CLIDispatch:
             return {"status": "success", "command": "llm.stop"}
         return {"status": "error", "message": "unknown llm action"}
 
-    def _handle_vlm(self, args: argparse.Namespace) -> Dict[str, Any]:
-        if args.action == "analyze":
-            return _handle_vlm_analyze(self._runtime, args)
-        if args.action == "status":
-            return _handle_vlm_status(self._runtime, args)
-        if args.action == "start":
-            return {"status": "success" if self._runtime.warmup_vlm() else "error", "command": "vlm.start"}
-        if args.action == "stop":
-            self._runtime.cooldown_vlm()
-            return {"status": "success", "command": "vlm.stop"}
-        return {"status": "error", "message": "unknown vlm action"}
-
     def _handle_daily(self, args: argparse.Namespace) -> Dict[str, Any]:
         return _handle_daily(self._runtime, args)
 
@@ -231,6 +219,8 @@ class CLIDispatch:
         return _handle_nav2(self._runtime, args)
 
 
+    def _handle_nav3(self, args: argparse.Namespace) -> Dict[str, Any]:
+        return _handle_nav3(self._runtime, args)
 # -------------------------
 # 具体处理函数
 # -------------------------
@@ -457,6 +447,7 @@ def _handle_config_get(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
 
 def _handle_config_set(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     runtime.config[args.key] = args.value
+    runtime.save_config()
     return {"status": "success", "key": args.key, "value": args.value}
 
 
@@ -490,8 +481,8 @@ def _handle_model_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
 def _handle_model_info(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     root = get_project_root()
     models_dir = Path(root) / "models"
-    target = models_dir / args.name
-    if not target.exists():
+    target = _resolve_model_path(models_dir, args.name)
+    if target is None or not target.exists():
         return {"status": "error", "message": "model not found", "name": args.name}
     return {
         "status": "success",
@@ -504,10 +495,12 @@ def _handle_model_info(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
 
 def _handle_model_download(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     root = get_project_root()
-    models_dir = Path(root) / "models" / args.name
     try:
-        models_dir.mkdir(parents=True, exist_ok=True)
-        return {"status": "success", "name": args.name, "path": str(models_dir)}
+        safe_dir = _resolve_model_path(Path(root) / "models", args.name)
+        if safe_dir is None:
+            return {"status": "error", "message": "invalid model name", "name": args.name}
+        safe_dir.mkdir(parents=True, exist_ok=True)
+        return {"status": "success", "name": args.name, "path": str(safe_dir)}
     except Exception as exc:
         return {"status": "error", "message": str(exc), "name": args.name}
 
@@ -525,6 +518,17 @@ def _handle_model_disk(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
             except Exception:
                 pass
     return {"status": "success", "path": str(models_dir), "size_bytes": total}
+
+
+def _resolve_model_path(models_dir: Path, name: str) -> Optional[Path]:
+    try:
+        root = models_dir.resolve()
+        target = (models_dir / name).resolve()
+        if not target.is_relative_to(root):
+            return None
+        return target
+    except Exception:
+        return None
 
 
 def _handle_gpu_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
@@ -758,29 +762,45 @@ def _handle_nav2(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, 
     return {"status": "error", "message": f"unknown nav2 action: {action}"}
 
 
+
+def _handle_nav3(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    action = getattr(args, "action", None)
+    if action == "walk":
+        return runtime.execute("nav3.walk", {
+            "map_name": args.map_name,
+            "x": args.x,
+            "y": args.y,
+            "level_id": getattr(args, "level", None),
+            "zone": getattr(args, "zone", None),
+            "max_steps": getattr(args, "max_steps", 40),
+        })
+    if action == "to_entity":
+        return runtime.execute("nav3.to_entity", {
+            "name": args.name,
+            "max_steps": getattr(args, "max_steps", 40),
+            "limit": getattr(args, "limit", 10),
+        })
+    if action == "status":
+        return runtime.execute("nav3.status", {})
+    return {"status": "error", "message": f"unknown nav3 action: {action}"}
+
+
 def _handle_llm_prompt(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     params: Dict[str, Any] = {"prompt": args.text}
     system = getattr(args, "system", None)
     temperature = getattr(args, "temperature", None)
     max_tokens = getattr(args, "max_tokens", None)
+    image = getattr(args, "image", None)
     if system:
         params["system"] = system
     if temperature is not None:
         params["temperature"] = float(temperature)
     if max_tokens is not None:
         params["max_tokens"] = int(max_tokens)
+    if image is not None:
+        params["image"] = image
     return runtime.execute("llm.chat", params)
 
 
 def _handle_llm_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     return runtime.execute("llm.status", {})
-
-
-def _handle_vlm_analyze(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    prompt = getattr(args, "prompt", "")
-    image = getattr(args, "image", None)
-    return runtime.execute("vlm.analyze", {"prompt": prompt, "image": image})
-
-
-def _handle_vlm_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    return runtime.execute("vlm.status", {})

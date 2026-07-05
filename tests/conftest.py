@@ -1,10 +1,17 @@
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
 from PyQt6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+workspace_tmp = Path(__file__).resolve().parent.parent / ".tmp"
+workspace_tmp.mkdir(parents=True, exist_ok=True)
+os.environ["TMPDIR"] = str(workspace_tmp)
+os.environ["TEMP"] = str(workspace_tmp)
+os.environ["TMP"] = str(workspace_tmp)
+tempfile.tempdir = str(workspace_tmp)
 
 
 def _ensure_src_path() -> None:

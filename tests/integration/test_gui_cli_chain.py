@@ -98,12 +98,10 @@ def test_maaend_page_sync_execute_receives_bridge_result(
 ) -> None:
     bridge = CLIBridge()
 
-    def fake_start(args):
-        bridge.commandFinished.emit(
-            "preset list", {"status": "success", "presets": {}}
-        )
+    def fake_execute(command, params=None):
+        bridge.commandFinished.emit(command, {"status": "success", "presets": {}})
 
-    with patch.object(bridge, "_start_process", side_effect=fake_start):
+    with patch.object(bridge, "execute", side_effect=fake_execute):
         page = MaaEndControlPage(bridge)
         result = page._sync_execute("preset list", timeout_ms=1000)
 
@@ -116,22 +114,17 @@ def test_maaend_page_can_refresh_preset_list_through_bridge(
 ) -> None:
     bridge = CLIBridge()
 
-    def fake_start(args):
-        command = " ".join(args)
-        payload = (
+    with patch.object(MaaEndControlPage, "_sync_execute") as mock_sync_execute, patch.object(
+        MaaEndControlPage, "_load_options", return_value=None
+    ):
+        mock_sync_execute.side_effect = lambda command, timeout_ms=1200: (
             {"status": "success", "presets": {"QuickDaily": {"task": []}}}
             if command == "preset list"
             else {"status": "success", "tasks": {}}
         )
-        bridge.commandFinished.emit(command, payload)
-
-    with patch.object(
-        MaaEndControlPage, "_load_options", return_value=None
-    ), patch.object(bridge, "_start_process", side_effect=fake_start):
         page = MaaEndControlPage(bridge)
-        page._preset_list.clear()
-        page._preset_list.addItem("QuickDaily")
+        page._presets_cache = {}
         page._selected_preset = "QuickDaily"
-        page._run_preset_btn.click()
+        page._refresh_preset_list()
 
     assert page._preset_list.count() == 1

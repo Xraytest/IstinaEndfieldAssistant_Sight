@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 
 class LogCategory:
@@ -29,6 +29,70 @@ class LogCategory:
 
 # 全局日志初始化状态标记
 _logger_initialized: bool = False
+
+
+class ProjectLogger:
+    def __init__(self, logger: logging.Logger):
+        self._logger = logger
+
+    def _format(self, args: tuple[Any, ...], kwargs: dict[str, Any]) -> tuple[str, tuple[Any, ...], dict[str, Any]]:
+        logging_kwargs: dict[str, Any] = {}
+        for key in ("exc_info", "stack_info", "stacklevel", "extra"):
+            if key in kwargs:
+                logging_kwargs[key] = kwargs.pop(key)
+
+        if len(args) >= 2 and isinstance(args[0], str) and args[0] in {
+            LogCategory.MAIN,
+            LogCategory.ADB,
+            LogCategory.COMMUNICATION,
+            LogCategory.EXECUTION,
+            LogCategory.AUTHENTICATION,
+            LogCategory.GUI,
+            LogCategory.EXCEPTION,
+            LogCategory.PERFORMANCE,
+        }:
+            msg = f"[{args[0]}] {args[1]}"
+            fmt_args = args[2:]
+        elif args:
+            msg = str(args[0])
+            fmt_args = args[1:]
+        else:
+            msg = ""
+            fmt_args = ()
+
+        if kwargs:
+            suffix = " ".join(f"{k}={v}" for k, v in kwargs.items())
+            msg = f"{msg} {suffix}" if msg else suffix
+
+        return msg, fmt_args, logging_kwargs
+
+    def debug(self, *args: Any, **kwargs: Any) -> None:
+        msg, fmt_args, logging_kwargs = self._format(args, kwargs)
+        self._logger.debug(msg, *fmt_args, **logging_kwargs)
+
+    def info(self, *args: Any, **kwargs: Any) -> None:
+        msg, fmt_args, logging_kwargs = self._format(args, kwargs)
+        self._logger.info(msg, *fmt_args, **logging_kwargs)
+
+    def warning(self, *args: Any, **kwargs: Any) -> None:
+        msg, fmt_args, logging_kwargs = self._format(args, kwargs)
+        self._logger.warning(msg, *fmt_args, **logging_kwargs)
+
+    def error(self, *args: Any, **kwargs: Any) -> None:
+        msg, fmt_args, logging_kwargs = self._format(args, kwargs)
+        self._logger.error(msg, *fmt_args, **logging_kwargs)
+
+    def exception(self, *args: Any, **kwargs: Any) -> None:
+        kwargs.setdefault("exc_info", True)
+        msg, fmt_args, logging_kwargs = self._format(args, kwargs)
+        self._logger.error(msg, *fmt_args, **logging_kwargs)
+
+    def log(self, level: int, *args: Any, **kwargs: Any) -> None:
+        msg, fmt_args, logging_kwargs = self._format(args, kwargs)
+        self._logger.log(level, msg, *fmt_args, **logging_kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._logger, name)
 
 
 def init_logger(
@@ -80,7 +144,7 @@ def init_logger(
     root_logger.addHandler(file_handler)
 
     # 控制台处理器
-    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(console_level)
     console_formatter = logging.Formatter("[%(levelname)s] [%(name)s] %(message)s")
     console_handler.setFormatter(console_formatter)
@@ -89,7 +153,7 @@ def init_logger(
     _logger_initialized = True
 
 
-def get_logger(name: Optional[str] = None) -> logging.Logger:
+def get_logger(name: Optional[str] = None) -> ProjectLogger:
     """获取日志记录器
 
     如果尚未调用 init_logger()，会自动调用一次默认初始化。
@@ -105,7 +169,7 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
     if not _logger_initialized:
         init_logger()
 
-    return logging.getLogger(name)
+    return ProjectLogger(logging.getLogger(name))
 
 
-__all__ = ["LogCategory", "init_logger", "get_logger"]
+__all__ = ["LogCategory", "ProjectLogger", "init_logger", "get_logger"]

@@ -34,6 +34,7 @@ cache/
 explore_logs/
 
 # --- Temporary / generated files ---
+.tmp/
 temp_*
 temp_*.json
 *.png

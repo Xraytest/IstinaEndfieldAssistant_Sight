@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import subprocess
 import sys
 from pathlib import Path
 
@@ -79,6 +80,34 @@ def test_runtime_execute_with_none_params_does_not_crash() -> None:
     runtime._maaend = _FakeMaaEndRuntime()
     result = runtime.execute("task.run", None)
     assert isinstance(result, bool)
+
+
+def test_cli_reports_invalid_config_file_without_secondary_failure(tmp_path) -> None:
+    config_file = tmp_path / "client_config.json"
+    config_file.write_text("{invalid json", encoding="utf-8")
+
+    proc = subprocess.run(
+        [sys.executable, str(PROJECT_ROOT / "src" / "cli" / "istina.py"), "--config", str(config_file), "system", "env"],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0
+    payload = json.loads(proc.stdout.strip())
+    assert payload["status"] == "success"
+    assert "attribute" not in proc.stderr.lower()
+
+
+def test_model_download_rejects_path_traversal(monkeypatch, tmp_path) -> None:
+    from cli import handlers
+
+    monkeypatch.setattr(handlers, "get_project_root", lambda: tmp_path)
+
+    result = handlers._handle_model_download(None, _Args({"name": "..\\escape"}))
+    assert result["status"] == "error"
+    assert result["message"] == "invalid model name"
+    assert not (tmp_path / "escape").exists()
 
 
 class _FakeMaaEndRuntime:

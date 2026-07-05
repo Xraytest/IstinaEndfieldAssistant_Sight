@@ -1,4 +1,4 @@
-"""IstinaRuntime - 统一运行时入口
+﻿"""IstinaRuntime - 统一运行时入口
 
 封装设备层与 MaaEndRuntime，提供 GUI/CLI 统一执行接口。
 """
@@ -15,8 +15,7 @@ import numpy as np
 from core.capability.device.android_runtime import AndroidRuntime
 from core.capability.device.adb_manager import ADBDeviceInfo
 from core.capability.element_recognition import SceneUnderstandingService
-from core.capability.element_recognition.backends.vlm_backend import VlmBackend
-from core.capability.llm import LlmClient, LlamaServerRuntime, VlmClient, VlmServerRuntime
+from core.capability.llm import LlmClient, LlamaServerRuntime
 from core.foundation.logger import get_logger, LogCategory
 from core.foundation.paths import get_project_root
 from core.service.maa_end.runtime import MaaEndRuntime
@@ -79,19 +78,17 @@ AndroidRuntimeProxy.__name__ = "AndroidRuntime"
 class IstinaRuntime:
     """共享运行时 - GUI 和 CLI 的统一初始化入口"""
 
-    def __init__(self):
+    def __init__(self, config_path: Optional[str] = None):
+        self._config_path = Path(config_path).resolve() if config_path else None
+        self._logger = get_logger(__name__)
         self._config = self._load_config()
         self._android_clients: Dict[str, AndroidRuntimeProxy] = {}
         self._maaend_clients: Dict[str, MaaEndRuntime] = {}
         self._maaend: Optional[MaaEndRuntime] = None
         self._llm_runtime = LlamaServerRuntime(self._config)
         self._llm_client = LlmClient(base_url=self._llm_runtime.base_url)
-        self._vlm_runtime = VlmServerRuntime(self._config)
-        self._vlm_client = VlmClient(base_url=self._vlm_runtime.base_url)
-        self._vlm_backend: Optional[VlmBackend] = None
         self._scene_svc: Optional[SceneUnderstandingService] = None
         self._nav: Optional[Navigator] = None
-        self._logger = get_logger(__name__)
 
     @property
     def config(self) -> Dict[str, Any]:
@@ -105,7 +102,13 @@ class IstinaRuntime:
         return bool(legacy and legacy.connected)
 
     def android(self, serial: Optional[str] = None) -> AndroidRuntimeProxy:
-        resolved = serial or self._config.get("device", {}).get("serial") or "default"
+        device_cfg = self._config.get("device", {}) or {}
+        resolved = (
+            serial
+            or device_cfg.get("last_connected")
+            or device_cfg.get("serial")
+            or "default"
+        )
         runtime = self._android_clients.get(resolved)
         if runtime is None:
             runtime = AndroidRuntimeProxy(
@@ -119,7 +122,13 @@ class IstinaRuntime:
         legacy = getattr(self, "_maaend", None)
         if legacy is not None and not self._maaend_clients:
             return legacy
-        resolved = serial or self._config.get("device", {}).get("serial") or "localhost:16512"
+        device_cfg = self._config.get("device", {}) or {}
+        resolved = (
+            serial
+            or device_cfg.get("last_connected")
+            or device_cfg.get("serial")
+            or "default"
+        )
         runtime = self._maaend_clients.get(resolved)
         if runtime is None:
             runtime = MaaEndRuntime(
@@ -134,10 +143,7 @@ class IstinaRuntime:
         if self._scene_svc is None:
             self._scene_svc = SceneUnderstandingService(
                 maaend_runtime=self.maaend(),
-                vlm_backend=self._vlm_backend,
             )
-        else:
-            self._scene_svc.set_vlm_backend(self._vlm_backend)
         return self._scene_svc
 
     def navigator(self) -> Navigator:
@@ -183,6 +189,8 @@ class IstinaRuntime:
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> Any:
         self._config = self._load_config()
         params = params or {}
+        if command == "screenshot":
+            return self._screenshot(params)
         parts = command.split(".")
         if len(parts) == 2:
             domain, action = parts
@@ -224,6 +232,12 @@ class IstinaRuntime:
             return self._nav2_list_entities(params)
         if domain == "nav2" and action == "list_maps":
             return self._nav2_list_maps(params)
+        if domain == "nav3" and action == "walk":
+            return self._nav3_walk(params)
+        if domain == "nav3" and action == "to_entity":
+            return self._nav3_to_entity(params)
+        if domain == "nav3" and action == "status":
+            return {"status": "success", "nav3_available": True}
         if domain == "scene" and action == "identify":
             return self._scene_identify(params)
         if domain == "scene" and action == "verify":
@@ -238,19 +252,6 @@ class IstinaRuntime:
             if action == "status":
                 return self._llm_status()
             return {"status": "error", "message": f"unknown llm action: {action}"}
-        if domain == "vlm":
-            if action in ("analyze", "run"):
-                return self._vlm_analyze(params)
-            if action == "status":
-                return self._vlm_status()
-            if action == "clear":
-                return self._vlm_clear()
-            if action == "start":
-                return self._vlm_warmup()
-            if action == "stop":
-                return self._vlm_cooldown()
-            return {"status": "error", "message": f"unknown vlm action: {action}"}
-
         self._logger.warning(LogCategory.MAIN, "未知命令", command=command)
         return None
 
@@ -287,11 +288,14 @@ class IstinaRuntime:
 
     def _screenshot(self, params: Dict[str, Any]) -> Optional[bytes]:
         serial = params.get("serial")
+        legacy = getattr(self, "_maaend", None)
+        if legacy is not None and not self._maaend_clients:
+            return legacy.screenshot()
         runtime = self.maaend(serial)
         return runtime.screenshot()
 
     def _load_config(self) -> Dict[str, Any]:
-        path = get_project_root() / "config" / "client_config.json"
+        path = self._resolve_config_path()
         if path.exists():
             try:
                 with open(path, "r", encoding="utf-8") as f:
@@ -299,6 +303,17 @@ class IstinaRuntime:
             except Exception as e:
                 self._logger.warning(LogCategory.MAIN, "加载配置失败，使用默认值", error=str(e))
         return {}
+
+    def _resolve_config_path(self) -> Path:
+        if self._config_path is not None:
+            return self._config_path
+        return get_project_root() / "config" / "client_config.json"
+
+    def save_config(self) -> None:
+        path = self._resolve_config_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self._config, f, ensure_ascii=False, indent=2)
 
     def _daily_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}
@@ -453,6 +468,52 @@ class IstinaRuntime:
         nav = self.navigator()
         return nav.list_maps()
 
+    # ------------------------------------------------------------------
+    # nav3 - VLM-driven walking
+    # ------------------------------------------------------------------
+
+    def _nav3_walk(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        nav = self.navigator()
+        return nav.to_coords_vlm(
+            map_name=params.get("map_name", ""),
+            x=float(params.get("x", 0)),
+            y=float(params.get("y", 0)),
+            level_id=params.get("level_id"),
+            zone_override=params.get("zone"),
+            llm_client=self._llm_client,
+            max_steps=int(params.get("max_steps", 40)),
+            keyevent_fn=self._vlm_keyevent,
+        )
+
+    def _nav3_to_entity(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        nav = self.navigator()
+        return nav.to_entity_vlm(
+            entity_name=params.get("name", ""),
+            llm_client=self._llm_client,
+            max_steps=int(params.get("max_steps", 40)),
+            keyevent_fn=self._vlm_keyevent,
+            limit=int(params.get("limit", 10)),
+        )
+
+    def _vlm_keyevent(self, key: str, duration: Optional[float]) -> None:
+        """Send a key event to the device for a given duration.
+
+        For short taps (duration is None), sends a single keyevent.
+        For held keys, simulates multiple taps at intervals.
+        """
+        try:
+            android = self.android()
+            if duration is not None and duration > 0.3:
+                # Simulate hold via repeated taps
+                repeats = max(1, int(duration / 0.15))
+                for _ in range(repeats):
+                    android.keyevent(key)
+                    import time
+                    time.sleep(0.12)
+            else:
+                android.keyevent(key)
+        except Exception as exc:
+            self._logger.warning("VLM keyevent '%s' failed: %s", key, exc)
     # ------------------------------------------------------------------
     # Scene understanding commands
     # ------------------------------------------------------------------
@@ -610,8 +671,15 @@ class IstinaRuntime:
         system = params.get("system")
         temperature = params.get("temperature")
         max_tokens = params.get("max_tokens")
+        image = params.get("image")
         try:
-            output = self._llm_client.chat(prompt, system=system, temperature=temperature, max_tokens=max_tokens)
+            output = self._llm_client.chat(
+                prompt,
+                system=system,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                image=image,
+            )
             return {"status": "success", "command": "llm.chat", "output": output}
         except Exception as exc:
             return {"status": "error", "command": "llm.chat", "message": str(exc)}
@@ -630,114 +698,3 @@ class IstinaRuntime:
             "base_url": self._llm_runtime.base_url,
         }
 
-    # ------------------------------------------------------------------
-    # VLM 生命周期
-    # ------------------------------------------------------------------
-
-    def warmup_vlm(self) -> bool:
-        ok = self._vlm_runtime.start()
-        if ok:
-            self._vlm_backend = VlmBackend(client=self._vlm_client)
-            if self._scene_svc is not None:
-                self._scene_svc.set_vlm_backend(self._vlm_backend)
-        return ok
-
-    def cooldown_vlm(self) -> None:
-        self._vlm_backend = None
-        if self._scene_svc is not None:
-            self._scene_svc.set_vlm_backend(None)
-        try:
-            self._vlm_runtime.stop()
-        except Exception as exc:
-            self._logger.warning("cooldown_vlm 异常: %s", exc)
-
-    def _vlm_warmup(self) -> Dict[str, Any]:
-        ok = self.warmup_vlm()
-        return {
-            "status": "success" if ok else "error",
-            "command": "vlm.start",
-            "ready": self._vlm_runtime.ready,
-            "port": self._vlm_runtime.port,
-        }
-
-    def _vlm_cooldown(self) -> Dict[str, Any]:
-        self.cooldown_vlm()
-        return {"status": "success", "command": "vlm.stop"}
-
-    def _vlm_analyze(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        if not self._vlm_runtime.ready:
-            ok = self._vlm_runtime.start()
-            if not ok:
-                return {"status": "error", "message": "VLM 服务器启动失败"}
-            self._vlm_backend = VlmBackend(client=self._vlm_client)
-            if self._scene_svc is not None:
-                self._scene_svc.set_vlm_backend(self._vlm_backend)
-
-        if self._vlm_backend is None:
-            return {"status": "error", "message": "VLM 后端未初始化"}
-
-        prompt = params.get("prompt", "")
-        serial = params.get("serial")
-        import base64
-
-        image_data = params.get("image")
-        if image_data:
-            try:
-                image_bytes = base64.b64decode(image_data)
-            except Exception:
-                return {"status": "error", "message": "base64 解码失败"}
-        else:
-            image_bytes = self.android(serial).screenshot(serial=serial)
-
-        if image_bytes is None:
-            return {"status": "error", "message": "无法获取截图"}
-
-        arr = np.frombuffer(image_bytes, dtype=np.uint8)
-        screen = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if screen is None:
-            return {"status": "error", "message": "截图解码失败"}
-
-        try:
-            result = self._vlm_backend.analyze_scene_3d(screen, prompt=prompt)
-        except Exception as exc:
-            return {"status": "error", "command": "vlm.analyze", "message": str(exc)}
-
-        if result is None:
-            return {"status": "error", "command": "vlm.analyze", "message": "VLM 分析返回空"}
-
-        _, img_encoded = cv2.imencode(".png", result.rendered_image)
-        rendered_b64 = base64.b64encode(img_encoded.tobytes()).decode("ascii")
-
-        return {
-            "status": "success",
-            "command": "vlm.analyze",
-            "annotations": [
-                {
-                    "label": a.label,
-                    "shape_type": a.shape_type,
-                    "points": a.points,
-                    "confidence": a.confidence,
-                }
-                for a in result.annotations.annotations
-            ] if result.annotations else [],
-            "raw_text": result.raw_text,
-            "rendered_image": rendered_b64,
-            "usage": result.usage,
-        }
-
-    def _vlm_status(self) -> Dict[str, Any]:
-        ready = self._vlm_runtime.ready
-        if not ready:
-            self._vlm_runtime.start()
-            ready = self._vlm_runtime.ready
-        return {
-            "status": "success",
-            "command": "vlm.status",
-            "ready": ready,
-            "port": self._vlm_runtime.port,
-            "base_url": self._vlm_runtime.base_url,
-        }
-
-    def _vlm_clear(self) -> Dict[str, Any]:
-        self._vlm_backend = None
-        return {"status": "success", "command": "vlm.clear"}

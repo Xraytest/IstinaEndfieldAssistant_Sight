@@ -1,7 +1,4 @@
-"""LlmClient - llama-server OpenAI 兼容 HTTP 客户端
-
-提供最小可用接口：chat(prompt) -> output。
-"""
+"""LlmClient - llama-server OpenAI compatible HTTP client."""
 
 from __future__ import annotations
 
@@ -11,22 +8,43 @@ from core.foundation.logger import get_logger, LogCategory
 
 
 class LlmClientError(Exception):
-    """LlmClient 基础异常"""
+    """LlmClient base exception."""
 
 
 class LlmClient:
-    """OpenAI 兼容客户端，默认连接本地 llama-server"""
+    """OpenAI-compatible client for local llama-server."""
 
     def __init__(self, base_url: str = "http://127.0.0.1:9998/v1"):
         self._base_url = base_url.rstrip("/")
         self._logger = get_logger(__name__)
 
-    def chat(self, prompt: str, *, system: Optional[str] = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None) -> str:
-        """调用 /v1/chat/completions，返回 assistant content"""
-        messages = []
+    def chat(
+        self,
+        prompt: str,
+        *,
+        system: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        image: Optional[str] = None,
+        image_mime_type: str = "image/png",
+    ) -> str:
+        """Call /v1/chat/completions and return assistant content."""
+        messages: list[Dict[str, Any]] = []
         if system:
             messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
+        if image:
+            image_url = image if image.startswith("data:") else f"data:{image_mime_type};base64,{image}"
+            messages.append(
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ],
+                }
+            )
+        else:
+            messages.append({"role": "user", "content": prompt})
 
         payload: Dict[str, Any] = {
             "model": "local",
@@ -40,18 +58,19 @@ class LlmClient:
         data = self._post("/chat/completions", payload)
         choices = data.get("choices") or []
         if not choices:
-            raise LlmClientError("LLM 返回空结果: " + str(data))
+            raise LlmClientError("LLM returned empty result: " + str(data))
         message = choices[0].get("message") or {}
         content = message.get("content")
         if not content:
             content = message.get("reasoning_content")
         if not content:
-            raise LlmClientError("LLM 返回内容为空: " + str(message))
+            raise LlmClientError("LLM returned empty content: " + str(message))
         return str(content)
 
     def health_check(self) -> bool:
-        """检查 llama-server 是否可达"""
+        """Check whether llama-server is reachable."""
         import urllib.request
+
         url = f"{self._base_url}/health"
         try:
             req = urllib.request.Request(url, method="GET")
@@ -63,6 +82,7 @@ class LlmClient:
     def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         import json
         import urllib.request
+
         url = f"{self._base_url}{path}"
         try:
             req = urllib.request.Request(
@@ -75,5 +95,5 @@ class LlmClient:
                 raw = resp.read().decode("utf-8", errors="replace")
                 return json.loads(raw)
         except Exception as exc:
-            self._logger.error("[%s] LLM 请求失败 url=%s error=%s", LogCategory.MAIN, url, str(exc))
+            self._logger.error("[%s] LLM request failed url=%s error=%s", LogCategory.MAIN, url, str(exc))
             raise LlmClientError(str(exc)) from exc

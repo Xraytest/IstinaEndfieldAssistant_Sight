@@ -10,7 +10,6 @@ import json
 import mmap
 import os
 import socket
-import struct
 import subprocess
 import threading
 from pathlib import Path
@@ -182,7 +181,7 @@ class _ScrcpySession:
             if self._server_proc.stdout is not None:
                 threading.Thread(target=self._drain_pipe, args=(self._server_proc.stdout,), daemon=True).start()
         except Exception as exc:
-            self._logger.exception("scrcpy server 启动失败", error=str(exc))
+            self._logger.exception(f"scrcpy server 启动失败 error={exc}")
 
     def _decode_loop(self) -> None:
         import struct, io, time
@@ -347,21 +346,22 @@ class _Daemon:
         if self._running:
             return
         self._running = True
-        self._tcp_port = self._pick_port()
-        if hasattr(socket, "AF_UNIX"):
-            self._server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            try:
-                if os.path.exists(self._socket_path):
-                    os.remove(self._socket_path)
-                self._server.bind(self._socket_path)
-            except OSError:
-                self._server.close()
-                self._server = None
-        if self._server is None:
+        try:
             self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._server.bind(("127.0.0.1", self._tcp_port))
-        self._server.listen(5)
-        threading.Thread(target=self._accept_loop, daemon=True).start()
+            self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._server.bind(("127.0.0.1", 0))
+            self._tcp_port = self._server.getsockname()[1]
+            self._server.listen(5)
+            threading.Thread(target=self._accept_loop, daemon=True).start()
+        except Exception:
+            self._running = False
+            if self._server is not None:
+                try:
+                    self._server.close()
+                except Exception:
+                    pass
+            self._server = None
+            raise
 
     def stop(self) -> None:
         self._running = False
@@ -544,21 +544,10 @@ class AndroidRuntime:
         request = json.dumps({"method": method, "params": params}, ensure_ascii=False).encode("utf-8") + b"\n"
         sock = None
         try:
-            if hasattr(socket, "AF_UNIX"):
-                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-                try:
-                    sock.connect(self._socket_path)
-                except OSError:
-                    try:
-                        sock.close()
-                    except Exception:
-                        pass
-                    sock = None
-            if sock is None:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                daemon = self._get_daemon()
-                port = getattr(daemon, "_tcp_port", None) or daemon._pick_port()
-                sock.connect(("127.0.0.1", port))
+            daemon = self._get_daemon()
+            port = getattr(daemon, "_tcp_port", None) or daemon._pick_port()
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect(("127.0.0.1", port))
         except Exception:
             if sock is not None:
                 try:

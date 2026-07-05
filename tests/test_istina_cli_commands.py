@@ -8,8 +8,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ISTINA_SCRIPT = PROJECT_ROOT / "src" / "cli" / "istina.py"
-VENV_PYTHON = PROJECT_ROOT / "venv" / "Scripts" / "python.exe"
-CLI = [str(VENV_PYTHON), str(ISTINA_SCRIPT)]
+CLI = [sys.executable, str(ISTINA_SCRIPT)]
 
 
 def _run_cli(argv, env=None):

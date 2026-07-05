@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["3rd-part", "cache", "logs", "venv", ".git", ".claude", ".qwen"]
+cache_dir = ".tmp/pytest_cache"

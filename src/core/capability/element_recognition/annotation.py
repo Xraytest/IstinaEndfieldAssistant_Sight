@@ -6,7 +6,7 @@ from typing import Any
 
 @dataclass
 class Annotation:
-    """VLM Function Call 标注单元。"""
+    """Generic scene annotation item."""
 
     label: str
     shape_type: str
@@ -17,7 +17,7 @@ class Annotation:
 
 @dataclass
 class AnnotationShape:
-    """可视化渲染用的形状容器（像素坐标，已归一化 → 原始分辨率）。"""
+    """Renderable annotation shape."""
 
     label: str
     shape_type: str
@@ -29,7 +29,7 @@ class AnnotationShape:
 
 @dataclass
 class AnnotationSet:
-    """单帧的完整标注结果。"""
+    """Collection of annotations for one scene analysis result."""
 
     annotations: list[Annotation] = field(default_factory=list)
     raw_text: str = ""
