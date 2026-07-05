@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional, List
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QGroupBox, QScrollArea,
-    QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox,
+    QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox, QSizePolicy,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject
 from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage, QFont
@@ -193,11 +194,11 @@ class MaaEndControlPage(QWidget):
         self._is_executing = False
         self._worker: Optional[TaskRunWorker] = None
         self._queue_items: List[Dict[str, Any]] = []
-        self._queue_options_overrides: Dict[str, Dict[str, Any]] = {}
         self._connected = False
         self._tasks_cache: Dict[str, Dict[str, Any]] = {}
         self._presets_cache: Dict[str, Dict[str, Any]] = {}
         self._task_option_defs: Dict[str, Dict[str, Any]] = {}
+        self._state_path = self._resolve_state_path()
         self._setup_ui()
         font = QFont("Microsoft YaHei UI")
         self.setFont(font)
@@ -207,6 +208,7 @@ class MaaEndControlPage(QWidget):
                 widget.setFont(font)
         self._refresh_task_list()
         self._refresh_preset_list()
+        self._load_state()
         self.log_message.connect(self._append_log)
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(1500)
@@ -329,6 +331,7 @@ class MaaEndControlPage(QWidget):
         root.addLayout(header)
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter = splitter
+        splitter.setChildrenCollapsible(False)
         splitter.setStyleSheet("QSplitter::handle { width: 1px; background: rgba(24,209,255,0.12); }")
         left = QWidget()
         self._splitter_left = left
@@ -344,14 +347,16 @@ class MaaEndControlPage(QWidget):
         preset_layout.setSpacing(2)
         self._preset_list = QListWidget()
         self._preset_list.setStyleSheet(LIST_STYLE)
-        self._preset_list.setFixedHeight(90)
+        self._preset_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._preset_list.setMinimumHeight(92)
+        self._preset_list.setMaximumHeight(126)
         self._preset_list.itemSelectionChanged.connect(self._on_preset_selected)
         preset_layout.addWidget(self._preset_list)
         preset_btn_row = QHBoxLayout()
         preset_btn_row.setContentsMargins(0, 0, 0, 0)
-        preset_btn_row.setSpacing(4)
+        preset_btn_row.setSpacing(6)
         self._run_preset_btn = QPushButton("应用预设")
-        self._run_preset_btn.setMinimumHeight(26)
+        self._run_preset_btn.setMinimumHeight(30)
         self._run_preset_btn.setStyleSheet(BTN_ACTIVE)
         self._run_preset_btn.clicked.connect(self._run_preset)
         preset_btn_row.addWidget(self._run_preset_btn)
@@ -367,17 +372,24 @@ class MaaEndControlPage(QWidget):
         task_layout.setSpacing(2)
         self._task_list = QListWidget()
         self._task_list.setStyleSheet(LIST_STYLE)
-        self._task_list.setFixedHeight(120)
+        self._task_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._task_list.setMinimumHeight(110)
+        self._task_list.setMaximumHeight(160)
         self._task_list.itemSelectionChanged.connect(self._on_task_selected)
         task_layout.addWidget(self._task_list)
         task_btn_row = QHBoxLayout()
         task_btn_row.setContentsMargins(0, 0, 0, 0)
-        task_btn_row.setSpacing(4)
+        task_btn_row.setSpacing(6)
         self._run_task_btn = QPushButton("添加任务")
-        self._run_task_btn.setMinimumHeight(26)
+        self._run_task_btn.setMinimumHeight(30)
         self._run_task_btn.setStyleSheet(BTN_ACTIVE)
         self._run_task_btn.clicked.connect(self._run_task)
         task_btn_row.addWidget(self._run_task_btn)
+        self._task_settings_btn = QPushButton("任务设置")
+        self._task_settings_btn.setMinimumHeight(30)
+        self._task_settings_btn.setStyleSheet(BTN_DEFAULT)
+        self._task_settings_btn.clicked.connect(self._open_task_settings)
+        task_btn_row.addWidget(self._task_settings_btn)
         task_btn_row.addStretch()
         task_layout.addLayout(task_btn_row)
         left_layout.addWidget(task_card)
@@ -390,18 +402,20 @@ class MaaEndControlPage(QWidget):
         queue_layout.setSpacing(2)
         self._queue_list = QListWidget()
         self._queue_list.setStyleSheet(LIST_STYLE)
-        self._queue_list.setFixedHeight(100)
+        self._queue_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._queue_list.setMinimumHeight(96)
+        self._queue_list.setMaximumHeight(140)
         queue_layout.addWidget(self._queue_list)
         queue_btn_row = QHBoxLayout()
         queue_btn_row.setContentsMargins(0, 0, 0, 0)
-        queue_btn_row.setSpacing(4)
+        queue_btn_row.setSpacing(6)
         self._add_queue_btn = QPushButton("添加")
-        self._add_queue_btn.setMinimumHeight(26)
+        self._add_queue_btn.setMinimumHeight(30)
         self._add_queue_btn.setStyleSheet(BTN_DEFAULT)
         self._add_queue_btn.clicked.connect(self._add_to_queue)
         queue_btn_row.addWidget(self._add_queue_btn)
         self._run_queue_btn = QPushButton("运行")
-        self._run_queue_btn.setMinimumHeight(26)
+        self._run_queue_btn.setMinimumHeight(30)
         self._run_queue_btn.setStyleSheet(BTN_ACTIVE)
         self._run_queue_btn.clicked.connect(self._run_queue)
         queue_btn_row.addWidget(self._run_queue_btn)
@@ -409,19 +423,19 @@ class MaaEndControlPage(QWidget):
         queue_layout.addLayout(queue_btn_row)
         queue_move_row = QHBoxLayout()
         queue_move_row.setContentsMargins(0, 0, 0, 0)
-        queue_move_row.setSpacing(4)
+        queue_move_row.setSpacing(6)
         self._queue_up_btn = QPushButton("上移")
-        self._queue_up_btn.setMinimumHeight(26)
+        self._queue_up_btn.setMinimumHeight(30)
         self._queue_up_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_up_btn.clicked.connect(self._queue_move_up)
         queue_move_row.addWidget(self._queue_up_btn)
         self._queue_down_btn = QPushButton("下移")
-        self._queue_down_btn.setMinimumHeight(26)
+        self._queue_down_btn.setMinimumHeight(30)
         self._queue_down_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_down_btn.clicked.connect(self._queue_move_down)
         queue_move_row.addWidget(self._queue_down_btn)
         self._queue_clear_btn = QPushButton("清空")
-        self._queue_clear_btn.setMinimumHeight(26)
+        self._queue_clear_btn.setMinimumHeight(30)
         self._queue_clear_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_clear_btn.clicked.connect(self._queue_clear)
         queue_move_row.addWidget(self._queue_clear_btn)
@@ -448,6 +462,7 @@ class MaaEndControlPage(QWidget):
         self._option_scroll = QScrollArea()
         self._option_scroll.setWidgetResizable(True)
         self._option_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self._option_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self._option_container = QWidget()
         self._option_form = QVBoxLayout(self._option_container)
         self._option_form.setContentsMargins(0, 0, 0, 0)
@@ -456,9 +471,9 @@ class MaaEndControlPage(QWidget):
         option_layout.addWidget(self._option_scroll)
         option_btn_row = QHBoxLayout()
         option_btn_row.setContentsMargins(0, 0, 0, 0)
-        option_btn_row.setSpacing(4)
+        option_btn_row.setSpacing(6)
         self._save_option_btn = QPushButton("保存")
-        self._save_option_btn.setMinimumHeight(26)
+        self._save_option_btn.setMinimumHeight(30)
         self._save_option_btn.setStyleSheet(BTN_DEFAULT)
         self._save_option_btn.clicked.connect(self._save_options)
         option_btn_row.addWidget(self._save_option_btn)
@@ -475,7 +490,8 @@ class MaaEndControlPage(QWidget):
         self._preview_label = QLabel("暂无预览")
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setStyleSheet(PREVIEW_STYLE)
-        self._preview_label.setMinimumHeight(140)
+        self._preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._preview_label.setMinimumHeight(180)
         preview_layout.addWidget(self._preview_label)
         right_layout.addWidget(preview_card, 3)
 
@@ -487,14 +503,16 @@ class MaaEndControlPage(QWidget):
         log_layout.setSpacing(2)
         self._log_text = QTextEdit()
         self._log_text.setReadOnly(True)
-        self._log_text.setMaximumHeight(120)
+        self._log_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._log_text.setMinimumHeight(100)
+        self._log_text.setMaximumHeight(140)
         self._log_text.setStyleSheet(LOG_STYLE)
         log_layout.addWidget(self._log_text)
         log_btn_row = QHBoxLayout()
         log_btn_row.setContentsMargins(0, 0, 0, 0)
         log_btn_row.setSpacing(4)
         self._clear_log_btn = QPushButton("清空")
-        self._clear_log_btn.setMinimumHeight(26)
+        self._clear_log_btn.setMinimumHeight(30)
         self._clear_log_btn.setStyleSheet(BTN_DEFAULT)
         self._clear_log_btn.clicked.connect(self._log_text.clear)
         log_btn_row.addWidget(self._clear_log_btn)
@@ -531,7 +549,7 @@ class MaaEndControlPage(QWidget):
         bottom.addSpacing(4)
         self._stop_btn = QPushButton("停止")
         self._stop_btn.setStyleSheet(BTN_STOP)
-        self._stop_btn.setMinimumHeight(26)
+        self._stop_btn.setMinimumHeight(30)
         self._stop_btn.setEnabled(False)
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
@@ -597,19 +615,20 @@ class MaaEndControlPage(QWidget):
             self._queue_items.clear()
             self._queue_list.clear()
             for task_entry in task_list:
-                name = task_entry.get("name")
+                name, inline_options = self._normalize_task_entry(task_entry)
                 options = task_entry.get("option") or {}
+                if inline_options:
+                    options = {**dict(options), **inline_options}
                 saved = self._load_options(name)
                 if saved:
                     options = dict(options)
                     options.update(saved)
                 entry = {"name": name, "type": "task", "options": dict(options)}
                 self._queue_items.append(entry)
-                label = f"[任务] {_zh(name)}"
-                if options:
-                    label += f" ({', '.join(f'{k}={v}' for k, v in options.items())})"
+                label = self._format_queue_label(name, "task", options)
                 self._queue_list.addItem(label)
             self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
+            self._persist_state()
         elif self._selected_task:
             name = self._selected_task
             item_type = "task"
@@ -619,10 +638,9 @@ class MaaEndControlPage(QWidget):
                 options.update(saved)
             entry = {"name": name, "type": item_type, "options": dict(options)}
             self._queue_items.append(entry)
-            label = f"[{item_type.upper()}] {_zh(name)}"
-            if options:
-                label += f" ({', '.join(f'{k}={v}' for k, v in options.items())})"
+            label = self._format_queue_label(name, item_type, options)
             self._queue_list.addItem(label)
+            self._persist_state()
         else:
             QMessageBox.information(self, "未选择", "请先选择一个任务或预设。")
 
@@ -633,6 +651,7 @@ class MaaEndControlPage(QWidget):
         self._queue_items[row], self._queue_items[row - 1] = self._queue_items[row - 1], self._queue_items[row]
         self._queue_list.insertItem(row - 1, self._queue_list.takeItem(row))
         self._queue_list.setCurrentRow(row - 1)
+        self._persist_state()
 
     def _queue_move_down(self):
         row = self._queue_list.currentRow()
@@ -641,10 +660,12 @@ class MaaEndControlPage(QWidget):
         self._queue_items[row], self._queue_items[row + 1] = self._queue_items[row + 1], self._queue_items[row]
         self._queue_list.insertItem(row + 1, self._queue_list.takeItem(row))
         self._queue_list.setCurrentRow(row + 1)
+        self._persist_state()
 
     def _queue_clear(self):
         self._queue_items.clear()
         self._queue_list.clear()
+        self._persist_state()
 
     def _runtime_queue_runner(self) -> bool:
         items = list(self._queue_items)
@@ -653,9 +674,11 @@ class MaaEndControlPage(QWidget):
         for entry in items:
             if self._worker and getattr(self._worker, '_stopped', False):
                 break
-            name = entry.get("name")
+            name, inline_options = self._normalize_runtime_entry(entry)
             item_type = entry.get("type", "task")
             options = entry.get("options") or {}
+            if inline_options:
+                options = {**dict(options), **inline_options}
             saved = self._load_options(name)
             if saved:
                 tmp = dict(options)
@@ -729,34 +752,23 @@ class MaaEndControlPage(QWidget):
         splitter = getattr(self, "_splitter", None)
         if splitter is None:
             return
+        preview_label = getattr(self, "_preview_label", None)
         required = ("_preset_list", "_task_list", "_queue_list", "_log_text")
-        if not all(hasattr(self, name) for name in required):
+        if preview_label is None or not all(hasattr(self, name) for name in required):
             return
-        narrow = is_narrow_size(self.size())
-        desired = Qt.Orientation.Vertical if narrow else Qt.Orientation.Horizontal
         left = getattr(self, "_splitter_left", None)
         right = getattr(self, "_splitter_right", None)
-        if splitter.orientation() != desired:
-            splitter.setOrientation(desired)
-            if desired == Qt.Orientation.Vertical:
-                splitter.setSizes([max(220, self.height() // 2), max(260, self.height() // 2)])
-            else:
-                splitter.setSizes([max(280, self.width() // 3), max(520, self.width() * 2 // 3)])
         if left is not None and right is not None:
-            if narrow:
-                left.setMinimumWidth(0)
-                right.setMinimumWidth(0)
-                left.setMinimumHeight(180)
-                right.setMinimumHeight(220)
-            else:
-                left.setMinimumWidth(280)
-                right.setMinimumWidth(360)
-                left.setMinimumHeight(0)
-                right.setMinimumHeight(0)
-        self._preset_list.setFixedHeight(80 if narrow else 90)
-        self._task_list.setFixedHeight(100 if narrow else 120)
-        self._queue_list.setFixedHeight(90 if narrow else 100)
-        self._log_text.setMaximumHeight(100 if narrow else 120)
+            left.setMinimumWidth(300)
+            right.setMinimumWidth(380)
+        total = max(self.width(), 1)
+        splitter.setSizes([max(320, total // 3), max(540, total * 2 // 3)])
+        self._preset_list.setMaximumHeight(128)
+        self._task_list.setMaximumHeight(160)
+        self._queue_list.setMaximumHeight(140)
+        self._log_text.setMaximumHeight(140)
+        self._option_scroll.setMinimumHeight(180)
+        preview_label.setMinimumHeight(180)
 
     def _create_option_widget(self, name: str, opt_def: Dict[str, Any]) -> QWidget:
         opt_type = opt_def.get("type", "switch")
@@ -850,6 +862,28 @@ class MaaEndControlPage(QWidget):
                 options[name] = {n: le.text() for n, le in line_edits.items()}
         return options
 
+    def _format_queue_label(self, name: str, item_type: str, options: Dict[str, Any]) -> str:
+        base = f"[{item_type.upper()}] {_zh(name)}"
+        summary = self._summarize_options(options)
+        if summary:
+            base += f" ({summary})"
+        return base
+
+    def _summarize_options(self, options: Dict[str, Any]) -> str:
+        if not options:
+            return ""
+        parts: List[str] = []
+        for key in sorted(options.keys()):
+            value = options[key]
+            if isinstance(value, dict):
+                inner = ", ".join(f"{k}={v}" for k, v in value.items())
+                parts.append(f"{key}={{ {inner} }}")
+            elif isinstance(value, list):
+                parts.append(f"{key}=[{', '.join(map(str, value))}]")
+            else:
+                parts.append(f"{key}={value}")
+        return "; ".join(parts)
+
     def _save_options(self):
         if not self._selected_task:
             return
@@ -858,6 +892,7 @@ class MaaEndControlPage(QWidget):
         try:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(options, f, indent=2, ensure_ascii=False)
+            self._persist_state()
             QApplication.beep()
         except Exception as e:
             QMessageBox.critical(self, "保存失败", str(e))
@@ -878,6 +913,112 @@ class MaaEndControlPage(QWidget):
             cache_dir = Path(__file__).resolve().parent.parent.parent.parent / "cache" / "maaend" / "options"
             cache_dir.mkdir(parents=True, exist_ok=True)
         return str(cache_dir / f"{task_name}.json")
+
+    def _resolve_state_path(self) -> Path:
+        try:
+            from core.foundation.paths import get_project_root
+
+            base = Path(get_project_root()) / "config"
+        except Exception:
+            base = Path(__file__).resolve().parent.parent.parent.parent / "config"
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "maaend_task_state.json"
+
+    def _persist_state(self) -> None:
+        try:
+            state = {
+                "selected_task": self._selected_task,
+                "selected_preset": self._selected_preset,
+                "queue_items": self._queue_items,
+                "task_options": {
+                    name: self._load_options(name) for name in self._tasks_cache.keys()
+                },
+            }
+            self._state_path.parent.mkdir(parents=True, exist_ok=True)
+            self._state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _load_state(self) -> None:
+        if not self._state_path.exists():
+            return
+        try:
+            state = json.loads(self._state_path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        self._selected_task = state.get("selected_task") or self._selected_task
+        self._selected_preset = state.get("selected_preset") or self._selected_preset
+        queue_items = state.get("queue_items")
+        if isinstance(queue_items, list):
+            self._queue_items = []
+            self._queue_list.clear()
+            for entry in queue_items:
+                if not isinstance(entry, dict):
+                    continue
+                name = entry.get("name")
+                if not name:
+                    continue
+                item_type = entry.get("type", "task")
+                options = entry.get("options") or {}
+                self._queue_items.append({"name": name, "type": item_type, "options": dict(options)})
+                self._queue_list.addItem(self._format_queue_label(name, item_type, dict(options)))
+        if self._selected_task:
+            matches = self._task_list.findItems(_zh(self._selected_task), Qt.MatchFlag.MatchExactly)
+            if matches:
+                self._task_list.setCurrentItem(matches[0])
+        if self._selected_preset:
+            matches = self._preset_list.findItems(_zh(self._selected_preset), Qt.MatchFlag.MatchExactly)
+            if matches:
+                self._preset_list.setCurrentItem(matches[0])
+        self._persist_state()
+
+    def _open_task_settings(self):
+        QMessageBox.information(
+            self,
+            "任务设置",
+            f"任务配置已持久化到：\n{self._state_path}\n\n当前队列与选中项会自动保存。",
+        )
+
+    def _normalize_task_entry(self, task_entry: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
+        name = str(task_entry.get("name") or "").strip()
+        options = task_entry.get("option")
+        inline_options: Dict[str, Any] = {}
+        if isinstance(name, str) and name:
+            parsed_name, parsed_options = self._parse_inline_task_name(name)
+            name = parsed_name
+            inline_options = parsed_options
+        if isinstance(options, dict):
+            inline_options = {**inline_options, **options}
+        return name, inline_options
+
+    def _normalize_runtime_entry(self, entry: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
+        name = str(entry.get("name") or "").strip()
+        options = entry.get("options")
+        inline_options: Dict[str, Any] = {}
+        if isinstance(name, str) and name:
+            parsed_name, parsed_options = self._parse_inline_task_name(name)
+            name = parsed_name
+            inline_options = parsed_options
+        if isinstance(options, dict):
+            inline_options = {**inline_options, **options}
+        return name, inline_options
+
+    def _parse_inline_task_name(self, name: str) -> tuple[str, Dict[str, Any]]:
+        if "|" not in name:
+            return name, {}
+        base, payload = name.split("|", 1)
+        base = base.strip()
+        payload = payload.strip()
+        if not base or not payload:
+            return name, {}
+        if payload.startswith("{") and payload.endswith("}"):
+            try:
+                parsed = json.loads(payload)
+                if isinstance(parsed, dict):
+                    return base, parsed
+            except Exception:
+                return base, {"_inline": payload}
+        return base, {"_inline": payload}
 
     # ------------------------------------------------------------------
     # execution
@@ -940,6 +1081,7 @@ class MaaEndControlPage(QWidget):
         self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
         # 队列覆盖完成后自动开始执行；外层已挡住执行中状态，这里再判一次仅作并发防御。
         return
+
     def _run_queue(self):
         if not self._queue_items or self._is_executing:
             return
