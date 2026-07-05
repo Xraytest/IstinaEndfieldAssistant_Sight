@@ -1,20 +1,32 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-from typing import Optional, Callable
+from typing import Callable, Optional
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QSettings, QTimer, Qt
 from PyQt6.QtGui import QCloseEvent
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QWidget, QStatusBar, QTabWidget
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMessageBox,
+    QStackedWidget,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
+)
 
+from core.foundation.gpu_check import check_gpu, format_gpu_warning
 from core.foundation.paths import ensure_src_path
 from gui.pyqt6.cli_bridge import CLIBridge
-from gui.pyqt6.pages.agent_page import AgentPage
 from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
+from gui.pyqt6.pages.log_page import LogPage
 from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
-from gui.pyqt6.pages.maaend_page import MaaEndPage
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
+from gui.pyqt6.pages.settings_page import SettingsPage
+from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, ui_mode_for_size
 
 ensure_src_path(__file__)
 
@@ -27,43 +39,157 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("IstinaEndfieldAssistant Sight")
+        self.setMinimumSize(800, 600)
         self._bridge = bridge_factory() if bridge_factory is not None else CLIBridge(self)
         if self._bridge.parent() is None:
             self._bridge.setParent(self)
 
         central = QWidget(self)
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
-
+        layout.setContentsMargins(20, 20, 20, 16)
+        layout.setSpacing(14)
         self.setCentralWidget(central)
+
         self.setStatusBar(QStatusBar(self))
-        self.statusBar().showMessage("IstinaEndfieldAssistant Sight - GUI ready")
+        self.statusBar().showMessage("界面已就绪")
 
-        self._init_pages()
-        self.resize(1280, 800)
+        self._navigation_list: Optional[QListWidget] = None
+        self._page_stack: Optional[QStackedWidget] = None
+        self._build_shell()
+        self._restore_or_fit_window()
+        self._update_responsive_mode()
 
+        QTimer.singleShot(0, self._show_gpu_warning_if_needed)
         QTimer.singleShot(0, self._async_warmup)
 
     def _async_warmup(self) -> None:
-        """非阻塞预热 LLM / VLM 后端。"""
         self._bridge.execute("llm start", {})
-        self._bridge.execute("vlm start", {})
+
+    def _show_gpu_warning_if_needed(self) -> None:
+        result = check_gpu()
+        message = format_gpu_warning(result)
+        if message is None:
+            return
+        title = "GPU不受支持" if not result.is_nvidia else "GPU显存低"
+        QMessageBox.warning(self, title, message)
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
+        settings.setValue("mainWindow/geometry", self.saveGeometry())
         self._bridge.execute("llm stop", {})
-        self._bridge.execute("vlm stop", {})
         super().closeEvent(event)
 
-    def _init_pages(self) -> None:
-        tabs = QTabWidget()
-        self.centralWidget().layout().addWidget(tabs)
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._update_responsive_mode()
 
-        tabs.addTab(AgentPage(bridge=self._bridge), "Agent")
-        tabs.addTab(DeviceSettingsPage(bridge=self._bridge), "Device")
-        tabs.addTab(MaaEndPage(bridge=self._bridge), "MaaEnd")
-        tabs.addTab(MaaEndControlPage(bridge=self._bridge), "控制台")
-        tabs.addTab(PrtsFullIntelligencePage(bridge=self._bridge), "PRTS")
+    def _build_shell(self) -> None:
+        root_layout = self.centralWidget().layout()
+
+        hero = QFrame(self)
+        hero.setObjectName("heroPanel")
+        hero_layout = QHBoxLayout(hero)
+        hero_layout.setContentsMargins(18, 14, 18, 14)
+        hero_layout.setSpacing(16)
+
+        title_label = QLabel("Istina Endfield Assistant")
+        title_label.setProperty("variant", "hero")
+        hero_layout.addWidget(title_label)
+        hero_layout.addStretch()
+        root_layout.addWidget(hero)
+
+        shell = QWidget(self)
+        shell_layout = QHBoxLayout(shell)
+        shell_layout.setContentsMargins(0, 0, 0, 0)
+        shell_layout.setSpacing(18)
+
+        nav_panel = QFrame(shell)
+        nav_panel.setObjectName("navPanel")
+        nav_layout = QVBoxLayout(nav_panel)
+        nav_layout.setContentsMargins(14, 14, 14, 14)
+        nav_layout.setSpacing(10)
+
+        nav_title = QLabel("页面")
+        nav_title.setProperty("variant", "eyebrow")
+        nav_layout.addWidget(nav_title)
+
+        self._navigation_list = QListWidget(nav_panel)
+        self._navigation_list.setObjectName("mainNavigation")
+        self._navigation_list.setFixedWidth(250)
+        self._navigation_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._navigation_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._navigation_list.currentRowChanged.connect(self._on_nav_changed)
+        nav_layout.addWidget(self._navigation_list)
+        shell_layout.addWidget(nav_panel, 0, Qt.AlignmentFlag.AlignTop)
+
+        content_panel = QFrame(shell)
+        content_panel.setObjectName("contentPanel")
+        content_layout = QVBoxLayout(content_panel)
+        content_layout.setContentsMargins(12, 12, 12, 12)
+        content_layout.setSpacing(0)
+
+        self._page_stack = QStackedWidget(content_panel)
+        content_layout.addWidget(self._page_stack)
+        shell_layout.addWidget(content_panel, 1)
+
+        pages = [
+            ("PRTS全智能", PrtsFullIntelligencePage(bridge=self._bridge)),
+            ("标准推理", MaaEndControlPage(bridge=self._bridge)),
+            ("设备", DeviceSettingsPage(bridge=self._bridge)),
+            ("设置", SettingsPage()),
+            ("日志", LogPage()),
+        ]
+        for label, page in pages:
+            self._navigation_list.addItem(QListWidgetItem(label))
+            self._page_stack.addWidget(page)
+
+        self._resize_navigation_list()
+        self._navigation_list.setCurrentRow(0)
+        root_layout.addWidget(shell, 1)
+
+    def _restore_or_fit_window(self) -> None:
+        settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
+        geometry = settings.value("mainWindow/geometry")
+        if geometry is not None and self.restoreGeometry(geometry):
+            return
+
+        screen = self.screen()
+        if screen is None:
+            self.resize(1280, 800)
+            return
+        target = clamp_window_size(screen.availableGeometry().size(), (1440, 900), (800, 600))
+        self.resize(target)
+
+    def _update_responsive_mode(self) -> None:
+        mode = ui_mode_for_size(self.size())
+        apply_ui_mode(self, mode)
+        central = self.centralWidget()
+        if central is not None:
+            apply_ui_mode(central, mode)
+            layout = central.layout()
+            if layout is not None:
+                if mode == "compact":
+                    layout.setContentsMargins(12, 12, 12, 10)
+                    layout.setSpacing(8)
+                else:
+                    layout.setContentsMargins(20, 20, 20, 16)
+                    layout.setSpacing(14)
+        navigation_list = getattr(self, "_navigation_list", None)
+        if navigation_list is not None:
+            navigation_list.setFixedWidth(180 if mode == "compact" else 250)
+
+    def _on_nav_changed(self, index: int) -> None:
+        if self._page_stack is None or index < 0:
+            return
+        self._page_stack.setCurrentIndex(index)
+
+    def _resize_navigation_list(self) -> None:
+        if self._navigation_list is None:
+            return
+        frame = self._navigation_list.frameWidth() * 2
+        row_height = self._navigation_list.sizeHintForRow(0) if self._navigation_list.count() else 36
+        total_height = frame + (row_height * self._navigation_list.count()) + 8
+        self._navigation_list.setFixedHeight(total_height)
 
     def bridge(self) -> CLIBridge:
         return self._bridge

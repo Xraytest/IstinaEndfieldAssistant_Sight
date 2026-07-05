@@ -4,8 +4,10 @@ from typing import Optional
 
 from PyQt6.QtWidgets import (
     QComboBox,
+    QFrame,
     QHBoxLayout,
     QPushButton,
+    QScrollArea,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -23,8 +25,19 @@ class PrtsFullIntelligencePage(QWidget):
 
     def _setup_ui(self) -> None:
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 16, 16, 16)
-        root.setSpacing(10)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        root.addWidget(scroll)
+
+        content = QWidget()
+        scroll.setWidget(content)
+        content_root = QVBoxLayout(content)
+        content_root.setContentsMargins(16, 16, 16, 16)
+        content_root.setSpacing(10)
 
         control_row = QHBoxLayout()
         control_row.setSpacing(8)
@@ -38,11 +51,11 @@ class PrtsFullIntelligencePage(QWidget):
         control_row.addWidget(run_btn)
 
         control_row.addStretch()
-        root.addLayout(control_row)
+        content_root.addLayout(control_row)
 
         self._result_text = QTextEdit()
         self._result_text.setReadOnly(True)
-        root.addWidget(self._result_text)
+        content_root.addWidget(self._result_text)
 
     def _run_analysis(self) -> None:
         mode = self._mode_combo.currentText()

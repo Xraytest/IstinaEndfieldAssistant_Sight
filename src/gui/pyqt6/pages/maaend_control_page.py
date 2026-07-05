@@ -1,4 +1,4 @@
-"""Standard Reasoning control panel: task list, preset list, task queue, option editor, preview, log viewer."""
+﻿"""Standard Reasoning control panel: task list, preset list, task queue, option editor, preview, log viewer."""
 from __future__ import annotations
 
 import json
@@ -14,6 +14,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject
 from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage
 
 from gui.pyqt6.cli_bridge import CLIBridge
+from gui.pyqt6.responsive import is_narrow_size
 
 INFO_STYLE = "color: #9090a8; font-size: 12px; font-family: Consolas; padding: 3px 0;"
 VAL_STYLE = "color: #e8e8ee; font-size: 12px; font-family: Consolas; padding: 3px 0;"
@@ -304,8 +305,10 @@ class MaaEndControlPage(QWidget):
         header.addWidget(self._status_label)
         root.addLayout(header)
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter = splitter
         splitter.setStyleSheet("QSplitter::handle { width: 1px; background: rgba(24,209,255,0.12); }")
         left = QWidget()
+        self._splitter_left = left
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(10)
@@ -403,10 +406,12 @@ class MaaEndControlPage(QWidget):
         queue_layout.addLayout(queue_move_row)
         left_layout.addWidget(queue_card)
         left_layout.addStretch()
+        left.setMinimumWidth(280)
         splitter.addWidget(left)
 
         # RIGHT --------------------------------------------------------
         right = QWidget()
+        self._splitter_right = right
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
@@ -474,6 +479,7 @@ class MaaEndControlPage(QWidget):
         log_layout.addLayout(log_btn_row)
         right_layout.addWidget(log_card, 1)
 
+        right.setMinimumWidth(360)
         splitter.addWidget(right)
         splitter.setStretchFactor(0, 2)
         splitter.setStretchFactor(1, 4)
@@ -490,6 +496,7 @@ class MaaEndControlPage(QWidget):
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
         root.addLayout(bottom)
+        self._apply_layout_mode()
 
     # ------------------------------------------------------------------
     # task / preset list helpers
@@ -546,7 +553,7 @@ class MaaEndControlPage(QWidget):
             task_list = preset.get("task", [])
             if not task_list:
                 QMessageBox.information(self, "预设为空", f"预设 '{self._selected_preset}' 中没有任务。")
-                return
+            # 添加预设到队列 = 覆盖现有队列（清空再填充），不是追加；与 _run_preset 共享同一覆盖语义。
             self._queue_items.clear()
             self._queue_list.clear()
             for task_entry in task_list:
@@ -665,13 +672,51 @@ class MaaEndControlPage(QWidget):
             row.setSpacing(8)
             label = QLabel(name)
             label.setStyleSheet(INFO_STYLE)
-            label.setFixedWidth(220)
+            label.setMaximumWidth(220)
+            label.setWordWrap(True)
             row.addWidget(label)
             widget = self._create_option_widget(name, opt_def)
             self._option_widgets[name] = widget
             row.addWidget(widget, 1)
             self._option_form.addWidget(container)
         self._option_form.addStretch()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._apply_layout_mode()
+
+    def _apply_layout_mode(self) -> None:
+        splitter = getattr(self, "_splitter", None)
+        if splitter is None:
+            return
+        required = ("_preset_list", "_task_list", "_queue_list", "_log_text")
+        if not all(hasattr(self, name) for name in required):
+            return
+        narrow = is_narrow_size(self.size())
+        desired = Qt.Orientation.Vertical if narrow else Qt.Orientation.Horizontal
+        left = getattr(self, "_splitter_left", None)
+        right = getattr(self, "_splitter_right", None)
+        if splitter.orientation() != desired:
+            splitter.setOrientation(desired)
+            if desired == Qt.Orientation.Vertical:
+                splitter.setSizes([max(220, self.height() // 2), max(260, self.height() // 2)])
+            else:
+                splitter.setSizes([max(280, self.width() // 3), max(520, self.width() * 2 // 3)])
+        if left is not None and right is not None:
+            if narrow:
+                left.setMinimumWidth(0)
+                right.setMinimumWidth(0)
+                left.setMinimumHeight(180)
+                right.setMinimumHeight(220)
+            else:
+                left.setMinimumWidth(280)
+                right.setMinimumWidth(360)
+                left.setMinimumHeight(0)
+                right.setMinimumHeight(0)
+        self._preset_list.setFixedHeight(80 if narrow else 90)
+        self._task_list.setFixedHeight(100 if narrow else 120)
+        self._queue_list.setFixedHeight(90 if narrow else 100)
+        self._log_text.setMaximumHeight(100 if narrow else 120)
 
     def _create_option_widget(self, name: str, opt_def: Dict[str, Any]) -> QWidget:
         opt_type = opt_def.get("type", "switch")
@@ -802,7 +847,7 @@ class MaaEndControlPage(QWidget):
         if self._connected:
             return True
         self._append_log("系统", "正在连接 MaaEnd runtime...")
-        result = self._sync_execute("system connect")
+        result = self._sync_execute("system connect", timeout_ms=15000)
         if not result or result.get("status") != "success":
             QMessageBox.warning(self, "连接失败", "无法连接 MaaEnd runtime，请检查设备。")
             return False
@@ -838,6 +883,7 @@ class MaaEndControlPage(QWidget):
         if not task_list:
             QMessageBox.information(self, "预设为空", f"预设 '{self._selected_preset}' 中没有任务。")
             return
+        # 应用预设 = 用预设中的任务列表覆盖现有队列（清空再填充），不是追加。
         self._queue_items.clear()
         self._queue_list.clear()
         for task_entry in task_list:
@@ -854,9 +900,9 @@ class MaaEndControlPage(QWidget):
                 label += f" ({', '.join(f'{k}={v}' for k, v in options.items())})"
             self._queue_list.addItem(label)
         self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
+        # 队列覆盖完成后自动开始执行；外层已挡住执行中状态，这里再判一次仅作并发防御。
         if self._queue_items and not self._is_executing:
             self._run_queue()
-
     def _run_queue(self):
         if not self._queue_items or self._is_executing:
             return
