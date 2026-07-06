@@ -203,6 +203,7 @@ class MaaEndControlPage(QWidget):
         self._tasks_cache: Dict[str, Dict[str, Any]] = {}
         self._presets_cache: Dict[str, Dict[str, Any]] = {}
         self._task_option_defs: Dict[str, Dict[str, Any]] = {}
+        self._saved_task_options: Dict[str, Dict[str, Any]] = {}
         self._state_path = self._resolve_state_path()
         self._setup_ui()
         font = QFont("Microsoft YaHei UI")
@@ -899,31 +900,18 @@ class MaaEndControlPage(QWidget):
         if not self._selected_task:
             return
         options = self._collect_options()
-        path = self._option_cache_path(self._selected_task)
+        self._saved_task_options[self._selected_task] = dict(options)
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(options, f, indent=2, ensure_ascii=False)
             self._persist_state()
             QApplication.beep()
         except Exception as e:
             QMessageBox.critical(self, "保存失败", str(e))
 
     def _load_options(self, task_name: str) -> Dict[str, Any]:
-        path = self._option_cache_path(task_name)
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-
-    def _option_cache_path(self, task_name: str) -> str:
-        try:
-            from core.foundation.paths import get_cache_subdir
-            cache_dir = get_cache_subdir("maaend/options")
-        except Exception:
-            cache_dir = Path(__file__).resolve().parent.parent.parent.parent / "cache" / "maaend" / "options"
-            cache_dir.mkdir(parents=True, exist_ok=True)
-        return str(cache_dir / f"{task_name}.json")
+        saved = self._saved_task_options.get(task_name)
+        if isinstance(saved, dict):
+            return dict(saved)
+        return {}
 
     def _resolve_state_path(self) -> Path:
         try:
@@ -941,9 +929,7 @@ class MaaEndControlPage(QWidget):
                 "selected_task": self._selected_task,
                 "selected_preset": self._selected_preset,
                 "queue_items": self._queue_items,
-                "task_options": {
-                    name: self._load_options(name) for name in self._tasks_cache.keys()
-                },
+                "task_options": self._saved_task_options,
             }
             self._state_path.parent.mkdir(parents=True, exist_ok=True)
             self._state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -959,6 +945,9 @@ class MaaEndControlPage(QWidget):
             return
         self._selected_task = state.get("selected_task") or self._selected_task
         self._selected_preset = state.get("selected_preset") or self._selected_preset
+        task_options = state.get("task_options")
+        if isinstance(task_options, dict):
+            self._saved_task_options = {str(k): dict(v) for k, v in task_options.items() if isinstance(v, dict)}
         queue_items = state.get("queue_items")
         if isinstance(queue_items, list):
             self._queue_items = []
