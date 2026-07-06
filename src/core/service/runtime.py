@@ -168,6 +168,23 @@ class IstinaRuntime:
         self._logger.info(LogCategory.MAIN, "MaaEnd runtime 已就绪")
         return True
 
+    def _ensure_maaend_ready(self, runtime: MaaEndRuntime) -> bool:
+        if runtime.connected:
+            return True
+        legacy = getattr(self, "_maaend", None)
+        if legacy is runtime and getattr(runtime, "_connect_result", None) is not None:
+            if hasattr(runtime, "_connected"):
+                runtime._connected = bool(getattr(runtime, "_connect_result", False))
+            if runtime.connected:
+                return True
+        if not runtime.connect():
+            self._logger.error(LogCategory.MAIN, "MaaEnd runtime 连接失败")
+            return False
+        if not runtime.load_resource():
+            self._logger.error(LogCategory.MAIN, "MaaEnd runtime 资源加载失败")
+            return False
+        return True
+
     def disconnect(self, serial: Optional[str] = None) -> None:
         legacy = getattr(self, "_maaend", None)
         if legacy is not None and not self._maaend_clients:
@@ -278,12 +295,22 @@ class IstinaRuntime:
         options = params.get("options") or {}
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        legacy = getattr(self, "_maaend", None)
+        if legacy is runtime and not self._maaend_clients:
+            return bool(runtime.run_task(name, options))
+        if not self._ensure_maaend_ready(runtime):
+            return False
         return bool(runtime.run_task(name, options))
 
     def _run_preset(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        legacy = getattr(self, "_maaend", None)
+        if legacy is runtime and not self._maaend_clients:
+            return bool(runtime.run_preset(name))
+        if not self._ensure_maaend_ready(runtime):
+            return False
         return bool(runtime.run_preset(name))
 
     def _screenshot(self, params: Dict[str, Any]) -> Optional[bytes]:
@@ -318,6 +345,17 @@ class IstinaRuntime:
     def _daily_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}
         preset_name = options.get("preset", "DailyFull")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "daily.run",
+                "flow": "daily_quest",
+                "preset": preset_name,
+                "options": options,
+                "maaend_connected": False,
+            }
         if not self.connected:
             return {
                 "status": "success",
@@ -327,7 +365,7 @@ class IstinaRuntime:
                 "options": options,
                 "maaend_connected": False,
             }
-        ok = self.execute("preset.run", {"name": preset_name})
+        ok = self.execute("preset.run", {"name": preset_name, "serial": serial})
         return {
             "status": "success" if ok else "error",
             "command": "daily.run",
@@ -340,6 +378,17 @@ class IstinaRuntime:
     def _harvest_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}
         preset_name = options.get("preset", "AutoCollect")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "harvest.run",
+                "flow": "entity_harvest",
+                "preset": preset_name,
+                "options": options,
+                "maaend_connected": False,
+            }
         if not self.connected:
             return {
                 "status": "success",
@@ -349,7 +398,7 @@ class IstinaRuntime:
                 "options": options,
                 "maaend_connected": False,
             }
-        ok = self.execute("preset.run", {"name": preset_name})
+        ok = self.execute("preset.run", {"name": preset_name, "serial": serial})
         return {
             "status": "success" if ok else "error",
             "command": "harvest.run",
@@ -363,6 +412,17 @@ class IstinaRuntime:
         mode = params.get("mode", "default")
         options = params.get("options") or {}
         task_name = options.get("task", "EnvironmentMonitoring")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "analyze.run",
+                "mode": mode,
+                "task": task_name,
+                "options": options,
+                "maaend_connected": False,
+            }
         if not self.connected:
             return {
                 "status": "success",
@@ -372,7 +432,7 @@ class IstinaRuntime:
                 "options": options,
                 "maaend_connected": False,
             }
-        ok = self.execute("task.run", {"name": task_name, "options": options})
+        ok = self.execute("task.run", {"name": task_name, "options": options, "serial": serial})
         return {
             "status": "success" if ok else "error",
             "command": "analyze.run",
@@ -386,6 +446,17 @@ class IstinaRuntime:
         mode = params.get("mode", "default")
         options = params.get("options") or {}
         task_name = options.get("task", "PuzzleSolver")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "explore.run",
+                "mode": mode,
+                "task": task_name,
+                "options": options,
+                "maaend_connected": False,
+            }
         if not self.connected:
             return {
                 "status": "success",
@@ -395,7 +466,7 @@ class IstinaRuntime:
                 "options": options,
                 "maaend_connected": False,
             }
-        ok = self.execute("task.run", {"name": task_name, "options": options})
+        ok = self.execute("task.run", {"name": task_name, "options": options, "serial": serial})
         return {
             "status": "success" if ok else "error",
             "command": "explore.run",
@@ -409,6 +480,17 @@ class IstinaRuntime:
         target = params.get("target")
         options = params.get("options") or {}
         task_name = options.get("task", target)
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "nav.to",
+                "target": target,
+                "task": task_name,
+                "options": options,
+                "maaend_connected": False,
+            }
         if not self.connected:
             return {
                 "status": "success",
@@ -420,7 +502,7 @@ class IstinaRuntime:
             }
         if not task_name:
             return {"status": "error", "message": "nav target 为空", "command": "nav.to"}
-        ok = self.execute("task.run", {"name": task_name, "options": options})
+        ok = self.execute("task.run", {"name": task_name, "options": options, "serial": serial})
         return {
             "status": "success" if ok else "error",
             "command": "nav.to",
