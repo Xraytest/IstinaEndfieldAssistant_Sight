@@ -1,5 +1,7 @@
 # --- Third-party binaries ---
 3rd-part/
+MaaEnd/
+MaaEnd_Release（SampleCode）/
 
 # --- Python ---
 __pycache__/
