@@ -561,7 +561,7 @@ class MaaEndControlPage(QWidget):
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
         root.addLayout(bottom)
-        self._apply_layout_mode()
+        self._sync_layout_geometry()
 
     # ------------------------------------------------------------------
     # task / preset list helpers
@@ -756,13 +756,11 @@ class MaaEndControlPage(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self._apply_layout_mode()
+        self._sync_layout_geometry()
 
-    def _apply_layout_mode(self) -> None:
+    def _sync_layout_geometry(self) -> None:
         splitter = getattr(self, "_splitter", None)
         if splitter is None:
-            return
-        if getattr(self, "_layout_initialized", False):
             return
         preview_label = getattr(self, "_preview_label", None)
         required = ("_preset_list", "_task_list", "_queue_list", "_log_text")
@@ -771,17 +769,22 @@ class MaaEndControlPage(QWidget):
         left = getattr(self, "_splitter_left", None)
         right = getattr(self, "_splitter_right", None)
         if left is not None and right is not None:
-            left.setMinimumWidth(300)
-            right.setMinimumWidth(380)
+            left.setMinimumWidth(280)
+            right.setMinimumWidth(360)
         total = max(self.width(), 1)
-        splitter.setSizes([max(320, total // 3), max(540, total * 2 // 3)])
-        self._preset_list.setMaximumHeight(128)
-        self._task_list.setMaximumHeight(160)
-        self._queue_list.setMaximumHeight(140)
-        self._log_text.setMaximumHeight(140)
+        left_width = max(320, int(total * 0.34))
+        right_width = max(540, total - left_width - 12)
+        splitter.setSizes([left_width, right_width])
+        self._preset_list.setMinimumHeight(92)
+        self._preset_list.setMaximumHeight(132)
+        self._task_list.setMinimumHeight(110)
+        self._task_list.setMaximumHeight(168)
+        self._queue_list.setMinimumHeight(96)
+        self._queue_list.setMaximumHeight(144)
+        self._log_text.setMinimumHeight(100)
+        self._log_text.setMaximumHeight(144)
         self._option_scroll.setMinimumHeight(180)
         preview_label.setMinimumHeight(180)
-        self._layout_initialized = True
 
     def _create_option_widget(self, name: str, opt_def: Dict[str, Any]) -> QWidget:
         opt_type = opt_def.get("type", "switch")

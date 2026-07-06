@@ -168,4 +168,26 @@ def test_control_page_persists_queue_state():
     assert '"TaskA"' in content
     assert '"repeat": 2' in content
     app.quit()
+
+
+def test_control_page_resize_keeps_fixed_layout_geometry():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+
+    page.resize(1600, 980)
+    app.processEvents()
+    first_sizes = page._splitter.sizes()
+
+    page.resize(1280, 820)
+    app.processEvents()
+    second_sizes = page._splitter.sizes()
+
+    assert len(first_sizes) == 2
+    assert len(second_sizes) == 2
+    assert page._preset_list.maximumHeight() >= 120
+    assert page._queue_list.maximumHeight() >= 140
+    assert page._log_text.maximumHeight() >= 140
+    app.quit()
 import tempfile
