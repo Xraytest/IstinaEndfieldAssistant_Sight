@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """IstinaAI unified CLI."""
 
 from __future__ import annotations
