@@ -32,10 +32,15 @@ CARD_STYLE = """
         border-radius: 3px;
         font-size: 13px; font-family: 'Microsoft YaHei UI';
         color: #e8e8ee; font-weight: bold; letter-spacing: 1px;
-        padding-top: 2px !important; margin-top: 2px !important;
+        margin-top: 12px;
+        padding-top: 18px;
     }
     QGroupBox::title {
-        subcontrol-origin: margin; left: 8px; padding: 0 2px;
+        subcontrol-origin: margin;
+        subcontrol-position: top left;
+        left: 10px;
+        top: -1px;
+        padding: 0 4px;
     }
 """
 LIST_STYLE = """
@@ -689,8 +694,11 @@ class MaaEndControlPage(QWidget):
                 result = self._sync_execute(f"preset run {name}")
                 ok = bool(result and result.get("status") == "success")
             else:
-                payload = json.dumps({"name": name, "options": options}, ensure_ascii=False)
-                result = self._sync_execute(f"task run {name} --options {payload}")
+                clean_name, inline_options = self._parse_inline_task_name(name)
+                merged_options = dict(inline_options)
+                merged_options.update(options)
+                payload = json.dumps({"name": clean_name, "options": merged_options}, ensure_ascii=False)
+                result = self._sync_execute(f"task run {clean_name} --options {payload}")
                 ok = bool(result and result.get("status") == "success")
             self._append_log("队列", f"{_zh(name)} -> {'成功' if ok else '失败'}")
             if not ok:
@@ -752,6 +760,8 @@ class MaaEndControlPage(QWidget):
         splitter = getattr(self, "_splitter", None)
         if splitter is None:
             return
+        if getattr(self, "_layout_initialized", False):
+            return
         preview_label = getattr(self, "_preview_label", None)
         required = ("_preset_list", "_task_list", "_queue_list", "_log_text")
         if preview_label is None or not all(hasattr(self, name) for name in required):
@@ -769,6 +779,7 @@ class MaaEndControlPage(QWidget):
         self._log_text.setMaximumHeight(140)
         self._option_scroll.setMinimumHeight(180)
         preview_label.setMinimumHeight(180)
+        self._layout_initialized = True
 
     def _create_option_widget(self, name: str, opt_def: Dict[str, Any]) -> QWidget:
         opt_type = opt_def.get("type", "switch")
@@ -955,11 +966,14 @@ class MaaEndControlPage(QWidget):
             for entry in queue_items:
                 if not isinstance(entry, dict):
                     continue
-                name = entry.get("name")
+                name = str(entry.get("name") or "").strip()
                 if not name:
                     continue
+                name, inline_options = self._parse_inline_task_name(name)
                 item_type = entry.get("type", "task")
                 options = entry.get("options") or {}
+                if inline_options:
+                    options = {**inline_options, **dict(options)}
                 self._queue_items.append({"name": name, "type": item_type, "options": dict(options)})
                 self._queue_list.addItem(self._format_queue_label(name, item_type, dict(options)))
         if self._selected_task:
@@ -1047,8 +1061,11 @@ class MaaEndControlPage(QWidget):
         self._start_execution(lambda: self._bridge_task_run(self._selected_task, options))
 
     def _bridge_task_run(self, name: str, options: Dict[str, Any]) -> bool:
-        payload = json.dumps({"name": name, "options": options}, ensure_ascii=False)
-        result = self._sync_execute(f"task run {name} --options {payload}")
+        clean_name, inline_options = self._parse_inline_task_name(name)
+        merged_options = dict(inline_options)
+        merged_options.update(options)
+        payload = json.dumps({"name": clean_name, "options": merged_options}, ensure_ascii=False)
+        result = self._sync_execute(f"task run {clean_name} --options {payload}")
         return bool(result and result.get("status") == "success")
 
     def _run_preset(self):

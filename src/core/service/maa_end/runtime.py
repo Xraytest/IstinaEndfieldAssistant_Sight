@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -18,6 +20,7 @@ from core.foundation.paths import get_project_root
 
 MAAFW_AVAILABLE = False
 try:
+    from maa.agent_client import AgentClient
     from maa.resource import Resource
     from maa.tasker import Tasker
     from maa.controller import AdbController
@@ -25,6 +28,7 @@ try:
     from maa.define import MaaAdbScreencapMethodEnum, MaaAdbInputMethodEnum, MaaLoggingLevel
     MAAFW_AVAILABLE = True
 except ImportError:
+    AgentClient = None  # type: ignore[misc,assignment]
     Resource = None  # type: ignore[misc,assignment]
     Tasker = None  # type: ignore[misc,assignment]
     AdbController = None  # type: ignore[misc,assignment]
@@ -46,6 +50,8 @@ class MaaEndRuntime:
         self._resource: Optional[Any] = None
         self._tasker: Optional[Any] = None
         self._controller: Optional[Any] = None
+        self._agent_client: Optional[Any] = None
+        self._agent_process: Optional[subprocess.Popen] = None
         self._interface: Optional[Dict[str, Any]] = None
         self._tasks: Dict[str, Dict[str, Any]] = {}
         self._presets: Dict[str, Dict[str, Any]] = {}
@@ -131,6 +137,7 @@ class MaaEndRuntime:
                 except Exception:
                     pass
             self._resource = Resource()
+            self._start_agent()
             input_method = 0
             if MaaAdbInputMethodEnum is not None:
                 try:
@@ -153,6 +160,13 @@ class MaaEndRuntime:
             screencap_job = self._controller.post_screencap()
             screencap_job.wait()
             self._tasker = Tasker()
+            if self._agent_client is not None:
+                try:
+                    self._agent_client.bind(self._resource)
+                    self._agent_client.register_sink(self._resource, self._controller, self._tasker)
+                    self._agent_client.connect()
+                except Exception as e:
+                    self.logger.warning(LogCategory.MAIN, "AgentClient 初始化异常", error=str(e))
             if not self._tasker.bind(self._resource, self._controller):
                 self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
                 self._cleanup_partial()
@@ -173,6 +187,29 @@ class MaaEndRuntime:
         except Exception:
             pass
         try:
+            if self._agent_client is not None:
+                try:
+                    self._agent_client.disconnect()
+                except Exception:
+                    pass
+                self._agent_client = None
+        except Exception:
+            pass
+        try:
+            if self._agent_process is not None:
+                try:
+                    if self._agent_process.poll() is None:
+                        self._agent_process.terminate()
+                        try:
+                            self._agent_process.wait(timeout=3)
+                        except Exception:
+                            self._agent_process.kill()
+                except Exception:
+                    pass
+                self._agent_process = None
+        except Exception:
+            pass
+        try:
             if self._controller is not None:
                 self._controller = None
         except Exception:
@@ -188,7 +225,30 @@ class MaaEndRuntime:
         self._tasker = None
         self._controller = None
         self._resource = None
+        self._agent_client = None
+        self._agent_process = None
         self.logger.info(LogCategory.MAIN, "MaaEnd runtime 已断开")
+
+    def _start_agent(self) -> None:
+        if self._agent_client is not None:
+            return
+        agent_root = self._maaend_root / "agent"
+        agent_exe = agent_root / "go-service.exe"
+        if AgentClient is None or not agent_exe.exists():
+            return
+        agent_id = f"istina-maaend-{int(time.time() * 1000)}"
+        try:
+            self._agent_process = subprocess.Popen(
+                [str(agent_exe), agent_id],
+                cwd=str(agent_root),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            self._agent_client = AgentClient(agent_id)
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "启动 Agent 失败", error=str(exc))
+            self._agent_client = None
+            self._agent_process = None
 
     def load_resource(self) -> bool:
         if not self._connected or self._resource is None:
@@ -323,11 +383,18 @@ class MaaEndRuntime:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行任务", task=task_name)
             return False
+        task_name, inline_options = self._normalize_task_name(task_name)
+        if not self._tasks:
+            self.load_tasks()
         task = self._tasks.get(task_name)
         if not task:
             self.logger.error(LogCategory.MAIN, "任务未定义", task=task_name)
             return False
         options = options or {}
+        if inline_options:
+            merged_options = dict(inline_options)
+            merged_options.update(options)
+            options = merged_options
         override = self.build_pipeline_override(task_name, options)
         entry = task.get("entry", task_name)
         self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
@@ -344,6 +411,8 @@ class MaaEndRuntime:
             return False
 
     def run_preset(self, preset_name: str) -> bool:
+        if not self._presets:
+            self.load_presets()
         preset = self._presets.get(preset_name)
         if not preset:
             self.logger.error(LogCategory.MAIN, "预设未定义", preset=preset_name)
@@ -358,6 +427,24 @@ class MaaEndRuntime:
                 return False
         self.logger.info(LogCategory.MAIN, "预设执行完成", preset=preset_name)
         return True
+
+    def _normalize_task_name(self, task_name: str) -> tuple[str, Dict[str, Any]]:
+        name = str(task_name or "").strip()
+        if "|" not in name:
+            return name, {}
+        base, payload = name.split("|", 1)
+        base = base.strip()
+        payload = payload.strip()
+        if not base or not payload:
+            return name, {}
+        if payload.startswith("{") and payload.endswith("}"):
+            try:
+                parsed = json.loads(payload)
+                if isinstance(parsed, dict):
+                    return base, parsed
+            except Exception:
+                return base, {"_inline": payload}
+        return base, {"_inline": payload}
 
     def interface(self) -> Dict[str, Any]:
         return self._interface or self.load_interface()
