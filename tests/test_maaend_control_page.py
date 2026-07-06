@@ -131,3 +131,41 @@ def test_control_page_connect_uses_last_connected_device():
     assert result is not None
     assert ("system connect", {"serial": "127.0.0.1:16384"}) in bridge.calls
     app.quit()
+
+
+def test_queue_items_strip_inline_parameters_from_execution_name():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+
+    name, inline_options = page._parse_inline_task_name('TaskA|{"repeat": 2}')
+    assert name == "TaskA"
+    assert inline_options == {"repeat": 2}
+
+    runtime_name, runtime_options = page._normalize_runtime_entry(
+        {"name": 'TaskA|{"repeat": 2}', "options": {"speed": "fast"}}
+    )
+    assert runtime_name == "TaskA"
+    assert runtime_options == {"repeat": 2, "speed": "fast"}
+    app.quit()
+
+
+def test_control_page_persists_queue_state():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+    state_dir = Path(tempfile.mkdtemp(prefix="maaend_state_"))
+    page._state_path = state_dir / "maaend_task_state.json"
+    page._queue_items = [
+        {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"repeat": 2}}
+    ]
+    page._saved_task_options = {"TaskA": {"repeat": 2}}
+    page._persist_state()
+
+    content = page._state_path.read_text(encoding="utf-8")
+    assert '"TaskA"' in content
+    assert '"repeat": 2' in content
+    app.quit()
+import tempfile

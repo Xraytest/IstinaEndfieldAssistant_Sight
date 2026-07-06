@@ -411,6 +411,7 @@ class MaaEndControlPage(QWidget):
         self._queue_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._queue_list.setMinimumHeight(96)
         self._queue_list.setMaximumHeight(140)
+        self._queue_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         queue_layout.addWidget(self._queue_list)
         queue_btn_row = QHBoxLayout()
         queue_btn_row.setContentsMargins(0, 0, 0, 0)
@@ -629,7 +630,7 @@ class MaaEndControlPage(QWidget):
                 if saved:
                     options = dict(options)
                     options.update(saved)
-                entry = {"name": name, "type": "task", "options": dict(options)}
+                entry = {"name": name, "display_name": name, "type": "task", "options": dict(options)}
                 self._queue_items.append(entry)
                 label = self._format_queue_label(name, "task", options)
                 self._queue_list.addItem(label)
@@ -642,7 +643,7 @@ class MaaEndControlPage(QWidget):
             saved = self._load_options(name)
             if saved:
                 options.update(saved)
-            entry = {"name": name, "type": item_type, "options": dict(options)}
+            entry = {"name": name, "display_name": name, "type": item_type, "options": dict(options)}
             self._queue_items.append(entry)
             label = self._format_queue_label(name, item_type, options)
             self._queue_list.addItem(label)
@@ -963,7 +964,7 @@ class MaaEndControlPage(QWidget):
                 options = entry.get("options") or {}
                 if inline_options:
                     options = {**inline_options, **dict(options)}
-                self._queue_items.append({"name": name, "type": item_type, "options": dict(options)})
+                self._queue_items.append({"name": name, "display_name": str(entry.get("display_name") or name), "type": item_type, "options": dict(options)})
                 self._queue_list.addItem(self._format_queue_label(name, item_type, dict(options)))
         if self._selected_task:
             matches = self._task_list.findItems(_zh(self._selected_task), Qt.MatchFlag.MatchExactly)
@@ -976,11 +977,27 @@ class MaaEndControlPage(QWidget):
         self._persist_state()
 
     def _open_task_settings(self):
-        QMessageBox.information(
-            self,
-            "任务设置",
-            f"任务配置已持久化到：\n{self._state_path}\n\n当前队列与选中项会自动保存。",
+        dialog = QDialog(self)
+        dialog.setWindowTitle("任务设置")
+        dialog.setMinimumWidth(620)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+        info = QLabel(
+            "任务选项与队列状态会持久化到本地配置文件。\n"
+            f"当前路径：{self._state_path}"
         )
+        info.setWordWrap(True)
+        info.setStyleSheet(INFO_STYLE)
+        layout.addWidget(info)
+        preview = QTextEdit()
+        preview.setReadOnly(True)
+        preview.setPlainText(self._state_path.read_text(encoding="utf-8") if self._state_path.exists() else "{}")
+        layout.addWidget(preview, 1)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     def _normalize_task_entry(self, task_entry: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
         name = str(task_entry.get("name") or "").strip()
@@ -995,7 +1012,7 @@ class MaaEndControlPage(QWidget):
         return name, inline_options
 
     def _normalize_runtime_entry(self, entry: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
-        name = str(entry.get("name") or "").strip()
+        name = str(entry.get("name") or entry.get("display_name") or "").strip()
         options = entry.get("options")
         inline_options: Dict[str, Any] = {}
         if isinstance(name, str) and name:
