@@ -389,39 +389,6 @@ class Navigator:
             "level_id": level_id,
         }
 
-    def _navigate_waypoints(
-        self, map_name: str, path: List[Tuple[float, float]],
-    ) -> Dict[str, Any]:
-        entry = "NavCustomEntry"
-        override = {
-            entry: {
-                "recognition": "DirectHit",
-                "action": "Custom",
-                "custom_action": "MapTrackerMove",
-                "custom_action_param": {
-                    "map_name": map_name,
-                    "path": path,
-                },
-                "next": ["NavCustomDone"],
-            },
-            "NavCustomDone": {
-                "recognition": "DirectHit",
-                "action": "DoNothing",
-                "next": [],
-            },
-        }
-        self._logger.info(
-            "executing waypoint navigation: map=%s points=%d",
-            map_name, len(path),
-        )
-        ok = self._maaend.run_pipeline(entry, override)
-        return {
-            "status": "success" if ok else "error",
-            "action": "waypoint",
-            "map_name": map_name,
-            "waypoints": len(path),
-        }
-
     def _nav_to_entity(self, entity: Entity) -> Dict[str, Any]:
         return self.to_coords(
             map_name=entity.map_id,
