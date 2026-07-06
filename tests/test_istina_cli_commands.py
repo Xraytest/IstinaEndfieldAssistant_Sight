@@ -14,7 +14,15 @@ CLI = [sys.executable, str(ISTINA_SCRIPT)]
 def _run_cli(argv, env=None):
     if env is None:
         env = dict(os.environ)
-    proc = subprocess.run(CLI + argv, cwd=str(PROJECT_ROOT), capture_output=True, text=True, env=env)
+    proc = subprocess.run(
+        CLI + argv,
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
     out = proc.stdout.strip()
     err = proc.stderr.strip()
     parsed = None
@@ -84,6 +92,19 @@ def test_config_get_set_works(tmp_path) -> None:
     assert parsed_set.get("status") == "success"
     assert parsed_set.get("key") == "new_key"
     assert parsed_set.get("value") == "new_value"
+
+
+def test_task_and_preset_commands_accept_serial_arg() -> None:
+    returncode, parsed, _ = _run_cli(["task", "list", "--serial", "192.168.1.12:16512"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert "tasks" in parsed
+    assert "task_option_defs" in parsed
+
+    returncode, parsed, _ = _run_cli(["preset", "list", "--serial", "192.168.1.12:16512"])
+    assert returncode in (0, 1)
+    assert parsed.get("status") == "success"
+    assert "presets" in parsed
 
 
 def test_nav_command_returns_success_with_target() -> None:

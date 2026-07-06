@@ -274,29 +274,29 @@ def _handle_task_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
         options = json.loads(args.options)
     except json.JSONDecodeError as exc:
         return {"status": "error", "message": f"options JSON 解析失败: {exc}"}
-    ok = runtime.execute("task.run", {"name": args.name, "options": options})
+    ok = runtime.execute("task.run", {"name": args.name, "options": options, "serial": getattr(args, "serial", None)})
     return {"status": "success" if ok else "error", "task": args.name}
 
 
 def _handle_task_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    tasks = runtime.execute("task.list", {})
+    tasks = runtime.execute("task.list", {"serial": getattr(args, "serial", None)})
     if not isinstance(tasks, dict):
         tasks = {}
     task_option_defs = {}
     try:
-        task_option_defs = runtime.maaend().task_option_defs()
+        task_option_defs = runtime.maaend(getattr(args, "serial", None)).task_option_defs()
     except Exception:
         task_option_defs = {}
     return {"status": "success", "tasks": tasks, "task_option_defs": task_option_defs}
 
 
 def _handle_preset_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    ok = runtime.execute("preset.run", {"name": args.name})
+    ok = runtime.execute("preset.run", {"name": args.name, "serial": getattr(args, "serial", None)})
     return {"status": "success" if ok else "error", "preset": args.name}
 
 
 def _handle_preset_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    presets = runtime.execute("preset.list", {})
+    presets = runtime.execute("preset.list", {"serial": getattr(args, "serial", None)})
     if not isinstance(presets, dict):
         presets = {}
     return {"status": "success", "presets": presets}
