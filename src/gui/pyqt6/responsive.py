@@ -163,3 +163,37 @@ class LoadingOverlay(QWidget):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self.setGeometry(self.parent().rect())
+
+
+class SkeletonCard(QFrame):
+    """Skeleton placeholder card with animated shimmer bars."""
+
+    def __init__(self, parent: QWidget, title: bool = True, value: bool = True, status: bool = True):
+        super().__init__(parent)
+        self.setObjectName("skeletonCard")
+        self._setup_ui(title, value, status)
+
+    def _setup_ui(self, title: bool, value: bool, status: bool) -> None:
+        from gui.pyqt6.theme.widget_styles import SKELETON_STYLE
+        self.setStyleSheet(SKELETON_STYLE)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        if title:
+            bar = QFrame()
+            bar.setFixedHeight(10)
+            bar.setStyleSheet("background-color: rgba(255,255,255,0.06); border-radius: 2px; min-width: 60px; max-width: 100px;")
+            layout.addWidget(bar)
+
+        if value:
+            bar = QFrame()
+            bar.setFixedHeight(18)
+            bar.setStyleSheet("background-color: rgba(255,255,255,0.08); border-radius: 3px; min-width: 80px; max-width: 120px;")
+            layout.addWidget(bar)
+
+        if status:
+            bar = QFrame()
+            bar.setFixedHeight(10)
+            bar.setStyleSheet("background-color: rgba(255,255,255,0.04); border-radius: 2px; min-width: 40px; max-width: 70px;")
+            layout.addWidget(bar)

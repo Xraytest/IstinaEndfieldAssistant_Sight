@@ -86,30 +86,42 @@ class PrtsFullIntelligencePage(QWidget):
         header = HeroHeader("PRTS全智能", "自动化分析与智能决策控制台。", content)
         content_root.addWidget(header)
 
-        # Status grid -------------------------------------------------------
-        status_grid = QGridLayout()
-        status_grid.setSpacing(10)
-        status_grid.setContentsMargins(0, 0, 0, 0)
+        # Skeleton status grid (shown before first data load) -------------
+        self._skeleton_grid_widget = QWidget()
+        self._skeleton_grid = QGridLayout(self._skeleton_grid_widget)
+        self._skeleton_grid.setSpacing(10)
+        self._skeleton_grid.setContentsMargins(0, 0, 0, 0)
+        for i in range(6):
+            self._skeleton_grid.addWidget(SkeletonCard(self._skeleton_grid_widget), i // 3, i % 3)
+        content_root.addWidget(self._skeleton_grid_widget)
+
+        # Real status grid (hidden until data arrives) ---------------------
+        self._real_grid = QGridLayout()
+        self._real_grid.setSpacing(10)
+        self._real_grid.setContentsMargins(0, 0, 0, 0)
 
         self._device_card = StatCard("设备", "未连接", "离线")
-        status_grid.addWidget(self._device_card, 0, 0)
+        self._real_grid.addWidget(self._device_card, 0, 0)
 
         self._connection_card = StatCard("连接状态", "断开", "离线")
-        status_grid.addWidget(self._connection_card, 0, 1)
+        self._real_grid.addWidget(self._connection_card, 0, 1)
 
         self._llm_card = StatCard("LLM 服务", "未知", "未知")
-        status_grid.addWidget(self._llm_card, 0, 2)
+        self._real_grid.addWidget(self._llm_card, 0, 2)
 
         self._task_card = StatCard("今日任务", "0/20", "正常")
-        status_grid.addWidget(self._task_card, 1, 0)
+        self._real_grid.addWidget(self._task_card, 1, 0)
 
         self._runtime_card = StatCard("运行时", "空闲", "正常")
-        status_grid.addWidget(self._runtime_card, 1, 1)
+        self._real_grid.addWidget(self._runtime_card, 1, 1)
 
         self._queue_card = StatCard("队列", "0 项", "正常")
-        status_grid.addWidget(self._queue_card, 1, 2)
+        self._real_grid.addWidget(self._queue_card, 1, 2)
 
-        content_root.addLayout(status_grid)
+        self._real_grid_widget = QWidget()
+        self._real_grid_widget.setLayout(self._real_grid)
+        self._real_grid_widget.hide()
+        content_root.addWidget(self._real_grid_widget)
 
         # Quick actions -----------------------------------------------------
         actions_row = QHBoxLayout()
@@ -174,10 +186,6 @@ class PrtsFullIntelligencePage(QWidget):
         self._loading.show()
         self._bridge.execute("analyze", {"options": {"mode": mode}})
 
-    def _run_analysis(self) -> None:
-        mode = self._mode_combo.currentText()
-        self._bridge.execute("analyze", {"options": {"mode": mode}})
-
     def _refresh_status(self) -> None:
         self._bridge.execute("system status", {})
 
@@ -189,6 +197,9 @@ class PrtsFullIntelligencePage(QWidget):
             self._result_text.setText(str(result))
 
     def _update_status_cards(self, result: dict) -> None:
+        if self._skeleton_grid_widget.isVisible():
+            self._skeleton_grid_widget.hide()
+            self._real_grid_widget.show()
         data = result.get("data", {}) if isinstance(result, dict) else {}
         device = data.get("device", {})
         connection = data.get("connection", {})
