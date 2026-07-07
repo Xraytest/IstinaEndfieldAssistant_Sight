@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -32,8 +32,12 @@ class DashboardPage(QWidget):
         self._bridge = bridge
         self._grid_widgets: Dict[str, QWidget] = {}
         self._config_path = self._resolve_config_path()
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(2000)
+        self._poll_timer.timeout.connect(self._poll_data)
         self._setup_ui()
         self._load_layout()
+        self._poll_timer.start()
 
     def _resolve_config_path(self) -> Path:
         try:
@@ -128,6 +132,39 @@ class DashboardPage(QWidget):
             from gui.pyqt6.dashboard.widgets.quick_actions_widget import QuickActionsWidget
             return QuickActionsWidget(title, bridge=self._bridge)
         return None
+
+    def _poll_data(self) -> None:
+        """Poll bridge for data and update widgets."""
+        # Poll device status
+        device_widget = self._grid_widgets.get("device")
+        if device_widget is not None:
+            try:
+                result = self._bridge.execute("device info")
+                if result and result.get("status") == "success":
+                    devices = result.get("devices") or []
+                    device_widget.update_data(devices)
+            except Exception:
+                pass
+
+        # Poll queue status
+        queue_widget = self._grid_widgets.get("queue")
+        if queue_widget is not None:
+            try:
+                result = self._bridge.execute("queue status")
+                if result and result.get("status") == "success":
+                    queue_widget.update_data(result)
+            except Exception:
+                pass
+
+        # Poll LLM status
+        llm_widget = self._grid_widgets.get("llm")
+        if llm_widget is not None:
+            try:
+                result = self._bridge.execute("llm status")
+                if result and result.get("status") == "success":
+                    llm_widget.update_data(result)
+            except Exception:
+                pass
 
     def _save_layout(self) -> None:
         widgets = []

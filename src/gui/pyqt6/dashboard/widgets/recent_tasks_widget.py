@@ -1,7 +1,7 @@
 """Recent tasks dashboard widget."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from PyQt6.QtWidgets import QListWidget, QVBoxLayout, QWidget
 
@@ -21,3 +21,17 @@ class RecentTasksWidget(DashboardWidget):
         content = self.content_widget()
         layout = QVBoxLayout(content)
         layout.addWidget(self._list)
+        self.start_auto_refresh()
+
+    def update_data(self, result: Any) -> None:
+        """Update recent tasks from bridge data."""
+        if not isinstance(result, dict):
+            return
+        tasks = result.get("recent_tasks") or []
+        self._list.clear()
+        for task in tasks[:10]:
+            self._list.addItem(str(task))
+
+    def refresh(self) -> None:
+        """Refresh recent tasks from bridge."""
+        pass

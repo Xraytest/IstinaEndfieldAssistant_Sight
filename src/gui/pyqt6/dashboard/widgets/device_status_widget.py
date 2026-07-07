@@ -1,7 +1,7 @@
 """Device status dashboard widget."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
@@ -24,3 +24,20 @@ class DeviceStatusWidget(DashboardWidget):
         layout = QVBoxLayout(content)
         layout.addWidget(self._status_label)
         layout.addWidget(self._serial_label)
+        self.start_auto_refresh()
+
+    def update_data(self, devices: Any) -> None:
+        """Update device status from bridge data."""
+        if not devices:
+            self._status_label.setText(locale.tr("offline", "Offline"))
+            self._status_label.setProperty("variant", "danger")
+            self._serial_label.setText("-")
+            return
+        serial = devices[0].get("serial", "-") if isinstance(devices, list) else "-"
+        self._status_label.setText(locale.tr("online", "Online"))
+        self._status_label.setProperty("variant", "success")
+        self._serial_label.setText(serial)
+
+    def refresh(self) -> None:
+        """Refresh device status from bridge."""
+        pass

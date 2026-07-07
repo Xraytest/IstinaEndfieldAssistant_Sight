@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from gui.pyqt6.i18n import get_locale_manager
@@ -35,6 +36,10 @@ class DashboardWidget(QFrame):
         self._content_layout.setSpacing(4)
         self._layout.addWidget(self._content)
 
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setInterval(2000)
+        self._refresh_timer.timeout.connect(self.refresh)
+
     def content_widget(self) -> QWidget:
         return self._content
 
@@ -44,3 +49,13 @@ class DashboardWidget(QFrame):
             if item.widget():
                 item.widget().deleteLater()
         self._content_layout.addWidget(widget)
+
+    def refresh(self) -> None:
+        """Override in subclasses to refresh widget data."""
+        pass
+
+    def start_auto_refresh(self) -> None:
+        self._refresh_timer.start()
+
+    def stop_auto_refresh(self) -> None:
+        self._refresh_timer.stop()

@@ -1,7 +1,7 @@
 """Queue progress dashboard widget."""
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
@@ -22,3 +22,26 @@ class QueueProgressWidget(DashboardWidget):
         content = self.content_widget()
         layout = QVBoxLayout(content)
         layout.addWidget(self._status_label)
+        self.start_auto_refresh()
+
+    def update_data(self, result: Any) -> None:
+        """Update queue progress from bridge data."""
+        if not isinstance(result, dict):
+            return
+        status = result.get("status", "unknown")
+        if status == "running":
+            self._status_label.setText(locale.tr("maaend_running", "Running"))
+            self._status_label.setProperty("variant", "danger")
+        elif status == "success":
+            self._status_label.setText(locale.tr("execution_completed", "Completed"))
+            self._status_label.setProperty("variant", "success")
+        elif status == "failed":
+            self._status_label.setText(locale.tr("execution_failed", "Failed"))
+            self._status_label.setProperty("variant", "danger")
+        else:
+            self._status_label.setText(locale.tr("maaend_idle", "Idle"))
+            self._status_label.setProperty("variant", "success")
+
+    def refresh(self) -> None:
+        """Refresh queue progress from bridge."""
+        pass
