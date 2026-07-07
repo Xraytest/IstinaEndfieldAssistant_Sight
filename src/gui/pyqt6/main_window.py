@@ -162,6 +162,9 @@ class MainWindow(QMainWindow):
             self._navigation_list.addItem(QListWidgetItem(label))
             self._page_stack.addWidget(page)
 
+        from gui.pyqt6.theme.icons import apply_nav_icons
+        apply_nav_icons(self._navigation_list)
+
         self._bridge.commandFinished.connect(self._on_bridge_command_finished)
         self._maaend_page.execution_state_changed.connect(self._on_execution_state_changed)
 

@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QApplication
 
 from core.foundation.paths import ensure_src_path
 from gui.pyqt6.main_window import MainWindow
+from gui.pyqt6.theme.icons import apply_nav_icons
 from gui.pyqt6.theme.theme_manager import apply_theme
 
 ensure_src_path(__file__)
