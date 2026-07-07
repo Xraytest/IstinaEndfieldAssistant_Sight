@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -238,9 +238,10 @@ class Navigator:
 
         # Teleport if on different map
         current_pos = self._locator.locate(frame)
+        current_level = self._resolve_current_level(current_pos, frame)
         if current_pos and current_pos.map_id not in (map_name, "unknown") and current_pos.map_id != "":
             self._logger.info("different map (%s), teleporting first", current_pos.map_id)
-            target_level = level_id or "lv001"
+            target_level = level_id or current_level or "lv001"
             self._teleport_to(map_name, target_level)
 
         # Build input function from keyevent_fn or default fallback (logging only)
@@ -270,8 +271,9 @@ class Navigator:
         if walk_result.get("status") != "success" and walk_cfg.fallback_to_navmesh:
             self._logger.info("VLM walk did not converge, falling back to navmesh")
             zone_id = zone_override or self._data.get_zone_id(map_name)
+            target_level = level_id or current_level or "lv001"
             navmesh_result = self._navigate_navmesh(
-                zone_id, map_name, level_id or "lv001", x, y,
+                zone_id, map_name, target_level, x, y,
             )
             navmesh_result["vlm_walk"] = walk_result.get("history", [])
             return navmesh_result
@@ -325,7 +327,7 @@ class Navigator:
     def _resolve_current_level(
         self, pos: Optional[MapPosition], frame: Optional[np.ndarray],
     ) -> Optional[str]:
-        if pos and pos.level_id:
+        if pos is not None and pos.level_id is not None:
             return pos.level_id
         return None
 

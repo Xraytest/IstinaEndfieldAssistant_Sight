@@ -21,6 +21,7 @@ class LlamaServerRuntime:
     """Manage a local llama-server process."""
 
     _atexit_registered = False
+    _active_ports: set[int] = set()
 
     def __init__(self, config: Dict[str, Any]):
         self._config = config
@@ -29,6 +30,7 @@ class LlamaServerRuntime:
         self._cuda_failed = False
         self._logger = get_logger(__name__)
         self._default_port = int(config.get("port", 9998))
+        LlamaServerRuntime._active_ports.add(self._default_port)
         self._register_atexit()
 
     def _register_atexit(self) -> None:
@@ -39,7 +41,7 @@ class LlamaServerRuntime:
 
     @staticmethod
     def _atexit_cleanup() -> None:
-        LlamaServerRuntime.kill_all_on_ports([9998])
+        LlamaServerRuntime.kill_all_on_ports(list(LlamaServerRuntime._active_ports))
 
     @property
     def ready(self) -> bool:
@@ -229,7 +231,7 @@ class LlamaServerRuntime:
             return args
 
         ngl = str(llm_cfg.get("n_gpu_layers", "999"))
-        args.extend(["-ngl", ngl, "--n-gpu-layers", ngl])
+        args.extend(["-ngl", ngl])
 
         flash_attn = str(llm_cfg.get("flash_attention", "auto"))
         if flash_attn in {"on", "off", "auto"}:
@@ -276,7 +278,7 @@ class LlamaServerRuntime:
                 args[idx] = str(Path(model_path).resolve())
                 break
         try:
-            self._process = subprocess.Popen(args, cwd=str(get_project_root()), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self._process = subprocess.Popen(args, cwd=str(get_project_root()), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as exc:
             self._logger.error("failed to start llama-server: %s", exc)
             return False

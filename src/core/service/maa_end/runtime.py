@@ -53,9 +53,10 @@ class MaaEndRuntime:
     def __init__(self, maaend_root: Optional[str] = None, device_address: str = "localhost:16512", adb_path: str = "3rd-part/adb/adb.exe"):
         self.logger = get_logger()
         self._maaend_root = Path(maaend_root) if maaend_root else self._default_maaend_root()
+        if device_address == "default":
+            device_address = "localhost:16512"
         self._device_address = device_address
-        adb_candidate = Path(adb_path)
-        self._adb_path = str(adb_candidate.resolve()) if adb_candidate.exists() else str(adb_candidate)
+        self._adb_path = str(get_project_root() / adb_path)
         self._resource: Optional[Any] = None
         self._tasker: Optional[Any] = None
         self._controller: Optional[Any] = None
@@ -103,9 +104,13 @@ class MaaEndRuntime:
 
     def load_interface(self) -> Dict[str, Any]:
         path = self._resolve_asset_path("interface.json")
-        with open(path, "r", encoding="utf-8") as f:
-            self._interface = json.load(f)
-        return self._interface
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                self._interface = json.load(f)
+        except Exception as e:
+            self.logger.warning(LogCategory.MAIN, "加载 interface.json 失败", path=str(path), error=str(e))
+            self._interface = {}
+        return self._interface or {}
 
     def load_tasks(self) -> Dict[str, Dict[str, Any]]:
         tasks_root = self._resolve_asset_path("tasks")
@@ -253,12 +258,8 @@ class MaaEndRuntime:
             pass
 
     def disconnect(self) -> None:
+        self._cleanup_partial()
         self._connected = False
-        self._tasker = None
-        self._controller = None
-        self._resource = None
-        self._agent_client = None
-        self._agent_process = None
         self.logger.info(LogCategory.MAIN, "MaaEnd runtime 已断开")
 
     def _start_agent(self) -> None:
@@ -500,7 +501,9 @@ class MaaEndRuntime:
         return self._interface or self.load_interface()
 
     def tasks(self) -> Dict[str, Dict[str, Any]]:
-        return self._tasks or self.load_tasks()
+        if not self._tasks:
+            self.load_tasks()
+        return self._tasks
 
     def task_option_defs(self) -> Dict[str, Dict[str, Any]]:
         if not self._tasks:
@@ -508,7 +511,9 @@ class MaaEndRuntime:
         return dict(self._option_defs)
 
     def presets(self) -> Dict[str, Dict[str, Any]]:
-        return self._presets or self.load_presets()
+        if not self._presets:
+            self.load_presets()
+        return self._presets
 
     def task_groups(self) -> List[str]:
         interface = self.interface()
@@ -526,7 +531,7 @@ class MaaEndRuntime:
     def imported_task_paths(self) -> List[str]:
         return self.interface().get("import", [])
 
-    def screenshot(self) -> Optional[bytes]:
+    def screenshot(self, serial: Optional[str] = None) -> Optional[bytes]:
         if not self._connected or self._controller is None:
             return None
         try:

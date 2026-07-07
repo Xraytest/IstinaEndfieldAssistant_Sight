@@ -90,7 +90,7 @@ def test_apply_preset_button_replaces_queue():
 
     page._run_preset_btn.click()
 
-    assert [entry["name"] for entry in page._queue_items] == ["TaskA", "TaskB"]
+    assert [entry["name"] for entry in page._queue_state.queue_items] == ["TaskA", "TaskB"]
     assert page._queue_list.rowCount() == 2
     assert page._is_executing is False
     assert not any(command == "system connect" for command, _ in bridge.calls)
@@ -210,7 +210,6 @@ def test_apply_queue_focus_task_settings_saves_to_queue_state():
     page._queue_state.set_queue_items([
         {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"speed": "fast"}}
     ])
-    page._queue_items = page._queue_state.queue_items
     page._queue_list.setRowCount(1)
     page._queue_list.setItem(0, 0, QTableWidgetItem("[TASK] TaskA"))
     page._queue_list.setCurrentCell(0, 0)
@@ -224,7 +223,7 @@ def test_apply_queue_focus_task_settings_saves_to_queue_state():
     page._apply_queue_focus_task_settings()
 
     assert page._queue_state.load_options("TaskA") == {"speed": "fast"}
-    assert page._queue_items[0]["options"] == {"speed": "fast"}
+    assert page._queue_state.queue_items[0]["options"] == {"speed": "fast"}
     app.quit()
 
 
@@ -275,7 +274,7 @@ def test_apply_preset_overrides_queue_and_clears_old_settings():
 
     assert page._queue_state.load_options("OldTask") == {}
     assert page._queue_state.load_options("TaskA") == {"option_a": "value_a"}
-    assert [entry["name"] for entry in page._queue_items] == ["TaskA", "TaskB"]
+    assert [entry["name"] for entry in page._queue_state.queue_items] == ["TaskA", "TaskB"]
     app.quit()
 
 

@@ -1,4 +1,4 @@
-﻿"""IstinaAI CLI handlers
+"""IstinaAI CLI handlers
 
 把 istina.py 的 main() 从“解析+处理”拆成“只解析路由，handler 负责执行”。
 """
@@ -280,7 +280,6 @@ def _handle_task_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
             "name": args.name,
             "options": options,
             "serial": getattr(args, "serial", None),
-            "timeout": getattr(args, "timeout", None),
         },
     )
     return {"status": "success" if ok else "error", "task": args.name}
@@ -322,8 +321,8 @@ def _handle_device_info(runtime: IstinaRuntime, args: argparse.Namespace) -> Dic
 def _handle_device_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     android = runtime.android()
     try:
-        adb_manager = android.adb_manager
-        server_version = adb_manager.version()
+        client = android.default_client
+        server_version = client.version()
         devices = android.get_devices()
         return {
             "status": "success",

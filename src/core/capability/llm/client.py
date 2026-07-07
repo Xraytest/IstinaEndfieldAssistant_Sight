@@ -71,7 +71,7 @@ class LlmClient:
         """Check whether llama-server is reachable."""
         import urllib.request
 
-        url = f"{self._base_url}/health"
+        url = f"{self._base_url.split('/v1', 1)[0]}/health"
         try:
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:

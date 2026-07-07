@@ -196,7 +196,7 @@ class _FakeMaaEndRuntime:
         self._run_task_result = run_task_result
         self._run_preset_result = run_preset_result
         self._screenshot_result = screenshot_result
-        self._connected = False
+        self._connected = True
 
     @property
     def connected(self) -> bool:

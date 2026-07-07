@@ -1286,60 +1286,6 @@ class MaaEndControlPage(QWidget):
         self._refresh_preset_list()
         self._build_option_editor()
 
-    @property
-    def _queue_items(self) -> List[Dict[str, Any]]:
-        return self._queue_state.queue_items
-
-    @_queue_items.setter
-    def _queue_items(self, value: List[Dict[str, Any]]) -> None:
-        self._queue_state.set_queue_items(value)
-
-    def _load_state(self) -> None:
-        self._queue_state.set_state_path(self._state_path)
-        if not self._state_path.exists():
-            return
-        try:
-            state = json.loads(self._state_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            self.log_message.emit("持久化", f"加载失败: {e}")
-            return
-        self._queue_state.set_selected_task(state.get("selected_task") or self._selected_task)
-        self._queue_state.set_selected_preset(state.get("selected_preset") or self._selected_preset)
-        task_options = state.get("task_options")
-        if isinstance(task_options, dict):
-            for k, v in task_options.items():
-                if isinstance(v, dict):
-                    self._queue_state.save_options(str(k), v)
-        queue_items = state.get("queue_items")
-        if isinstance(queue_items, list):
-            items = []
-            for entry in queue_items:
-                if not isinstance(entry, dict):
-                    continue
-                name = str(entry.get("name") or "").strip()
-                if not name:
-                    continue
-                items.append({
-                    "name": name,
-                    "display_name": str(entry.get("display_name") or name),
-                    "type": entry.get("type", "task"),
-                    "options": dict(entry.get("options") or {}),
-                })
-            self._queue_state.set_queue_items(items)
-        self._selected_task = self._queue_state.selected_task
-        self._selected_preset = self._queue_state.selected_preset
-        self._restore_queue_ui()
-        if self._selected_task:
-            matches = self._task_list.findItems(_zh(self._selected_task), Qt.MatchFlag.MatchExactly)
-            if matches:
-                self._task_list.setCurrentItem(matches[0])
-        if self._selected_preset:
-            matches = self._preset_list.findItems(_zh(self._selected_preset), Qt.MatchFlag.MatchExactly)
-            if matches:
-                self._preset_list.setCurrentItem(matches[0])
-        self._persist_state()
-
-
 class TaskRunWorker(QThread):
     log = pyqtSignal(str, str)
     finished = pyqtSignal(bool)

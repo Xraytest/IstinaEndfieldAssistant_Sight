@@ -377,9 +377,6 @@ class _Daemon:
             except Exception:
                 pass
 
-    def _pick_port(self) -> int:
-        return 50000 + (hash(self._serial) % 10000)
-
     def _accept_loop(self) -> None:
         while self._running:
             try:
@@ -464,7 +461,7 @@ class _Daemon:
                     _, buf = cv2.imencode(".png", frame)
                     return self._encode_binary(buf.tobytes())
                 if method == "tap":
-                    self._touch.tap(int(params.get("x", 0)), int(params.get("y", 0)), serial=self._serial)
+                    self._touch.tap(int(params.get("x", 0)), int(params.get("y", 0)), serial=params.get("serial", self._serial))
                     return {"result": True}
                 if method == "swipe":
                     self._touch.swipe(
@@ -473,14 +470,14 @@ class _Daemon:
                         int(params.get("x2", 0)),
                         int(params.get("y2", 0)),
                         duration_ms=int(params.get("durationMs", 300)),
-                        serial=self._serial,
+                        serial=params.get("serial", self._serial),
                     )
                     return {"result": True}
                 if method == "keyevent":
-                    output = self._adb_manager.shell(f"input keyevent {params.get('key')}", serial=self._serial)
+                    output = self._adb_manager.shell(f"input keyevent {params.get('key')}", serial=params.get("serial", self._serial))
                     return {"result": output}
                 if method == "shell":
-                    output = self._adb_manager.shell(params.get("cmd", ""), serial=self._serial)
+                    output = self._adb_manager.shell(params.get("cmd", ""), serial=params.get("serial", self._serial))
                     return {"result": output}
                 return {"error": f"unknown method: {method}"}
             except Exception as exc:
@@ -545,7 +542,7 @@ class AndroidRuntime:
         sock = None
         try:
             daemon = self._get_daemon()
-            port = getattr(daemon, "_tcp_port", None) or daemon._pick_port()
+            port = daemon._tcp_port
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect(("127.0.0.1", port))
         except Exception:

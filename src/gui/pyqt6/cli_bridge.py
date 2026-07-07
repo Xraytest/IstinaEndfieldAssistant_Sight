@@ -74,8 +74,6 @@ class CLIBridge(QObject):
             if isinstance(value, bool):
                 if value:
                     args.append(f"--{key}")
-            elif isinstance(value, (dict, list, tuple)):
-                args.extend([f"--{key}", json.dumps(value, ensure_ascii=False)])
             else:
                 args.extend([f"--{key}", str(value)])
         return args
