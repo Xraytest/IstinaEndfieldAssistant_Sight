@@ -104,7 +104,7 @@ BTN_ACTIVE = """
         color: #00ffa2;
         border: 1px solid rgba(0, 255, 162, 0.30);
         border-radius: 2px;
-        padding: 2px 8px;
+        padding: 0px 0px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(0, 255, 162, 0.20); }
@@ -115,7 +115,7 @@ BTN_DEFAULT = """
         color: #18d1ff;
         border: 1px solid rgba(24, 209, 255, 0.30);
         border-radius: 2px;
-        padding: 2px 8px;
+        padding: 0px 0px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(24, 209, 255, 0.20); }
@@ -126,7 +126,7 @@ BTN_STOP = """
         color: #ff3355;
         border: 1px solid rgba(255, 51, 85, 0.40);
         border-radius: 2px;
-        padding: 2px 8px;
+        padding: 0px 0px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(255, 51, 85, 0.25); }
@@ -134,49 +134,50 @@ BTN_STOP = """
 
 NAME_ZH = {
     # presets
-    "DailyFull": "日常全套",
+    "DailyFull": "全套日常",
     "QuickDaily": "快速日常",
-    "RealtimeAssist": "实时助力",
+    "RealtimeAssist": "实时辅助",
     # tasks from interface.json imports
-    "SellProduct": "出售产品",
-    "SeizeDeliveryJobs": "抢占送货",
-    "DeliveryJobs": "送货任务",
-    "AutoStockpile": "自动储备",
-    "AutoStockStaple": "自动囤积",
-    "AutoSell": "自动出售",
-    "EnvironmentMonitoring": "环境监测",
-    "GearAssembly": "装备组装",
-    "Weapon": "武器",
-    "BatchUseDetector": "批量使用探测器",
-    "EssenceFilter": " Essence 筛选",
-    "ResourceRecycleStation": "资源回收站",
-    "AutoCollect": "自动采集",
-    "AutoEcoFarm": "自动生态农场",
-    "PuzzleSolver": "拼图求解",
-    "ImportBluePrints": "导入蓝图",
-    "AutoUseSpMedication": "自动使用药品",
-    "AutoEssence": "自动 Essence",
-    "ProtocolSpace": "协议空间",
-    "DijiangRewards": "帝江奖励",
-    "VisitFriends": "拜访好友",
-    "GiftOperator": "礼物操作",
-    "BatchAddFriends": "批量加好友",
-    "PullCountCalculator": "拉力计数计算",
-    "BakerEntry": "Baker 入口",
-    "ReadAllWiki": "阅读全部 Wiki",
-    "DailyRewards": "日常奖励",
-    "ClaimSimulationRewards": "领取模拟奖励",
-    "TrialOfSwordmancy": "剑术试炼",
-    "CreditShopping": "信用点购物",
-    "AccountSwitch": "切换账号",
-    "WebEvent202605": "网页活动 202605",
-    "AndroidOpenGame": "安卓启动游戏",
-    "RealTimeTask": "实时任务",
-    "ItemTransfer": "物品转移",
-    "Crafting": "制造",
-    "SimpleProductionBatchStart": "简单生产批量启动",
-    "ReceiveProdManual": "手动收取产品",
-    "StashBackpack": "整理背包",
+    "SellProduct": "🛒售卖产品",
+    "SeizeDeliveryJobs": "🏍️抢委托送货",
+    "DeliveryJobs": "🚚转交委托",
+    "AutoStockpile": "📦自动囤货",
+    "AutoStockStaple": "🏪购买稳定物资",
+    "AutoSell": "💰售卖弹性物资",
+    "EnvironmentMonitoring": "🌿环境监测",
+    "GearAssembly": "🔧装备制造",
+    "Weapon": "🔫升级武器",
+    "BatchUseDetector": "🧭批量探测器",
+    "EssenceFilter": "🔒基质筛选锁定",
+    "ResourceRecycleStation": "🦉资源回收站",
+    "AutoCollect": "🧺自动采集",
+    "AutoEcoFarm": "🌾生态农场",
+    "PuzzleSolver": "🧩解拼图",
+    "ImportBluePrints": "📐一键导入蓝图",
+    "AutoUseSpMedication": "💊应急理智加强剂",
+    "AutoEssence": "🎱基质刷取",
+    "ProtocolSpace": "⚔️协议空间",
+    "DijiangRewards": "🎁基建任务",
+    "VisitFriends": "🤝拜访好友",
+    "GiftOperator": "🎁赠送干员礼物",
+    "BatchAddFriends": "👥批量添加好友",
+    "PullCountCalculator": "🧮抽数计算",
+    "BakerEntry": "💬会话消息嘴替",
+    "ReadAllWiki": "📖百科已读",
+    "DailyRewards": "📅日常奖励领取",
+    "ClaimSimulationRewards": "📦领取模拟空间奖励",
+    "TrialOfSwordmancy": "🗡️选剑演武",
+    "CreditShopping": "🛍️信用点购物",
+    "AccountSwitch": "自动切换账号",
+    "WebEvent202605": "🎁自动共贺庆典网页活动",
+    "AndroidOpenGame": "🎮打开游戏",
+    "CloseGame": "❌关闭游戏（安卓端）",
+    "RealTimeTask": "🤖实时开荒辅助",
+    "ItemTransfer": "🐌库存转移",
+    "Crafting": "🧪简易制作",
+    "SimpleProductionBatchStart": "🔨批量简易制作",
+    "ReceiveProdManual": "🌾简制手册领取",
+    "StashBackpack": "🎒存放背包",
 }
 
 
@@ -379,7 +380,7 @@ class MaaEndControlPage(QWidget):
         preset_btn_row.setContentsMargins(0, 0, 0, 0)
         preset_btn_row.setSpacing(6)
         self._run_preset_btn = QPushButton("应用预设")
-        self._run_preset_btn.setMinimumHeight(30)
+        self._run_preset_btn.setMinimumHeight(24)
         self._run_preset_btn.setStyleSheet(BTN_ACTIVE)
         self._run_preset_btn.clicked.connect(self._run_preset)
         preset_btn_row.addWidget(self._run_preset_btn)
@@ -404,12 +405,12 @@ class MaaEndControlPage(QWidget):
         task_btn_row.setContentsMargins(0, 0, 0, 0)
         task_btn_row.setSpacing(6)
         self._run_task_btn = QPushButton("添加任务")
-        self._run_task_btn.setMinimumHeight(30)
+        self._run_task_btn.setMinimumHeight(24)
         self._run_task_btn.setStyleSheet(BTN_ACTIVE)
         self._run_task_btn.clicked.connect(self._run_task)
         task_btn_row.addWidget(self._run_task_btn)
         self._task_settings_btn = QPushButton("任务设置")
-        self._task_settings_btn.setMinimumHeight(30)
+        self._task_settings_btn.setMinimumHeight(24)
         self._task_settings_btn.setStyleSheet(BTN_DEFAULT)
         self._task_settings_btn.clicked.connect(self._open_task_settings)
         task_btn_row.addWidget(self._task_settings_btn)
@@ -434,12 +435,12 @@ class MaaEndControlPage(QWidget):
         queue_btn_row.setContentsMargins(0, 0, 0, 0)
         queue_btn_row.setSpacing(6)
         self._add_queue_btn = QPushButton("添加")
-        self._add_queue_btn.setMinimumHeight(30)
+        self._add_queue_btn.setMinimumHeight(24)
         self._add_queue_btn.setStyleSheet(BTN_DEFAULT)
         self._add_queue_btn.clicked.connect(self._add_to_queue)
         queue_btn_row.addWidget(self._add_queue_btn)
         self._run_queue_btn = QPushButton("运行")
-        self._run_queue_btn.setMinimumHeight(30)
+        self._run_queue_btn.setMinimumHeight(24)
         self._run_queue_btn.setStyleSheet(BTN_ACTIVE)
         self._run_queue_btn.clicked.connect(self._run_queue)
         queue_btn_row.addWidget(self._run_queue_btn)
@@ -449,17 +450,17 @@ class MaaEndControlPage(QWidget):
         queue_move_row.setContentsMargins(0, 0, 0, 0)
         queue_move_row.setSpacing(6)
         self._queue_up_btn = QPushButton("上移")
-        self._queue_up_btn.setMinimumHeight(30)
+        self._queue_up_btn.setMinimumHeight(24)
         self._queue_up_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_up_btn.clicked.connect(self._queue_move_up)
         queue_move_row.addWidget(self._queue_up_btn)
         self._queue_down_btn = QPushButton("下移")
-        self._queue_down_btn.setMinimumHeight(30)
+        self._queue_down_btn.setMinimumHeight(24)
         self._queue_down_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_down_btn.clicked.connect(self._queue_move_down)
         queue_move_row.addWidget(self._queue_down_btn)
         self._queue_clear_btn = QPushButton("清空")
-        self._queue_clear_btn.setMinimumHeight(30)
+        self._queue_clear_btn.setMinimumHeight(24)
         self._queue_clear_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_clear_btn.clicked.connect(self._queue_clear)
         queue_move_row.addWidget(self._queue_clear_btn)
@@ -497,7 +498,7 @@ class MaaEndControlPage(QWidget):
         option_btn_row.setContentsMargins(0, 0, 0, 0)
         option_btn_row.setSpacing(6)
         self._save_option_btn = QPushButton("保存")
-        self._save_option_btn.setMinimumHeight(30)
+        self._save_option_btn.setMinimumHeight(24)
         self._save_option_btn.setStyleSheet(BTN_DEFAULT)
         self._save_option_btn.clicked.connect(self._save_options)
         option_btn_row.addWidget(self._save_option_btn)
@@ -536,7 +537,7 @@ class MaaEndControlPage(QWidget):
         log_btn_row.setContentsMargins(0, 0, 0, 0)
         log_btn_row.setSpacing(4)
         self._clear_log_btn = QPushButton("清空")
-        self._clear_log_btn.setMinimumHeight(30)
+        self._clear_log_btn.setMinimumHeight(24)
         self._clear_log_btn.setStyleSheet(BTN_DEFAULT)
         self._clear_log_btn.clicked.connect(self._log_text.clear)
         log_btn_row.addWidget(self._clear_log_btn)
@@ -573,7 +574,7 @@ class MaaEndControlPage(QWidget):
         bottom.addSpacing(4)
         self._stop_btn = QPushButton("停止")
         self._stop_btn.setStyleSheet(BTN_STOP)
-        self._stop_btn.setMinimumHeight(30)
+        self._stop_btn.setMinimumHeight(24)
         self._stop_btn.setEnabled(False)
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
