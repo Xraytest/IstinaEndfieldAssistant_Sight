@@ -182,5 +182,9 @@
   "widget_quick_actions": "Quick Actions",
   "widget_quick_actions_desc": "Shortcut action buttons",
   "widget_recent_tasks": "Recent Tasks",
-  "widget_recent_tasks_desc": "Shows recent task history"
+  "widget_recent_tasks_desc": "Shows recent task history",
+  "widget_system_resource": "System Resources",
+  "widget_system_resource_desc": "Shows CPU and memory usage",
+  "system_cpu": "CPU: {percent}%",
+  "system_memory": "Memory: {percent}%"
 }

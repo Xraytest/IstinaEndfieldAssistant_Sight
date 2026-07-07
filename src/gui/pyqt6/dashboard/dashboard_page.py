@@ -32,6 +32,7 @@ _registry.register("queue", locale.tr("widget_queue", "Queue Progress"), locale.
 _registry.register("llm", locale.tr("widget_llm", "LLM Status"), locale.tr("widget_llm_desc", "Shows LLM service status"), None)
 _registry.register("quick_actions", locale.tr("widget_quick_actions", "Quick Actions"), locale.tr("widget_quick_actions_desc", "Quick action buttons"), None)
 _registry.register("recent_tasks", locale.tr("widget_recent_tasks", "Recent Tasks"), locale.tr("widget_recent_tasks_desc", "Shows recent task history"), None)
+_registry.register("system_resource", locale.tr("widget_system_resource", "System Resources"), locale.tr("widget_system_resource_desc", "Shows CPU and memory usage"), None)
 
 
 class DashboardPage(QWidget):
@@ -149,6 +150,9 @@ class DashboardPage(QWidget):
         if widget_id == "recent_tasks":
             from gui.pyqt6.dashboard.widgets.recent_tasks_widget import RecentTasksWidget
             return RecentTasksWidget(title, bridge=self._bridge)
+        if widget_id == "system_resource":
+            from gui.pyqt6.dashboard.widgets.system_resource_widget import SystemResourceWidget
+            return SystemResourceWidget(title, bridge=self._bridge)
         return None
 
     def _poll_data(self) -> None:
