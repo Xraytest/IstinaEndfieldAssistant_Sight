@@ -183,5 +183,7 @@
   "widget_quick_actions": "快捷操作",
   "widget_quick_actions_desc": "快捷操作按钮",
   "widget_recent_tasks": "最近任务",
-  "widget_recent_tasks_desc": "显示最近任务历史"
+  "widget_recent_tasks_desc": "显示最近任务历史",
+  "widget_chart": "趋势图表",
+  "widget_chart_desc": "显示执行趋势图表"
 }

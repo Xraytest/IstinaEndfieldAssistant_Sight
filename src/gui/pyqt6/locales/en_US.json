@@ -183,5 +183,7 @@
   "widget_quick_actions": "Quick Actions",
   "widget_quick_actions_desc": "Shortcut action buttons",
   "widget_recent_tasks": "Recent Tasks",
-  "widget_recent_tasks_desc": "Shows recent task history"
+  "widget_recent_tasks_desc": "Shows recent task history",
+  "widget_chart": "Trend Chart",
+  "widget_chart_desc": "Shows execution trend chart"
 }
