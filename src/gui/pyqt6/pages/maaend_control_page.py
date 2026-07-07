@@ -186,7 +186,7 @@ def _zh(name: str) -> str:
     return NAME_ZH.get(name, name)
 
 
-_OPTION_LOCALE_PATH = Path(__file__).resolve().parent.parent.parent.parent / "3rd-part" / "maaend" / "locales" / "interface" / "zh_cn.json"
+_OPTION_LOCALE_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / "3rd-part" / "maaend" / "locales" / "interface" / "zh_cn.json"
 OPTION_LOCALE: Dict[str, str] = {}
 try:
     if _OPTION_LOCALE_PATH.exists():
@@ -438,33 +438,33 @@ class MaaEndControlPage(QWidget):
         self._add_queue_btn.setStyleSheet(BTN_DEFAULT)
         self._add_queue_btn.clicked.connect(self._add_to_queue)
         queue_btn_row.addWidget(self._add_queue_btn)
-        self._run_queue_btn = QPushButton("运行")
-        self._run_queue_btn.setMinimumHeight(30)
-        self._run_queue_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_queue_btn.clicked.connect(self._run_queue)
-        queue_btn_row.addWidget(self._run_queue_btn)
-        queue_btn_row.addStretch()
-        queue_layout.addLayout(queue_btn_row)
-        queue_move_row = QHBoxLayout()
-        queue_move_row.setContentsMargins(0, 0, 0, 0)
-        queue_move_row.setSpacing(6)
-        self._queue_up_btn = QPushButton("上移")
-        self._queue_up_btn.setMinimumHeight(30)
-        self._queue_up_btn.setStyleSheet(BTN_DEFAULT)
-        self._queue_up_btn.clicked.connect(self._queue_move_up)
-        queue_move_row.addWidget(self._queue_up_btn)
-        self._queue_down_btn = QPushButton("下移")
-        self._queue_down_btn.setMinimumHeight(30)
-        self._queue_down_btn.setStyleSheet(BTN_DEFAULT)
-        self._queue_down_btn.clicked.connect(self._queue_move_down)
-        queue_move_row.addWidget(self._queue_down_btn)
         self._queue_clear_btn = QPushButton("清空")
         self._queue_clear_btn.setMinimumHeight(30)
         self._queue_clear_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_clear_btn.clicked.connect(self._queue_clear)
-        queue_move_row.addWidget(self._queue_clear_btn)
-        queue_move_row.addStretch()
-        queue_layout.addLayout(queue_move_row)
+        queue_btn_row.addWidget(self._queue_clear_btn)
+        queue_btn_row.addSpacing(24)
+        self._queue_up_btn = QPushButton("上移")
+        self._queue_up_btn.setMinimumHeight(30)
+        self._queue_up_btn.setStyleSheet(BTN_DEFAULT)
+        self._queue_up_btn.clicked.connect(self._queue_move_up)
+        queue_btn_row.addWidget(self._queue_up_btn)
+        self._queue_down_btn = QPushButton("下移")
+        self._queue_down_btn.setMinimumHeight(30)
+        self._queue_down_btn.setStyleSheet(BTN_DEFAULT)
+        self._queue_down_btn.clicked.connect(self._queue_move_down)
+        queue_btn_row.addWidget(self._queue_down_btn)
+        queue_layout.addLayout(queue_btn_row)
+        queue_run_row = QHBoxLayout()
+        queue_run_row.setContentsMargins(0, 0, 0, 0)
+        queue_run_row.setSpacing(0)
+        self._run_queue_btn = QPushButton("运行")
+        self._run_queue_btn.setMinimumHeight(30)
+        self._run_queue_btn.setStyleSheet(BTN_ACTIVE)
+        self._run_queue_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self._run_queue_btn.clicked.connect(self._run_queue)
+        queue_run_row.addWidget(self._run_queue_btn)
+        queue_layout.addLayout(queue_run_row)
         left_layout.addWidget(queue_card)
         left_layout.addStretch()
         left.setMinimumWidth(280)
@@ -897,11 +897,7 @@ class MaaEndControlPage(QWidget):
         return options
 
     def _format_queue_label(self, name: str, item_type: str, options: Dict[str, Any]) -> str:
-        base = f"[{item_type.upper()}] {_zh(name)}"
-        summary = self._summarize_options(options)
-        if summary:
-            base += f" ({summary})"
-        return base
+        return f"[{item_type.upper()}] {_zh(name)}"
 
     def _summarize_options(self, options: Dict[str, Any]) -> str:
         if not options:
