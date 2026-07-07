@@ -157,6 +157,8 @@
   "connecting_maaend": "Connecting to MaaEnd runtime...",
   "auto_connect_failed": "Auto-connect failed at startup, will not retry.",
   "auto_connect_success": "Auto-connect succeeded at startup",
+  "auto_reconnect": "Auto-reconnect on disconnect",
+  "auto_reconnect_attempt": "Auto-reconnect attempt: {serial}",
   "persist": "Persist",
   "task_settings_desc": "Task options and queue state are persisted to local config.\nCurrent path: {path}",
   "queue_count": "0 items",

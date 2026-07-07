@@ -37,6 +37,10 @@ class DeviceSettingsPage(QWidget):
         self._connected = False
         self._bridge.commandFinished.connect(self._on_command_finished)
         self._bridge.commandError.connect(self._on_command_error)
+        self._reconnect_timer = QTimer(self)
+        self._reconnect_timer.setInterval(5000)
+        self._reconnect_timer.timeout.connect(self._attempt_reconnect)
+        self._reconnect_enabled = True
         self._setup_ui()
         self._load_device_preferences()
         self._refresh_devices()
@@ -92,6 +96,10 @@ class DeviceSettingsPage(QWidget):
         self._selected_device = QLabel("-")
         status_form.addRow(locale.tr("status_label", "Status"), self._connection_status)
         status_form.addRow(locale.tr("current_device", "Current Device"), self._selected_device)
+        self._auto_reconnect_check = QCheckBox(locale.tr("auto_reconnect", "Auto-reconnect on disconnect"))
+        self._auto_reconnect_check.setChecked(True)
+        self._auto_reconnect_check.toggled.connect(self._on_auto_reconnect_toggled)
+        status_form.addRow("", self._auto_reconnect_check)
         connection_layout.addLayout(status_form)
         content_root.addWidget(connection_card)
 
@@ -119,6 +127,22 @@ class DeviceSettingsPage(QWidget):
         self._log_text.setReadOnly(True)
         runtime_layout.addWidget(self._log_text)
         content_root.addWidget(runtime_card, 1)
+
+    def _on_auto_reconnect_toggled(self, checked: bool) -> None:
+        self._reconnect_enabled = checked
+        if checked and self._connected:
+            self._reconnect_timer.start()
+        else:
+            self._reconnect_timer.stop()
+
+    def _attempt_reconnect(self) -> None:
+        if self._connected or not self._reconnect_enabled:
+            return
+        serial = self._address_input.text().strip()
+        if not serial:
+            return
+        self._append_log(locale.tr("auto_reconnect_attempt", "Auto-reconnect attempt: {serial}").format(serial=serial))
+        self._bridge.execute("system connect", {"serial": serial})
 
     def _connect(self) -> None:
         serial = self._address_input.text().strip()
@@ -161,10 +185,16 @@ class DeviceSettingsPage(QWidget):
             self._append_log(locale.tr("connect_result", "Connect result: {result}").format(result=result))
             if ok and serial:
                 self._remember_device(serial)
+                if self._reconnect_enabled:
+                    self._reconnect_timer.start()
+            else:
+                self._reconnect_timer.stop()
         elif command.startswith("system disconnect"):
             self._connected = False
             self._connection_status.setText(locale.tr("connection_disconnected", "Disconnected"))
             self._append_log(locale.tr("disconnect_result", "Disconnect result: {result}").format(result=result))
+            if self._reconnect_enabled:
+                self._reconnect_timer.start()
 
     def _on_command_error(self, command: str, message: str) -> None:
         self._append_log(locale.tr("command_failed", "Command failed: {command}").format(command=command) + f" {message}")

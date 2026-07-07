@@ -157,6 +157,8 @@
   "connecting_maaend": "正在连接 MaaEnd runtime...",
   "auto_connect_failed": "启动时自动连接失败，后续不再主动重试。",
   "auto_connect_success": "启动时自动连接成功",
+  "auto_reconnect": "断线自动重连",
+  "auto_reconnect_attempt": "自动重连尝试: {serial}",
   "persist": "持久化",
   "task_settings_desc": "任务选项与队列状态会持久化到本地配置文件。\n当前路径：{path}",
   "queue_count": "0 项",
