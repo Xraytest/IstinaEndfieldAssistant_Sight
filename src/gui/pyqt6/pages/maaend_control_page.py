@@ -1098,8 +1098,9 @@ class MaaEndControlPage(QWidget):
         if not name:
             QMessageBox.information(self, "未选择", "请先在队列中选择一个任务。")
             return
-        self._selected_task = name
-        self._build_option_editor()
+        if self._selected_task != name:
+            self._selected_task = name
+            self._build_option_editor()
         options = self._collect_options()
         entry["options"] = dict(options)
         self._saved_task_options[name] = dict(options)

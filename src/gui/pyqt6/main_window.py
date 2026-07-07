@@ -144,7 +144,10 @@ class MainWindow(QMainWindow):
             self._page_stack.addWidget(page)
 
         self._resize_navigation_list()
-        self._navigation_list.setCurrentRow(0)
+        for i in range(self._navigation_list.count()):
+            if self._navigation_list.item(i).text() == "标准推理":
+                self._navigation_list.setCurrentRow(i)
+                break
         root_layout.addWidget(shell, 1)
 
     def _restore_or_fit_window(self) -> None:
