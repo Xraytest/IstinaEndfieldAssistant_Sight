@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QGroupBox, QScrollArea,
     QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox, QSizePolicy, QProgressBar,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject
+from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage, QFont
 
 from gui.pyqt6.cli_bridge import CLIBridge
@@ -1257,6 +1257,9 @@ class MaaEndControlPage(QWidget):
 
     def _on_execution_finished(self, success: bool):
         self._is_executing = False
+        if hasattr(self, '_status_pulse_animation'):
+            self._status_pulse_animation.stop()
+            del self._status_pulse_animation
         self._update_execution_ui()
         self._append_log("系统", f"执行结束: {success}")
         self.execution_state_changed.emit(False)
@@ -1275,7 +1278,22 @@ class MaaEndControlPage(QWidget):
             self._progress_bar.setValue(0)
         self._status_label.setText("运行中" if self._is_executing else "空闲")
         self._status_label.setStyleSheet(RED_STYLE if self._is_executing else GREEN_STYLE)
+        if self._is_executing:
+            self._pulse_status_label()
         self.execution_state_changed.emit(self._is_executing)
+
+    def _pulse_status_label(self):
+        """Pulse the status label to draw attention during execution."""
+        animation = QPropertyAnimation(self._status_label, b"windowOpacity", self)
+        animation.setDuration(1000)
+        animation.setLoopCount(-1)  # Infinite loop
+        animation.setKeyValueAt(0.0, 1.0)
+        animation.setKeyValueAt(0.5, 0.5)
+        animation.setKeyValueAt(1.0, 1.0)
+        animation.setEasingCurve(QEasingCurve.Type.InOutSine)
+        animation.start()
+        # Store reference to prevent garbage collection
+        self._status_pulse_animation = animation
 
     def _append_log(self, source: str, text: str):
         color = BLUE_STYLE if source == "系统" else VAL_STYLE
