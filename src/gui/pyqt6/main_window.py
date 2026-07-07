@@ -12,12 +12,13 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QSizePolicy,
     QStackedWidget,
     QStatusBar,
     QVBoxLayout,
     QWidget,
 )
-from gui.pyqt6.theme.theme_manager import PREVIEW_STYLE
+from gui.pyqt6.pages.maaend_control_page import PREVIEW_STYLE
 
 from core.foundation.gpu_check import check_gpu, format_gpu_warning
 from core.foundation.paths import ensure_src_path
@@ -207,9 +208,10 @@ class MainWindow(QMainWindow):
     def _refresh_preview(self) -> None:
         if self._preview_label is None:
             return
-        # 获取当前标准推理页的 bridge 并截图
         current_widget = self._page_stack.currentWidget()
         if isinstance(current_widget, MaaEndControlPage):
+            if not current_widget._connected:
+                return
             result = current_widget._sync_execute("screenshot")
             if not result or result.get("status") != "success":
                 return

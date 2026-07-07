@@ -333,8 +333,8 @@ class MaaEndControlPage(QWidget):
             widget = getattr(self, widget_name, None)
             if widget is not None:
                 widget.setFont(font)
-        self._refresh_task_list()
-        self._refresh_preset_list()
+        # 延迟刷新列表，避免在 __init__ 中启动嵌套 QEventLoop
+        QTimer.singleShot(0, self.refresh)
         self._queue_state.load()
         self._selected_task = self._queue_state.selected_task
         self._selected_preset = self._queue_state.selected_preset
@@ -447,7 +447,7 @@ class MaaEndControlPage(QWidget):
         self._task_list.setStyleSheet(LIST_STYLE)
         self._task_list.setMinimumHeight(80)
         self._task_list.itemSelectionChanged.connect(self._on_task_selected)
-        task_layout.addWidget(self._task_list)
+        task_layout.addWidget(self._task_list, 1)
         task_btn_row = QHBoxLayout()
         task_btn_row.setContentsMargins(0, 0, 0, 0)
         task_btn_row.setSpacing(6)
@@ -464,7 +464,6 @@ class MaaEndControlPage(QWidget):
         task_btn_row.addStretch()
         task_layout.addLayout(task_btn_row)
         tasks_layout.addWidget(task_card)
-        tasks_layout.addStretch()
         tasks_col.setMinimumWidth(220)
 
         # Column 2: Options ---------------------------------------------

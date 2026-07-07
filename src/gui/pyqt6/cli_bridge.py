@@ -129,8 +129,19 @@ class CLIBridge(QObject):
         if self._restart_pending:
             self._finalize_current_process()
             return
-        if exit_code != 0:
-            self._handle_process_error(f"进程异常退出: {exit_code}")
+        if exit_status == QProcess.ExitStatus.Crashed:
+            self._crash_count += 1
+            self.processCrashed.emit(self._crash_count)
+            if self._crash_count < self._max_crashes and not self._restart_pending:
+                self._restart_pending = True
+                if self._current_command:
+                    self._pending_commands.insert(0, list(self._current_command))
+                QTimer.singleShot(1000, self._restart_last_command)
+            else:
+                self._show_crash_dialog()
+        elif exit_code != 0:
+            self._logger.debug(LogCategory.GUI, "CLI 业务错误", exit_code=exit_code, command=" ".join(self._last_command))
+            self.commandError.emit(" ".join(self._last_command), f"业务错误: {exit_code}")
         else:
             self._crash_count = 0
         self._finalize_current_process()
