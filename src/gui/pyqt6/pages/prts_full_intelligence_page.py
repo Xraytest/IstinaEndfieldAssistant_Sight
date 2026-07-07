@@ -129,7 +129,7 @@ class PrtsFullIntelligencePage(QWidget):
         self._runtime_card.setAccessibleDescription("显示当前运行时状态")
         self._real_grid.addWidget(self._runtime_card, 1, 1)
 
-        self._queue_card = StatCard(locale.tr("queue_status", "Queue"), "0 项", locale.tr("normal_status", "Normal"))
+        self._queue_card = StatCard(locale.tr("queue_status", "Queue"), locale.tr("queue_count", "0 items"), locale.tr("normal_status", "Normal"))
         self._queue_card.setAccessibleName("队列状态卡片")
         self._queue_card.setAccessibleDescription("显示任务队列中的项目数量")
         self._real_grid.addWidget(self._queue_card, 1, 2)

@@ -143,5 +143,8 @@
   "auto_connect_failed": "Auto-connect failed at startup, will not retry.",
   "auto_connect_success": "Auto-connect succeeded at startup",
   "persist": "Persist",
-  "task_settings_desc": "Task options and queue state are persisted to local config.\nCurrent path: {path}"
+  "task_settings_desc": "Task options and queue state are persisted to local config.\nCurrent path: {path}",
+  "queue_count": "0 items",
+  "command_failed": "{command} failed",
+  "executing_task": "Executing {name} ({idx}/{total})"
 }

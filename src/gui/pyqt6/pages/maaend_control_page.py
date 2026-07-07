@@ -737,7 +737,7 @@ class MaaEndControlPage(QWidget):
                 current_options = dict(options)
                 options = dict(saved)
                 options.update(current_options)
-            self._append_log("队列", f"执行 {_zh(name)} ({idx}/{total})")
+            self._append_log("队列", locale.tr("executing_task", "Executing {name} ({idx}/{total})").format(name=_zh(name), idx=idx, total=total))
             clean_name, inline_options = self._parse_inline_task_name(name)
             merged_options = dict(inline_options)
             merged_options.update(options)
@@ -1047,14 +1047,13 @@ class MaaEndControlPage(QWidget):
 
     def _open_task_settings(self):
         dialog = QDialog(self)
-        dialog.setWindowTitle("任务设置")
+        dialog.setWindowTitle(locale.tr("task_settings_title", "Task Settings"))
         dialog.setMinimumWidth(620)
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
         info = QLabel(
-            "任务选项与队列状态会持久化到本地配置文件。\n"
-            f"当前路径：{self._state_path}"
+            locale.tr("task_settings_desc", "Task options and queue state are persisted to local config.\nCurrent path: {path}").format(path=self._state_path)
         )
         info.setWordWrap(True)
         info.setStyleSheet(INFO_STYLE)

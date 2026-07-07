@@ -167,7 +167,7 @@ class DeviceSettingsPage(QWidget):
             self._append_log(locale.tr("disconnect_result", "Disconnect result: {result}").format(result=result))
 
     def _on_command_error(self, command: str, message: str) -> None:
-        self._append_log(f"{command} 失败: {message}")
+        self._append_log(locale.tr("command_failed", "Command failed: {command}").format(command=command) + f" {message}")
 
     def _update_device_info(self, result: dict) -> None:
         self._device_list.clear()
