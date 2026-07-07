@@ -5,8 +5,9 @@ from typing import Callable, Optional
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings, QTimer, Qt
-from PyQt6.QtGui import QCloseEvent, QPixmap
+from PyQt6.QtGui import QCloseEvent, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -73,6 +74,37 @@ class MainWindow(QMainWindow):
 
         QTimer.singleShot(0, self._show_gpu_warning_if_needed)
         QTimer.singleShot(0, self._async_warmup)
+        self._setup_keyboard_shortcuts()
+
+    def _setup_keyboard_shortcuts(self) -> None:
+        """Setup keyboard shortcuts for navigation and actions."""
+        pages = self._page_stack.count() if self._page_stack else 0
+        for i in range(min(pages, 5)):
+            shortcut = QShortcut(f"Ctrl+{i+1}", self)
+            shortcut.activated.connect(lambda idx=i: self._on_nav_changed(idx))
+
+        refresh_shortcut = QShortcut("F5", self)
+        refresh_shortcut.activated.connect(self._refresh_preview)
+
+        theme_shortcut = QShortcut("Ctrl+T", self)
+        theme_shortcut.activated.connect(self._cycle_theme)
+
+    def _cycle_theme(self) -> None:
+        """Cycle through available themes."""
+        from gui.pyqt6.theme.theme_manager import get_theme
+        theme_manager = get_theme()
+        themes = theme_manager.get_available_themes()
+        if not themes:
+            return
+        current = theme_manager.get_current_theme()
+        current_index = next((i for i, t in enumerate(themes) if t["id"] == current), -1)
+        next_index = (current_index + 1) % len(themes)
+        next_theme = themes[next_index]["id"]
+        theme_manager.set_current_theme(next_theme)
+        app = QApplication.instance()
+        if app is not None:
+            theme_manager.apply_theme(app, next_theme)
+        self.statusBar().showMessage(f"已切换主题: {themes[next_index]['name']}", 2000)
 
     def _async_warmup(self) -> None:
         self._bridge.execute("llm start", {})
