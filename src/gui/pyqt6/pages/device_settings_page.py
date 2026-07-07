@@ -25,6 +25,7 @@ from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.icons import get_action_icon
+from gui.pyqt6.theme.widget_styles import LIST_STYLE
 
 
 locale = get_locale_manager()
@@ -108,6 +109,8 @@ class DeviceSettingsPage(QWidget):
         history_layout = QVBoxLayout(history_card)
         history_layout.setSpacing(8)
         self._history_list = QListWidget()
+        self._history_list.setStyleSheet(LIST_STYLE)
+        self._history_list.setMinimumHeight(120)
         self._history_list.itemClicked.connect(lambda item: self._address_input.setText(item.text()))
         history_layout.addWidget(self._history_list)
         history_hint = QLabel(locale.tr("history_hint", "Click a history address to fill it in."))
@@ -119,6 +122,7 @@ class DeviceSettingsPage(QWidget):
         devices_layout = QVBoxLayout(devices_card)
         devices_layout.setSpacing(8)
         self._device_list = QListWidget()
+        self._device_list.setStyleSheet(LIST_STYLE)
         devices_layout.addWidget(self._device_list)
         content_root.addWidget(devices_card, 1)
 

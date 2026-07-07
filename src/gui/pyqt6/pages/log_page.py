@@ -26,6 +26,7 @@ from gui.pyqt6.responsive import elide_text
 
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.icons import get_action_icon
+from gui.pyqt6.theme.widget_styles import COMBO_STYLE, INPUT_STYLE
 
 
 locale = get_locale_manager()
@@ -78,6 +79,7 @@ class LogPage(QWidget):
         action_row.addWidget(refresh_btn)
 
         self._file_combo = QComboBox()
+        self._file_combo.setStyleSheet(COMBO_STYLE)
         self._file_combo.setMinimumWidth(220)
         self._file_combo.currentIndexChanged.connect(self._load_selected_log)
         action_row.addWidget(self._file_combo)
@@ -85,6 +87,7 @@ class LogPage(QWidget):
         content_root.addLayout(action_row)
 
         self._log_view = QTextEdit()
+        self._log_view.setStyleSheet(INPUT_STYLE)
         self._log_view.setReadOnly(True)
         content_root.addWidget(self._log_view, 1)
 
