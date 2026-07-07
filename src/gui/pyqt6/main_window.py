@@ -5,7 +5,7 @@ from typing import Callable, Optional
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings, QTimer, Qt
-from PyQt6.QtGui import QCloseEvent, QPixmap, QShortcut
+from PyQt6.QtGui import QCloseEvent, QCursor, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -71,6 +71,9 @@ class MainWindow(QMainWindow):
         self._preview_timer.setInterval(1500)
         self._preview_timer.timeout.connect(self._refresh_preview)
         self._tray_icon: Optional[TrayIcon] = None
+        self._title_animation_timer = QTimer(self)
+        self._title_animation_timer.timeout.connect(self._animate_title)
+        self._is_executing = False
         self._build_shell()
         self._restore_or_fit_window()
         self._update_responsive_mode()
@@ -304,11 +307,32 @@ class MainWindow(QMainWindow):
             self._maaend_page.set_connected(False)
 
     def _on_execution_state_changed(self, is_executing: bool) -> None:
+        self._is_executing = is_executing
         if is_executing:
             self._preview_timer.stop()
+            self._title_animation_timer.start(500)
+            QApplication.setOverrideCursor(QCursor(Qt.CursorShape.BusyCursor))
+            self._set_taskbar_progress(0)
         else:
-            if self._page_stack.currentIndex() == 1:  # "标准推理"页
+            if self._page_stack.currentIndex() == 1:
                 self._preview_timer.start()
+            self._title_animation_timer.stop()
+            self.setWindowTitle(locale.tr("app_title", "IstinaEndfieldAssistant Sight"))
+            QApplication.restoreOverrideCursor()
+            self._set_taskbar_progress(100)
+            QTimer.singleShot(1000, lambda: self._set_taskbar_progress(0))
+
+    def _animate_title(self) -> None:
+        if not self._is_executing:
+            return
+        base = locale.tr("app_title", "IstinaEndfieldAssistant Sight")
+        dots = "..." * ((self._title_animation_timer.interval() // 500) % 4)
+        self.setWindowTitle(f"{base} {dots}")
+
+    def _set_taskbar_progress(self, value: int) -> None:
+        # Placeholder for Windows taskbar progress integration.
+        # Full implementation would use ITaskbarList3 via COM.
+        pass
 
     def _refresh_preview(self) -> None:
         if self._preview_label is None:
