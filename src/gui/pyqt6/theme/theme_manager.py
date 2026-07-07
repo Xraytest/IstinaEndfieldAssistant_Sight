@@ -6,11 +6,38 @@ Design language references ak.hypergryph.com / endfield.hypergryph.com.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication
+
+# ---------------------------------------------------------------------------
+# System theme detection (Windows)
+# ---------------------------------------------------------------------------
+
+def is_system_dark_mode() -> bool:
+    """Detect if Windows is using dark mode for apps."""
+    if sys.platform != "win32":
+        return True  # Default to dark on non-Windows
+    try:
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        )
+        value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+        winreg.CloseKey(key)
+        return value == 0
+    except Exception:
+        return True  # Default to dark if detection fails
+
+
+def get_system_theme() -> str:
+    """Return the theme name matching the current system theme."""
+    return "minimal" if not is_system_dark_mode() else "endfield"
+
 
 # ---------------------------------------------------------------------------
 # Theme definitions

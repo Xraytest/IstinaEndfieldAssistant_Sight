@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import QApplication
 from core.foundation.paths import ensure_src_path
 from gui.pyqt6.main_window import MainWindow
 from gui.pyqt6.theme.icons import apply_nav_icons
-from gui.pyqt6.theme.theme_manager import apply_theme
+from gui.pyqt6.theme.theme_manager import apply_theme, get_system_theme
 
 ensure_src_path(__file__)
 
@@ -25,8 +25,9 @@ def run_application() -> None:
     app.setApplicationName("IstinaEndfieldAssistant")
     app.setQuitOnLastWindowClosed(True)
 
-    # Apply Endfield industrial sci-fi theme (dark + terminal cyan).
-    apply_theme(app)
+    # Apply theme matching system dark/light mode preference.
+    system_theme = get_system_theme()
+    apply_theme(app, theme_name=system_theme)
 
     window = MainWindow()
     window.show()
