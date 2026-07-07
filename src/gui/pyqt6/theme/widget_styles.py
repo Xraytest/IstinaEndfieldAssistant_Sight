@@ -64,14 +64,15 @@ CARD_STYLE = f"""
     QGroupBox {{
         background-color: {_BG_CARD};
         border: 1px solid {_BORDER_LIGHT};
-        border-radius: 3px;
+        border-radius: 6px;
         font-size: 13px; font-family: '{_FONT}';
         color: {_TEXT_PRIMARY}; font-weight: bold; letter-spacing: 1px;
         margin-top: 12px;
         padding-top: 18px;
     }}
     QGroupBox:hover {{
-        border: 1px solid rgba(24, 209, 255, 0.25);
+        border: 1px solid rgba(24, 209, 255, 0.35);
+        background-color: {_BG_CARD};
     }}
     QGroupBox::title {{
         subcontrol-origin: margin;
@@ -79,6 +80,14 @@ CARD_STYLE = f"""
         left: 10px;
         top: -1px;
         padding: 0 4px;
+    }}
+"""
+
+PANEL_STYLE = f"""
+    QFrame {{
+        background-color: {_BG_CARD};
+        border: 1px solid {_BORDER_LIGHT};
+        border-radius: 8px;
     }}
 """
 

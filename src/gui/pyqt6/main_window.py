@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from gui.pyqt6.theme.widget_styles import PREVIEW_STYLE
+from gui.pyqt6.theme.widget_styles import PREVIEW_STYLE, PANEL_STYLE
 
 from core.foundation.gpu_check import check_gpu, format_gpu_warning
 from core.foundation.paths import ensure_src_path
@@ -141,6 +141,7 @@ class MainWindow(QMainWindow):
 
         content_panel = QFrame(shell)
         content_panel.setObjectName("contentPanel")
+        content_panel.setStyleSheet(PANEL_STYLE)
         content_layout = QVBoxLayout(content_panel)
         content_layout.setContentsMargins(10, 10, 10, 10)
         content_layout.setSpacing(0)
