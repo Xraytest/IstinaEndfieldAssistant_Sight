@@ -17,7 +17,7 @@ class QuickActionsWidget(DashboardWidget):
     """Quick action buttons."""
 
     def __init__(self, title: str, bridge, parent: Optional[QWidget] = None) -> None:
-        super().__init__(title, parent)
+        super().__init__(title, "quick_actions", parent)
         self._bridge = bridge
         content = self.content_widget()
         layout = QHBoxLayout(content)

@@ -181,3 +181,48 @@ class DashboardPage(QWidget):
             })
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
         self._config_path.write_text(json.dumps({"widgets": widgets}, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-dashboard-widget"):
+            event.accept()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-dashboard-widget"):
+            event.accept()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        if not event.mimeData().hasFormat("application/x-dashboard-widget"):
+            event.ignore()
+            return
+        widget_id = event.mimeData().data("application/x-dashboard-widget").data().decode()
+        widget = self._grid_widgets.get(widget_id)
+        if widget is None:
+            event.ignore()
+            return
+
+        # Find drop position
+        pos = event.pos()
+        drop_row = -1
+        drop_col = -1
+        for i in range(self._grid.count()):
+            row, col, _, _ = self._grid.getItemPosition(i)
+            item = self._grid.itemAt(i)
+            if item and item.widget():
+                rect = item.widget().geometry()
+                if rect.contains(pos):
+                    drop_row = row
+                    drop_col = col
+                    break
+
+        if drop_row >= 0 and drop_col >= 0:
+            # Remove from current position
+            self._grid.removeWidget(widget)
+            # Add at new position
+            self._grid.addWidget(widget, drop_row, drop_col)
+            self._save_layout()
+
+        event.accept()

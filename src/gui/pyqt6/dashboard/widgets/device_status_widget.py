@@ -15,7 +15,7 @@ class DeviceStatusWidget(DashboardWidget):
     """Shows device connection status."""
 
     def __init__(self, title: str, bridge, parent: Optional[QWidget] = None) -> None:
-        super().__init__(title, parent)
+        super().__init__(title, "device", parent)
         self._bridge = bridge
         self._status_label = QLabel(locale.tr("offline", "Offline"))
         self._status_label.setProperty("variant", "danger")

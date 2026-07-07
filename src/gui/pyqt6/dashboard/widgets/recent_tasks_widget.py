@@ -15,7 +15,7 @@ class RecentTasksWidget(DashboardWidget):
     """Shows recent task history."""
 
     def __init__(self, title: str, bridge, parent: Optional[QWidget] = None) -> None:
-        super().__init__(title, parent)
+        super().__init__(title, "recent_tasks", parent)
         self._bridge = bridge
         self._list = QListWidget()
         content = self.content_widget()

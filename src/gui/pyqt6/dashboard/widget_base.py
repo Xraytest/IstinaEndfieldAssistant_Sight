@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from gui.pyqt6.i18n import get_locale_manager
@@ -15,10 +16,11 @@ locale = get_locale_manager()
 class DashboardWidget(QFrame):
     """Base class for dashboard widgets."""
 
-    def __init__(self, title: str, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, title: str, widget_id: str = "", parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("metricCard")
         self.setStyleSheet(CARD_STYLE)
+        self._widget_id = widget_id
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(12, 10, 12, 10)
         self._layout.setSpacing(6)
@@ -40,6 +42,9 @@ class DashboardWidget(QFrame):
         self._refresh_timer.setInterval(2000)
         self._refresh_timer.timeout.connect(self.refresh)
 
+        # Enable drag
+        self.setAcceptDrops(True)
+
     def content_widget(self) -> QWidget:
         return self._content
 
@@ -59,3 +64,18 @@ class DashboardWidget(QFrame):
 
     def stop_auto_refresh(self) -> None:
         self._refresh_timer.stop()
+
+    def mousePressEvent(self, event):
+        if event.button() == "left button":
+            self._drag_start_pos = event.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if hasattr(self, '_drag_start_pos') and (event.pos() - self._drag_start_pos).manhattanLength() > 10:
+            drag = QDrag(self)
+            pixmap = self.grab()
+            drag.setPixmap(pixmap)
+            drag.setHotSpot(event.pos())
+            mime = drag.mimeData()
+            mime.setData("application/x-dashboard-widget", self._widget_id.encode())
+            drag.exec()

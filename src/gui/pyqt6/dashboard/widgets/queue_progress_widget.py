@@ -15,7 +15,7 @@ class QueueProgressWidget(DashboardWidget):
     """Shows queue execution progress."""
 
     def __init__(self, title: str, bridge, parent: Optional[QWidget] = None) -> None:
-        super().__init__(title, parent)
+        super().__init__(title, "queue", parent)
         self._bridge = bridge
         self._status_label = QLabel(locale.tr("maaend_idle", "Idle"))
         self._status_label.setProperty("variant", "success")

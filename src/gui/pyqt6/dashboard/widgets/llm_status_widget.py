@@ -15,7 +15,7 @@ class LLMStatusWidget(DashboardWidget):
     """Shows LLM service status."""
 
     def __init__(self, title: str, bridge, parent: Optional[QWidget] = None) -> None:
-        super().__init__(title, parent)
+        super().__init__(title, "llm", parent)
         self._bridge = bridge
         self._status_label = QLabel(locale.tr("disabled_status", "Disabled"))
         self._status_label.setProperty("variant", "danger")
