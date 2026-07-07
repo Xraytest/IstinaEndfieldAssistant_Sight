@@ -89,6 +89,7 @@ class ChartWidget(DashboardWidget):
         super().__init__(title, "chart", parent)
         self._bridge = bridge
         self._chart = MiniChartWidget(self)
+        self._chart.setAccessibleName(locale.tr("chart_widget_label", "Execution trend chart"))
         content = self.content_widget()
         layout = QVBoxLayout(content)
         layout.addWidget(self._chart)

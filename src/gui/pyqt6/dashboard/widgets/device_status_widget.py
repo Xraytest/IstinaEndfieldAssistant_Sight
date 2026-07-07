@@ -19,7 +19,9 @@ class DeviceStatusWidget(DashboardWidget):
         self._bridge = bridge
         self._status_label = QLabel(locale.tr("offline", "Offline"))
         self._status_label.setProperty("variant", "danger")
+        self._status_label.setAccessibleName(locale.tr("device_status_label", "Device status"))
         self._serial_label = QLabel("-")
+        self._serial_label.setAccessibleName(locale.tr("device_serial_label", "Device serial"))
         content = self.content_widget()
         layout = QVBoxLayout(content)
         layout.addWidget(self._status_label)

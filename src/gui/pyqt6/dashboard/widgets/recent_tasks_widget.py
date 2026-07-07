@@ -18,6 +18,7 @@ class RecentTasksWidget(DashboardWidget):
         super().__init__(title, "recent_tasks", parent)
         self._bridge = bridge
         self._list = QListWidget()
+        self._list.setAccessibleName(locale.tr("recent_tasks_list", "Recent tasks list"))
         content = self.content_widget()
         layout = QVBoxLayout(content)
         layout.addWidget(self._list)

@@ -3,22 +3,24 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QPoint, QTimer
+from PyQt6.QtCore import QPoint, QTimer, Qt
 from PyQt6.QtGui import QAction, QDrag
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QVBoxLayout, QWidget
 
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme import widget_skin
 from gui.pyqt6.theme.widget_animation import bounce, MicroFeedback, success_pulse
+from gui.pyqt6.dashboard.widget_notification import NotificationBadge, WidgetNotificationMixin
 
 locale = get_locale_manager()
 
 
-class DashboardWidget(QFrame):
+class DashboardWidget(QFrame, WidgetNotificationMixin):
     """Base class for dashboard widgets."""
 
     def __init__(self, title: str, widget_id: str = "", parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
+        WidgetNotificationMixin.__init__(self)
         self.setObjectName("metricCard")
         self.setStyleSheet(widget_skin.widget_skin_stylesheet())
         self._widget_id = widget_id
@@ -50,6 +52,11 @@ class DashboardWidget(QFrame):
         # Micro-feedback
         self._feedback = MicroFeedback(self)
         self._feedback.install()
+
+        # Accessibility
+        self.setAccessibleName(title)
+        self.setAccessibleDescription(locale.tr("widget_accessible_desc", "Dashboard widget: {title}").format(title=title))
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def content_widget(self) -> QWidget:
         return self._content
@@ -102,6 +109,14 @@ class DashboardWidget(QFrame):
         refresh_action.triggered.connect(self.refresh)
         menu.addAction(refresh_action)
         menu.exec(event.globalPos())
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+            self._open_settings()
+        elif event.key() == Qt.Key.Key_F5:
+            self.refresh()
+        else:
+            super().keyPressEvent(event)
 
     def _open_settings(self) -> None:
         from gui.pyqt6.dashboard.widget_settings_dialog import WidgetSettingsDialog

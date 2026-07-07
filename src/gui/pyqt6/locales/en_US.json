@@ -192,5 +192,19 @@
   "widget_settings_display": "Display",
   "widget_display_mode": "Display mode:",
   "widget_settings": "Settings",
-  "widget_refresh_now": "Refresh now"
+  "widget_refresh_now": "Refresh now",
+  "widget_notification_info": "Info",
+  "widget_notification_warning": "Warning",
+  "widget_notification_error": "Error",
+  "widget_notification_success": "Success",
+  "widget_accessible_desc": "Dashboard widget: {title}",
+  "device_status_label": "Device status",
+  "device_serial_label": "Device serial",
+  "queue_status_label": "Queue status",
+  "llm_status_label": "LLM service status",
+  "daily_btn_accessible": "Run daily task",
+  "harvest_btn_accessible": "Run harvest task",
+  "analyze_btn_accessible": "Analyze current scene",
+  "recent_tasks_list": "Recent tasks list",
+  "chart_widget_label": "Execution trend chart"
 }
