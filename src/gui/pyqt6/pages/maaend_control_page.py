@@ -15,6 +15,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject
 from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage, QFont
 
 from gui.pyqt6.cli_bridge import CLIBridge
+from gui.pyqt6.queue_state import QueueState
 from gui.pyqt6.responsive import is_narrow_size
 
 INFO_STYLE = "color: #9090a8; font-size: 12px; font-family: 'Microsoft YaHei UI'; padding: 3px 0;"
@@ -204,6 +205,92 @@ def _resolve_label(raw: Any) -> str:
     return raw
 
 
+class ToggleSwitch(QWidget):
+    toggled = pyqtSignal(bool)
+
+    def __init__(self, cases: List[Dict[str, Any]], parent=None):
+        super().__init__(parent)
+        if not cases:
+            cases = [{"name": "Yes"}, {"name": "No"}]
+        self._cases = cases
+        self._on_name = str(cases[0].get("name", ""))
+        self._off_name = str(cases[-1].get("name", ""))
+        self._checked = False
+        self._hover = False
+        self.setFixedSize(56, 28)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def isChecked(self) -> bool:
+        return self._checked
+
+    def setChecked(self, checked: bool) -> None:
+        if self._checked != checked:
+            self._checked = checked
+            self.update()
+            self.toggled.emit(checked)
+
+    def value(self) -> str:
+        return self._on_name if self._checked else self._off_name
+
+    def setValue(self, name: str) -> None:
+        self.setChecked(str(name) == self._on_name)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.setChecked(not self._checked)
+        super().mousePressEvent(event)
+
+    def enterEvent(self, event):
+        self._hover = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hover = False
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, event):
+        from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen
+        from PyQt6.QtCore import QRectF, QRect
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w, h = self.width(), self.height()
+        track_rect = QRectF(0, 0, w, h)
+        track_path = QPainterPath()
+        track_path.addRect(track_rect)
+
+        border_color = QColor(24, 209, 255, 60)
+        if self._checked:
+            track_color = QColor(24, 209, 255, 45)
+            if self._hover:
+                track_color = QColor(24, 209, 255, 75)
+                border_color = QColor(24, 209, 255, 120)
+        else:
+            track_color = QColor(58, 58, 74, 120)
+            if self._hover:
+                track_color = QColor(80, 80, 101, 160)
+                border_color = QColor(120, 120, 140, 100)
+
+        painter.fillPath(track_path, track_color)
+        painter.setPen(QPen(border_color, 1))
+        painter.drawPath(track_path)
+
+        slider_size = h - 10
+        slider_x = w - slider_size - 5 if self._checked else 5
+        slider_rect = QRectF(slider_x, 5, slider_size, slider_size)
+        slider_path = QPainterPath()
+        slider_path.addRect(slider_rect)
+
+        if self._checked:
+            slider_color = QColor(24, 209, 255, 230)
+        else:
+            slider_color = QColor(180, 185, 200, 200)
+        painter.fillPath(slider_path, slider_color)
+
+
 class MaaEndControlPage(QWidget):
     execution_state_changed = pyqtSignal(bool)
     log_message = pyqtSignal(str, str)
@@ -216,13 +303,12 @@ class MaaEndControlPage(QWidget):
         self._option_widgets: Dict[str, QWidget] = {}
         self._is_executing = False
         self._worker: Optional[TaskRunWorker] = None
-        self._queue_items: List[Dict[str, Any]] = []
         self._connected = False
         self._tasks_cache: Dict[str, Dict[str, Any]] = {}
         self._presets_cache: Dict[str, Dict[str, Any]] = {}
         self._task_option_defs: Dict[str, Dict[str, Any]] = {}
-        self._saved_task_options: Dict[str, Dict[str, Any]] = {}
-        self._state_path = self._resolve_state_path()
+        self._queue_state = QueueState()
+        self._state_path = self._queue_state.state_path
         self._setup_ui()
         font = QFont("Microsoft YaHei UI")
         self.setFont(font)
@@ -232,12 +318,21 @@ class MaaEndControlPage(QWidget):
                 widget.setFont(font)
         self._refresh_task_list()
         self._refresh_preset_list()
-        self._load_state()
+        self._queue_state.load()
+        self._selected_task = self._queue_state.selected_task
+        self._selected_preset = self._queue_state.selected_preset
+        self._restore_queue_ui()
         self.log_message.connect(self._append_log)
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(1500)
         self._preview_timer.timeout.connect(self._refresh_preview)
         self._preview_label = None
+
+    def _restore_queue_ui(self) -> None:
+        self._queue_list.clear()
+        self._queue_items = self._queue_state.queue_items
+        for entry in self._queue_items:
+            self._queue_list.addItem(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
 
     # ------------------------------------------------------------------
     # bridge compatibility
@@ -632,39 +727,37 @@ class MaaEndControlPage(QWidget):
             if not task_list:
                 QMessageBox.information(self, "预设为空", f"预设 '{self._selected_preset}' 中没有任务。")
             # 添加预设到队列 = 覆盖现有队列（清空再填充），不是追加；与 _run_preset 共享同一覆盖语义。
-            for entry in list(self._queue_items):
+            for entry in list(self._queue_state.queue_items):
                 name = entry.get("name")
                 if name:
-                    self._clear_saved_options(name)
-            self._queue_items.clear()
-            self._queue_list.clear()
+                    self._queue_state.clear_saved_options(name)
+            items = []
             for task_entry in task_list:
                 name, inline_options = self._normalize_task_entry(task_entry)
                 options = task_entry.get("option") or {}
                 if inline_options:
                     options = {**dict(options), **inline_options}
-                saved = self._load_options(name)
+                saved = self._queue_state.load_options(name)
                 if saved:
                     options = dict(options)
                     options.update(saved)
-                entry = {"name": name, "display_name": name, "type": "task", "options": dict(options)}
-                self._queue_items.append(entry)
-                label = self._format_queue_label(name, "task", options)
-                self._queue_list.addItem(label)
+                items.append({"name": name, "display_name": name, "type": "task", "options": dict(options)})
+            self._queue_state.set_queue_items(items)
+            self._restore_queue_ui()
             self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
-            self._persist_state()
+            self._queue_state.persist()
         elif self._selected_task:
             name = self._selected_task
             item_type = "task"
             options = self._collect_options()
-            saved = self._load_options(name)
+            saved = self._queue_state.load_options(name)
             if saved:
                 options.update(saved)
             entry = {"name": name, "display_name": name, "type": item_type, "options": dict(options)}
-            self._queue_items.append(entry)
-            label = self._format_queue_label(name, item_type, options)
-            self._queue_list.addItem(label)
-            self._persist_state()
+            items = self._queue_state.queue_items + [entry]
+            self._queue_state.set_queue_items(items)
+            self._restore_queue_ui()
+            self._queue_state.persist()
         else:
             QMessageBox.information(self, "未选择", "请先选择一个任务或预设。")
 
@@ -672,31 +765,35 @@ class MaaEndControlPage(QWidget):
         row = self._queue_list.currentRow()
         if row <= 0:
             return
-        self._queue_items[row], self._queue_items[row - 1] = self._queue_items[row - 1], self._queue_items[row]
-        self._queue_list.insertItem(row - 1, self._queue_list.takeItem(row))
+        items = self._queue_state.queue_items
+        items[row], items[row - 1] = items[row - 1], items[row]
+        self._queue_state.set_queue_items(items)
+        self._restore_queue_ui()
         self._queue_list.setCurrentRow(row - 1)
-        self._persist_state()
+        self._queue_state.persist()
 
     def _queue_move_down(self):
         row = self._queue_list.currentRow()
         if row < 0 or row >= self._queue_list.count() - 1:
             return
-        self._queue_items[row], self._queue_items[row + 1] = self._queue_items[row + 1], self._queue_items[row]
-        self._queue_list.insertItem(row + 1, self._queue_list.takeItem(row))
+        items = self._queue_state.queue_items
+        items[row], items[row + 1] = items[row + 1], items[row]
+        self._queue_state.set_queue_items(items)
+        self._restore_queue_ui()
         self._queue_list.setCurrentRow(row + 1)
-        self._persist_state()
+        self._queue_state.persist()
 
     def _queue_clear(self):
-        for entry in list(self._queue_items):
+        for entry in list(self._queue_state.queue_items):
             name = entry.get("name")
             if name:
-                self._clear_saved_options(name)
-        self._queue_items.clear()
-        self._queue_list.clear()
-        self._persist_state()
+                self._queue_state.clear_saved_options(name)
+        self._queue_state.clear_queue()
+        self._restore_queue_ui()
+        self._queue_state.persist()
 
     def _runtime_queue_runner(self) -> bool:
-        items = list(self._queue_items)
+        items = list(self._queue_state.queue_items)
         if not items:
             return True
         for entry in items:
@@ -707,7 +804,7 @@ class MaaEndControlPage(QWidget):
             options = entry.get("options") or {}
             if inline_options:
                 options = {**dict(options), **inline_options}
-            saved = self._load_options(name)
+            saved = self._queue_state.load_options(name)
             if saved:
                 tmp = dict(options)
                 tmp.update(saved)
@@ -813,15 +910,10 @@ class MaaEndControlPage(QWidget):
         cases = opt_def.get("cases", [])
         default_case = opt_def.get("default_case")
         if opt_type == "switch":
-            combo = QComboBox()
-            combo.setStyleSheet(COMBO_STYLE)
-            for case in cases:
-                combo.addItem(_resolve_label(case.get("label", case.get("name", ""))))
+            toggle = ToggleSwitch(cases)
             if default_case is not None:
-                idx = combo.findText(str(default_case))
-                if idx >= 0:
-                    combo.setCurrentIndex(idx)
-            return combo
+                toggle.setValue(str(default_case))
+            return toggle
         if opt_type == "checkbox":
             container = QWidget()
             layout = QVBoxLayout(container)
@@ -887,8 +979,8 @@ class MaaEndControlPage(QWidget):
             opt_def = option_defs.get(name, {})
             opt_type = opt_def.get("type", "switch")
             if opt_type == "switch":
-                combo = widget
-                options[name] = combo.currentText()
+                toggle = widget
+                options[name] = toggle.value()
             elif opt_type == "checkbox":
                 checkboxes = getattr(widget, "checkboxes", {})
                 options[name] = [n for n, cb in checkboxes.items() if cb.isChecked()]
@@ -924,7 +1016,7 @@ class MaaEndControlPage(QWidget):
         if not self._selected_task:
             return
         options = self._collect_options()
-        self._saved_task_options[self._selected_task] = dict(options)
+        self._queue_state.save_options(self._selected_task, options)
         try:
             self._persist_state()
             QApplication.beep()
@@ -932,18 +1024,15 @@ class MaaEndControlPage(QWidget):
             QMessageBox.critical(self, "保存失败", str(e))
 
     def _load_options(self, task_name: str) -> Dict[str, Any]:
-        saved = self._saved_task_options.get(task_name)
-        if isinstance(saved, dict):
-            return dict(saved)
-        return {}
+        return self._queue_state.load_options(task_name)
 
     def _clear_saved_options(self, task_name: str) -> None:
-        self._saved_task_options.pop(task_name, None)
+        self._queue_state.clear_saved_options(task_name)
 
     def _apply_saved_option_values(self, task_name: str) -> None:
         saved = self._load_options(task_name)
         queue_options = None
-        for entry in self._queue_items:
+        for entry in self._queue_state.queue_items:
             if entry.get("name") == task_name:
                 queue_options = entry.get("options")
                 break
@@ -971,9 +1060,7 @@ class MaaEndControlPage(QWidget):
             opt_def = option_defs.get(name, {})
             opt_type = opt_def.get("type", "switch")
             if opt_type == "switch":
-                idx = widget.findText(str(value))
-                if idx >= 0:
-                    widget.setCurrentIndex(idx)
+                widget.setValue(str(value))
             elif opt_type == "checkbox":
                 checkboxes = getattr(widget, "checkboxes", {})
                 if isinstance(value, list):
@@ -1004,11 +1091,14 @@ class MaaEndControlPage(QWidget):
 
     def _persist_state(self) -> None:
         try:
+            self._queue_state.set_selected_task(self._selected_task)
+            self._queue_state.set_selected_preset(self._selected_preset)
+            self._queue_state.set_queue_items(self._queue_items)
             state = {
                 "selected_task": self._selected_task,
                 "selected_preset": self._selected_preset,
-                "queue_items": self._queue_items,
-                "task_options": self._saved_task_options,
+                "queue_items": self._queue_state.queue_items,
+                "task_options": self._queue_state.saved_task_options,
             }
             self._state_path.parent.mkdir(parents=True, exist_ok=True)
             self._state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1023,28 +1113,32 @@ class MaaEndControlPage(QWidget):
         except Exception as e:
             self.log_message.emit("持久化", f"加载失败: {e}")
             return
-        self._selected_task = state.get("selected_task") or self._selected_task
-        self._selected_preset = state.get("selected_preset") or self._selected_preset
+        self._queue_state.set_selected_task(state.get("selected_task") or self._selected_task)
+        self._queue_state.set_selected_preset(state.get("selected_preset") or self._selected_preset)
         task_options = state.get("task_options")
         if isinstance(task_options, dict):
-            self._saved_task_options = {str(k): dict(v) for k, v in task_options.items() if isinstance(v, dict)}
+            for k, v in task_options.items():
+                if isinstance(v, dict):
+                    self._queue_state.save_options(str(k), v)
         queue_items = state.get("queue_items")
         if isinstance(queue_items, list):
-            self._queue_items = []
-            self._queue_list.clear()
+            items = []
             for entry in queue_items:
                 if not isinstance(entry, dict):
                     continue
                 name = str(entry.get("name") or "").strip()
                 if not name:
                     continue
-                name, inline_options = self._parse_inline_task_name(name)
-                item_type = entry.get("type", "task")
-                options = entry.get("options") or {}
-                if inline_options:
-                    options = {**inline_options, **dict(options)}
-                self._queue_items.append({"name": name, "display_name": str(entry.get("display_name") or name), "type": item_type, "options": dict(options)})
-                self._queue_list.addItem(self._format_queue_label(name, item_type, dict(options)))
+                items.append({
+                    "name": name,
+                    "display_name": str(entry.get("display_name") or name),
+                    "type": entry.get("type", "task"),
+                    "options": dict(entry.get("options") or {}),
+                })
+            self._queue_state.set_queue_items(items)
+        self._selected_task = self._queue_state.selected_task
+        self._selected_preset = self._queue_state.selected_preset
+        self._restore_queue_ui()
         if self._selected_task:
             matches = self._task_list.findItems(_zh(self._selected_task), Qt.MatchFlag.MatchExactly)
             if matches:
@@ -1194,25 +1288,23 @@ class MaaEndControlPage(QWidget):
             QMessageBox.information(self, "预设为空", f"预设 '{self._selected_preset}' 中没有任务。")
             return
         # 应用预设 = 用预设中的任务列表覆盖现有队列（清空再填充），不是追加。
-        for entry in list(self._queue_items):
+        for entry in list(self._queue_state.queue_items):
             name = entry.get("name")
             if name:
-                self._clear_saved_options(name)
-        self._queue_items.clear()
-        self._queue_list.clear()
+                self._queue_state.clear_saved_options(name)
+        items = []
         for task_entry in task_list:
             name, inline_options = self._normalize_task_entry(task_entry)
             options = task_entry.get("option") or {}
             if inline_options:
                 options = {**dict(options), **inline_options}
-            saved = self._load_options(name)
+            saved = self._queue_state.load_options(name)
             if saved:
                 options = dict(options)
                 options.update(saved)
-            entry = {"name": name, "type": "task", "options": dict(options)}
-            self._queue_items.append(entry)
-            label = self._format_queue_label(name, "task", options)
-            self._queue_list.addItem(label)
+            items.append({"name": name, "type": "task", "options": dict(options)})
+        self._queue_state.set_queue_items(items)
+        self._restore_queue_ui()
         self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
         self._persist_state()
         return

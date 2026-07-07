@@ -158,10 +158,10 @@ def test_control_page_persists_queue_state():
     page = module.MaaEndControlPage(bridge)
     state_dir = Path(tempfile.mkdtemp(prefix="maaend_state_"))
     page._state_path = state_dir / "maaend_task_state.json"
-    page._queue_items = [
+    page._queue_state.set_queue_items([
         {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"repeat": 2}}
-    ]
-    page._saved_task_options = {"TaskA": {"repeat": 2}}
+    ])
+    page._queue_state.save_options("TaskA", {"repeat": 2})
     page._persist_state()
 
     content = page._state_path.read_text(encoding="utf-8")
