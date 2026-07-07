@@ -8,7 +8,7 @@ from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.widget_styles import BTN_DEFAULT, CARD_STYLE
+from gui.pyqt6.theme import widget_skin
 
 locale = get_locale_manager()
 
@@ -19,7 +19,7 @@ class DashboardWidget(QFrame):
     def __init__(self, title: str, widget_id: str = "", parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         self.setObjectName("metricCard")
-        self.setStyleSheet(CARD_STYLE)
+        self.setStyleSheet(widget_skin.widget_skin_stylesheet())
         self._widget_id = widget_id
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(12, 10, 12, 10)
@@ -28,6 +28,7 @@ class DashboardWidget(QFrame):
         header = QHBoxLayout()
         title_label = QLabel(title)
         title_label.setProperty("variant", "secondary")
+        title_label.setProperty("skin_title", "1")
         header.addWidget(title_label)
         header.addStretch()
         self._layout.addLayout(header)
@@ -47,6 +48,9 @@ class DashboardWidget(QFrame):
 
     def content_widget(self) -> QWidget:
         return self._content
+
+    def apply_skin(self) -> None:
+        self.setStyleSheet(widget_skin.widget_skin_stylesheet())
 
     def update_content(self, widget: QWidget) -> None:
         while self._content_layout.count():

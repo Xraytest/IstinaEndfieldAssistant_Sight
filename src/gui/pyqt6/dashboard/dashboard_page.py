@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFrame,
     QGridLayout,
@@ -21,7 +22,8 @@ from PyQt6.QtWidgets import (
 from gui.pyqt6.dashboard.widget_base import DashboardWidget
 from gui.pyqt6.dashboard.widget_registry import get_widget_registry
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE
+from gui.pyqt6.theme import widget_skin
+from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE, COMBO_STYLE
 
 locale = get_locale_manager()
 
@@ -42,10 +44,12 @@ class DashboardPage(QWidget):
         self._bridge = bridge
         self._grid_widgets: Dict[str, QWidget] = {}
         self._config_path = self._resolve_config_path()
+        self._skin_config_path = self._config_path.with_name("dashboard_skin.json")
         self._poll_timer = QTimer(self)
         self._poll_timer.setInterval(2000)
         self._poll_timer.timeout.connect(self._poll_data)
         self._setup_ui()
+        self._load_skin()
         self._load_layout()
         self._poll_timer.start()
 
@@ -78,6 +82,14 @@ class DashboardPage(QWidget):
         header.addWidget(title)
         header.addStretch()
 
+        skin_label = QLabel(locale.tr("dashboard_skin", "Skin") + ":")
+        self._skin_combo = QComboBox()
+        self._skin_combo.setStyleSheet(COMBO_STYLE)
+        self._skin_combo.addItems(list(widget_skin.skin_options().values()))
+        self._skin_combo.currentTextChanged.connect(self._on_skin_changed)
+        header.addWidget(skin_label)
+        header.addWidget(self._skin_combo)
+
         customize_btn = QPushButton(locale.tr("dashboard_customize", "Customize"))
         customize_btn.setStyleSheet(BTN_DEFAULT)
         customize_btn.clicked.connect(self._save_layout)
@@ -93,6 +105,39 @@ class DashboardPage(QWidget):
         self._grid.setSpacing(10)
         self._grid.setContentsMargins(0, 0, 0, 0)
         content_root.addLayout(self._grid)
+
+    def _load_skin(self) -> None:
+        skin_id = "default"
+        if self._skin_config_path.exists():
+            try:
+                data = json.loads(self._skin_config_path.read_text(encoding="utf-8"))
+                skin_id = data.get("skin", "default")
+            except Exception:
+                skin_id = "default"
+        widget_skin.set_skin(skin_id)
+        options = widget_skin.skin_options()
+        name = options.get(skin_id, skin_id)
+        self._skin_combo.blockSignals(True)
+        self._skin_combo.setCurrentText(name)
+        self._skin_combo.blockSignals(False)
+        self._apply_skin_to_widgets()
+
+    def _on_skin_changed(self, skin_name: str) -> None:
+        options = widget_skin.skin_options()
+        skin_id = next((k for k, v in options.items() if v == skin_name), "default")
+        widget_skin.set_skin(skin_id)
+        self._skin_config_path.parent.mkdir(parents=True, exist_ok=True)
+        self._skin_config_path.write_text(json.dumps({"skin": skin_id}, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._apply_skin_to_widgets()
+
+    def _apply_skin_to_widgets(self) -> None:
+        for widget in self._grid_widgets.values():
+            if hasattr(widget, "apply_skin"):
+                widget.apply_skin()
+            else:
+                widget.setStyleSheet(widget_skin.widget_skin_stylesheet())
+            if hasattr(widget, "update_data"):
+                widget.update_data(None)
 
     def _load_layout(self) -> None:
         if not self._config_path.exists():
