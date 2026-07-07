@@ -341,7 +341,6 @@ class MaaEndControlPage(QWidget):
         self._selected_preset = self._queue_state.selected_preset
         self._restore_queue_ui()
         self.log_message.connect(self._append_log)
-        self._preview_label = None
 
     def _refresh_queue_list(self) -> None:
         for row in range(self._queue_list.rowCount()):
@@ -398,28 +397,6 @@ class MaaEndControlPage(QWidget):
         except Exception:
             pass
         return {}
-
-    # ------------------------------------------------------------------
-    # public API for MainWindow preview integration
-    # ------------------------------------------------------------------
-    def update_preview(self, image_data: bytes) -> None:
-        if self._preview_label is None:
-            return
-        if not image_data:
-            return
-        pixmap = QPixmap()
-        if pixmap.loadFromData(image_data):
-            scaled = pixmap.scaled(self._preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            self._preview_label.setPixmap(scaled)
-
-    def start_preview_timer(self) -> None:
-        if self._preview_timer.isActive():
-            return
-        self._refresh_preview()
-        self._preview_timer.start()
-
-    def stop_preview_timer(self) -> None:
-        self._preview_timer.stop()
 
     # ------------------------------------------------------------------
     # UI setup
@@ -667,7 +644,7 @@ class MaaEndControlPage(QWidget):
     # ------------------------------------------------------------------
     def _refresh_task_list(self):
         if not self._tasks_cache:
-            result = self._sync_execute("task list")
+            result = self._sync_execute("task list", timeout_ms=10000)
             if result and result.get("status") == "success":
                 self._tasks_cache = result.get("tasks") or {}
                 self._task_option_defs = result.get("task_option_defs") or {}
@@ -683,7 +660,7 @@ class MaaEndControlPage(QWidget):
 
     def _refresh_preset_list(self):
         if not self._presets_cache:
-            result = self._sync_execute("preset list")
+            result = self._sync_execute("preset list", timeout_ms=10000)
             if result and result.get("status") == "success":
                 self._presets_cache = result.get("presets") or {}
         self._preset_list.clear()
@@ -806,7 +783,7 @@ class MaaEndControlPage(QWidget):
             merged_options = dict(inline_options)
             merged_options.update(options)
             payload = json.dumps({"name": clean_name, "options": merged_options}, ensure_ascii=False)
-            result = self._sync_execute(f"task run {clean_name} --options {payload}")
+            result = self._sync_execute(f"task run {clean_name} --options {payload}", timeout_ms=300000)
             ok = bool(result and result.get("status") == "success")
             self._append_log("队列", f"{_zh(name)} -> {'成功' if ok else '失败'}")
             if not ok:
@@ -1212,10 +1189,6 @@ class MaaEndControlPage(QWidget):
     def set_connected(self, connected: bool) -> None:
         """由 MainWindow 同步设备连接状态。"""
         self._connected = connected
-        if connected:
-            self.start_preview_timer()
-        else:
-            self.stop_preview_timer()
 
     def set_auto_connect_attempted(self) -> None:
         """标记启动自动连接已尝试过，后续不再重试。"""
@@ -1235,7 +1208,6 @@ class MaaEndControlPage(QWidget):
             return False
         self._connected = True
         self._auto_connect_attempted = False
-        self.start_preview_timer()
         self._append_log("系统", "MaaEnd runtime 已连接")
         return True
 
