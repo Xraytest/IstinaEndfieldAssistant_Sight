@@ -45,6 +45,14 @@ class DashboardWidget(QFrame):
         # Enable drag
         self.setAcceptDrops(True)
 
+    def enterEvent(self, event):
+        self.setStyleSheet(CARD_STYLE + "\nQFrame#metricCard:hover { border: 1px solid rgba(24, 209, 255, 0.35); }")
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self.setStyleSheet(CARD_STYLE)
+        super().leaveEvent(event)
+
     def content_widget(self) -> QWidget:
         return self._content
 
