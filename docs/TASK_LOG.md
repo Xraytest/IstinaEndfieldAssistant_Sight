@@ -86,3 +86,15 @@
   - `docs/design/hypergryph_references.md` (new)
   - `docs/design/gui_audit.md` (new)
   - `docs/design/improvement_backlog.md` (new)
+# 任务日志
+
+## 2026-07-07 16:15
+
+- **User Request**: 创建 sub-agent 集群，持续搜集资料，优化 GUI 设计以及用户体验，整体设计风格与鹰角网络相关内容的设计思路相同。
+- **Outcome**: 本轮继续推进 GUI 主题统一：
+  1. 为 `device_settings_page.py` 的 `_history_list` 与 `_device_list` 应用 `LIST_STYLE`，补充最小高度，统一列表视觉反馈（悬停/选中态）。
+  2. 为 `log_page.py` 的 `_file_combo` 应用 `COMBO_STYLE`，为 `_log_view` 应用 `INPUT_STYLE`，统一日志页控件风格。
+  3. 提交并推送统一主题样式变更。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/device_settings_page.py`
+  - `src/gui/pyqt6/pages/log_page.py`
