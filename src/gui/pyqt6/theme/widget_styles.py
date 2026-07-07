@@ -70,6 +70,9 @@ CARD_STYLE = f"""
         margin-top: 12px;
         padding-top: 18px;
     }}
+    QGroupBox:hover {{
+        border: 1px solid rgba(24, 209, 255, 0.25);
+    }}
     QGroupBox::title {{
         subcontrol-origin: margin;
         subcontrol-position: top left;
@@ -86,7 +89,8 @@ LIST_STYLE = f"""
         color: {_TEXT_PRIMARY}; font-family: '{_FONT}'; font-size: {_SIZE_BASE}px;
     }}
     QListWidget::item {{ padding: 3px 6px; }}
-    QListWidget::item:selected {{ background-color: {_PRIMARY}33; color: {_PRIMARY}; }}
+    QListWidget::item:hover {{ background-color: rgba(24, 209, 255, 0.08); border-left: 2px solid rgba(24, 209, 255, 0.35); }}
+    QListWidget::item:selected {{ background-color: {_PRIMARY}33; color: {_PRIMARY}; border-left: 2px solid {_PRIMARY}; }}
 """
 
 LOG_STYLE = f"""
