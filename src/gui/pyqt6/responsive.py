@@ -5,7 +5,7 @@ from typing import Tuple
 
 from PyQt6.QtCore import QEvent, QObject, QSize, Qt
 from PyQt6.QtGui import QFontMetrics, QGuiApplication
-from PyQt6.QtWidgets import QFrame, QScrollArea, QWidget
+from PyQt6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
 
 
 @dataclass(frozen=True)
@@ -133,3 +133,33 @@ class ResizeObserver(QObject):
         if watched is self._target and event.type() == QEvent.Type.Resize:
             self._callback(self._target.size())
         return super().eventFilter(watched, event)
+
+
+class LoadingOverlay(QWidget):
+    """Loading overlay that covers a parent widget with a spinner message."""
+
+    def __init__(self, parent: QWidget, text: str = "加载中..."):
+        super().__init__(parent)
+        self.setObjectName("loadingOverlay")
+        self._setup_ui(text)
+        self.hide()
+
+    def _setup_ui(self, text: str) -> None:
+        from gui.pyqt6.theme.widget_styles import LOADING_OVERLAY_STYLE
+        self.setStyleSheet(LOADING_OVERLAY_STYLE)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        label = QLabel(text)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(label)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self.raise_()
+        self.setGeometry(self.parent().rect())
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.setGeometry(self.parent().rect())

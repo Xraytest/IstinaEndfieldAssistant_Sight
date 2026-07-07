@@ -21,6 +21,7 @@ from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.icons import get_action_icon
 from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE, INPUT_STYLE, LOG_STYLE
+from gui.pyqt6.responsive import LoadingOverlay
 
 
 class StatCard(QFrame):
@@ -117,13 +118,13 @@ class PrtsFullIntelligencePage(QWidget):
         self._daily_btn = QPushButton("运行日常")
         self._daily_btn.setStyleSheet(BTN_ACTIVE)
         self._daily_btn.setIcon(get_action_icon("运行"))
-        self._daily_btn.clicked.connect(lambda: self._bridge.execute("daily", {"options": {"preset": "DailyFull"}}))
+        self._daily_btn.clicked.connect(lambda: self._run_with_loading("daily", {"options": {"preset": "DailyFull"}}))
         actions_row.addWidget(self._daily_btn)
 
         self._harvest_btn = QPushButton("运行收获")
         self._harvest_btn.setStyleSheet(BTN_DEFAULT)
         self._harvest_btn.setIcon(get_action_icon("运行"))
-        self._harvest_btn.clicked.connect(lambda: self._bridge.execute("harvest", {}))
+        self._harvest_btn.clicked.connect(lambda: self._run_with_loading("harvest", {}))
         actions_row.addWidget(self._harvest_btn)
 
         self._analyze_btn = QPushButton("分析场景")
@@ -160,6 +161,19 @@ class PrtsFullIntelligencePage(QWidget):
         self._result_text.setStyleSheet(LOG_STYLE)
         content_root.addWidget(self._result_text, 1)
 
+        # Loading overlay ---------------------------------------------------
+        self._loading = LoadingOverlay(self, text="任务执行中...")
+        self._loading.hide()
+
+    def _run_with_loading(self, command: str, params: dict) -> None:
+        self._loading.show()
+        self._bridge.execute(command, params)
+
+    def _run_analysis(self) -> None:
+        mode = self._mode_combo.currentText()
+        self._loading.show()
+        self._bridge.execute("analyze", {"options": {"mode": mode}})
+
     def _run_analysis(self) -> None:
         mode = self._mode_combo.currentText()
         self._bridge.execute("analyze", {"options": {"mode": mode}})
@@ -168,6 +182,7 @@ class PrtsFullIntelligencePage(QWidget):
         self._bridge.execute("system status", {})
 
     def _on_command_finished(self, command: str, result: dict) -> None:
+        self._loading.hide()
         if command == "system status":
             self._update_status_cards(result)
         elif command == "analyze":

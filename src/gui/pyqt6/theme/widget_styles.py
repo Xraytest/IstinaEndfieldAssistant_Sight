@@ -154,6 +154,27 @@ PREVIEW_STYLE = f"""
     }}
 """
 
+SKELETON_STYLE = f"""
+    QFrame {{
+        background-color: {_BORDER_LIGHT};
+        border: none;
+        border-radius: 4px;
+    }}
+"""
+
+LOADING_OVERLAY_STYLE = f"""
+    QFrame {{
+        background-color: rgba(10, 10, 15, 0.85);
+        border: none;
+    }}
+    QLabel {{
+        color: {_PRIMARY};
+        font-size: 14px;
+        font-family: '{_FONT}';
+        letter-spacing: 2px;
+    }}
+"""
+
 # ---------------------------------------------------------------------------
 # Button QSS blocks
 # ---------------------------------------------------------------------------
