@@ -1193,10 +1193,12 @@ class MaaEndControlPage(QWidget):
     # execution
     # ------------------------------------------------------------------
     def _delayed_init(self) -> None:
+        """延迟初始化：启动时自动连接，再刷新列表。"""
         self._try_auto_connect()
         self.refresh()
 
     def _try_auto_connect(self) -> None:
+        """启动时尝试自动连接上次设备，失败后标记不再重试。"""
         if self._connected or self._auto_connect_attempted:
             return
         result = self._sync_execute("system connect", timeout_ms=15000)
@@ -1208,6 +1210,7 @@ class MaaEndControlPage(QWidget):
             self._append_log("系统", "启动时自动连接成功")
 
     def set_connected(self, connected: bool) -> None:
+        """由 MainWindow 同步设备连接状态。"""
         self._connected = connected
         if connected:
             self._auto_connect_attempted = False
@@ -1216,6 +1219,7 @@ class MaaEndControlPage(QWidget):
             self.stop_preview_timer()
 
     def set_auto_connect_attempted(self) -> None:
+        """标记启动自动连接已尝试过，后续不再重试。"""
         self._auto_connect_attempted = True
 
     def _ensure_connected(self) -> bool:

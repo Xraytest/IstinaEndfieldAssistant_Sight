@@ -68,6 +68,14 @@ project_root = get_project_root()
 
 Tests are in `tests/` (flat structure, no subdirectories). `pyproject.toml` sets `testpaths = ["tests"]`, `pythonpath = ["."]`.
 
+## Device Connection
+
+- **Auto-connect on startup**: Both the "设备" page and "标准推理" page attempt to connect to the last device stored in `config/client_config.json` when the GUI starts.
+- **Failure handling**: If startup auto-connect fails or no last device exists, the system stops retrying automatically. Running tasks will not trigger hidden reconnection attempts.
+- **Manual reconnect**: After the user manually connects a device from the "设备" page, the connection state is synchronized to the "标准推理" page, and task execution proceeds normally.
+- **Manual disconnect**: Disconnecting from the "设备" page updates both pages. Subsequent task execution requires a new manual connection.
+- **Config keys**: `device.last_connected`, `device.serial`, `device.auto_connect_last` in `config/client_config.json`.
+
 ## Gotchas
 
 - **Windows-only**: ADB at `3rd-part/adb/adb.exe`, git at `3rd-part/git/bin/git.exe`. Both directories are gitignored.

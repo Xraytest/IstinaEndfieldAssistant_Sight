@@ -147,16 +147,20 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self._page_stack)
         shell_layout.addWidget(content_panel, 1)
 
+        self._maaend_page = MaaEndControlPage(bridge=self._bridge)
+        self._device_page = DeviceSettingsPage(bridge=self._bridge)
         pages = [
             ("PRTS全智能", PrtsFullIntelligencePage(bridge=self._bridge)),
-            ("标准推理", MaaEndControlPage(bridge=self._bridge)),
-            ("设备", DeviceSettingsPage(bridge=self._bridge)),
+            ("标准推理", self._maaend_page),
+            ("设备", self._device_page),
             ("设置", SettingsPage()),
             ("日志", LogPage()),
         ]
         for label, page in pages:
             self._navigation_list.addItem(QListWidgetItem(label))
             self._page_stack.addWidget(page)
+
+        self._bridge.commandFinished.connect(self._on_bridge_command_finished)
 
         self._resize_navigation_list()
         for i in range(self._navigation_list.count()):
@@ -204,6 +208,17 @@ class MainWindow(QMainWindow):
             self._preview_timer.start()
         else:
             self._preview_timer.stop()
+
+    def _on_bridge_command_finished(self, command: str, result: dict) -> None:
+        """同步设备页与标准推理页的连接状态。"""
+        if command.startswith("system connect"):
+            if result.get("status") == "success":
+                self._maaend_page.set_connected(True)
+            else:
+                self._maaend_page.set_connected(False)
+                self._maaend_page.set_auto_connect_attempted()
+        elif command.startswith("system disconnect"):
+            self._maaend_page.set_connected(False)
 
     def _refresh_preview(self) -> None:
         if self._preview_label is None:
