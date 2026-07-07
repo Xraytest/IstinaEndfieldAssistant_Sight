@@ -23,6 +23,9 @@ from core.foundation.paths import get_project_root
 from gui.pyqt6.cli_bridge import CLIBridge
 
 
+from gui.pyqt6.theme.hero import HeroHeader
+
+
 class DeviceSettingsPage(QWidget):
     def __init__(self, bridge: CLIBridge, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -52,7 +55,8 @@ class DeviceSettingsPage(QWidget):
         content_root.setContentsMargins(16, 16, 16, 16)
         content_root.setSpacing(12)
 
-        connection_card = QGroupBox("连接管理")
+        header = HeroHeader("设备连接", "管理 ADB 设备连接与自动重连。", content)
+        content_root.addWidget(header)
         connection_layout = QVBoxLayout(connection_card)
         connection_layout.setSpacing(10)
 

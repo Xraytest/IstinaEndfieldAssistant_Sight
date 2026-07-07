@@ -17,6 +17,9 @@ from PyQt6.QtWidgets import (
 from gui.pyqt6.cli_bridge import CLIBridge
 
 
+from gui.pyqt6.theme.hero import HeroHeader
+
+
 class PrtsFullIntelligencePage(QWidget):
     def __init__(self, bridge: CLIBridge, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -40,8 +43,9 @@ class PrtsFullIntelligencePage(QWidget):
         content_root.setContentsMargins(16, 16, 16, 16)
         content_root.setSpacing(10)
 
-        title = QLabel("PRTS全智能")
-        content_root.addWidget(title)
+        header = HeroHeader("PRTS全智能", "自动化分析与智能决策控制台。", content)
+        content_root.addWidget(header)
+
         hint = QLabel("页面暂为空。")
         content_root.addWidget(hint)
 

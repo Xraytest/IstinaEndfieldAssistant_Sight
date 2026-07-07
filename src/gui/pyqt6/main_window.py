@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from gui.pyqt6.pages.maaend_control_page import PREVIEW_STYLE
+from gui.pyqt6.theme.widget_styles import PREVIEW_STYLE
 
 from core.foundation.gpu_check import check_gpu, format_gpu_warning
 from core.foundation.paths import ensure_src_path
@@ -206,16 +206,14 @@ class MainWindow(QMainWindow):
         if self._page_stack is None or index < 0:
             return
         self._page_stack.setCurrentIndex(index)
-        if index == 1:  # 标准推理页
-            self._preview_timer.start()
-        else:
-            self._preview_timer.stop()
+        self._preview_timer.start()
 
     def _on_bridge_command_finished(self, command: str, result: dict) -> None:
         """同步设备页与标准推理页的连接状态。"""
         if command.startswith("system connect"):
             if result.get("status") == "success":
                 self._maaend_page.set_connected(True)
+                QTimer.singleShot(0, self._refresh_preview)
             else:
                 self._maaend_page.set_connected(False)
                 self._maaend_page.set_auto_connect_attempted()
@@ -225,32 +223,30 @@ class MainWindow(QMainWindow):
     def _refresh_preview(self) -> None:
         if self._preview_label is None:
             return
-        current_widget = self._page_stack.currentWidget()
-        if isinstance(current_widget, MaaEndControlPage):
-            if not current_widget._connected:
-                return
-            result = current_widget._sync_execute("screenshot")
-            if not result or result.get("status") != "success":
-                return
-            data = result.get("base64")
-            if not data:
-                path = result.get("path")
-                if path:
-                    try:
-                        data = Path(path).read_bytes()
-                    except Exception:
-                        return
-                else:
+        if not self._maaend_page._connected:
+            return
+        result = self._maaend_page._sync_execute("screenshot", timeout_ms=5000)
+        if not result or result.get("status") != "success":
+            return
+        data = result.get("base64")
+        if not data:
+            path = result.get("path")
+            if path:
+                try:
+                    data = Path(path).read_bytes()
+                except Exception:
                     return
-            try:
-                import base64
-                image_data = base64.b64decode(data)
-            except Exception:
+            else:
                 return
-            pixmap = QPixmap()
-            if pixmap.loadFromData(image_data):
-                scaled = pixmap.scaled(self._preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                self._preview_label.setPixmap(scaled)
+        try:
+            import base64
+            image_data = base64.b64decode(data)
+        except Exception:
+            return
+        pixmap = QPixmap()
+        if pixmap.loadFromData(image_data):
+            scaled = pixmap.scaled(self._preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self._preview_label.setPixmap(scaled)
 
     def _resize_navigation_list(self) -> None:
         if self._navigation_list is None:

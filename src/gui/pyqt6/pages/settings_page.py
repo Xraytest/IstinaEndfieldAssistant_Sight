@@ -23,6 +23,9 @@ from PyQt6.QtWidgets import (
 from core.foundation.paths import get_project_root
 
 
+from gui.pyqt6.theme.hero import HeroHeader
+
+
 class SettingsPage(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -46,19 +49,7 @@ class SettingsPage(QWidget):
         content_root.setContentsMargins(16, 16, 16, 16)
         content_root.setSpacing(14)
 
-        header = QFrame(content)
-        header.setObjectName("settingsHero")
-        header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(18, 16, 18, 16)
-        header_layout.setSpacing(4)
-
-        title = QLabel("系统设置")
-        title.setProperty("variant", "hero")
-        header_layout.addWidget(title)
-
-        summary = QLabel("这里仅保留必要设置项。")
-        summary.setProperty("variant", "secondary")
-        header_layout.addWidget(summary)
+        header = HeroHeader("系统设置", "这里仅保留必要设置项。", content)
         content_root.addWidget(header)
 
         llm_card = QGroupBox("LLM 参数")

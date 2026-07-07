@@ -18,120 +18,26 @@ from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.queue_state import QueueState
 from gui.pyqt6.responsive import is_narrow_size
 
-INFO_STYLE = "color: #9090a8; font-size: 12px; font-family: 'Microsoft YaHei UI'; padding: 3px 0;"
-VAL_STYLE = "color: #e8e8ee; font-size: 12px; font-family: 'Microsoft YaHei UI'; padding: 3px 0;"
-GREEN_STYLE = "color: #00ffa2; font-size: 12px; font-family: 'Microsoft YaHei UI'; padding: 3px 0;"
-RED_STYLE = "color: #ff3355; font-size: 12px; font-family: 'Microsoft YaHei UI'; padding: 3px 0;"
-BLUE_STYLE = "color: #18d1ff; font-size: 12px; font-family: 'Microsoft YaHei UI'; padding: 3px 0;"
-YELLOW_STYLE = "color: #ffcc33; font-size: 12px; font-family: 'Microsoft YaHei UI'; padding: 3px 0;"
-HEADER_STYLE = "color: #18d1ff; font-size: 14px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px; padding: 4px 0;"
-
-CARD_STYLE = """
-    QGroupBox {
-        background-color: rgba(16, 16, 26, 0.85);
-        border: 1px solid rgba(24, 209, 255, 0.10);
-        border-radius: 3px;
-        font-size: 13px; font-family: 'Microsoft YaHei UI';
-        color: #e8e8ee; font-weight: bold; letter-spacing: 1px;
-        margin-top: 12px;
-        padding-top: 18px;
-    }
-    QGroupBox::title {
-        subcontrol-origin: margin;
-        subcontrol-position: top left;
-        left: 10px;
-        top: -1px;
-        padding: 0 4px;
-    }
-"""
-LIST_STYLE = """
-    QListWidget {
-        background-color: rgba(10, 10, 15, 0.90);
-        border: 1px solid rgba(24, 209, 255, 0.10);
-        color: #e8e8ee; font-family: 'Microsoft YaHei UI'; font-size: 12px;
-    }
-    QListWidget::item { padding: 3px 6px; }
-    QListWidget::item:selected { background-color: rgba(24, 209, 255, 0.18); color: #18d1ff; }
-"""
-LOG_STYLE = """
-    QTextEdit {
-        background-color: rgba(10, 10, 15, 0.90);
-        color: #e0e0e8;
-        border: 1px solid rgba(24, 209, 255, 0.10);
-        border-radius: 4px;
-        font-size: 11px; font-family: 'Microsoft YaHei UI'; padding: 2px 4px;
-    }
-"""
-INPUT_STYLE = """
-    QLineEdit, QSpinBox, QComboBox {
-        background-color: rgba(16, 16, 26, 0.85);
-        color: #e8e8ee; border: 1px solid rgba(24, 209, 255, 0.15);
-        border-radius: 2px; font-size: 12px; font-family: 'Microsoft YaHei UI'; padding: 6px 10px; min-height: 32px;
-    }
-    QLineEdit:focus, QSpinBox:focus, QComboBox:focus { border-color: rgba(24, 209, 255, 0.40); }
-"""
-CHECK_STYLE = """
-    QCheckBox { color: #e8e8ee; font-size: 12px; font-family: 'Microsoft YaHei UI'; spacing: 8px; }
-    QCheckBox::indicator { width: 16px; height: 16px; border-radius: 2px; border: 1px solid rgba(24, 209, 255, 0.30); background-color: transparent; }
-    QCheckBox::indicator:checked { background-color: #18d1ff; border-color: #18d1ff; }
-"""
-COMBO_STYLE = """
-    QComboBox {
-        background-color: rgba(10, 10, 15, 0.80); color: #e8e8ee; border: 1px solid rgba(24, 209, 255, 0.15);
-        border-radius: 4px; padding: 8px 12px; font-size: 12px; font-family: 'Microsoft YaHei UI'; min-height: 36px;
-    }
-    QComboBox::drop-down { border: none; width: 28px; }
-    QComboBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid rgba(24, 209, 255, 0.50); width: 0; height: 0; }
-    QComboBox QAbstractItemView { background-color: rgba(12, 12, 20, 0.95); color: #e8e8ee; border: 1px solid rgba(24, 209, 255, 0.15); selection-background-color: rgba(24, 209, 255, 0.15); }
-"""
-TABLE_STYLE = """
-    QTableWidget { background-color: rgba(16, 16, 26, 0.85); border: 1px solid rgba(24, 209, 255, 0.08); border-radius: 2px; color: #e8e8ee; font-size: 12px; font-family: 'Microsoft YaHei UI'; gridline-color: rgba(24, 209, 255, 0.06); }
-    QTableWidget::item { padding: 6px; }
-    QTableWidget::item:selected { background-color: rgba(24, 209, 255, 0.12); color: #18d1ff; }
-    QHeaderView::section { background-color: rgba(24, 209, 255, 0.08); color: #18d1ff; font-size: 11px; font-weight: bold; padding: 6px; border: none; }
-"""
-PREVIEW_STYLE = """
-    QLabel {
-        background-color: rgba(8, 8, 12, 0.95);
-        border: 1px solid rgba(24, 209, 255, 0.10);
-        border-radius: 4px;
-        padding: 2px;
-    }
-"""
-
-BTN_ACTIVE = """
-    QPushButton {
-        background-color: rgba(0, 255, 162, 0.10);
-        color: #00ffa2;
-        border: 1px solid rgba(0, 255, 162, 0.30);
-        border-radius: 2px;
-        padding: 0px 10px;
-        font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
-    }
-    QPushButton:hover { background-color: rgba(0, 255, 162, 0.20); }
-"""
-BTN_DEFAULT = """
-    QPushButton {
-        background-color: rgba(24, 209, 255, 0.10);
-        color: #18d1ff;
-        border: 1px solid rgba(24, 209, 255, 0.30);
-        border-radius: 2px;
-        padding: 0px 10px;
-        font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
-    }
-    QPushButton:hover { background-color: rgba(24, 209, 255, 0.20); }
-"""
-BTN_STOP = """
-    QPushButton {
-        background-color: rgba(255, 51, 85, 0.12);
-        color: #ff3355;
-        border: 1px solid rgba(255, 51, 85, 0.40);
-        border-radius: 2px;
-        padding: 0px 10px;
-        font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
-    }
-    QPushButton:hover { background-color: rgba(255, 51, 85, 0.25); }
-"""
+from gui.pyqt6.theme.widget_styles import (
+    BLUE_STYLE,
+    BTN_ACTIVE,
+    BTN_DEFAULT,
+    BTN_STOP,
+    CARD_STYLE,
+    CHECK_STYLE,
+    COMBO_STYLE,
+    GREEN_STYLE,
+    HEADER_STYLE,
+    INFO_STYLE,
+    INPUT_STYLE,
+    LIST_STYLE,
+    LOG_STYLE,
+    PREVIEW_STYLE,
+    RED_STYLE,
+    TABLE_STYLE,
+    VAL_STYLE,
+    YELLOW_STYLE,
+)
 
 NAME_ZH = {
     # presets
@@ -439,7 +345,7 @@ class MaaEndControlPage(QWidget):
         task_btn_row = QHBoxLayout()
         task_btn_row.setContentsMargins(0, 0, 0, 0)
         task_btn_row.setSpacing(6)
-        self._run_task_btn = QPushButton("运行任务")
+        self._run_task_btn = QPushButton("添加任务")
         self._run_task_btn.setMinimumHeight(24)
         self._run_task_btn.setStyleSheet(BTN_ACTIVE)
         self._run_task_btn.clicked.connect(self._run_task)

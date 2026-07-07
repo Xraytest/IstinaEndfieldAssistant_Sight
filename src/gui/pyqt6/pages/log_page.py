@@ -23,6 +23,9 @@ from core.foundation.paths import get_project_root
 from gui.pyqt6.responsive import elide_text
 
 
+from gui.pyqt6.theme.hero import HeroHeader
+
+
 class LogPage(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -48,17 +51,7 @@ class LogPage(QWidget):
         content_root.setContentsMargins(16, 16, 16, 16)
         content_root.setSpacing(14)
 
-        header = QFrame(content)
-        header.setObjectName("settingsHero")
-        header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(18, 16, 18, 16)
-        header_layout.setSpacing(4)
-        title = QLabel("日志")
-        title.setProperty("variant", "hero")
-        header_layout.addWidget(title)
-        summary = QLabel("显示全部日志文件内容。")
-        summary.setProperty("variant", "secondary")
-        header_layout.addWidget(summary)
+        header = HeroHeader("日志", "显示全部日志文件内容。", content)
         content_root.addWidget(header)
 
         action_row = QHBoxLayout()
