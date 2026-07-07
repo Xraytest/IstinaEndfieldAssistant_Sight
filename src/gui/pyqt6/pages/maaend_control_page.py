@@ -236,6 +236,9 @@ class MaaEndControlPage(QWidget):
         self._task_option_defs: Dict[str, Dict[str, Any]] = {}
         self._queue_state = QueueState()
         self._state_path = self._queue_state.state_path
+        self._auto_retry_enabled = True
+        self._max_retries = 3
+        self._retry_delay_ms = 2000
         self._setup_ui()
         font = QFont("Microsoft YaHei UI")
         self.setFont(font)
@@ -561,6 +564,13 @@ class MaaEndControlPage(QWidget):
         self._stop_btn.setIcon(get_action_icon("停止"))
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
+        self._retry_btn = QPushButton(locale.tr("btn_retry", "Retry"))
+        self._retry_btn.setStyleSheet(BTN_DEFAULT)
+        self._retry_btn.setMinimumHeight(24)
+        self._retry_btn.setEnabled(False)
+        self._retry_btn.setIcon(get_action_icon("重试"))
+        self._retry_btn.clicked.connect(self._retry_failed)
+        bottom.addWidget(self._retry_btn)
         self._progress_bar = QProgressBar()
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setMinimumHeight(16)
@@ -774,20 +784,24 @@ class MaaEndControlPage(QWidget):
         except Exception as exc:
             QMessageBox.warning(self, locale.tr("import_failed", "Import Failed"), str(exc))
 
-    def _runtime_queue_runner(self) -> bool:
+    def _runtime_queue_runner(self, retry_indices: Optional[list[int]] = None) -> bool:
         items = list(self._queue_state.queue_items)
         if not items:
             return True
         total = len(items)
-        for idx, entry in enumerate(items, 1):
+        failed: list[int] = []
+        indices = range(total) if retry_indices is None else retry_indices
+        for idx in indices:
+            if idx < 0 or idx >= total:
+                continue
             if self._worker and getattr(self._worker, '_stopped', False):
                 break
+            entry = items[idx]
             entry["status"] = "running"
             self._refresh_queue_list()
-            self._progress_bar.setValue(int((idx - 1) / total * 100))
-            self._progress_bar.setFormat(locale.tr("task_progress", "Running {idx}/{total}").format(idx=idx, total=total))
+            self._progress_bar.setValue(int((idx) / total * 100))
+            self._progress_bar.setFormat(locale.tr("task_progress", "Running {idx}/{total}").format(idx=idx + 1, total=total))
             name, inline_options = self._normalize_runtime_entry(entry)
-            item_type = entry.get("type", "task")
             options = entry.get("options") or {}
             if inline_options:
                 options = {**dict(options), **inline_options}
@@ -796,7 +810,7 @@ class MaaEndControlPage(QWidget):
                 current_options = dict(options)
                 options = dict(saved)
                 options.update(current_options)
-            self._append_log("队列", locale.tr("executing_task", "Executing {name} ({idx}/{total})").format(name=_zh(name), idx=idx, total=total))
+            self._append_log("队列", locale.tr("executing_task", "Executing {name} ({idx}/{total})").format(name=_zh(name), idx=idx + 1, total=total))
             clean_name, inline_options = self._parse_inline_task_name(name)
             merged_options = dict(inline_options)
             merged_options.update(options)
@@ -805,11 +819,14 @@ class MaaEndControlPage(QWidget):
             ok = bool(result and result.get("status") == "success")
             entry["status"] = "success" if ok else "failed"
             self._refresh_queue_list()
-            self._append_log("队列", f"{_zh(name)} -> {locale.tr("queue_success" if ok else "queue_failed", "Success" if ok else "Failed")} ({idx}/{total})")
+            self._append_log("队列", f"{_zh(name)} -> {locale.tr('queue_success' if ok else 'queue_failed', 'Success' if ok else 'Failed')} ({idx + 1}/{total})")
             if not ok:
-                self._progress_bar.setValue(100)
-                self._progress_bar.setFormat(locale.tr("execution_failed", "Failed"))
-                return False
+                failed.append(idx)
+        self._failed_indices = failed
+        if failed:
+            self._progress_bar.setValue(100)
+            self._progress_bar.setFormat(locale.tr("execution_failed", "Failed"))
+            return False
         self._progress_bar.setValue(100)
         self._progress_bar.setFormat(locale.tr("execution_completed", "Completed"))
         return True
@@ -1303,7 +1320,18 @@ class MaaEndControlPage(QWidget):
             return
         if not self._ensure_connected():
             return
+        self._failed_indices: list[int] = []
+        self._retry_count = 0
         self._start_execution(lambda: self._runtime_queue_runner())
+
+    def _retry_failed(self) -> None:
+        if self._is_executing or not self._failed_indices:
+            return
+        if not self._ensure_connected():
+            return
+        self._retry_count += 1
+        self._append_log("系统", locale.tr("retry_started", "Retry {count}/{max} for {n} failed items").format(count=self._retry_count, max=self._max_retries, n=len(self._failed_indices)))
+        self._start_execution(lambda: self._runtime_queue_runner(retry_indices=self._failed_indices))
 
     def _start_execution(self, target):
         self._is_executing = True
@@ -1326,6 +1354,9 @@ class MaaEndControlPage(QWidget):
             del self._status_pulse_animation
         self._update_execution_ui()
         self._append_log("系统", locale.tr("execution_finished", "Execution finished: {success}").format(success=success))
+        if not success and self._failed_indices and self._auto_retry_enabled and self._retry_count < self._max_retries:
+            self._append_log("系统", locale.tr("auto_retry_scheduled", "Auto-retry in {delay}s...").format(delay=self._retry_delay_ms / 1000))
+            QTimer.singleShot(self._retry_delay_ms, self._retry_failed)
         self.execution_state_changed.emit(False)
 
     def _update_execution_ui(self):
@@ -1337,6 +1368,7 @@ class MaaEndControlPage(QWidget):
         self._queue_down_btn.setEnabled(not self._is_executing)
         self._queue_clear_btn.setEnabled(not self._is_executing)
         self._stop_btn.setEnabled(self._is_executing)
+        self._retry_btn.setEnabled(not self._is_executing and bool(getattr(self, '_failed_indices', [])))
         self._progress_bar.setVisible(self._is_executing)
         if not self._is_executing:
             self._progress_bar.setValue(0)
