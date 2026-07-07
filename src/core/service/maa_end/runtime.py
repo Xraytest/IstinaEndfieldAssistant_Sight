@@ -18,6 +18,15 @@ from typing import Any, Dict, List, Optional
 from core.foundation.logger import get_logger, LogCategory
 from core.foundation.paths import get_project_root
 
+# Point maa library to MaaEnd maafw DLLs for matching versions.
+_PROJECT_ROOT = get_project_root()
+_maaend_agent_dir = _PROJECT_ROOT / "3rd-part" / "maaend" / "agent"
+_maafw_dir = _maaend_agent_dir / "maafw"
+if _maafw_dir.is_dir():
+    os.environ["MAAFW_BINARY_PATH"] = str(_maafw_dir.resolve())
+
+_DEFAULT_DLL_DIR = _maafw_dir if _maafw_dir.is_dir() else None
+
 MAAFW_AVAILABLE = False
 try:
     from maa.agent_client import AgentClient
@@ -61,6 +70,29 @@ class MaaEndRuntime:
     def _default_maaend_root(self) -> Path:
         return get_project_root() / "3rd-part" / "maaend"
 
+    def _resolve_asset_path(self, *parts: str) -> Path:
+        """Resolve a path relative to the MaaEnd root, supporting both
+        the release layout (root-relative) and the dev layout (assets/ subdir)."""
+        direct = self._maaend_root.joinpath(*parts)
+        if direct.exists():
+            return direct
+        assets = self._maaend_root / "assets"
+        if assets.is_dir():
+            alt = assets.joinpath(*parts)
+            if alt.exists():
+                return alt
+        return direct
+
+    def _resolve_agent_root(self) -> Path:
+        """Resolve the agent directory, falling back to 3rd-part if the dev tree lacks binaries."""
+        direct = self._maaend_root / "agent"
+        if (direct / "go-service.exe").is_file():
+            return direct
+        fallback = get_project_root() / "3rd-part" / "maaend" / "agent"
+        if (fallback / "go-service.exe").is_file():
+            return fallback
+        return direct
+
     @property
     def root(self) -> Path:
         return self._maaend_root
@@ -70,13 +102,13 @@ class MaaEndRuntime:
         return self._connected
 
     def load_interface(self) -> Dict[str, Any]:
-        path = self._maaend_root / "interface.json"
+        path = self._resolve_asset_path("interface.json")
         with open(path, "r", encoding="utf-8") as f:
             self._interface = json.load(f)
         return self._interface
 
     def load_tasks(self) -> Dict[str, Dict[str, Any]]:
-        tasks_root = self._maaend_root / "tasks"
+        tasks_root = self._resolve_asset_path("tasks")
         self._tasks = {}
         self._option_defs = {}
         for json_path in tasks_root.rglob("*.json"):
@@ -102,7 +134,7 @@ class MaaEndRuntime:
         return self._tasks
 
     def load_presets(self) -> Dict[str, Dict[str, Any]]:
-        preset_root = self._maaend_root / "tasks" / "preset"
+        preset_root = self._resolve_asset_path("tasks", "preset")
         self._presets = {}
         if not preset_root.exists():
             return self._presets
@@ -133,22 +165,20 @@ class MaaEndRuntime:
                     pass
             if Toolkit is not None:
                 try:
-                    Toolkit.init_option(Path(self._maaend_root / "config") if (self._maaend_root / "config").exists() else Path(self._maaend_root))
-                except Exception:
-                    pass
+                    config_dir = self._resolve_asset_path("config")
+                    if not config_dir.exists():
+                        config_dir = self._maaend_root
+                    Toolkit.init_option(config_dir)
+                except Exception as exc:
+                    self.logger.warning(LogCategory.MAIN, "Toolkit 初始化失败", error=str(exc))
             self._resource = Resource()
-            self._start_agent()
-            input_method = 0
-            if MaaAdbInputMethodEnum is not None:
-                try:
-                    input_method = int(MaaAdbInputMethodEnum.Maatouch)
-                except Exception:
-                    input_method = 3
+            input_methods = int(MaaAdbInputMethodEnum.Maatouch if MaaAdbInputMethodEnum else 3)
+            screencap_methods = int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0)
             self._controller = AdbController(
                 adb_path=Path(self._adb_path),
                 address=self._device_address,
-                screencap_methods=int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0),
-                input_methods=input_method,
+                screencap_methods=screencap_methods,
+                input_methods=input_methods,
                 config={},
             )
             job = self._controller.post_connection()
@@ -160,6 +190,12 @@ class MaaEndRuntime:
             screencap_job = self._controller.post_screencap()
             screencap_job.wait()
             self._tasker = Tasker()
+            if not self._tasker.bind(self._resource, self._controller):
+                self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
+                self._cleanup_partial()
+                return False
+            # Start Agent after Tasker is ready so it can register sinks correctly.
+            self._start_agent()
             if self._agent_client is not None:
                 try:
                     self._agent_client.bind(self._resource)
@@ -167,10 +203,6 @@ class MaaEndRuntime:
                     self._agent_client.connect()
                 except Exception as e:
                     self.logger.warning(LogCategory.MAIN, "AgentClient 初始化异常", error=str(e))
-            if not self._tasker.bind(self._resource, self._controller):
-                self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
-                self._cleanup_partial()
-                return False
             self._connected = True
             self.logger.info(LogCategory.MAIN, "MaaEnd runtime 连接成功", address=self._device_address)
             return True
@@ -232,21 +264,30 @@ class MaaEndRuntime:
     def _start_agent(self) -> None:
         if self._agent_client is not None:
             return
-        agent_root = self._maaend_root / "agent"
+        agent_root = self._resolve_agent_root()
         agent_exe = agent_root / "go-service.exe"
         if AgentClient is None or not agent_exe.exists():
+            self.logger.warning(LogCategory.MAIN, "go-service.exe 不存在，跳过 Agent 启动", path=str(agent_exe))
             return
         agent_id = f"istina-maaend-{int(time.time() * 1000)}"
         try:
+            agent_env = os.environ.copy()
+            agent_dll_dir = agent_root / "maafw"
+            if agent_dll_dir.is_dir():
+                agent_env["MAAFW_BINARY_PATH"] = str(agent_dll_dir.resolve())
+            elif _DEFAULT_DLL_DIR is not None:
+                agent_env["MAAFW_BINARY_PATH"] = str(_DEFAULT_DLL_DIR.resolve())
             self._agent_process = subprocess.Popen(
                 [str(agent_exe), agent_id],
                 cwd=str(agent_root),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                env=agent_env,
             )
             self._agent_client = AgentClient(agent_id)
+            self.logger.info(LogCategory.MAIN, "Agent 启动成功", port=agent_id)
         except Exception as exc:
-            self.logger.warning(LogCategory.MAIN, "启动 Agent 失败", error=str(exc))
+            self.logger.error(LogCategory.MAIN, "启动 Agent 失败", error=str(exc))
             self._agent_client = None
             self._agent_process = None
 
@@ -254,12 +295,21 @@ class MaaEndRuntime:
         if not self._connected or self._resource is None:
             return False
         try:
-            job = self._resource.post_bundle(self._maaend_root / "resource")
+            resource_dir = self._resolve_asset_path("resource")
+            job = self._resource.post_bundle(resource_dir)
             job.wait()
             if not job.succeeded:
-                self.logger.error(LogCategory.MAIN, "Pipeline 资源加载失败")
+                self.logger.error(LogCategory.MAIN, "Pipeline 资源加载失败", path=str(resource_dir))
                 return False
-            self.logger.info(LogCategory.MAIN, "Pipeline 资源加载成功")
+            self.logger.info(LogCategory.MAIN, "Pipeline 资源加载成功", path=str(resource_dir))
+            adb_resource_dir = self._resolve_asset_path("resource_adb")
+            if adb_resource_dir.exists():
+                job_adb = self._resource.post_bundle(adb_resource_dir)
+                job_adb.wait()
+                if not job_adb.succeeded:
+                    self.logger.error(LogCategory.MAIN, "ADB 资源加载失败", path=str(adb_resource_dir))
+                    return False
+                self.logger.info(LogCategory.MAIN, "ADB 资源加载成功", path=str(adb_resource_dir))
             return True
         except Exception as e:
             self.logger.exception(LogCategory.MAIN, "Pipeline 资源加载异常", error=str(e))

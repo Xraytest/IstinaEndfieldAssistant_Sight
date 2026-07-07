@@ -169,6 +169,19 @@ def test_execute_returns_none_for_unknown_command() -> None:
     assert result is None
 
 
+def test_maaend_wait_job_honors_timeout() -> None:
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    runtime = MaaEndRuntime()
+    runtime.logger = _FakeLogger()
+    job = _NeverDoneJob()
+
+    result = runtime._wait_job(job, timeout_s=0.01, context="test")
+
+    assert result is False
+    assert job.wait_called is False
+
+
 class _FakeMaaEndRuntime:
     def __init__(
         self,
@@ -213,3 +226,21 @@ class _FakeMaaEndRuntime:
 
     def presets(self) -> dict:
         return {}
+
+
+class _NeverDoneJob:
+    wait_called = False
+    succeeded = False
+
+    @property
+    def done(self) -> bool:
+        return False
+
+    def wait(self):
+        self.wait_called = True
+        return self
+
+
+class _FakeLogger:
+    def warning(self, *args, **kwargs) -> None:
+        pass

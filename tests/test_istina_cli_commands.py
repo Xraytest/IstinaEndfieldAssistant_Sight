@@ -107,6 +107,15 @@ def test_task_and_preset_commands_accept_serial_arg() -> None:
     assert "presets" in parsed
 
 
+def test_task_run_accepts_timeout_arg() -> None:
+    from cli.istina import build_parser
+
+    args = build_parser().parse_args(["task", "run", "EnvironmentMonitoring", "--timeout", "1.5"])
+    assert args.command == "task"
+    assert args.action == "run"
+    assert args.timeout == 1.5
+
+
 def test_nav_command_returns_success_with_target() -> None:
     returncode, parsed, _ = _run_cli(["nav", "hub"])
     assert returncode in (0, 1)

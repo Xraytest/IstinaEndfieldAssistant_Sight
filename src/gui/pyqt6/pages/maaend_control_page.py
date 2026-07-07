@@ -438,33 +438,33 @@ class MaaEndControlPage(QWidget):
         self._add_queue_btn.setStyleSheet(BTN_DEFAULT)
         self._add_queue_btn.clicked.connect(self._add_to_queue)
         queue_btn_row.addWidget(self._add_queue_btn)
-        self._queue_clear_btn = QPushButton("清空")
-        self._queue_clear_btn.setMinimumHeight(30)
-        self._queue_clear_btn.setStyleSheet(BTN_DEFAULT)
-        self._queue_clear_btn.clicked.connect(self._queue_clear)
-        queue_btn_row.addWidget(self._queue_clear_btn)
-        queue_btn_row.addSpacing(24)
+        self._run_queue_btn = QPushButton("运行")
+        self._run_queue_btn.setMinimumHeight(30)
+        self._run_queue_btn.setStyleSheet(BTN_ACTIVE)
+        self._run_queue_btn.clicked.connect(self._run_queue)
+        queue_btn_row.addWidget(self._run_queue_btn)
+        queue_btn_row.addStretch()
+        queue_layout.addLayout(queue_btn_row)
+        queue_move_row = QHBoxLayout()
+        queue_move_row.setContentsMargins(0, 0, 0, 0)
+        queue_move_row.setSpacing(6)
         self._queue_up_btn = QPushButton("上移")
         self._queue_up_btn.setMinimumHeight(30)
         self._queue_up_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_up_btn.clicked.connect(self._queue_move_up)
-        queue_btn_row.addWidget(self._queue_up_btn)
+        queue_move_row.addWidget(self._queue_up_btn)
         self._queue_down_btn = QPushButton("下移")
         self._queue_down_btn.setMinimumHeight(30)
         self._queue_down_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_down_btn.clicked.connect(self._queue_move_down)
-        queue_btn_row.addWidget(self._queue_down_btn)
-        queue_layout.addLayout(queue_btn_row)
-        queue_run_row = QHBoxLayout()
-        queue_run_row.setContentsMargins(0, 0, 0, 0)
-        queue_run_row.setSpacing(0)
-        self._run_queue_btn = QPushButton("运行")
-        self._run_queue_btn.setMinimumHeight(30)
-        self._run_queue_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_queue_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._run_queue_btn.clicked.connect(self._run_queue)
-        queue_run_row.addWidget(self._run_queue_btn)
-        queue_layout.addLayout(queue_run_row)
+        queue_move_row.addWidget(self._queue_down_btn)
+        self._queue_clear_btn = QPushButton("清空")
+        self._queue_clear_btn.setMinimumHeight(30)
+        self._queue_clear_btn.setStyleSheet(BTN_DEFAULT)
+        self._queue_clear_btn.clicked.connect(self._queue_clear)
+        queue_move_row.addWidget(self._queue_clear_btn)
+        queue_move_row.addStretch()
+        queue_layout.addLayout(queue_move_row)
         left_layout.addWidget(queue_card)
         left_layout.addStretch()
         left.setMinimumWidth(280)
@@ -998,15 +998,16 @@ class MaaEndControlPage(QWidget):
             }
             self._state_path.parent.mkdir(parents=True, exist_ok=True)
             self._state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-        except Exception:
-            pass
+        except Exception as e:
+            self.log_message.emit("持久化", f"保存失败: {e}")
 
     def _load_state(self) -> None:
         if not self._state_path.exists():
             return
         try:
             state = json.loads(self._state_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as e:
+            self.log_message.emit("持久化", f"加载失败: {e}")
             return
         self._selected_task = state.get("selected_task") or self._selected_task
         self._selected_preset = state.get("selected_preset") or self._selected_preset
@@ -1166,7 +1167,7 @@ class MaaEndControlPage(QWidget):
             label = self._format_queue_label(name, "task", options)
             self._queue_list.addItem(label)
         self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
-        # 队列覆盖完成后自动开始执行；外层已挡住执行中状态，这里再判一次仅作并发防御。
+        self._persist_state()
         return
 
     def _run_queue(self):

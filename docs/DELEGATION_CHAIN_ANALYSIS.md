@@ -1,0 +1,384 @@
+# IEA→MaaEnd 设备控制委托链错误分析
+
+## 1. 委托链完整路径
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ 用户操作 (GUI 按钮 / CLI 命令)                                        │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ IstinaRuntime.execute(command, params)                               │
+│   - 路由 daily.run / task.run / preset.run / screenshot 等          │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ IstinaRuntime._daily_run / _run_task / _run_preset                  │
+│   - 调用 self.maaend(serial) 获取 MaaEndRuntime                     │
+│   - 调用 _ensure_maaend_ready() 确保连接和资源加载                   │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ MaaEndRuntime.connect()                                              │
+│   1. Toolkit.init_option()                                          │
+│   2. _start_agent() → 启动 go-service.exe (AgentClient)            │
+│   3. AdbController(adb_path, address, screencap, input_methods=3)  │
+│   4. controller.post_connection() → ADB 连接设备                     │
+│   5. controller.post_screencap() → 测试截图                          │
+│   6. Tasker.bind(resource, controller)                               │
+│   7. AgentClient.bind/register_sink/connect                          │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ MaaEndRuntime.load_resource()                                        │
+│   - post_bundle(resource/) → 加载 Pipeline 图像资源                  │
+│   - post_bundle(resource_adb/) → 加载 ADB 专用资源                   │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│ MaaEndRuntime.run_task() / run_preset()                              │
+│   - build_pipeline_override() → 解析 option 生成 override           │
+│   - tasker.post_task(entry, override) → MaaFramework 执行            │
+│   - Pipeline FSM: 识别 → 操作 → 跳转 → ...                          │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. 发现的 8 个关键错误点
+
+### 错误 1：双 MaaEnd 副本路径不一致（最严重）
+
+**现象**：项目同时存在两个 MaaEnd 副本，内容不同步：
+
+| 副本 | 路径 | 内容 | 用途 |
+|------|------|------|------|
+| `3rd-part/maaend/` | `3rd-part/maaend/` | 编译好的二进制文件 + 旧版任务/资源 | IEA 默认加载 |
+| `MaaEnd/` | `MaaEnd/` | 源码 + 最新任务/资源 | 开发/构建源 |
+
+**关键差异**（已通过 diff 验证）：
+
+```diff
+# DailyFull.json
+<                     "name": "AndroidOpenGame",
+<                     "option": { "ClientVersion": "CN" }
+<                 },
+
+# AutoCollect.json
++         "AutoCollectStashBackpackSubTask": {
++             "type": "switch",
++             "default_case": "Yes",
++             ...
++         }
+
+# Interface/Scene.json
+<             "[JumpBack]UserProtocol"
+---
+>             "[JumpBack]__ScenePrivateAnyExit"
+```
+
+**根本原因**：
+- `MaaEndRuntime._default_maaend_root()` 硬编码返回 `3rd-part/maaend`
+- 但 `MaaEnd/` 目录下的 `assets/tasks/` 和 `assets/resource/` 已更新
+- 如果用户手动修改了 `MaaEnd/` 的任务/资源，IEA 不会加载这些修改
+- 反之，如果 `3rd-part/maaend/` 未同步更新，会加载过时的任务定义
+
+**影响**：任务执行时 pipeline override 与实际资源不匹配，导致识别失败、操作错误。
+
+---
+
+### 错误 2：`MAAFW_BINARY_PATH` 环境变量冲突
+
+**现象**：DLL 加载路径被多个地方设置，可能导致版本冲突。
+
+**代码路径**：
+
+```python
+# src/core/service/maa_end/runtime.py [模块导入时]
+_maaend_agent_dir = get_project_root() / "3rd-part" / "maaend" / "agent"
+_maafw_dir = _maaend_agent_dir / "maafw"
+if _maafw_dir.is_dir():
+    os.environ["MAAFW_BINARY_PATH"] = str(_maafw_dir.resolve())
+    # → 设置为: <project>/3rd-part/maaend/agent/maafw/
+
+# src/core/service/maa_end/runtime.py [_start_agent()]
+agent_env = os.environ.copy()
+agent_env["MAAFW_BINARY_PATH"] = str((agent_root / "maafw").resolve())
+# → 覆盖为: <project>/3rd-part/maaend/agent/maafw/ (相同路径)
+```
+
+```go
+// MaaEnd/agent/go-service/main.go [Go service 启动时]
+libDir := filepath.Join(getCwd(), "maafw")
+maa.Init(maa.WithLibDir(libDir))
+// → 使用: <cwd>/maafw/ (即 3rd-part/maaend/agent/maafw/)
+```
+
+**项目中的 DLL 分布**：
+```
+<project>/maafw/                          ← Python MaaFw 包可能使用
+<project>/3rd-part/maaend/agent/maafw/   ← Go service 使用
+<project>/3rd-part/maaend/maafw/         ← 存在但未被引用
+```
+
+**根本原因**：
+- Python `MaaFw` 包、Go service、IEA 代码三方对 `MAAFW_BINARY_PATH` 的设置不一致
+- 如果 `maafw/`（根目录）和 `3rd-part/maaend/agent/maafw/` 的 DLL 版本不同，会导致：
+  - Python 端加载的 MaaFramework 版本与 Go 端不一致
+  - 数据结构/函数签名不匹配，导致崩溃或静默错误
+
+**影响**：设备控制时 MaaFramework 内部状态不一致，截图/点击/识别全部失效。
+
+---
+
+### 错误 3：Agent 进程启动的静默失败
+
+**现象**：`_start_agent()` 启动 `go-service.exe` 失败时只记录 warning，继续执行。
+
+```python
+def _start_agent(self) -> None:
+    agent_exe = agent_root / "go-service.exe"
+    if AgentClient is None or not agent_exe.exists():
+        return  # ← 静默跳过
+    try:
+        self._agent_process = _sp.Popen(...)
+        self._agent_client = AgentClient(str(agent_port))
+    except Exception as exc:
+        self.logger.warning(LogCategory.MAIN, "启动 Agent 失败", error=str(exc))
+        # ← 仅打 warning，不向上传递
+        self._agent_client = None
+        self._agent_process = None
+```
+
+**根本原因**：
+- `go-service.exe` 可能不存在于 `3rd-part/maaend/agent/`（如果只部署了源码）
+- Go service 初始化失败（DLL 缺失、端口冲突等）被吞掉
+- `connect()` 不检查 `_agent_client` 是否成功初始化
+
+**影响**：
+- 依赖 Go 自定义逻辑的任务（`AutoFight`、`EssenceFilter`、`PuzzleSolver`、`MapTracker` 等）静默失败
+- 任务执行到 Custom Action 时无响应或回退到默认行为
+- 用户看到"任务执行失败"但不知道是 Agent 未启动
+
+---
+
+### 错误 4：`input_methods=3` 硬编码且无验证
+
+**现象**：ADB 输入方法硬编码为 `3`，未验证设备兼容性。
+
+```python
+input_method = 3  # ← 硬编码
+self._controller = AdbController(
+    ...
+    input_methods=input_method,
+    config={},
+)
+```
+
+**根本原因**：
+- `MaaAdbInputMethodEnum` 的值随 MaaFramework 版本变化
+- 常见值：`0=None`, `1=AdbShell`, `2=MiniTouch`, `3=MaaTouch`
+- 如果设备未安装 `maatouch` 或版本不匹配，输入操作全部失效
+- 没有 fallback 机制（如尝试 `AdbShell`）
+
+**影响**：设备连接成功，但所有点击/滑动操作无效。
+
+---
+
+### 错误 5：legacy 兼容代码干扰连接状态
+
+**现象**：`_ensure_maaend_ready()` 包含 legacy 兼容代码，可能错误修改 `_connected`。
+
+```python
+def _ensure_maaend_ready(self, runtime: MaaEndRuntime) -> bool:
+    if runtime.connected:
+        return True
+    legacy = getattr(self, "_maaend", None)
+    if legacy is runtime and getattr(runtime, "_connect_result", None) is not None:
+        if hasattr(runtime, "_connected"):
+            runtime._connected = bool(getattr(runtime, "_connect_result", False))
+        if runtime.connected:
+            return True
+    # ...
+```
+
+**根本原因**：
+- 代码假设 `runtime._connect_result` 存在（旧版 API），但新版 `MaaEndRuntime` 没有这个属性
+- 如果 `legacy is runtime` 为 True（多设备场景下可能触发），会尝试读取不存在的属性
+- `getattr(runtime, "_connect_result", None)` 返回 `None`，`bool(None)` 为 `False`
+- 不会直接导致错误，但表明代码路径混乱，维护困难
+
+**影响**：连接逻辑难以追踪，可能在边界条件下产生意外行为。
+
+---
+
+### 错误 6：多设备 serial 处理不一致
+
+**现象**：`maaend(serial)` 按 serial 缓存 runtime，但 `connect()` 未传递 serial。
+
+```python
+def maaend(self, serial: Optional[str] = None) -> MaaEndRuntime:
+    resolved = serial or device_cfg.get("last_connected") or device_cfg.get("serial") or "default"
+    runtime = self._maaend_clients.get(resolved)
+    if runtime is None:
+        runtime = MaaEndRuntime(device_address=resolved, ...)
+        self._maaend_clients[resolved] = runtime
+    return runtime
+
+def connect(self, serial: Optional[str] = None) -> bool:
+    runtime = self.maaend(serial)  # ← 正确获取对应 serial 的 runtime
+    if not runtime.connected:
+        ok = runtime.connect()  # ← runtime 已包含正确的 device_address
+```
+
+**表面上看没问题**，但存在以下缺陷：
+
+1. **`_ensure_maaend_ready()` 的 serial 传递问题**：
+   ```python
+   def _run_task(self, params):
+       serial = params.get("serial")
+       runtime = self.maaend(serial)
+       if not self._ensure_maaend_ready(runtime):
+           return False
+       return bool(runtime.run_task(name, options, timeout_s=timeout_s))
+   ```
+   `_ensure_maaend_ready(runtime)` 接收 runtime，但内部通过 `getattr(self, "_maaend", None)` 检查 legacy，不涉及 serial。
+
+2. **设备地址缓存失效**：
+   - 如果用户先连接设备 A，再连接设备 B
+   - `maaend_clients` 中同时存在 A 和 B 的 runtime
+   - 但 `_ensure_maaend_ready()` 不会区分不同 runtime 的连接状态
+
+**影响**：多设备场景下，连接状态管理混乱。
+
+---
+
+### 错误 7：`_start_agent()` 在 AdbController 之前启动
+
+**现象**：Agent 进程在控制器创建之前启动。
+
+```python
+def connect(self) -> bool:
+    self._resource = Resource()
+    self._start_agent()  # ← 先启动 Agent
+    input_method = 3
+    self._controller = AdbController(...)  # ← 后创建控制器
+    job = self._controller.post_connection()
+    # ...
+    self._tasker = Tasker()
+    if self._agent_client is not None:
+        self._agent_client.bind(self._resource)
+        self._agent_client.register_sink(self._resource, self._controller, self._tasker)
+```
+
+**根本原因**：
+- Go service 启动时需要初始化 MaaFramework
+- 但此时 `_controller` 和 `_tasker` 还不存在
+- `AgentClient.register_sink()` 在控制器创建后才调用，此时 Go service 可能已超时或进入错误状态
+
+**影响**：Agent 初始化时序错误，可能导致：
+- Go 自定义 Recognition/Action 无法正确注册
+- Tasker 事件无法正确传递给 Go service
+
+---
+
+### 错误 8：`Toolkit.init_option()` 路径可能无效
+
+**现象**：MaaFramework 初始化路径可能不正确。
+
+```python
+if Toolkit is not None:
+    try:
+        Toolkit.init_option(
+            Path(self._maaend_root / "config") if (self._maaend_root / "config").exists() else Path(self._maaend_root)
+        )
+    except Exception:
+        pass  # ← 静默忽略
+```
+
+**根本原因**：
+- `3rd-part/maaend/config` 存在，但内容可能不是有效的 MaaFramework 配置
+- 如果路径无效，MaaFramework 使用默认配置，可能导致：
+  - 日志级别错误
+  - 临时目录错误
+  - 插件路径错误
+- 异常被完全吞掉，用户无法得知
+
+**影响**：MaaFramework 使用错误的配置运行，行为不可预测。
+
+---
+
+## 3. 委托链失败的根本原因总结
+
+| 错误 | 严重程度 | 根本原因 | 影响 |
+|------|----------|----------|------|
+| 双副本不一致 | **P0** | `3rd-part/maaend/` 与 `MaaEnd/` 内容不同步，IEA 默认加载旧副本 | 任务定义与资源不匹配，识别/操作全部失效 |
+| DLL 路径冲突 | **P0** | `MAAFW_BINARY_PATH` 被多个组件设置，可能加载不同版本的 DLL | Python 与 Go 端的 MaaFramework 状态不一致，崩溃或静默错误 |
+| Agent 静默失败 | **P1** | `_start_agent()` 异常被吞，不向上传递 | Go 自定义逻辑全部失效，任务执行到 Custom Action 时失败 |
+| input_methods=3 | **P1** | 硬编码输入方法，无设备兼容性检查 | 设备连接成功但点击/滑动无效 |
+| legacy 兼容代码 | **P2** | `_ensure_maaend_ready()` 残留旧版 API 假设 | 连接状态管理混乱，难以调试 |
+| 多设备 serial 处理 | **P2** | 连接状态检查未区分不同 runtime | 多设备场景下状态混乱 |
+| Agent 启动时序 | **P2** | Agent 在控制器之前启动 | Go 初始化时序错误 |
+| Toolkit 路径 | **P3** | 配置路径可能无效，异常被吞 | MaaFramework 使用默认配置 |
+
+---
+
+## 4. 修复建议优先级
+
+### P0 — 立即修复
+
+1. **统一 MaaEnd 副本路径**
+   - 删除或同步 `3rd-part/maaend/` 和 `MaaEnd/` 的内容
+   - 在 `MaaEndRuntime` 中支持通过 `config/client_config.json` 配置 `maaend_root`
+   - 或者在 `MaaEnd/` 根目录创建 `interface.json` 符号链接/复制
+
+2. **统一 DLL 加载路径**
+   - 在项目启动时只设置一次 `MAAFW_BINARY_PATH`
+   - 确保 Python `MaaFw` 包和 Go service 使用完全相同的 DLL
+   - 建议统一使用 `3rd-part/maaend/agent/maafw/`
+
+### P1 — 短期修复
+
+3. **Agent 启动失败应抛出异常**
+   - `_start_agent()` 失败时应该让 `connect()` 返回 `False`
+   - 或者至少记录 error 级别日志，明确告知用户 Agent 未启动
+
+4. **ADB 输入方法自动检测**
+   - 尝试 `MaaTouch` (3)，失败则 fallback 到 `AdbShell` (1)
+   - 或者根据设备类型自动选择
+
+### P2 — 中期修复
+
+5. **清理 legacy 兼容代码**
+   - 移除 `_ensure_maaend_ready()` 中的 `_connect_result` 检查
+   - 统一连接状态管理
+
+6. **Agent 启动时序调整**
+   - 将 `_start_agent()` 移到 `Tasker.bind()` 之后
+   - 确保控制器和 Tasker 已就绪再启动 Agent
+
+### P3 — 长期改进
+
+7. **Toolkit 配置验证**
+   - `init_option()` 失败时记录 warning
+   - 提供有效的配置文件或使用项目默认配置
+
+---
+
+## 5. 快速验证方法
+
+用户可以通过以下方式验证问题：
+
+```bash
+# 1. 检查 DLL 版本是否一致
+diff <(ls "C:/.../maafw/") <(ls "C:/.../3rd-part/maaend/agent/maafw/")
+
+# 2. 检查任务定义是否同步
+diff -r "C:/.../3rd-part/maaend/tasks" "C:/.../MaaEnd/assets/tasks"
+
+# 3. 检查 go-service.exe 是否存在
+ls "C:/.../3rd-part/maaend/agent/go-service.exe"
+
+# 4. 检查环境变量
+python -c "import os; print(os.environ.get('MAAFW_BINARY_PATH'))"
+```

@@ -70,6 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_task_run.add_argument("name", help="task name")
     p_task_run.add_argument("--options", default="{}", help="JSON options")
     p_task_run.add_argument("--serial", default=None, help="device serial")
+    p_task_run.add_argument("--timeout", type=float, default=None, help="task timeout in seconds")
     p_task_list = p_task_sub.add_parser("list", help="list tasks")
     p_task_list.add_argument("--serial", default=None, help="device serial")
 

@@ -274,7 +274,15 @@ def _handle_task_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
         options = json.loads(args.options)
     except json.JSONDecodeError as exc:
         return {"status": "error", "message": f"options JSON 解析失败: {exc}"}
-    ok = runtime.execute("task.run", {"name": args.name, "options": options, "serial": getattr(args, "serial", None)})
+    ok = runtime.execute(
+        "task.run",
+        {
+            "name": args.name,
+            "options": options,
+            "serial": getattr(args, "serial", None),
+            "timeout": getattr(args, "timeout", None),
+        },
+    )
     return {"status": "success" if ok else "error", "task": args.name}
 
 

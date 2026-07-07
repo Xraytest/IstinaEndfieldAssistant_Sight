@@ -171,12 +171,6 @@ class IstinaRuntime:
     def _ensure_maaend_ready(self, runtime: MaaEndRuntime) -> bool:
         if runtime.connected:
             return True
-        legacy = getattr(self, "_maaend", None)
-        if legacy is runtime and getattr(runtime, "_connect_result", None) is not None:
-            if hasattr(runtime, "_connected"):
-                runtime._connected = bool(getattr(runtime, "_connect_result", False))
-            if runtime.connected:
-                return True
         if not runtime.connect():
             self._logger.error(LogCategory.MAIN, "MaaEnd runtime 连接失败")
             return False
@@ -184,6 +178,7 @@ class IstinaRuntime:
             self._logger.error(LogCategory.MAIN, "MaaEnd runtime 资源加载失败")
             return False
         return True
+
 
     def disconnect(self, serial: Optional[str] = None) -> None:
         legacy = getattr(self, "_maaend", None)
@@ -779,4 +774,3 @@ class IstinaRuntime:
             "port": self._llm_runtime.port,
             "base_url": self._llm_runtime.base_url,
         }
-
