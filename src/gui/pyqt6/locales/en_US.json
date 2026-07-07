@@ -163,5 +163,9 @@
   "task_settings_desc": "Task options and queue state are persisted to local config.\nCurrent path: {path}",
   "queue_count": "0 items",
   "command_failed": "{command} failed",
-  "executing_task": "Executing {name} ({idx}/{total})"
+  "executing_task": "Executing {name} ({idx}/{total})",
+  "log_filter_all": "All",
+  "log_filter_info": "Info",
+  "log_filter_warning": "Warning",
+  "log_filter_error": "Error"
 }
