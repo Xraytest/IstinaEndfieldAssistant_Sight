@@ -392,7 +392,7 @@ QWidget[ui-mode="compact"] QTextEdit,
 QWidget[ui-mode="compact"] QPlainTextEdit { padding: 6px; }
 
 /* Buttons */
-QPushButton { background-color: rgba(13,19,28,0.92); color: """ + c["text_primary"] + """; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 2px 10px; font-size: 12px; font-weight: 500; min-height: 28px; }
+QPushButton { background-color: rgba(13,19,28,0.92); color: """ + c["text_primary"] + """; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 8px 16px; font-size: 12px; font-weight: 500; min-height: 36px; }
 QPushButton:hover { background-color: """ + c["hover_bg"] + """; border-color: """ + c["primary_light"] + """80; }
 QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: """ + c["primary"] + """80; }
 QPushButton:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; border-color: """ + c["border_light"] + """; }
@@ -420,19 +420,19 @@ QLabel[variant="success"] { color: """ + c["success"] + """; }
 QLabel[variant="danger"] { color: """ + c["danger"] + """; }
 
 /* Inputs */
-QLineEdit { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 6px 10px; font-size: 12px; min-height: 28px; }
+QLineEdit { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 8px 12px; font-size: 12px; min-height: 36px; }
 QLineEdit:hover { border-color: """ + c["primary"] + """40; }
 QLineEdit:focus { border-color: """ + c["primary"] + """; }
 QLineEdit:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; }
 
-QComboBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 6px 10px; font-size: 12px; min-height: 28px; }
+QComboBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 8px 12px; font-size: 12px; min-height: 36px; }
 QComboBox:hover { border-color: """ + c["primary"] + """40; }
 QComboBox:focus { border-color: """ + c["primary"] + """; }
 QComboBox::drop-down { border: none; width: 28px; padding-right: 8px; }
 QComboBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid """ + c["text_secondary"] + """; width: 0; height: 0; }
 QComboBox QAbstractItemView { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; selection-background-color: """ + c["selection_bg"] + """; selection-color: """ + c["on_primary"] + """; padding: 2px; }
 
-QSpinBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 4px 8px; font-size: 12px; min-height: 24px; }
+QSpinBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 6px 10px; font-size: 12px; min-height: 32px; }
 QSpinBox:hover { border-color: """ + c["primary"] + """40; }
 QSpinBox:focus { border-color: """ + c["primary"] + """; }
 QSpinBox::up-button, QSpinBox::down-button { background-color: """ + c["surface_container_lowest"] + """; border: none; width: 24px; subcontrol-position: right; }
@@ -441,8 +441,8 @@ QSpinBox::up-arrow { image: none; border-left: 5px solid transparent; border-rig
 QSpinBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid """ + c["text_primary"] + """; width: 0; height: 0; }
 
 /* Checkbox */
-QCheckBox { color: """ + c["text_primary"] + """; spacing: 8px; font-size: 12px; }
-QCheckBox::indicator { width: 18px; height: 18px; border-radius: 3px; border: 1px solid """ + c["border_color"] + """; background-color: transparent; }
+QCheckBox { color: """ + c["text_primary"] + """; spacing: 10px; font-size: 12px; }
+QCheckBox::indicator { width: 22px; height: 22px; border-radius: 4px; border: 1px solid """ + c["border_color"] + """; background-color: transparent; }
 QCheckBox::indicator:hover { border-color: """ + c["primary"] + """; }
 QCheckBox::indicator:checked { background-color: """ + c["primary"] + """; border-color: """ + c["primary"] + """; }
 QCheckBox::indicator:disabled { border-color: """ + c["text_disabled"] + """; background-color: """ + c["surface_container"] + """; }
@@ -471,8 +471,8 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; bac
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background-color: transparent; }
 
 /* List */
-QListWidget { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 4px 6px; font-size: 12px; outline: none; }
-QListWidget::item { background-color: transparent; padding: 4px 6px; border-left: 2px solid transparent; border-radius: 0; }
+QListWidget { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 6px 8px; font-size: 12px; outline: none; }
+QListWidget::item { background-color: transparent; padding: 8px 10px; border-left: 2px solid transparent; border-radius: 0; }
 QListWidget::item:hover { background-color: """ + c["hover_bg"] + """; border-left: 2px solid """ + c["primary"] + """45; }
 QListWidget::item:selected { background-color: """ + c["primary_container"] + """; color: """ + c["primary_light"] + """; border: 1px solid """ + c["primary"] + """50; border-left: 2px solid """ + c["primary"] + """; }
 QListWidget::item:selected:!active { background-color: """ + c["primary_container"] + """cc; }

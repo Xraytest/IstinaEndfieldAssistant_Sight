@@ -163,8 +163,9 @@ BTN_ACTIVE = f"""
         color: {_SUCCESS};
         border: 1px solid {_SUCCESS}4d;
         border-radius: 2px;
-        padding: 0px 10px;
+        padding: 8px 16px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
+        min-height: 36px;
     }}
     QPushButton:hover {{ background-color: {_SUCCESS}33; }}
 """
@@ -175,8 +176,9 @@ BTN_DEFAULT = f"""
         color: {_PRIMARY};
         border: 1px solid {_PRIMARY}4d;
         border-radius: 2px;
-        padding: 0px 10px;
+        padding: 8px 16px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
+        min-height: 36px;
     }}
     QPushButton:hover {{ background-color: {_PRIMARY}33; }}
 """
@@ -187,8 +189,9 @@ BTN_STOP = f"""
         color: {_DANGER};
         border: 1px solid {_DANGER}66;
         border-radius: 2px;
-        padding: 0px 10px;
+        padding: 8px 16px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
+        min-height: 36px;
     }}
     QPushButton:hover {{ background-color: {_DANGER}40; }}
 """
