@@ -35,6 +35,7 @@ class QueueProgressWidget(DashboardWidget):
         elif status == "success":
             self._status_label.setText(locale.tr("execution_completed", "Completed"))
             self._status_label.setProperty("variant", "success")
+            self.play_success()
         elif status == "failed":
             self._status_label.setText(locale.tr("execution_failed", "Failed"))
             self._status_label.setProperty("variant", "danger")

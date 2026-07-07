@@ -37,6 +37,7 @@ class DeviceStatusWidget(DashboardWidget):
         self._status_label.setText(locale.tr("online", "Online"))
         self._status_label.setProperty("variant", "success")
         self._serial_label.setText(serial)
+        self.play_success()
 
     def refresh(self) -> None:
         """Refresh device status from bridge."""

@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QPropertyAnimation, QTimer
 from PyQt6.QtGui import QDrag
-from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme import widget_skin
+from gui.pyqt6.theme.widget_animation import bounce, MicroFeedback, success_pulse
 
 locale = get_locale_manager()
 
@@ -45,6 +46,52 @@ class DashboardWidget(QFrame):
 
         # Enable drag
         self.setAcceptDrops(True)
+
+        # Micro-feedback
+        self._feedback = MicroFeedback(self)
+        self._feedback.install()
+
+    def content_widget(self) -> QWidget:
+        return self._content
+
+    def apply_skin(self) -> None:
+        self.setStyleSheet(widget_skin.widget_skin_stylesheet())
+
+    def update_content(self, widget: QWidget) -> None:
+        while self._content_layout.count():
+            item = self._content_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._content_layout.addWidget(widget)
+
+    def refresh(self) -> None:
+        """Override in subclasses to refresh widget data."""
+        pass
+
+    def start_auto_refresh(self) -> None:
+        self._refresh_timer.start()
+
+    def stop_auto_refresh(self) -> None:
+        self._refresh_timer.stop()
+
+    def play_success(self) -> None:
+        success_pulse(self)
+        bounce(self)
+
+    def mousePressEvent(self, event):
+        if event.button() == "left button":
+            self._drag_start_pos = event.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if hasattr(self, '_drag_start_pos') and (event.pos() - self._drag_start_pos).manhattanLength() > 10:
+            drag = QDrag(self)
+            pixmap = self.grab()
+            drag.setPixmap(pixmap)
+            drag.setHotSpot(event.pos())
+            mime = drag.mimeData()
+            mime.setData("application/x-dashboard-widget", self._widget_id.encode())
+            drag.exec()
 
     def content_widget(self) -> QWidget:
         return self._content

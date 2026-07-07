@@ -32,6 +32,7 @@ class LLMStatusWidget(DashboardWidget):
         if enabled:
             self._status_label.setText(locale.tr("online", "Online"))
             self._status_label.setProperty("variant", "success")
+            self.play_success()
         else:
             self._status_label.setText(locale.tr("disabled_status", "Disabled"))
             self._status_label.setProperty("variant", "danger")
