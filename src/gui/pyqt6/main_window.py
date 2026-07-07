@@ -163,6 +163,7 @@ class MainWindow(QMainWindow):
             self._page_stack.addWidget(page)
 
         self._bridge.commandFinished.connect(self._on_bridge_command_finished)
+        self._maaend_page.execution_state_changed.connect(self._on_execution_state_changed)
 
         self._resize_navigation_list()
         for i in range(self._navigation_list.count()):
@@ -220,11 +221,20 @@ class MainWindow(QMainWindow):
         elif command.startswith("system disconnect"):
             self._maaend_page.set_connected(False)
 
+    def _on_execution_state_changed(self, is_executing: bool) -> None:
+        if is_executing:
+            self._preview_timer.stop()
+        else:
+            if self._page_stack.currentIndex() == 1:  # "标准推理"页
+                self._preview_timer.start()
+
     def _refresh_preview(self) -> None:
         if self._preview_label is None:
             return
         if not self._maaend_page._connected:
             return
+        if self._maaend_page._is_executing:
+            return  # 任务执行期间不刷新预览
         result = self._maaend_page._sync_execute("screenshot", timeout_ms=5000)
         if not result or result.get("status") != "success":
             return

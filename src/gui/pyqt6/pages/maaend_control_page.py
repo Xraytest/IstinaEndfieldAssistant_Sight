@@ -525,6 +525,30 @@ class MaaEndControlPage(QWidget):
         self._stop_btn.setEnabled(False)
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setTextVisible(True)
+        self._progress_bar.setMinimumHeight(16)
+        self._progress_bar.setMaximumWidth(200)
+        self._progress_bar.setRange(0, 100)
+        self._progress_bar.setValue(0)
+        self._progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: rgba(16, 16, 26, 0.85);
+                border: 1px solid rgba(24, 209, 255, 0.15);
+                border-radius: 8px;
+                height: 16px;
+                text-align: center;
+                color: #9090a8;
+                font-size: 10px;
+                font-family: 'Microsoft YaHei UI';
+            }
+            QProgressBar::chunk {
+                background-color: #18d1ff;
+                border-radius: 8px;
+            }
+        """)
+        self._progress_bar.setVisible(False)
+        bottom.addWidget(self._progress_bar, 1)
         root.addLayout(bottom)
 
         font = QFont("Microsoft YaHei UI")
@@ -671,9 +695,12 @@ class MaaEndControlPage(QWidget):
         items = list(self._queue_state.queue_items)
         if not items:
             return True
-        for entry in items:
+        total = len(items)
+        for idx, entry in enumerate(items, 1):
             if self._worker and getattr(self._worker, '_stopped', False):
                 break
+            self._progress_bar.setValue(int((idx - 1) / total * 100))
+            self._progress_bar.setFormat(f"执行中 {idx}/{total}")
             name, inline_options = self._normalize_runtime_entry(entry)
             item_type = entry.get("type", "task")
             options = entry.get("options") or {}
@@ -684,16 +711,20 @@ class MaaEndControlPage(QWidget):
                 current_options = dict(options)
                 options = dict(saved)
                 options.update(current_options)
-            self._append_log("队列", f"执行 {_zh(name)}")
+            self._append_log("队列", f"执行 {_zh(name)} ({idx}/{total})")
             clean_name, inline_options = self._parse_inline_task_name(name)
             merged_options = dict(inline_options)
             merged_options.update(options)
             payload = json.dumps({"name": clean_name, "options": merged_options}, ensure_ascii=False)
             result = self._sync_execute(f"task run {clean_name} --options {payload}", timeout_ms=300000)
             ok = bool(result and result.get("status") == "success")
-            self._append_log("队列", f"{_zh(name)} -> {'成功' if ok else '失败'}")
+            self._append_log("队列", f"{_zh(name)} -> {'成功' if ok else '失败'} ({idx}/{total})")
             if not ok:
+                self._progress_bar.setValue(100)
+                self._progress_bar.setFormat("执行失败")
                 return False
+        self._progress_bar.setValue(100)
+        self._progress_bar.setFormat("执行完成")
         return True
 
     # ------------------------------------------------------------------
@@ -1210,6 +1241,9 @@ class MaaEndControlPage(QWidget):
         self._queue_down_btn.setEnabled(not self._is_executing)
         self._queue_clear_btn.setEnabled(not self._is_executing)
         self._stop_btn.setEnabled(self._is_executing)
+        self._progress_bar.setVisible(self._is_executing)
+        if not self._is_executing:
+            self._progress_bar.setValue(0)
         self._status_label.setText("运行中" if self._is_executing else "空闲")
         self._status_label.setStyleSheet(RED_STYLE if self._is_executing else GREEN_STYLE)
         self.execution_state_changed.emit(self._is_executing)
