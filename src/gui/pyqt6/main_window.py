@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
     def _setup_keyboard_shortcuts(self) -> None:
         """Setup keyboard shortcuts for navigation and actions."""
         pages = self._page_stack.count() if self._page_stack else 0
-        for i in range(min(pages, 5)):
+        for i in range(pages):
             shortcut = QShortcut(f"Ctrl+{i+1}", self)
             shortcut.activated.connect(lambda idx=i: self._on_nav_changed(idx))
 
@@ -310,7 +310,7 @@ class MainWindow(QMainWindow):
             QApplication.setOverrideCursor(QCursor(Qt.CursorShape.BusyCursor))
             self._set_taskbar_progress(0)
         else:
-            if self._page_stack.currentIndex() == 1:
+            if self._page_stack.currentWidget() is self._maaend_page:
                 self._preview_timer.start()
             self._title_animation_timer.stop()
             self.setWindowTitle(locale.tr("app_title", "IstinaEndfieldAssistant Sight"))
