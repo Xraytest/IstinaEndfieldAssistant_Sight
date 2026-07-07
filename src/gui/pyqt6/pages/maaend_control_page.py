@@ -251,7 +251,7 @@ class ToggleSwitch(QWidget):
         super().leaveEvent(event)
 
     def paintEvent(self, event):
-        from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen
+        from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen, QBrush
         from PyQt6.QtCore import QRectF, QRect
 
         painter = QPainter(self)
@@ -262,32 +262,41 @@ class ToggleSwitch(QWidget):
         track_path = QPainterPath()
         track_path.addRect(track_rect)
 
-        border_color = QColor(24, 209, 255, 60)
+        # Track colors following Hypergryph dark translucent theme
         if self._checked:
-            track_color = QColor(24, 209, 255, 45)
+            track_color = QColor(24, 209, 255, 28)
+            border_color = QColor(24, 209, 255, 140)
             if self._hover:
-                track_color = QColor(24, 209, 255, 75)
-                border_color = QColor(24, 209, 255, 120)
+                track_color = QColor(24, 209, 255, 45)
+                border_color = QColor(24, 209, 255, 200)
         else:
-            track_color = QColor(58, 58, 74, 120)
+            track_color = QColor(255, 255, 255, 8)
+            border_color = QColor(255, 255, 255, 35)
             if self._hover:
-                track_color = QColor(80, 80, 101, 160)
-                border_color = QColor(120, 120, 140, 100)
+                track_color = QColor(255, 255, 255, 14)
+                border_color = QColor(255, 255, 255, 55)
 
         painter.fillPath(track_path, track_color)
         painter.setPen(QPen(border_color, 1))
         painter.drawPath(track_path)
 
-        slider_size = h - 10
-        slider_x = w - slider_size - 5 if self._checked else 5
-        slider_rect = QRectF(slider_x, 5, slider_size, slider_size)
+        # Slider: square, fills most of the track height
+        slider_margin = 3
+        slider_size = h - (slider_margin * 2)
+        slider_x = w - slider_size - slider_margin if self._checked else slider_margin
+        slider_rect = QRectF(slider_x, slider_margin, slider_size, slider_size)
         slider_path = QPainterPath()
         slider_path.addRect(slider_rect)
 
         if self._checked:
-            slider_color = QColor(24, 209, 255, 230)
+            slider_color = QColor(24, 209, 255, 245)
+            if self._hover:
+                slider_color = QColor(24, 209, 255, 255)
         else:
-            slider_color = QColor(180, 185, 200, 200)
+            slider_color = QColor(200, 205, 215, 220)
+            if self._hover:
+                slider_color = QColor(220, 225, 235, 240)
+
         painter.fillPath(slider_path, slider_color)
 
 
