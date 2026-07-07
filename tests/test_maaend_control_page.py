@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -78,7 +79,11 @@ def test_apply_preset_button_replaces_queue():
     bridge = FakeCLIBridge()
     page = module.MaaEndControlPage(bridge)
 
-    page._queue_items = [{"name": "OldTask", "type": "task", "options": {}}]
+    state_dir = Path(tempfile.mkdtemp(prefix="maaend_state_preset_"))
+    page._state_path = state_dir / "maaend_task_state.json"
+    page._queue_state.set_state_path(page._state_path)
+
+    page._queue_state.set_queue_items([{"name": "OldTask", "type": "task", "options": {}}])
     page._queue_list.addItem("[TASK] OldTask")
     page._selected_preset = "TestPreset"
 
@@ -161,6 +166,7 @@ def test_control_page_persists_queue_state():
     page._queue_state.set_queue_items([
         {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"repeat": 2}}
     ])
+    page._queue_items = page._queue_state.queue_items
     page._queue_state.save_options("TaskA", {"repeat": 2})
     page._persist_state()
 
@@ -190,4 +196,104 @@ def test_control_page_resize_keeps_fixed_layout_geometry():
     assert page._queue_list.maximumHeight() >= 140
     assert page._log_text.maximumHeight() >= 140
     app.quit()
-import tempfile
+
+
+def test_apply_queue_focus_task_settings_saves_to_queue_state():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+
+    page._queue_state.set_queue_items([
+        {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"speed": "fast"}}
+    ])
+    page._queue_list.addItem("[TASK] TaskA")
+    page._queue_list.setCurrentRow(0)
+
+    page._selected_task = "TaskA"
+    page._tasks_cache = {"TaskA": {"option": []}}
+    page._task_option_defs = {}
+    page._option_widgets = {}
+    page._collect_options = lambda: {"speed": "fast"}  # type: ignore[method-assign]
+
+    page._apply_queue_focus_task_settings()
+
+    assert page._queue_state.load_options("TaskA") == {"speed": "fast"}
+    assert page._queue_items[0]["options"] == {"speed": "fast"}
+    app.quit()
+
+
+def test_queue_clear_removes_specific_task_settings():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+
+    page._queue_state.save_options("TaskA", {"repeat": 2})
+    page._queue_state.save_options("TaskB", {"skip": True})
+    page._queue_state.set_queue_items([
+        {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {}},
+        {"name": "TaskB", "display_name": "TaskB", "type": "task", "options": {}},
+    ])
+    page._queue_list.addItem("[TASK] TaskA")
+    page._queue_list.addItem("[TASK] TaskB")
+
+    page._queue_clear()
+
+    assert page._queue_state.load_options("TaskA") == {}
+    assert page._queue_state.load_options("TaskB") == {}
+    assert page._queue_state.queue_items == []
+    app.quit()
+
+
+def test_apply_preset_overrides_queue_and_clears_old_settings():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+
+    state_dir = Path(tempfile.mkdtemp(prefix="maaend_state_override_"))
+    page._state_path = state_dir / "maaend_task_state.json"
+    page._queue_state.set_state_path(page._state_path)
+
+    page._queue_state.save_options("OldTask", {"old_option": "old_value"})
+    page._queue_state.save_options("TaskA", {"option_a": "value_a"})
+    page._queue_state.set_queue_items([
+        {"name": "OldTask", "display_name": "OldTask", "type": "task", "options": {}},
+    ])
+    page._queue_list.addItem("[TASK] OldTask")
+    page._selected_preset = "TestPreset"
+
+    page._run_preset()
+
+    assert page._queue_state.load_options("OldTask") == {}
+    assert page._queue_state.load_options("TaskA") == {"option_a": "value_a"}
+    assert [entry["name"] for entry in page._queue_items] == ["TaskA", "TaskB"]
+    app.quit()
+
+
+def test_queue_task_settings_persist_through_restart():
+    app = QApplication.instance() or QApplication([])
+    module = _load_control_page()
+    bridge = FakeCLIBridge()
+    page = module.MaaEndControlPage(bridge)
+
+    state_dir = Path(tempfile.mkdtemp(prefix="maaend_state_restart_"))
+    page._state_path = state_dir / "maaend_task_state.json"
+
+    page._queue_state.set_queue_items([
+        {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"speed": "fast"}}
+    ])
+    page._queue_items = page._queue_state.queue_items
+    page._queue_state.save_options("TaskA", {"speed": "fast", "repeat": 3})
+    page._queue_state.set_selected_task("TaskA")
+    page._persist_state()
+
+    new_page = module.MaaEndControlPage(bridge)
+    new_page._state_path = state_dir / "maaend_task_state.json"
+    new_page._load_state()
+
+    assert new_page._queue_state.load_options("TaskA") == {"speed": "fast", "repeat": 3}
+    assert new_page._queue_items[0]["options"] == {"speed": "fast"}
+    assert new_page._selected_task == "TaskA"
+    app.quit()

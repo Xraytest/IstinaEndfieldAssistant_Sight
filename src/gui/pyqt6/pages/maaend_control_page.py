@@ -217,7 +217,7 @@ class ToggleSwitch(QWidget):
         self._off_name = str(cases[-1].get("name", ""))
         self._checked = False
         self._hover = False
-        self.setFixedSize(56, 28)
+        self.setFixedSize(40, 20)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def isChecked(self) -> bool:
@@ -251,51 +251,59 @@ class ToggleSwitch(QWidget):
         super().leaveEvent(event)
 
     def paintEvent(self, event):
-        from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen, QBrush
-        from PyQt6.QtCore import QRectF, QRect
+        from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen
+        from PyQt6.QtCore import QRectF
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
-        track_rect = QRectF(0, 0, w, h)
-        track_path = QPainterPath()
-        track_path.addRect(track_rect)
+        radius = h / 2
 
-        # Track colors following Hypergryph dark translucent theme
+        # Outer border: fixed gray-white, no state change
+        outer_path = QPainterPath()
+        outer_path.addRoundedRect(QRectF(0, 0, w, h), radius, radius)
+        painter.fillPath(outer_path, QColor("#d8d8d8"))
+
+        # Inner gap: background color shows through, creating a ring effect
+        gap = 2
+        inner_gap_path = QPainterPath()
+        inner_gap_path.addRoundedRect(QRectF(gap, gap, w - gap * 2, h - gap * 2), radius - gap, radius - gap)
+        painter.fillPath(inner_gap_path, QColor("#1a1a2e"))
+
+        # Inner track: translucent color based on state
+        inner_gap = 1
+        inner_path = QPainterPath()
+        inner_path.addRoundedRect(QRectF(gap + inner_gap, gap + inner_gap, w - (gap + inner_gap) * 2, h - (gap + inner_gap) * 2), radius - gap - inner_gap, radius - gap - inner_gap)
+
         if self._checked:
-            track_color = QColor(24, 209, 255, 28)
-            border_color = QColor(24, 209, 255, 140)
+            track_color = QColor(24, 209, 255, 45)
             if self._hover:
-                track_color = QColor(24, 209, 255, 45)
-                border_color = QColor(24, 209, 255, 200)
+                track_color = QColor(24, 209, 255, 70)
         else:
-            track_color = QColor(255, 255, 255, 8)
-            border_color = QColor(255, 255, 255, 35)
+            track_color = QColor(255, 255, 255, 10)
             if self._hover:
-                track_color = QColor(255, 255, 255, 14)
-                border_color = QColor(255, 255, 255, 55)
+                track_color = QColor(255, 255, 255, 18)
 
-        painter.fillPath(track_path, track_color)
-        painter.setPen(QPen(border_color, 1))
-        painter.drawPath(track_path)
+        painter.fillPath(inner_path, track_color)
 
-        # Slider: square, fills most of the track height
+        # Slider: rounded square
         slider_margin = 3
         slider_size = h - (slider_margin * 2)
+        slider_radius = slider_size / 2
         slider_x = w - slider_size - slider_margin if self._checked else slider_margin
         slider_rect = QRectF(slider_x, slider_margin, slider_size, slider_size)
         slider_path = QPainterPath()
-        slider_path.addRect(slider_rect)
+        slider_path.addRoundedRect(slider_rect, slider_radius, slider_radius)
 
         if self._checked:
             slider_color = QColor(24, 209, 255, 245)
             if self._hover:
                 slider_color = QColor(24, 209, 255, 255)
         else:
-            slider_color = QColor(200, 205, 215, 220)
+            slider_color = QColor(220, 225, 235, 240)
             if self._hover:
-                slider_color = QColor(220, 225, 235, 240)
+                slider_color = QColor(240, 245, 250, 255)
 
         painter.fillPath(slider_path, slider_color)
 
@@ -1115,6 +1123,7 @@ class MaaEndControlPage(QWidget):
             self.log_message.emit("持久化", f"保存失败: {e}")
 
     def _load_state(self) -> None:
+        self._queue_state.set_state_path(self._state_path)
         if not self._state_path.exists():
             return
         try:
@@ -1206,7 +1215,7 @@ class MaaEndControlPage(QWidget):
             self._build_option_editor()
         options = self._collect_options()
         entry["options"] = dict(options)
-        self._saved_task_options[name] = dict(options)
+        self._queue_state.save_options(name, dict(options))
         self._queue_list.item(row).setText(self._format_queue_label(name, entry.get("type", "task"), options))
         self._persist_state()
 
