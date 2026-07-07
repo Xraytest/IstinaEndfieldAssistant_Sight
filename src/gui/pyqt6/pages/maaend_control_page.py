@@ -365,7 +365,7 @@ class MaaEndControlPage(QWidget):
         task_btn_row = QHBoxLayout()
         task_btn_row.setContentsMargins(0, 0, 0, 0)
         task_btn_row.setSpacing(6)
-        self._run_task_btn = QPushButton(locale.tr("btn_add_task", "Add Task"))
+        self._run_task_btn = QPushButton(locale.tr("btn_run_task", "Run Task"))
         self._run_task_btn.setMinimumHeight(24)
         self._run_task_btn.setStyleSheet(BTN_ACTIVE)
         self._run_task_btn.setIcon(get_action_icon("添加"))

@@ -98,3 +98,23 @@
 - **Files Modified**:
   - `src/gui/pyqt6/pages/device_settings_page.py`
   - `src/gui/pyqt6/pages/log_page.py`
+
+## 2026-07-07 16:30
+
+- **User Request**: 创建 sub-agent 集群，持续搜集资料，优化 GUI 设计以及用户体验，整体设计风格与鹰角网络相关内容的设计思路相同。
+- **Outcome**: 
+  1. 建立了 `.agents/clusters/gui-optimization/` 集群框架，包含 5 个角色模板（researcher/auditor/designer/implementer/tester）
+  2. 创建了 `orchestrator.py` 任务队列系统，支持 research/audit/implement 三种任务类型
+  3. 预置了 5 个初始任务到 `optimization_queue.md`
+  4. 成功启动 background sub-agent 执行 research-001 任务，产出了 `docs/design/research/arknights_endfield_design_research.md`
+  5. 统一了 `src/gui/pyqt6/pages/maaend_control_page.py` 的 inline styles 为 `widget_styles.py` 常量
+  6. 统一了 `src/gui/pyqt6/pages/prts_full_intelligence_page.py` 的 metric value style
+  7. 统一了 dashboard 下 `widget_market_dialog.py` 和 `recent_tasks_widget.py` 的 list style
+- **Files Modified**:
+  - `.agents/clusters/gui-optimization/` (new, multiple files)
+  - `src/gui/pyqt6/theme/widget_styles.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
+  - `src/gui/pyqt6/pages/prts_full_intelligence_page.py`
+  - `src/gui/pyqt6/dashboard/widget_market_dialog.py`
+  - `src/gui/pyqt6/dashboard/widgets/recent_tasks_widget.py`
+  - `docs/design/research/arknights_endfield_design_research.md` (new)

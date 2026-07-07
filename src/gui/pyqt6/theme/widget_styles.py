@@ -68,7 +68,7 @@ CARD_STYLE = f"""
     QGroupBox {{
         background-color: {_BG_CARD};
         border: 1px solid {_BORDER_LIGHT};
-        border-radius: 6px;
+        border-radius: 4px;
         font-size: 13px; font-family: '{_FONT}';
         color: {_TEXT_PRIMARY}; font-weight: bold; letter-spacing: 1px;
         margin-top: 12px;
@@ -91,7 +91,7 @@ PANEL_STYLE = f"""
     QFrame {{
         background-color: {_BG_CARD};
         border: 1px solid {_BORDER_LIGHT};
-        border-radius: 8px;
+        border-radius: 4px;
     }}
 """
 
@@ -111,7 +111,7 @@ LOG_STYLE = f"""
         background-color: rgba(10, 10, 15, 0.90);
         color: #e0e0e8;
         border: 1px solid {_BORDER_LIGHT};
-        border-radius: 4px;
+        border-radius: 2px;
         font-size: 11px; font-family: '{_FONT}'; padding: 2px 4px;
     }}
 """
@@ -134,7 +134,7 @@ CHECK_STYLE = f"""
 COMBO_STYLE = f"""
     QComboBox {{
         background-color: rgba(10, 10, 15, 0.80); color: {_TEXT_PRIMARY}; border: 1px solid {_BORDER};
-        border-radius: 4px; padding: 8px 12px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; min-height: 36px;
+        border-radius: 2px; padding: 8px 12px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; min-height: 36px;
     }}
     QComboBox::drop-down {{ border: none; width: 28px; }}
     QComboBox::down-arrow {{ image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid {_PRIMARY}80; width: 0; height: 0; }}
@@ -185,7 +185,7 @@ PROGRESS_BAR_STYLE = f"""
     QProgressBar {{
         background-color: rgba(16, 16, 26, 0.85);
         border: 1px solid rgba(24, 209, 255, 0.15);
-        border-radius: 8px;
+        border-radius: 4px;
         height: 16px;
         text-align: center;
         color: #9090a8;
@@ -194,7 +194,7 @@ PROGRESS_BAR_STYLE = f"""
     }}
     QProgressBar::chunk {{
         background-color: {_PRIMARY};
-        border-radius: 8px;
+        border-radius: 4px;
     }}
 """
 

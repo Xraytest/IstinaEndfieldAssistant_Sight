@@ -132,6 +132,12 @@ THEMES: Dict[str, Dict[str, Any]] = {
             "shadow": "rgba(0, 0, 0, 0.5)",
             "shadow_light": "rgba(0, 0, 0, 0.3)",
             "shadow_cyan": "rgba(24, 209, 255, 0.06)",
+            "entity_near": "#00ffa2",
+            "entity_near_container": "rgba(0, 255, 162, 0.12)",
+            "entity_mid": "#fffa00",
+            "entity_mid_container": "rgba(255, 250, 0, 0.12)",
+            "entity_far": "#ff3355",
+            "entity_far_container": "rgba(255, 51, 85, 0.12)",
         },
     },
     "arknight": {
@@ -537,19 +543,19 @@ QLabel[variant="success"] { color: """ + c["success"] + """; }
 QLabel[variant="danger"] { color: """ + c["danger"] + """; }
 
 /* Inputs */
-QLineEdit { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 8px 12px; font-size: 12px; min-height: 36px; }
+QLineEdit { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 8px 12px; font-size: 12px; min-height: 36px; }
 QLineEdit:hover { border-color: """ + c["primary"] + """40; }
 QLineEdit:focus { border-color: """ + c["primary"] + """; }
 QLineEdit:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; }
 
-QComboBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 8px 12px; font-size: 12px; min-height: 36px; }
+QComboBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 8px 12px; font-size: 12px; min-height: 36px; }
 QComboBox:hover { border-color: """ + c["primary"] + """40; }
 QComboBox:focus { border-color: """ + c["primary"] + """; }
 QComboBox::drop-down { border: none; width: 28px; padding-right: 8px; }
 QComboBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid """ + c["text_secondary"] + """; width: 0; height: 0; }
-QComboBox QAbstractItemView { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; selection-background-color: """ + c["selection_bg"] + """; selection-color: """ + c["on_primary"] + """; padding: 2px; }
+QComboBox QAbstractItemView { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; selection-background-color: """ + c["selection_bg"] + """; selection-color: """ + c["on_primary"] + """; padding: 2px; }
 
-QSpinBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 6px 10px; font-size: 12px; min-height: 32px; }
+QSpinBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 6px 10px; font-size: 12px; min-height: 32px; }
 QSpinBox:hover { border-color: """ + c["primary"] + """40; }
 QSpinBox:focus { border-color: """ + c["primary"] + """; }
 QSpinBox::up-button, QSpinBox::down-button { background-color: """ + c["surface_container_lowest"] + """; border: none; width: 24px; subcontrol-position: right; }
@@ -559,13 +565,13 @@ QSpinBox::down-arrow { image: none; border-left: 5px solid transparent; border-r
 
 /* Checkbox */
 QCheckBox { color: """ + c["text_primary"] + """; spacing: 10px; font-size: 12px; }
-QCheckBox::indicator { width: 22px; height: 22px; border-radius: 4px; border: 1px solid """ + c["border_color"] + """; background-color: transparent; }
+QCheckBox::indicator { width: 22px; height: 22px; border-radius: 2px; border: 1px solid """ + c["border_color"] + """; background-color: transparent; }
 QCheckBox::indicator:hover { border-color: """ + c["primary"] + """; }
 QCheckBox::indicator:checked { background-color: """ + c["primary"] + """; border-color: """ + c["primary"] + """; }
 QCheckBox::indicator:disabled { border-color: """ + c["text_disabled"] + """; background-color: """ + c["surface_container"] + """; }
 
 /* Tabs */
-QTabWidget::pane { background-color: """ + c["bg_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; top: -1px; }
+QTabWidget::pane { background-color: """ + c["bg_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; top: -1px; }
 QTabBar::tab { background-color: transparent; color: """ + c["text_secondary"] + """; border: none; border-bottom: 2px solid transparent; padding: 8px 20px; font-size: 12px; min-width: 80px; }
 QTabBar::tab:hover { background-color: """ + c["hover_bg"] + """; }
 QTabBar::tab:selected { color: """ + c["primary"] + """; border-bottom: 2px solid """ + c["primary"] + """; }
@@ -595,20 +601,20 @@ QListWidget::item:selected { background-color: """ + c["primary_container"] + ""
 QListWidget::item:selected:!active { background-color: """ + c["primary_container"] + """cc; }
 
 /* Tables */
-QTableWidget, QTableView { background-color: """ + c["bg_primary"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; gridline-color: """ + c["border_light"] + """; font-size: 12px; }
+QTableWidget, QTableView { background-color: """ + c["bg_primary"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; gridline-color: """ + c["border_light"] + """; font-size: 12px; }
 QTableWidget::item, QTableView::item { padding: 4px 6px; border: none; }
 QTableWidget::item:hover, QTableView::item:hover { background-color: """ + c["hover_bg"] + """; }
 QTableWidget::item:selected, QTableView::item:selected { background-color: """ + c["selection_bg"] + """; color: """ + c["on_primary"] + """; }
 QHeaderView::section { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: none; border-bottom: 1px solid """ + c["border_color"] + """; padding: 8px; font-size: 12px; font-weight: 500; }
 
 /* Tree */
-QTreeWidget, QTreeView { background-color: """ + c["bg_primary"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; font-size: 12px; }
+QTreeWidget, QTreeView { background-color: """ + c["bg_primary"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; font-size: 12px; }
 QTreeWidget::item, QTreeView::item { padding: 10px; border-radius: 2px; }
 QTreeWidget::item:hover, QTreeView::item:hover { background-color: """ + c["hover_bg"] + """; }
 QTreeWidget::item:selected, QTreeView::item:selected { background-color: """ + c["selection_bg"] + """; color: """ + c["on_primary"] + """; }
 
 /* GroupBox */
-QGroupBox { background-color: """ + c["bg_card"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 6px; font-size: 12px; padding-top: 4px; margin-top: 6px; }
+QGroupBox { background-color: """ + c["bg_card"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; font-size: 12px; padding-top: 4px; margin-top: 6px; }
 QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 4px; color: """ + c["primary_light"] + """; font-weight: 600; letter-spacing: 1px; }
 
 /* ProgressBar */
@@ -616,11 +622,11 @@ QProgressBar { background-color: """ + c["surface_container"] + """; border: non
 QProgressBar::chunk { background-color: """ + c["primary"] + """; border-radius: 9999px; }
 
 /* TextEdit */
-QTextEdit, QPlainTextEdit { background-color: """ + c["log_bg"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: 'Microsoft YaHei UI'; }
+QTextEdit, QPlainTextEdit { background-color: """ + c["log_bg"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 4px 6px; font-size: 12px; font-family: 'Microsoft YaHei UI'; }
 QTextEdit:focus, QPlainTextEdit:focus { border-color: """ + c["primary"] + """; }
 
 /* Menu */
-QMenu { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 4px; }
+QMenu { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 4px; }
 QMenu::item { padding: 8px 20px; border-radius: 2px; }
 QMenu::item:selected { background-color: """ + c["hover_bg"] + """; }
 QMenu::separator { height: 1px; background-color: """ + c["divider_color"] + """; margin: 4px 8px; }
@@ -642,12 +648,12 @@ QStackedWidget > QWidget { background-color: """ + c["bg_primary"] + """; }
 QFrame#heroPanel, QFrame#pageHero, QFrame#settingsHero {
     background-color: """ + c["bg_elevated"] + """;
     border: 1px solid """ + c["border_color"] + """;
-    border-radius: 6px;
+    border-radius: 4px;
 }
 QFrame#navPanel, QFrame#contentPanel, QFrame#metricCard, QFrame#controlBar {
     background-color: """ + c["bg_card"] + """;
     border: 1px solid """ + c["border_light"] + """;
-    border-radius: 8px;
+    border-radius: 4px;
 }
 QListWidget#mainNavigation {
     background-color: transparent;

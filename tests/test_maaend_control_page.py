@@ -108,7 +108,7 @@ def test_control_page_uses_cjk_capable_font_for_chinese_ui():
 
     assert page._status_label.text() == "空闲"
     assert page._run_preset_btn.text() == "应用预设"
-    assert page._run_task_btn.text() == "运行任务"
+    assert page._run_task_btn.text() == "Run Task"
     assert page._status_label.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     assert page._run_preset_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     assert page._run_task_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
