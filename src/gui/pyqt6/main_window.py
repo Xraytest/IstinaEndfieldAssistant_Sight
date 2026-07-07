@@ -196,12 +196,20 @@ class MainWindow(QMainWindow):
             apply_ui_mode(central, mode)
             layout = central.layout()
             if layout is not None:
+                from gui.pyqt6.responsive import get_dpi_scale, scale_value
+                scale = get_dpi_scale(self)
                 if mode == "compact":
-                    layout.setContentsMargins(10, 10, 10, 8)
-                    layout.setSpacing(6)
+                    layout.setContentsMargins(
+                        scale_value(10, scale), scale_value(10, scale),
+                        scale_value(10, scale), scale_value(8, scale)
+                    )
+                    layout.setSpacing(scale_value(6, scale))
                 else:
-                    layout.setContentsMargins(16, 16, 16, 12)
-                    layout.setSpacing(10)
+                    layout.setContentsMargins(
+                        scale_value(16, scale), scale_value(16, scale),
+                        scale_value(16, scale), scale_value(12, scale)
+                    )
+                    layout.setSpacing(scale_value(10, scale))
         navigation_list = getattr(self, "_navigation_list", None)
         if navigation_list is not None:
             navigation_list.setFixedWidth(180 if mode == "compact" else 220)

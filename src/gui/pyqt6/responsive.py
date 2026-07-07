@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 from PyQt6.QtCore import QEvent, QObject, QSize, Qt
-from PyQt6.QtGui import QFontMetrics
+from PyQt6.QtGui import QFontMetrics, QGuiApplication
 from PyQt6.QtWidgets import QFrame, QScrollArea, QWidget
 
 
@@ -17,6 +17,34 @@ class UiBreakpoints:
 
 
 BREAKPOINTS = UiBreakpoints()
+
+# DPI scaling thresholds
+_DPI_REFERENCE = 96.0  # 100% scaling reference
+_DPI_THRESHOLDS = [
+    (144.0, 1.5),   # 150%
+    (120.0, 1.25),  # 125%
+    (96.0, 1.0),    # 100%
+]
+
+
+def get_dpi_scale(widget: QWidget) -> float:
+    """Return the DPI scaling factor for the widget's screen.
+
+    Returns 1.0 if the screen or DPI information is unavailable.
+    """
+    screen = widget.screen()
+    if screen is None:
+        return 1.0
+    dpi = screen.logicalDotsPerInch()
+    for threshold, scale in _DPI_THRESHOLDS:
+        if dpi >= threshold:
+            return scale
+    return 1.0
+
+
+def scale_value(value: int, scale: float) -> int:
+    """Scale an integer value by the given factor, rounding to nearest int."""
+    return max(1, int(round(value * scale)))
 
 
 def ui_mode_for_size(size: QSize) -> str:
@@ -39,6 +67,23 @@ def apply_ui_mode(widget: QWidget, mode: str) -> None:
     style.unpolish(widget)
     style.polish(widget)
     widget.update()
+
+
+def apply_dpi_scaling(widget: QWidget, base_font_size: int = 12) -> None:
+    """Apply DPI-aware font scaling to a widget and all its children."""
+    scale = get_dpi_scale(widget)
+    if scale <= 1.0:
+        return
+    font = widget.font()
+    font.setPointSizeF(base_font_size * scale)
+    widget.setFont(font)
+    # Recursively apply to children
+    for child in widget.findChildren(QWidget):
+        if child is widget:
+            continue
+        child_font = child.font()
+        child_font.setPointSizeF(base_font_size * scale)
+        child.setFont(child_font)
 
 
 def clamp_window_size(available: QSize, preferred: Tuple[int, int], minimum: Tuple[int, int]) -> QSize:

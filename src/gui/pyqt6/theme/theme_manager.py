@@ -471,5 +471,12 @@ def apply_theme(app: Optional[QApplication] = None) -> None:
     if app is None:
         return
     font_family = ensure_app_fonts()
-    app.setFont(QFont(font_family, FONT_SIZES["size_base"]))
+    base_size = FONT_SIZES["size_base"]
+    # DPI-aware scaling
+    screen = app.primaryScreen()
+    if screen is not None:
+        dpi = screen.logicalDotsPerInch()
+        if dpi > 110:
+            base_size = max(base_size, int(round(base_size * (dpi / 96.0))))
+    app.setFont(QFont(font_family, base_size))
     app.setStyleSheet(get_stylesheet())
