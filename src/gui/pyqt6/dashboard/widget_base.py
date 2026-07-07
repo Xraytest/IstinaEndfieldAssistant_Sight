@@ -11,16 +11,18 @@ from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme import widget_skin
 from gui.pyqt6.theme.widget_animation import bounce, MicroFeedback, success_pulse
 from gui.pyqt6.dashboard.widget_notification import NotificationBadge, WidgetNotificationMixin
+from gui.pyqt6.dashboard.widget_perf import PerfOverlay, WidgetPerfMixin
 
 locale = get_locale_manager()
 
 
-class DashboardWidget(QFrame, WidgetNotificationMixin):
+class DashboardWidget(QFrame, WidgetNotificationMixin, WidgetPerfMixin):
     """Base class for dashboard widgets."""
 
     def __init__(self, title: str, widget_id: str = "", parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
         WidgetNotificationMixin.__init__(self)
+        WidgetPerfMixin.__init__(self)
         self.setObjectName("metricCard")
         self.setStyleSheet(widget_skin.widget_skin_stylesheet())
         self._widget_id = widget_id
@@ -108,6 +110,10 @@ class DashboardWidget(QFrame, WidgetNotificationMixin):
         refresh_action = QAction(locale.tr("widget_refresh_now", "Refresh now"), self)
         refresh_action.triggered.connect(self.refresh)
         menu.addAction(refresh_action)
+        perf_action = QAction(locale.tr("widget_show_perf", "Show performance"), self)
+        perf_action.setCheckable(True)
+        perf_action.triggered.connect(self._toggle_perf_overlay)
+        menu.addAction(perf_action)
         menu.exec(event.globalPos())
 
     def keyPressEvent(self, event):
@@ -123,3 +129,15 @@ class DashboardWidget(QFrame, WidgetNotificationMixin):
         title = self._widget_id.replace("_", " ").title()
         dialog = WidgetSettingsDialog(self._widget_id, title, self)
         dialog.exec()
+
+    def _toggle_perf_overlay(self, checked: bool) -> None:
+        if checked:
+            self._perf_overlay = PerfOverlay(self._widget_id, self)
+            self._perf_overlay.move(4, 4)
+            self._perf_overlay.show()
+        else:
+            overlay = getattr(self, "_perf_overlay", None)
+            if overlay is not None:
+                overlay.setVisible(False)
+                overlay.deleteLater()
+                self._perf_overlay = None

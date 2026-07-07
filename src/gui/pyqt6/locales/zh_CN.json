@@ -206,5 +206,6 @@
   "harvest_btn_accessible": "运行收获任务",
   "analyze_btn_accessible": "分析当前场景",
   "recent_tasks_list": "最近任务列表",
-  "chart_widget_label": "执行趋势图表"
+  "chart_widget_label": "执行趋势图表",
+  "widget_show_perf": "显示性能"
 }

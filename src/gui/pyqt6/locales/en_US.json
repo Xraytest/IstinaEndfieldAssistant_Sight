@@ -206,5 +206,6 @@
   "harvest_btn_accessible": "Run harvest task",
   "analyze_btn_accessible": "Analyze current scene",
   "recent_tasks_list": "Recent tasks list",
-  "chart_widget_label": "Execution trend chart"
+  "chart_widget_label": "Execution trend chart",
+  "widget_show_perf": "Show performance"
 }
