@@ -36,8 +36,12 @@ from gui.pyqt6.theme.widget_styles import (
     INPUT_STYLE,
     LIST_STYLE,
     LOG_STYLE,
+    METRIC_VALUE_STYLE,
     PREVIEW_STYLE,
+    PROGRESS_BAR_STYLE,
     RED_STYLE,
+    SCROLL_AREA_TRANSPARENT_STYLE,
+    SPLITTER_HANDLE_STYLE,
     TABLE_STYLE,
     VAL_STYLE,
     YELLOW_STYLE,
@@ -339,7 +343,7 @@ class MaaEndControlPage(QWidget):
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter = main_splitter
         main_splitter.setChildrenCollapsible(False)
-        main_splitter.setStyleSheet("QSplitter::handle { width: 1px; background: rgba(24,209,255,0.12); }")
+        main_splitter.setStyleSheet(SPLITTER_HANDLE_STYLE)
 
         # Column 1: Tasks -----------------------------------------------
         tasks_col = QWidget()
@@ -392,7 +396,7 @@ class MaaEndControlPage(QWidget):
         option_layout.setSpacing(2)
         self._option_scroll = QScrollArea()
         self._option_scroll.setWidgetResizable(True)
-        self._option_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self._option_scroll.setStyleSheet(SCROLL_AREA_TRANSPARENT_STYLE)
         self._option_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self._option_container = QWidget()
         self._option_form = QVBoxLayout(self._option_container)
@@ -424,7 +428,7 @@ class MaaEndControlPage(QWidget):
         right_vsplitter = QSplitter(Qt.Orientation.Vertical)
         self._right_vsplitter = right_vsplitter
         right_vsplitter.setChildrenCollapsible(False)
-        right_vsplitter.setStyleSheet("QSplitter::handle { width: 1px; background: rgba(24,209,255,0.12); }")
+        right_vsplitter.setStyleSheet(SPLITTER_HANDLE_STYLE)
 
         # Presets
         preset_card = QGroupBox(locale.tr("preset_card", "Presets"))
@@ -584,22 +588,7 @@ class MaaEndControlPage(QWidget):
         self._progress_bar.setMaximumWidth(200)
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
-        self._progress_bar.setStyleSheet("""
-            QProgressBar {
-                background-color: rgba(16, 16, 26, 0.85);
-                border: 1px solid rgba(24, 209, 255, 0.15);
-                border-radius: 8px;
-                height: 16px;
-                text-align: center;
-                color: #9090a8;
-                font-size: 10px;
-                font-family: 'Microsoft YaHei UI';
-            }
-            QProgressBar::chunk {
-                background-color: #18d1ff;
-                border-radius: 8px;
-            }
-        """)
+        self._progress_bar.setStyleSheet(PROGRESS_BAR_STYLE)
         self._progress_bar.setVisible(False)
         bottom.addWidget(self._progress_bar, 1)
         root.addLayout(bottom)

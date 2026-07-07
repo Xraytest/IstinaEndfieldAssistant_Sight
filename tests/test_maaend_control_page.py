@@ -49,6 +49,7 @@ class FakeCLIBridge:
     def __init__(self):
         self.commandFinished = _FakeSignal()
         self.commandError = _FakeSignal()
+        self.logMessage = _FakeSignal()
         self._presets = {
             "TestPreset": {
                 "task": [

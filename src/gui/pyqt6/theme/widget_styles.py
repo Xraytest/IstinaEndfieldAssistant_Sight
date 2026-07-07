@@ -56,6 +56,10 @@ HEADER_STYLE = (
     f"color: {_PRIMARY}; font-size: 14px; font-family: '{_FONT}';"
     f" font-weight: bold; letter-spacing: 1px; padding: 4px 0;"
 )
+METRIC_VALUE_STYLE = (
+    f"font-size: 22px; font-family: '{_FONT}';"
+    f" color: {_TEXT_PRIMARY}; font-weight: bold;"
+)
 
 # ---------------------------------------------------------------------------
 # Card / container QSS blocks
@@ -172,6 +176,25 @@ LOADING_OVERLAY_STYLE = f"""
         font-size: 14px;
         font-family: '{_FONT}';
         letter-spacing: 2px;
+    }}
+"""
+
+SPLITTER_HANDLE_STYLE = "QSplitter::handle { width: 1px; background: rgba(24, 209, 255, 0.12); }"
+SCROLL_AREA_TRANSPARENT_STYLE = "QScrollArea { border: none; background: transparent; }"
+PROGRESS_BAR_STYLE = f"""
+    QProgressBar {{
+        background-color: rgba(16, 16, 26, 0.85);
+        border: 1px solid rgba(24, 209, 255, 0.15);
+        border-radius: 8px;
+        height: 16px;
+        text-align: center;
+        color: #9090a8;
+        font-size: 10px;
+        font-family: '{_FONT}';
+    }}
+    QProgressBar::chunk {{
+        background-color: {_PRIMARY};
+        border-radius: 8px;
     }}
 """
 

@@ -21,7 +21,7 @@ from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.icons import get_action_icon
-from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE, INPUT_STYLE, LOG_STYLE
+from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE, INPUT_STYLE, LOG_STYLE, METRIC_VALUE_STYLE
 from gui.pyqt6.responsive import LoadingOverlay, SkeletonCard
 
 
@@ -45,7 +45,7 @@ class StatCard(QFrame):
 
         self._value_label = QLabel(value)
         self._value_label.setProperty("variant", "hero")
-        self._value_label.setStyleSheet("font-size: 22px;")
+        self._value_label.setStyleSheet(METRIC_VALUE_STYLE)
         layout.addWidget(self._value_label)
 
         self._status_label = QLabel(status)
