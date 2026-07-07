@@ -58,6 +58,8 @@ class MainWindow(QMainWindow):
 
         self.setStatusBar(QStatusBar(self))
         self.statusBar().showMessage("界面已就绪")
+        self.statusBar().setAccessibleName("状态栏")
+        self.statusBar().setAccessibleDescription("显示当前应用程序状态和提示信息")
 
         self._navigation_list: Optional[QListWidget] = None
         self._page_stack: Optional[QStackedWidget] = None
@@ -104,6 +106,8 @@ class MainWindow(QMainWindow):
 
         title_label = QLabel("Istina Endfield Assistant")
         title_label.setProperty("variant", "hero")
+        title_label.setAccessibleName("应用标题")
+        title_label.setAccessibleDescription("Istina Endfield Assistant 主窗口标题")
         hero_layout.addWidget(title_label)
         hero_layout.addStretch()
         root_layout.addWidget(hero)
@@ -120,6 +124,7 @@ class MainWindow(QMainWindow):
 
         nav_title = QLabel("页面")
         nav_title.setProperty("variant", "eyebrow")
+        nav_title.setAccessibleName("导航标题")
         nav_layout.addWidget(nav_title)
 
         self._navigation_list = QListWidget(nav_panel)
@@ -128,6 +133,8 @@ class MainWindow(QMainWindow):
         self._navigation_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._navigation_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._navigation_list.currentRowChanged.connect(self._on_nav_changed)
+        self._navigation_list.setAccessibleName("主导航列表")
+        self._navigation_list.setAccessibleDescription("页面切换导航，包含 PRTS 全智能、标准推理、设备、设置、日志")
         nav_layout.addWidget(self._navigation_list)
 
         self._preview_label = QLabel("暂无预览")
@@ -135,6 +142,8 @@ class MainWindow(QMainWindow):
         self._preview_label.setStyleSheet(PREVIEW_STYLE)
         self._preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._preview_label.setMinimumHeight(160)
+        self._preview_label.setAccessibleName("预览区域")
+        self._preview_label.setAccessibleDescription("显示设备屏幕预览图像")
         nav_layout.addWidget(self._preview_label, 1)
 
         shell_layout.addWidget(nav_panel, 0, Qt.AlignmentFlag.AlignTop)
@@ -160,7 +169,10 @@ class MainWindow(QMainWindow):
             ("日志", LogPage()),
         ]
         for label, page in pages:
-            self._navigation_list.addItem(QListWidgetItem(label))
+            item = QListWidgetItem(label)
+            item.setAccessibleName(f"导航: {label}")
+            item.setAccessibleDescription(f"切换到 {label} 页面")
+            self._navigation_list.addItem(item)
             self._page_stack.addWidget(page)
 
         from gui.pyqt6.theme.icons import apply_nav_icons
