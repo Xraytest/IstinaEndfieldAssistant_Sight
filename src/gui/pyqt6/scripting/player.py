@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import QTimer, QObject, QPoint
+from PyQt6.QtCore import QTimer, QObject, QPoint, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QLineEdit, QComboBox
 from PyQt6.QtTest import QTest
 from PyQt6.QtCore import Qt
@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 class Player(QObject):
     """Replays recorded actions with configurable delays."""
 
-    playback_started = None
-    playback_finished = None
-    playback_stopped = None
+    playback_started = pyqtSignal()
+    playback_finished = pyqtSignal()
+    playback_stopped = pyqtSignal()
 
     def __init__(
         self,

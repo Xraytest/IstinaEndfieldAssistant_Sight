@@ -22,7 +22,7 @@ from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.icons import get_action_icon
 from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE, INPUT_STYLE, LOG_STYLE
-from gui.pyqt6.responsive import LoadingOverlay
+from gui.pyqt6.responsive import LoadingOverlay, SkeletonCard
 
 
 locale = get_locale_manager()

@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
-from PyQt6.QtCore import QObject, QEvent, Qt, QTimer, QPoint
+from PyQt6.QtCore import QObject, QEvent, Qt, QTimer, QPoint, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication,
     QAbstractScrollArea,
@@ -42,8 +42,8 @@ _SKIPPED_TYPES = (
 class Recorder(QObject):
     """Records user interactions (clicks, text changes) on QWidgets."""
 
-    recording_started = _script = None
-    recording_stopped = None
+    recording_started = pyqtSignal(str)
+    recording_stopped = pyqtSignal(str)
 
     def __init__(
         self,

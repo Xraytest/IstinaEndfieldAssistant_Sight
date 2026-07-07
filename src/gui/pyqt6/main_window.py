@@ -231,8 +231,8 @@ class MainWindow(QMainWindow):
                 "日志": "nav_log",
                 "Scripting": "nav_scripting",
             }.get(label, label)
-            item.setAccessibleName(key)
-            item.setAccessibleDescription(locale.tr(key, f"Switch to {label} page"))
+            item.setData(Qt.ItemDataRole.AccessibleTextRole, key)
+            item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, locale.tr(key, f"Switch to {label} page"))
             self._navigation_list.addItem(item)
             self._page_stack.addWidget(page)
 

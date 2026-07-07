@@ -298,9 +298,8 @@ def get_nav_icon(label: str, size: int = 18) -> QIcon:
     key = f"nav:{label}:{size}"
     if key not in _cache:
         path = factory()
-        scale = size / 16.0
-        scaled = _scale_path(path, scale)
-        _cache[key] = QIcon(_pixmap_from_path(scaled, size=size, color="#18d1ff", stroke_width=1.8))
+        pixmap = _pixmap_from_path(path, size=16, color="#18d1ff", stroke_width=1.8)
+        _cache[key] = QIcon(pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
     return _cache[key]
 
 
@@ -312,9 +311,8 @@ def get_action_icon(name: str, size: int = 14) -> QIcon:
     key = f"action:{name}:{size}"
     if key not in _cache:
         path = factory()
-        scale = size / 16.0
-        scaled = _scale_path(path, scale)
-        _cache[key] = QIcon(_pixmap_from_path(scaled, size=size, color="#e8e8ee", stroke_width=1.6))
+        pixmap = _pixmap_from_path(path, size=16, color="#e8e8ee", stroke_width=1.6)
+        _cache[key] = QIcon(pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
     return _cache[key]
 
 
@@ -326,15 +324,14 @@ def get_status_icon(status: str, size: int = 14) -> QIcon:
     key = f"status:{status}:{size}"
     if key not in _cache:
         path = factory()
-        scale = size / 16.0
-        scaled = _scale_path(path, scale)
         color = {
             "pending": "#9090a8",
             "running": "#18d1ff",
             "success": "#00ffa2",
             "failed": "#ff3355",
         }.get(status, "#9090a8")
-        _cache[key] = QIcon(_pixmap_from_path(scaled, size=size, color=color, stroke_width=1.6))
+        pixmap = _pixmap_from_path(path, size=16, color=color, stroke_width=1.6)
+        _cache[key] = QIcon(pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
     return _cache[key]
 
 

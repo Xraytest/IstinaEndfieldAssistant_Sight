@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from PyQt6.QtCore import QPropertyAnimation, QTimer
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QFormLayout,
     QGroupBox,
