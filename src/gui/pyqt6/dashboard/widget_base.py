@@ -46,12 +46,30 @@ class DashboardWidget(QFrame):
         self.setAcceptDrops(True)
 
     def enterEvent(self, event):
-        self.setStyleSheet(CARD_STYLE + "\nQFrame#metricCard:hover { border: 1px solid rgba(24, 209, 255, 0.35); }")
+        self.setStyleSheet(
+            CARD_STYLE
+            + "\nQFrame#metricCard:hover {"
+            + " border: 1px solid rgba(24, 209, 255, 0.35);"
+            + " background-color: rgba(24, 209, 255, 0.04);"
+            + "}"
+        )
         super().enterEvent(event)
 
     def leaveEvent(self, event):
         self.setStyleSheet(CARD_STYLE)
         super().leaveEvent(event)
+
+    def set_selected(self, selected: bool) -> None:
+        if selected:
+            self.setStyleSheet(
+                CARD_STYLE
+                + "\nQFrame#metricCard {"
+                + " border: 1px solid rgba(24, 209, 255, 0.5);"
+                + " background-color: rgba(24, 209, 255, 0.08);"
+                + "}"
+            )
+        else:
+            self.setStyleSheet(CARD_STYLE)
 
     def fade_in(self, duration: int = 200) -> None:
         self.setWindowOpacity(0.0)
