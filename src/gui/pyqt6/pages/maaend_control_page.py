@@ -333,14 +333,25 @@ class MaaEndControlPage(QWidget):
             widget = getattr(self, widget_name, None)
             if widget is not None:
                 widget.setFont(font)
-        # 延迟刷新列表，避免在 __init__ 中启动嵌套 QEventLoop
-        QTimer.singleShot(0, self.refresh)
+        self._auto_connect_attempted = False
+        # 延迟初始化：先尝试自动连接，再刷新列表，避免在 __init__ 中启动嵌套 QEventLoop
+        QTimer.singleShot(0, self._delayed_init)
         self._queue_state.load()
         self._selected_task = self._queue_state.selected_task
         self._selected_preset = self._queue_state.selected_preset
         self._restore_queue_ui()
         self.log_message.connect(self._append_log)
         self._preview_label = None
+
+    def _refresh_queue_list(self) -> None:
+        for row in range(self._queue_list.rowCount()):
+            item = self._queue_list.item(row, 0)
+            if not item:
+                continue
+            entry = self._queue_state.get_queue_item(row)
+            if not entry:
+                continue
+            item.setText(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
 
     def _restore_queue_ui(self) -> None:
         self._queue_list.setRowCount(0)
@@ -491,6 +502,11 @@ class MaaEndControlPage(QWidget):
         option_btn_row = QHBoxLayout()
         option_btn_row.setContentsMargins(0, 0, 0, 0)
         option_btn_row.setSpacing(6)
+        self._save_task_settings_btn = QPushButton("保存设置")
+        self._save_task_settings_btn.setMinimumHeight(24)
+        self._save_task_settings_btn.setStyleSheet(BTN_DEFAULT)
+        self._save_task_settings_btn.clicked.connect(self._save_options)
+        option_btn_row.addWidget(self._save_task_settings_btn)
         option_btn_row.addStretch()
         option_layout.addLayout(option_btn_row)
         options_layout.addWidget(option_card)
@@ -991,8 +1007,19 @@ class MaaEndControlPage(QWidget):
         try:
             self._persist_state()
             QApplication.beep()
+            self._refresh_queue_list()
         except Exception as e:
             QMessageBox.critical(self, "保存失败", str(e))
+
+    def _refresh_queue_list(self) -> None:
+        for row in range(self._queue_list.rowCount()):
+            item = self._queue_list.item(row, 0)
+            if not item:
+                continue
+            entry = self._queue_state.get_queue_item(row)
+            if not entry:
+                continue
+            item.setText(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
 
     def _load_options(self, task_name: str) -> Dict[str, Any]:
         return self._queue_state.load_options(task_name)
@@ -1165,16 +1192,46 @@ class MaaEndControlPage(QWidget):
     # ------------------------------------------------------------------
     # execution
     # ------------------------------------------------------------------
+    def _delayed_init(self) -> None:
+        self._try_auto_connect()
+        self.refresh()
+
+    def _try_auto_connect(self) -> None:
+        if self._connected or self._auto_connect_attempted:
+            return
+        result = self._sync_execute("system connect", timeout_ms=15000)
+        if not result or result.get("status") != "success":
+            self._auto_connect_attempted = True
+            self._append_log("系统", "启动时自动连接失败，后续不再主动重试。")
+        else:
+            self._connected = True
+            self._append_log("系统", "启动时自动连接成功")
+
+    def set_connected(self, connected: bool) -> None:
+        self._connected = connected
+        if connected:
+            self._auto_connect_attempted = False
+            self.start_preview_timer()
+        else:
+            self.stop_preview_timer()
+
+    def set_auto_connect_attempted(self) -> None:
+        self._auto_connect_attempted = True
+
     def _ensure_connected(self) -> bool:
         """Auto-connect runtime if not already connected. Returns True on success."""
         if self._connected:
             return True
+        if self._auto_connect_attempted:
+            return False
         self._append_log("系统", "正在连接 MaaEnd runtime...")
         result = self._sync_execute("system connect", timeout_ms=15000)
         if not result or result.get("status") != "success":
+            self._auto_connect_attempted = True
             QMessageBox.warning(self, "连接失败", "无法连接 MaaEnd runtime，请检查设备。")
             return False
         self._connected = True
+        self._auto_connect_attempted = False
         self.start_preview_timer()
         self._append_log("系统", "MaaEnd runtime 已连接")
         return True
