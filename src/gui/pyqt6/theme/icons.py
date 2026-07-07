@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, Qt
 
 
 def _pixmap_from_text(text: str, size: int = 16, color: str = "#18d1ff") -> QPixmap:
@@ -23,7 +23,7 @@ def _pixmap_from_text(text: str, size: int = 16, color: str = "#18d1ff") -> QPix
     painter.setPen(QColor(color))
     font = QFont("Segoe UI Emoji", int(size * 0.7))
     painter.setFont(font)
-    painter.drawText(pixmap.rect(), text)
+    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, text)
     painter.end()
     return pixmap
 

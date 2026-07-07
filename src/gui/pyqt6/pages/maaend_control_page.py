@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, List
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QGroupBox, QScrollArea,
-    QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox, QSizePolicy,
+    QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox, QSizePolicy, QProgressBar,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject
 from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage, QFont
@@ -17,6 +17,7 @@ from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage, QFont
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.queue_state import QueueState
 from gui.pyqt6.responsive import is_narrow_size
+from gui.pyqt6.theme.icons import get_action_icon, get_status_icon
 
 from gui.pyqt6.theme.widget_styles import (
     BLUE_STYLE,

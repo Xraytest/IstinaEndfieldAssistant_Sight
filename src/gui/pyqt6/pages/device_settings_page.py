@@ -58,6 +58,8 @@ class DeviceSettingsPage(QWidget):
 
         header = HeroHeader("设备连接", "管理 ADB 设备连接与自动重连。", content)
         content_root.addWidget(header)
+
+        connection_card = QGroupBox("连接管理")
         connection_layout = QVBoxLayout(connection_card)
         connection_layout.setSpacing(10)
 
