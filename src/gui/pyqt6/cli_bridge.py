@@ -129,7 +129,7 @@ class CLIBridge(QObject):
         if self._restart_pending:
             self._finalize_current_process()
             return
-        if exit_status == QProcess.ExitStatus.Crashed:
+        if exit_status == QProcess.ExitStatus.CrashExit:
             self._crash_count += 1
             self.processCrashed.emit(self._crash_count)
             if self._crash_count < self._max_crashes and not self._restart_pending:

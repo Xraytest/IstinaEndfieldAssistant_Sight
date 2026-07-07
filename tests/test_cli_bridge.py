@@ -83,3 +83,39 @@ def test_cli_bridge_on_error_shows_dialog_after_max_crashes(qapp: QApplication) 
         bridge._on_error(QProcess.ProcessError.Crashed)
         assert bridge._crash_count == 5
         assert mock_dialog.call_count == 1
+
+
+def test_cli_bridge_on_finished_increments_crash_count_on_crash_exit(qapp: QApplication) -> None:
+    bridge = CLIBridge()
+    bridge._last_command = ["daily"]
+    bridge._process = MagicMock()
+
+    finished_crashes = []
+
+    def capture(count):
+        finished_crashes.append(count)
+
+    bridge.processCrashed.connect(capture)
+
+    with patch.object(QTimer, "singleShot") as mock_timer:
+        bridge._on_finished(1, QProcess.ExitStatus.CrashExit)
+        assert bridge._crash_count == 1
+        assert finished_crashes == [1]
+        assert mock_timer.call_count == 1
+
+
+def test_cli_bridge_on_finished_emits_error_on_nonzero_exit(qapp: QApplication) -> None:
+    bridge = CLIBridge()
+    bridge._last_command = ["daily"]
+    bridge._process = MagicMock()
+
+    errors = []
+
+    def capture(command, message):
+        errors.append((command, message))
+
+    bridge.commandError.connect(capture)
+    bridge._on_finished(2, QProcess.ExitStatus.NormalExit)
+    assert len(errors) == 1
+    assert errors[0][0] == "daily"
+    assert "2" in errors[0][1]
