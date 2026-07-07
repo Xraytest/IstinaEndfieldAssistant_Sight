@@ -1,4 +1,4 @@
-﻿"""Standard Reasoning control panel: task list, preset list, task queue, option editor, preview, log viewer."""
+"""Standard Reasoning control panel: task list, preset list, task queue, option editor, preview, log viewer."""
 from __future__ import annotations
 
 import json
@@ -184,6 +184,23 @@ def _zh(name: str) -> str:
     if not name:
         return name
     return NAME_ZH.get(name, name)
+
+
+_OPTION_LOCALE_PATH = Path(__file__).resolve().parent.parent.parent.parent / "3rd-part" / "maaend" / "locales" / "interface" / "zh_cn.json"
+OPTION_LOCALE: Dict[str, str] = {}
+try:
+    if _OPTION_LOCALE_PATH.exists():
+        OPTION_LOCALE = json.loads(_OPTION_LOCALE_PATH.read_text(encoding="utf-8"))
+except Exception:
+    OPTION_LOCALE = {}
+
+
+def _resolve_label(raw: Any) -> str:
+    if not isinstance(raw, str):
+        return str(raw)
+    if raw.startswith("$"):
+        return OPTION_LOCALE.get(raw.lstrip("$"), raw)
+    return raw
 
 
 class MaaEndControlPage(QWidget):
@@ -743,7 +760,7 @@ class MaaEndControlPage(QWidget):
             row = QHBoxLayout(container)
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(8)
-            label = QLabel(name)
+            label = QLabel(_resolve_label(opt_def.get("label", name)))
             label.setStyleSheet(INFO_STYLE)
             label.setMaximumWidth(220)
             label.setWordWrap(True)
@@ -753,6 +770,7 @@ class MaaEndControlPage(QWidget):
             row.addWidget(widget, 1)
             self._option_form.addWidget(container)
         self._option_form.addStretch()
+        self._apply_saved_option_values(self._selected_task)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -794,9 +812,9 @@ class MaaEndControlPage(QWidget):
             combo = QComboBox()
             combo.setStyleSheet(COMBO_STYLE)
             for case in cases:
-                combo.addItem(case.get("name", ""))
-            if default_case:
-                idx = combo.findText(default_case)
+                combo.addItem(_resolve_label(case.get("label", case.get("name", ""))))
+            if default_case is not None:
+                idx = combo.findText(str(default_case))
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
             return combo
@@ -808,7 +826,7 @@ class MaaEndControlPage(QWidget):
             default_items = set(default_case) if isinstance(default_case, list) else set()
             checkboxes: Dict[str, QCheckBox] = {}
             for case in cases:
-                cb = QCheckBox(case.get("label", case.get("name", "")))
+                cb = QCheckBox(_resolve_label(case.get("label", case.get("name", ""))))
                 cb.setStyleSheet(CHECK_STYLE)
                 cb.setChecked(case.get("name", "") in default_items)
                 layout.addWidget(cb)
@@ -819,7 +837,7 @@ class MaaEndControlPage(QWidget):
             combo = QComboBox()
             combo.setStyleSheet(COMBO_STYLE)
             for case in cases:
-                combo.addItem(case.get("label", case.get("name", "")), case.get("name"))
+                combo.addItem(_resolve_label(case.get("label", case.get("name", ""))), case.get("name"))
             if default_case is not None:
                 idx = combo.findData(str(default_case))
                 if idx < 0:
@@ -838,7 +856,7 @@ class MaaEndControlPage(QWidget):
                 input_name = input_def.get("name", "")
                 le = QLineEdit(str(input_def.get("default", "")))
                 le.setStyleSheet(INPUT_STYLE)
-                form.addRow(QLabel(input_def.get("label", input_name)), le)
+                form.addRow(QLabel(_resolve_label(input_def.get("label", input_name))), le)
                 line_edits[input_name] = le
             container.line_edits = line_edits  # type: ignore[attr-defined]
             return container
@@ -890,6 +908,8 @@ class MaaEndControlPage(QWidget):
             return ""
         parts: List[str] = []
         for key in sorted(options.keys()):
+            if key == "settings":
+                continue
             value = options[key]
             if isinstance(value, dict):
                 inner = ", ".join(f"{k}={v}" for k, v in value.items())
@@ -916,6 +936,51 @@ class MaaEndControlPage(QWidget):
         if isinstance(saved, dict):
             return dict(saved)
         return {}
+
+    def _apply_saved_option_values(self, task_name: str) -> None:
+        saved = self._load_options(task_name)
+        if not saved:
+            return
+        task = self._tasks_cache.get(task_name)
+        if not task:
+            return
+        option_names = task.get("option", [])
+        option_defs = self._task_option_defs or {}
+        local_defs = task.get("_option_defs")
+        if isinstance(local_defs, dict) and local_defs:
+            option_defs = local_defs
+        if not isinstance(option_defs, dict):
+            option_defs = {}
+        for name in option_names:
+            if name not in saved:
+                continue
+            widget = self._option_widgets.get(name)
+            if widget is None:
+                continue
+            value = saved[name]
+            opt_def = option_defs.get(name, {})
+            opt_type = opt_def.get("type", "switch")
+            if opt_type == "switch":
+                idx = widget.findText(str(value))
+                if idx >= 0:
+                    widget.setCurrentIndex(idx)
+            elif opt_type == "checkbox":
+                checkboxes = getattr(widget, "checkboxes", {})
+                if isinstance(value, list):
+                    for n, cb in checkboxes.items():
+                        cb.setChecked(n in value)
+            elif opt_type == "select":
+                idx = widget.findData(str(value))
+                if idx < 0:
+                    idx = widget.findText(str(value))
+                if idx >= 0:
+                    widget.setCurrentIndex(idx)
+            elif opt_type == "input":
+                line_edits = getattr(widget, "line_edits", {})
+                if isinstance(value, dict):
+                    for n, le in line_edits.items():
+                        if n in value:
+                            le.setText(str(value[n]))
 
     def _resolve_state_path(self) -> Path:
         try:
@@ -1092,17 +1157,17 @@ class MaaEndControlPage(QWidget):
         self._queue_items.clear()
         self._queue_list.clear()
         for task_entry in task_list:
-            name = task_entry.get("name")
+            name, inline_options = self._normalize_task_entry(task_entry)
             options = task_entry.get("option") or {}
+            if inline_options:
+                options = {**dict(options), **inline_options}
             saved = self._load_options(name)
             if saved:
                 options = dict(options)
                 options.update(saved)
             entry = {"name": name, "type": "task", "options": dict(options)}
             self._queue_items.append(entry)
-            label = f"[任务] {_zh(name)}"
-            if options:
-                label += f" ({', '.join(f'{k}={v}' for k, v in options.items())})"
+            label = self._format_queue_label(name, "task", options)
             self._queue_list.addItem(label)
         self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
         # 队列覆盖完成后自动开始执行；外层已挡住执行中状态，这里再判一次仅作并发防御。
