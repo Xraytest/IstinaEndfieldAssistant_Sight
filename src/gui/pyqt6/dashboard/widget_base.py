@@ -3,28 +3,23 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QPoint, QTimer, Qt
-from PyQt6.QtGui import QAction, QDrag
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QVBoxLayout, QWidget
+from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QDrag
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme import widget_skin
-from gui.pyqt6.theme.widget_animation import bounce, MicroFeedback, success_pulse
-from gui.pyqt6.dashboard.widget_notification import NotificationBadge, WidgetNotificationMixin
-from gui.pyqt6.dashboard.widget_perf import PerfOverlay, WidgetPerfMixin
+from gui.pyqt6.theme.widget_styles import CARD_STYLE
 
 locale = get_locale_manager()
 
 
-class DashboardWidget(QFrame, WidgetNotificationMixin, WidgetPerfMixin):
+class DashboardWidget(QFrame):
     """Base class for dashboard widgets."""
 
     def __init__(self, title: str, widget_id: str = "", parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        WidgetNotificationMixin.__init__(self)
-        WidgetPerfMixin.__init__(self)
         self.setObjectName("metricCard")
-        self.setStyleSheet(widget_skin.widget_skin_stylesheet())
+        self.setStyleSheet(CARD_STYLE)
         self._widget_id = widget_id
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(12, 10, 12, 10)
@@ -33,7 +28,6 @@ class DashboardWidget(QFrame, WidgetNotificationMixin, WidgetPerfMixin):
         header = QHBoxLayout()
         title_label = QLabel(title)
         title_label.setProperty("variant", "secondary")
-        title_label.setProperty("skin_title", "1")
         header.addWidget(title_label)
         header.addStretch()
         self._layout.addLayout(header)
@@ -51,20 +45,8 @@ class DashboardWidget(QFrame, WidgetNotificationMixin, WidgetPerfMixin):
         # Enable drag
         self.setAcceptDrops(True)
 
-        # Micro-feedback
-        self._feedback = MicroFeedback(self)
-        self._feedback.install()
-
-        # Accessibility
-        self.setAccessibleName(title)
-        self.setAccessibleDescription(locale.tr("widget_accessible_desc", "Dashboard widget: {title}").format(title=title))
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-
     def content_widget(self) -> QWidget:
         return self._content
-
-    def apply_skin(self) -> None:
-        self.setStyleSheet(widget_skin.widget_skin_stylesheet())
 
     def update_content(self, widget: QWidget) -> None:
         while self._content_layout.count():
@@ -83,10 +65,6 @@ class DashboardWidget(QFrame, WidgetNotificationMixin, WidgetPerfMixin):
     def stop_auto_refresh(self) -> None:
         self._refresh_timer.stop()
 
-    def play_success(self) -> None:
-        success_pulse(self)
-        bounce(self)
-
     def mousePressEvent(self, event):
         if event.button() == "left button":
             self._drag_start_pos = event.pos()
@@ -101,43 +79,3 @@ class DashboardWidget(QFrame, WidgetNotificationMixin, WidgetPerfMixin):
             mime = drag.mimeData()
             mime.setData("application/x-dashboard-widget", self._widget_id.encode())
             drag.exec()
-
-    def contextMenuEvent(self, event):
-        menu = QMenu(self)
-        settings_action = QAction(locale.tr("widget_settings", "Settings"), self)
-        settings_action.triggered.connect(self._open_settings)
-        menu.addAction(settings_action)
-        refresh_action = QAction(locale.tr("widget_refresh_now", "Refresh now"), self)
-        refresh_action.triggered.connect(self.refresh)
-        menu.addAction(refresh_action)
-        perf_action = QAction(locale.tr("widget_show_perf", "Show performance"), self)
-        perf_action.setCheckable(True)
-        perf_action.triggered.connect(self._toggle_perf_overlay)
-        menu.addAction(perf_action)
-        menu.exec(event.globalPos())
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
-            self._open_settings()
-        elif event.key() == Qt.Key.Key_F5:
-            self.refresh()
-        else:
-            super().keyPressEvent(event)
-
-    def _open_settings(self) -> None:
-        from gui.pyqt6.dashboard.widget_settings_dialog import WidgetSettingsDialog
-        title = self._widget_id.replace("_", " ").title()
-        dialog = WidgetSettingsDialog(self._widget_id, title, self)
-        dialog.exec()
-
-    def _toggle_perf_overlay(self, checked: bool) -> None:
-        if checked:
-            self._perf_overlay = PerfOverlay(self._widget_id, self)
-            self._perf_overlay.move(4, 4)
-            self._perf_overlay.show()
-        else:
-            overlay = getattr(self, "_perf_overlay", None)
-            if overlay is not None:
-                overlay.setVisible(False)
-                overlay.deleteLater()
-                self._perf_overlay = None
