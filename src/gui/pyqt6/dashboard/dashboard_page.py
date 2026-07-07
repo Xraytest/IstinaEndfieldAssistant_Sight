@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
+    QDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -18,10 +19,19 @@ from PyQt6.QtWidgets import (
 )
 
 from gui.pyqt6.dashboard.widget_base import DashboardWidget
+from gui.pyqt6.dashboard.widget_registry import get_widget_registry
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE
 
 locale = get_locale_manager()
+
+# Register built-in widgets
+_registry = get_widget_registry()
+_registry.register("device", locale.tr("widget_device", "Device Status"), locale.tr("widget_device_desc", "Shows device connection status"), None)
+_registry.register("queue", locale.tr("widget_queue", "Queue Progress"), locale.tr("widget_queue_desc", "Shows queue execution progress"), None)
+_registry.register("llm", locale.tr("widget_llm", "LLM Status"), locale.tr("widget_llm_desc", "Shows LLM service status"), None)
+_registry.register("quick_actions", locale.tr("widget_quick_actions", "Quick Actions"), locale.tr("widget_quick_actions_desc", "Quick action buttons"), None)
+_registry.register("recent_tasks", locale.tr("widget_recent_tasks", "Recent Tasks"), locale.tr("widget_recent_tasks_desc", "Shows recent task history"), None)
 
 
 class DashboardPage(QWidget):
@@ -72,6 +82,11 @@ class DashboardPage(QWidget):
         customize_btn.setStyleSheet(BTN_DEFAULT)
         customize_btn.clicked.connect(self._save_layout)
         header.addWidget(customize_btn)
+
+        add_widget_btn = QPushButton(locale.tr("dashboard_add_widget", "Add Widget"))
+        add_widget_btn.setStyleSheet(BTN_ACTIVE)
+        add_widget_btn.clicked.connect(self._open_widget_market)
+        header.addWidget(add_widget_btn)
         content_root.addLayout(header)
 
         self._grid = QGridLayout()
@@ -181,6 +196,29 @@ class DashboardPage(QWidget):
             })
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
         self._config_path.write_text(json.dumps({"widgets": widgets}, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def _open_widget_market(self) -> None:
+        from gui.pyqt6.dashboard.widget_market_dialog import WidgetMarketDialog
+        dialog = WidgetMarketDialog(self._bridge, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            widget_id = dialog.selected_widget_id()
+            if widget_id and widget_id not in self._grid_widgets:
+                self._add_widget(widget_id)
+
+    def _add_widget(self, widget_id: str) -> None:
+        registry = get_widget_registry()
+        info = registry.get_widget(widget_id)
+        if info is None:
+            return
+        title = info["name"]
+        widget = self._create_widget(widget_id, title)
+        if widget is not None:
+            # Find next available position
+            row = self._grid.rowCount()
+            col = 0
+            self._grid.addWidget(widget, row, col)
+            self._grid_widgets[widget_id] = widget
+            self._save_layout()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat("application/x-dashboard-widget"):

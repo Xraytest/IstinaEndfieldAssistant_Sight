@@ -167,5 +167,20 @@
   "log_filter_all": "全部",
   "log_filter_info": "信息",
   "log_filter_warning": "警告",
-  "log_filter_error": "错误"
+  "log_filter_error": "错误",
+  "dashboard_title": "仪表盘",
+  "dashboard_customize": "自定义",
+  "dashboard_add_widget": "添加小组件",
+  "widget_market": "小组件市场",
+  "widget_market_desc": "选择要添加到仪表盘的小组件：",
+  "widget_device": "设备状态",
+  "widget_device_desc": "显示设备连接状态",
+  "widget_queue": "队列进度",
+  "widget_queue_desc": "显示队列执行进度",
+  "widget_llm": "LLM 状态",
+  "widget_llm_desc": "显示 LLM 服务状态",
+  "widget_quick_actions": "快捷操作",
+  "widget_quick_actions_desc": "快捷操作按钮",
+  "widget_recent_tasks": "最近任务",
+  "widget_recent_tasks_desc": "显示最近任务历史"
 }
