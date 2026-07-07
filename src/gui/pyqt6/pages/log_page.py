@@ -30,6 +30,14 @@ from gui.pyqt6.theme.icons import get_action_icon
 
 locale = get_locale_manager()
 
+_LOG_LEVEL_COLORS = {
+    "INFO": "#18d1ff",
+    "WARN": "#ffb84d",
+    "ERROR": "#ff4d4d",
+    "DEBUG": "#8b919e",
+    "TRACE": "#a6a9b0",
+}
+
 
 class LogPage(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
@@ -103,9 +111,33 @@ class LogPage(QWidget):
             self._log_view.setPlainText(locale.tr("log_file_missing", "Log file does not exist."))
             return
         try:
-            self._log_view.setPlainText(log_path.read_text(encoding="utf-8", errors="replace"))
+            text = log_path.read_text(encoding="utf-8", errors="replace")
+            self._log_view.setHtml(self._highlight_log(text))
         except OSError as exc:
             self._log_view.setPlainText(locale.tr("read_log_failed", "Failed to read log: {exc}").format(exc=exc))
+
+    def _highlight_log(self, text: str) -> str:
+        import re
+        lines = text.splitlines()
+        html_lines = []
+        for line in lines:
+            escaped = line.replace("&", "&").replace("<", "<").replace(">", ">")
+            # Highlight timestamp pattern like 2026-07-07 16:09:23
+            escaped = re.sub(
+                r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})",
+                r"<span style='color: #8b919e;'>\1</span>",
+                escaped,
+            )
+            # Highlight log levels
+            for level, color in _LOG_LEVEL_COLORS.items():
+                escaped = re.sub(
+                    rf"\b({level})\b",
+                    rf"<span style='color: {color}; font-weight: bold;'>\1</span>",
+                    escaped,
+                    flags=re.IGNORECASE,
+                )
+            html_lines.append(escaped)
+        return "<br>".join(html_lines)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)

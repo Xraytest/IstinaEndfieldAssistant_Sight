@@ -28,11 +28,7 @@ def _pixmap_from_path(path: QPainterPath, size: int = 16, color: str = "#18d1ff"
     return pixmap
 
 
-def _scale_path(path: QPainterPath, scale: float) -> QPainterPath:
-    """Scale a QPainterPath by the given factor."""
-    from PyQt6.QtGui import QTransform
-    transform = QTransform.fromScale(scale, scale)
-    return path * transform
+
 
 
 # ---------------------------------------------------------------------------
