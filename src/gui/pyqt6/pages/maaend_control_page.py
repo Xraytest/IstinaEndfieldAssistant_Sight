@@ -830,6 +830,9 @@ class MaaEndControlPage(QWidget):
         self._queue_list.setMinimumHeight(60)
         self._log_text.setMinimumHeight(60)
         self._option_scroll.setMinimumHeight(120)
+        # Queue list row height optimization
+        if hasattr(self, "_queue_list"):
+            self._queue_list.verticalHeader().setDefaultSectionSize(32)
 
     def _create_option_widget(self, name: str, opt_def: Dict[str, Any]) -> QWidget:
         opt_type = opt_def.get("type", "switch")

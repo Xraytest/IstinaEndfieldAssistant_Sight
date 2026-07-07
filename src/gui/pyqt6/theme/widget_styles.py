@@ -127,7 +127,8 @@ COMBO_STYLE = f"""
 TABLE_STYLE = f"""
     QTableWidget {{ background-color: rgba(16, 16, 26, 0.85); border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; gridline-color: {_BORDER_LIGHT}; }}
     QTableWidget::item {{ padding: 6px; }}
-    QTableWidget::item:selected {{ background-color: {_PRIMARY}1f; color: {_PRIMARY}; }}
+    QTableWidget::item:hover {{ background-color: rgba(24, 209, 255, 0.08); }}
+    QTableWidget::item:selected {{ background-color: rgba(24, 209, 255, 0.25); color: #000000; border-left: 3px solid {_PRIMARY}; }}
     QHeaderView::section {{ background-color: {_PRIMARY}14; color: {_PRIMARY}; font-size: 11px; font-weight: bold; padding: 6px; border: none; }}
 """
 
