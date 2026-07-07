@@ -90,23 +90,6 @@ class PageInfo:
             self.page_type = "unknown"
         self.confidence = max(0.0, min(1.0, float(self.confidence)))
 
-    def get_elements_by_type(self, element_type: str) -> List[ElementInfo]:
-        return [e for e in self.elements if e.element_type == element_type]
-
-    def get_elements_by_source(self, source: str) -> List[ElementInfo]:
-        return [e for e in self.elements if e.source == source]
-
-    def find_element(self, label: str, fuzzy: bool = False) -> Optional[ElementInfo]:
-        if fuzzy:
-            for e in self.elements:
-                if label.lower() in e.label.lower():
-                    return e
-        for e in self.elements:
-            if e.label == label:
-                return e
-        return None
-
-
 @dataclass
 class SceneAnalysis3D:
     """3D scene analysis result."""

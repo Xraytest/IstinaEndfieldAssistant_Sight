@@ -70,8 +70,3 @@ class PrtsFullIntelligencePage(QWidget):
     def _on_command_finished(self, command: str, result: dict) -> None:
         if command == "analyze":
             self._result_text.setText(str(result))
-
-    def set_analysis_mode(self, mode: str) -> None:
-        index = self._mode_combo.findText(mode)
-        if index >= 0:
-            self._mode_combo.setCurrentIndex(index)
