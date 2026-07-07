@@ -32,8 +32,7 @@ from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
 from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, fade_widget, ui_mode_for_size
-
-from PyQt6.QtCore import QTimer
+from gui.pyqt6.tray_icon import TrayIcon
 
 ensure_src_path(__file__)
 
@@ -68,9 +67,11 @@ class MainWindow(QMainWindow):
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(1500)
         self._preview_timer.timeout.connect(self._refresh_preview)
+        self._tray_icon: Optional[TrayIcon] = None
         self._build_shell()
         self._restore_or_fit_window()
         self._update_responsive_mode()
+        self._setup_tray_icon()
 
         QTimer.singleShot(0, self._show_gpu_warning_if_needed)
         QTimer.singleShot(0, self._async_warmup)
@@ -88,6 +89,10 @@ class MainWindow(QMainWindow):
 
         theme_shortcut = QShortcut("Ctrl+T", self)
         theme_shortcut.activated.connect(self._cycle_theme)
+
+    def _setup_tray_icon(self) -> None:
+        """Setup system tray icon for minimize-to-tray support."""
+        self._tray_icon = TrayIcon(self)
 
     def _cycle_theme(self) -> None:
         """Cycle through available themes."""
@@ -121,7 +126,12 @@ class MainWindow(QMainWindow):
         settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
         settings.setValue("mainWindow/geometry", self.saveGeometry())
         self._bridge.execute("llm stop", {})
-        super().closeEvent(event)
+        if self._tray_icon is not None and self._tray_icon.is_available():
+            event.ignore()
+            self.hide()
+            self._tray_icon.show_message("IstinaEndfieldAssistant", "已最小化到托盘，双击托盘图标恢复窗口")
+        else:
+            super().closeEvent(event)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
