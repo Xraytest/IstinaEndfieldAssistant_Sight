@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
 )
 
-from src.gui.pyqt6.scripting.models import Script, ActionRecord
+from gui.pyqt6.scripting.models import Script, ActionRecord
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QMainWindow

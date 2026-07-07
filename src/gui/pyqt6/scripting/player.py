@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication, QLineEdit, QComboBox
 from PyQt6.QtTest import QTest
 from PyQt6.QtCore import Qt
 
-from src.gui.pyqt6.scripting.models import Script, ActionRecord
+from gui.pyqt6.scripting.models import Script, ActionRecord
 
 logger = logging.getLogger(__name__)
 

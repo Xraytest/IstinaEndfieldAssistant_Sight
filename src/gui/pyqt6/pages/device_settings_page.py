@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QPropertyAnimation, QTimer
 from PyQt6.QtWidgets import (
     QFrame,
     QFormLayout,
@@ -187,6 +187,7 @@ class DeviceSettingsPage(QWidget):
                 self._remember_device(serial)
                 if self._reconnect_enabled:
                     self._reconnect_timer.start()
+                self._pulse_connection_status()
             else:
                 self._reconnect_timer.stop()
         elif command.startswith("system disconnect"):
@@ -195,6 +196,15 @@ class DeviceSettingsPage(QWidget):
             self._append_log(locale.tr("disconnect_result", "Disconnect result: {result}").format(result=result))
             if self._reconnect_enabled:
                 self._reconnect_timer.start()
+
+    def _pulse_connection_status(self) -> None:
+        animation = QPropertyAnimation(self._connection_status, b"windowOpacity")
+        animation.setDuration(400)
+        animation.setStartValue(1.0)
+        animation.setKeyValueAt(0.5, 0.4)
+        animation.setEndValue(1.0)
+        animation.setLoopCount(2)
+        animation.start()
 
     def _on_command_error(self, command: str, message: str) -> None:
         self._append_log(locale.tr("command_failed", "Command failed: {command}").format(command=command) + f" {message}")

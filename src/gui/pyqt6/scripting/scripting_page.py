@@ -31,9 +31,9 @@ from gui.pyqt6.theme.widget_styles import (
     LIST_STYLE,
 )
 
-from src.gui.pyqt6.scripting.models import Script, ActionRecord
-from src.gui.pyqt6.scripting.player import Player
-from src.gui.pyqt6.scripting.recorder import Recorder
+from gui.pyqt6.scripting.models import Script, ActionRecord
+from gui.pyqt6.scripting.player import Player
+from gui.pyqt6.scripting.recorder import Recorder
 
 locale = get_locale_manager()
 logger = logging.getLogger(__name__)
