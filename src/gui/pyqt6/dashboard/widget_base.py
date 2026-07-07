@@ -53,6 +53,14 @@ class DashboardWidget(QFrame):
         self.setStyleSheet(CARD_STYLE)
         super().leaveEvent(event)
 
+    def fade_in(self, duration: int = 200) -> None:
+        self.setWindowOpacity(0.0)
+        self._fade_anim = self._fade_anim = __import__("PyQt6.QtCore", fromlist=["QPropertyAnimation"]).QPropertyAnimation(self, b"windowOpacity")
+        self._fade_anim.setDuration(duration)
+        self._fade_anim.setStartValue(0.0)
+        self._fade_anim.setEndValue(1.0)
+        self._fade_anim.start()
+
     def content_widget(self) -> QWidget:
         return self._content
 

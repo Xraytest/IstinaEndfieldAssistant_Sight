@@ -119,6 +119,8 @@ class DashboardPage(QWidget):
             if widget is not None:
                 self._grid.addWidget(widget, row, col)
                 self._grid_widgets[widget_id] = widget
+                if hasattr(widget, "fade_in"):
+                    widget.fade_in(180)
 
     def _add_default_widgets(self) -> None:
         defaults = [
@@ -133,6 +135,8 @@ class DashboardPage(QWidget):
             if widget is not None:
                 self._grid.addWidget(widget, row, col)
                 self._grid_widgets[widget_id] = widget
+                if hasattr(widget, "fade_in"):
+                    widget.fade_in(180)
 
     def _create_widget(self, widget_id: str, title: str) -> Optional[QWidget]:
         if widget_id == "device":
@@ -226,6 +230,8 @@ class DashboardPage(QWidget):
             self._grid.addWidget(widget, row, col)
             self._grid_widgets[widget_id] = widget
             self._save_layout()
+            if hasattr(widget, "fade_in"):
+                widget.fade_in()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasFormat("application/x-dashboard-widget"):
