@@ -24,6 +24,7 @@ from core.foundation.paths import get_project_root
 
 
 from gui.pyqt6.theme.hero import HeroHeader
+from gui.pyqt6.theme.icons import get_action_icon
 
 
 class SettingsPage(QWidget):
@@ -71,11 +72,13 @@ class SettingsPage(QWidget):
         action_row = QHBoxLayout()
         self._reload_btn = QPushButton("重新加载")
         self._reload_btn.setProperty("variant", "secondary")
+        self._reload_btn.setIcon(get_action_icon("刷新"))
         self._reload_btn.clicked.connect(self._load_settings)
         action_row.addWidget(self._reload_btn)
 
         self._save_btn = QPushButton("保存设置")
         self._save_btn.setProperty("variant", "primary")
+        self._save_btn.setIcon(get_action_icon("保存"))
         self._save_btn.clicked.connect(self._save_settings)
         action_row.addWidget(self._save_btn)
         action_row.addStretch()

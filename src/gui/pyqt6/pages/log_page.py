@@ -24,6 +24,7 @@ from gui.pyqt6.responsive import elide_text
 
 
 from gui.pyqt6.theme.hero import HeroHeader
+from gui.pyqt6.theme.icons import get_action_icon
 
 
 class LogPage(QWidget):
@@ -60,6 +61,7 @@ class LogPage(QWidget):
         action_row.addWidget(self._path_label, 1)
 
         refresh_btn = QPushButton("刷新")
+        refresh_btn.setIcon(get_action_icon("刷新"))
         refresh_btn.clicked.connect(self._load_selected_log)
         action_row.addWidget(refresh_btn)
 
