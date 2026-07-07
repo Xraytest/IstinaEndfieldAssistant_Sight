@@ -33,6 +33,7 @@ from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
 from gui.pyqt6.scripting.scripting_page import ScriptingPage
+from gui.pyqt6.dashboard.dashboard_page import DashboardPage
 from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, fade_widget, ui_mode_for_size
 from gui.pyqt6.tray_icon import TrayIcon
 
@@ -210,7 +211,9 @@ class MainWindow(QMainWindow):
         self._maaend_page = MaaEndControlPage(bridge=self._bridge)
         self._device_page = DeviceSettingsPage(bridge=self._bridge)
         self._scripting_page = ScriptingPage(main_window=self)
+        self._dashboard_page = DashboardPage(bridge=self._bridge)
         pages = [
+            (locale.tr("dashboard_title", "Dashboard"), self._dashboard_page),
             (locale.tr("prts_title", "PRTS Intelligence"), PrtsFullIntelligencePage(bridge=self._bridge)),
             (locale.tr("maaend_title", "Standard Inference"), self._maaend_page),
             (locale.tr("device_title", "Device"), self._device_page),
