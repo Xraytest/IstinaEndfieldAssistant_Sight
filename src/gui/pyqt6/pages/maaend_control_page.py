@@ -1213,7 +1213,6 @@ class MaaEndControlPage(QWidget):
         """由 MainWindow 同步设备连接状态。"""
         self._connected = connected
         if connected:
-            self._auto_connect_attempted = False
             self.start_preview_timer()
         else:
             self.stop_preview_timer()
