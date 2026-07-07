@@ -50,6 +50,7 @@ _ACTION_ICONS: Dict[str, str] = {
     "连接": "🔗",
     "断开": "⛔",
     "保存": "💾",
+    "分析": "🔍",
 }
 
 # Queue status icons

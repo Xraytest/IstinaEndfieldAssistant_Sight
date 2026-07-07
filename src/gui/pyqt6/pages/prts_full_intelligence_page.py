@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.theme.hero import HeroHeader
+from gui.pyqt6.theme.icons import get_action_icon
 from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE, INPUT_STYLE, LOG_STYLE
 
 
@@ -115,16 +116,19 @@ class PrtsFullIntelligencePage(QWidget):
 
         self._daily_btn = QPushButton("运行日常")
         self._daily_btn.setStyleSheet(BTN_ACTIVE)
+        self._daily_btn.setIcon(get_action_icon("运行"))
         self._daily_btn.clicked.connect(lambda: self._bridge.execute("daily", {"options": {"preset": "DailyFull"}}))
         actions_row.addWidget(self._daily_btn)
 
         self._harvest_btn = QPushButton("运行收获")
         self._harvest_btn.setStyleSheet(BTN_DEFAULT)
+        self._harvest_btn.setIcon(get_action_icon("运行"))
         self._harvest_btn.clicked.connect(lambda: self._bridge.execute("harvest", {}))
         actions_row.addWidget(self._harvest_btn)
 
         self._analyze_btn = QPushButton("分析场景")
         self._analyze_btn.setStyleSheet(BTN_DEFAULT)
+        self._analyze_btn.setIcon(get_action_icon("分析"))
         self._analyze_btn.clicked.connect(self._run_analysis)
         actions_row.addWidget(self._analyze_btn)
 
@@ -143,6 +147,7 @@ class PrtsFullIntelligencePage(QWidget):
 
         self._run_analysis_btn = QPushButton("运行分析")
         self._run_analysis_btn.setStyleSheet(BTN_DEFAULT)
+        self._run_analysis_btn.setIcon(get_action_icon("分析"))
         self._run_analysis_btn.clicked.connect(self._run_analysis)
         analysis_row.addWidget(self._run_analysis_btn)
 
