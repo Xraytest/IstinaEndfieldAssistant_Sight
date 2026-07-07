@@ -392,7 +392,7 @@ QWidget[ui-mode="compact"] QTextEdit,
 QWidget[ui-mode="compact"] QPlainTextEdit { padding: 6px; }
 
 /* Buttons */
-QPushButton { background-color: rgba(13,19,28,0.92); color: """ + c["text_primary"] + """; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 8px 16px; font-size: 12px; font-weight: 500; min-height: 36px; }
+QPushButton { background-color: rgba(13,19,28,0.92); color: """ + c["text_primary"] + """; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.8px; min-height: 36px; }
 QPushButton:hover { background-color: """ + c["hover_bg"] + """; border-color: """ + c["primary_light"] + """80; }
 QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: """ + c["primary"] + """80; }
 QPushButton:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; border-color: """ + c["border_light"] + """; }
@@ -408,9 +408,9 @@ QPushButton[variant="danger"]:hover { background-color: """ + c["danger_containe
 
 /* Labels */
 QLabel { color: """ + c["text_primary"] + """; background-color: transparent; border: none; }
-QLabel[variant="header"] { font-size: 20px; font-weight: 600; color: """ + c["text_primary"] + """; }
-QLabel[variant="title"] { font-size: 17px; font-weight: 600; color: """ + c["text_primary"] + """; }
-QLabel[variant="hero"] { font-size: 28px; font-weight: 700; color: """ + c["on_surface"] + """; letter-spacing: 1px; }
+QLabel[variant="header"] { font-size: 20px; font-weight: 600; color: """ + c["text_primary"] + """; letter-spacing: 1.5px; }
+QLabel[variant="title"] { font-size: 17px; font-weight: 600; color: """ + c["text_primary"] + """; letter-spacing: 1px; }
+QLabel[variant="hero"] { font-size: 28px; font-weight: 700; color: """ + c["on_surface"] + """; letter-spacing: 2px; }
 QLabel[variant="secondary"] { color: """ + c["text_secondary"] + """; }
 QLabel[variant="muted"] { color: """ + c["text_muted"] + """; }
 QLabel[variant="terminal"] { font-family: 'Microsoft YaHei UI'; color: """ + c["primary"] + """; font-size: 12px; }
