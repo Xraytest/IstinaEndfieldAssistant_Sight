@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 
 from gui.pyqt6.dashboard.widget_registry import get_widget_registry
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.widget_styles import BTN_DEFAULT, BTN_ACTIVE, CARD_STYLE
+from gui.pyqt6.theme.widget_styles import BTN_DEFAULT, BTN_ACTIVE, CARD_STYLE, LIST_STYLE
 
 locale = get_locale_manager()
 
@@ -47,31 +47,7 @@ class WidgetMarketDialog(QDialog):
         root.addWidget(info)
 
         self._widget_list = QListWidget()
-        self._widget_list.setStyleSheet("""
-            QListWidget {
-                background-color: rgba(16, 16, 26, 0.85);
-                border: 1px solid rgba(120, 126, 147, 0.35);
-                border-radius: 6px;
-                padding: 6px;
-                font-size: 13px;
-                font-family: 'Segoe UI', 'PingFang SC', sans-serif;
-            }
-            QListWidget::item {
-                padding: 10px 12px;
-                margin-bottom: 6px;
-                border-radius: 4px;
-                background-color: rgba(22, 24, 30, 0.6);
-            }
-            QListWidget::item:hover {
-                background-color: rgba(24, 209, 255, 0.08);
-                border-left: 2px solid rgba(24, 209, 255, 0.35);
-            }
-            QListWidget::item:selected {
-                background-color: rgba(24, 209, 255, 0.15);
-                color: #18d1ff;
-                border-left: 2px solid #18d1ff;
-            }
-        """)
+        self._widget_list.setStyleSheet(LIST_STYLE)
         registry = get_widget_registry()
         for widget_id, info in registry.get_available_widgets().items():
             item = QListWidgetItem(f"{info['name']}\n{info['description']}")

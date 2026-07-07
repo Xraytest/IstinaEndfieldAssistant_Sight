@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QListWidget, QVBoxLayout, QWidget
 
 from gui.pyqt6.dashboard.widget_base import DashboardWidget
 from gui.pyqt6.i18n import get_locale_manager
+from gui.pyqt6.theme.widget_styles import LIST_STYLE
 
 locale = get_locale_manager()
 
@@ -18,6 +19,7 @@ class RecentTasksWidget(DashboardWidget):
         super().__init__(title, "recent_tasks", parent)
         self._bridge = bridge
         self._list = QListWidget()
+        self._list.setStyleSheet(LIST_STYLE)
         self._list.setAccessibleName(locale.tr("recent_tasks_list", "Recent tasks list"))
         content = self.content_widget()
         layout = QVBoxLayout(content)
