@@ -29,12 +29,14 @@ from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
 from gui.pyqt6.pages.log_page import LogPage
 from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
+from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
 from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, fade_widget, ui_mode_for_size
 from gui.pyqt6.tray_icon import TrayIcon
 
 ensure_src_path(__file__)
+locale = get_locale_manager()
 
 
 class MainWindow(QMainWindow):
@@ -44,7 +46,7 @@ class MainWindow(QMainWindow):
         bridge_factory: Optional[Callable[[], CLIBridge]] = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("IstinaEndfieldAssistant Sight")
+        self.setWindowTitle(locale.tr("app_title", "IstinaEndfieldAssistant Sight"))
         self.setMinimumSize(800, 600)
         self._bridge = bridge_factory() if bridge_factory is not None else CLIBridge(self)
         if self._bridge.parent() is None:
@@ -57,9 +59,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.setStatusBar(QStatusBar(self))
-        self.statusBar().showMessage("界面已就绪")
-        self.statusBar().setAccessibleName("状态栏")
-        self.statusBar().setAccessibleDescription("显示当前应用程序状态和提示信息")
+        self.statusBar().showMessage(locale.tr("status_ready", "Ready"))
+        self.statusBar().setAccessibleName("status_bar")
+        self.statusBar().setAccessibleDescription("status_bar_desc")
 
         self._navigation_list: Optional[QListWidget] = None
         self._page_stack: Optional[QStackedWidget] = None
@@ -109,7 +111,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app is not None:
             theme_manager.apply_theme(app, next_theme)
-        self.statusBar().showMessage(f"已切换主题: {themes[next_index]['name']}", 2000)
+        self.statusBar().showMessage(locale.tr("theme_switched", "Theme switched"), 2000)
 
     def _async_warmup(self) -> None:
         self._bridge.execute("llm start", {})
@@ -119,7 +121,7 @@ class MainWindow(QMainWindow):
         message = format_gpu_warning(result)
         if message is None:
             return
-        title = "GPU不受支持" if not result.is_nvidia else "GPU显存低"
+        title = locale.tr("gpu_warning_title", "GPU Not Supported") if not result.is_nvidia else locale.tr("gpu_low_vram_title", "Low GPU VRAM")
         QMessageBox.warning(self, title, message)
 
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -129,7 +131,7 @@ class MainWindow(QMainWindow):
         if self._tray_icon is not None and self._tray_icon.is_available():
             event.ignore()
             self.hide()
-            self._tray_icon.show_message("IstinaEndfieldAssistant", "已最小化到托盘，双击托盘图标恢复窗口")
+            self._tray_icon.show_message(locale.tr("app_title", "IstinaEndfieldAssistant Sight"), locale.tr("tray_minimized", "Minimized to tray. Double-click tray icon to restore."))
         else:
             super().closeEvent(event)
 
@@ -148,7 +150,7 @@ class MainWindow(QMainWindow):
 
         title_label = QLabel("Istina Endfield Assistant")
         title_label.setProperty("variant", "hero")
-        title_label.setAccessibleName("应用标题")
+        title_label.setAccessibleName("app_title")
         title_label.setAccessibleDescription("Istina Endfield Assistant 主窗口标题")
         hero_layout.addWidget(title_label)
         hero_layout.addStretch()
@@ -164,9 +166,9 @@ class MainWindow(QMainWindow):
         nav_layout.setContentsMargins(10, 10, 10, 10)
         nav_layout.setSpacing(8)
 
-        nav_title = QLabel("页面")
+        nav_title = QLabel(locale.tr("nav_pages", "Pages"))
         nav_title.setProperty("variant", "eyebrow")
-        nav_title.setAccessibleName("导航标题")
+        nav_title.setAccessibleName("nav_pages")
         nav_layout.addWidget(nav_title)
 
         self._navigation_list = QListWidget(nav_panel)
@@ -175,17 +177,17 @@ class MainWindow(QMainWindow):
         self._navigation_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._navigation_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._navigation_list.currentRowChanged.connect(self._on_nav_changed)
-        self._navigation_list.setAccessibleName("主导航列表")
-        self._navigation_list.setAccessibleDescription("页面切换导航，包含 PRTS 全智能、标准推理、设备、设置、日志")
+        self._navigation_list.setAccessibleName("nav_list")
+        self._navigation_list.setAccessibleDescription("nav_list_desc")
         nav_layout.addWidget(self._navigation_list)
 
-        self._preview_label = QLabel("暂无预览")
+        self._preview_label = QLabel(locale.tr("preview_empty", "No preview"))
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setStyleSheet(PREVIEW_STYLE)
         self._preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._preview_label.setMinimumHeight(160)
-        self._preview_label.setAccessibleName("预览区域")
-        self._preview_label.setAccessibleDescription("显示设备屏幕预览图像")
+        self._preview_label.setAccessibleName("preview_area")
+        self._preview_label.setAccessibleDescription("preview_area_desc")
         nav_layout.addWidget(self._preview_label, 1)
 
         shell_layout.addWidget(nav_panel, 0, Qt.AlignmentFlag.AlignTop)
@@ -204,16 +206,23 @@ class MainWindow(QMainWindow):
         self._maaend_page = MaaEndControlPage(bridge=self._bridge)
         self._device_page = DeviceSettingsPage(bridge=self._bridge)
         pages = [
-            ("PRTS全智能", PrtsFullIntelligencePage(bridge=self._bridge)),
-            ("标准推理", self._maaend_page),
-            ("设备", self._device_page),
-            ("设置", SettingsPage()),
-            ("日志", LogPage()),
+            (locale.tr("prts_title", "PRTS Intelligence"), PrtsFullIntelligencePage(bridge=self._bridge)),
+            (locale.tr("maaend_title", "Standard Inference"), self._maaend_page),
+            (locale.tr("device_title", "Device"), self._device_page),
+            (locale.tr("settings_title", "Settings"), SettingsPage()),
+            (locale.tr("log_title", "Logs"), LogPage()),
         ]
         for label, page in pages:
             item = QListWidgetItem(label)
-            item.setAccessibleName(f"导航: {label}")
-            item.setAccessibleDescription(f"切换到 {label} 页面")
+            key = {
+                "PRTS全智能": "nav_prts",
+                "标准推理": "nav_maaend",
+                "设备": "nav_device",
+                "设置": "nav_settings",
+                "日志": "nav_log",
+            }.get(label, label)
+            item.setAccessibleName(key)
+            item.setAccessibleDescription(locale.tr(key, f"Switch to {label} page"))
             self._navigation_list.addItem(item)
             self._page_stack.addWidget(page)
 

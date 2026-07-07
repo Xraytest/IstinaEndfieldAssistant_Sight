@@ -25,6 +25,9 @@ def run_application() -> None:
     app.setApplicationName("IstinaEndfieldAssistant")
     app.setQuitOnLastWindowClosed(True)
 
+    get_locale_manager().load_saved_locale()
+    get_locale_manager().install_qt_translator(app)
+
     # Apply theme matching system dark/light mode preference.
     system_theme = get_system_theme()
     apply_theme(app, theme_name=system_theme)

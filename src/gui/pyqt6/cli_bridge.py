@@ -17,8 +17,11 @@ from PyQt6.QtWidgets import QMessageBox
 
 from core.foundation.logger import get_logger, LogCategory
 from core.foundation.paths import get_project_root, ensure_src_path
+from gui.pyqt6.i18n import get_locale_manager
 
 ensure_src_path(__file__)
+
+locale = get_locale_manager()
 
 
 class CLIBridge(QObject):
@@ -183,6 +186,6 @@ class CLIBridge(QObject):
     def _show_crash_dialog(self) -> None:
         QMessageBox.critical(
             None,
-            "CLI 进程连续崩溃",
-            f"CLI 子进程已连续崩溃 {self._crash_count} 次，请检查环境或重试。",
+            locale.tr("crash_dialog_title", "CLI process crashed repeatedly"),
+            locale.tr("crash_dialog_msg", "CLI subprocess crashed {count} times consecutively. Please check the environment and retry.").format(count=self._crash_count),
         )

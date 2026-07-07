@@ -21,10 +21,12 @@ from PyQt6.QtWidgets import (
 
 from core.foundation.paths import get_project_root
 from gui.pyqt6.cli_bridge import CLIBridge
-
-
+from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.icons import get_action_icon
+
+
+locale = get_locale_manager()
 
 
 class DeviceSettingsPage(QWidget):
@@ -56,62 +58,62 @@ class DeviceSettingsPage(QWidget):
         content_root.setContentsMargins(16, 16, 16, 16)
         content_root.setSpacing(12)
 
-        header = HeroHeader("设备连接", "管理 ADB 设备连接与自动重连。", content)
+        header = HeroHeader(locale.tr("device_title", "Device"), locale.tr("device_subtitle", "Manage ADB device connections and auto-reconnect."), content)
         content_root.addWidget(header)
 
-        connection_card = QGroupBox("连接管理")
+        connection_card = QGroupBox(locale.tr("connection_management", "Connection Management"))
         connection_layout = QVBoxLayout(connection_card)
         connection_layout.setSpacing(10)
 
         address_row = QHBoxLayout()
         address_row.setSpacing(8)
         self._address_input = QLineEdit()
-        self._address_input.setPlaceholderText("请输入设备地址，例如 localhost:16512")
+        self._address_input.setPlaceholderText(locale.tr("address_placeholder", "Enter device address, e.g. localhost:16512"))
         address_row.addWidget(self._address_input)
 
-        self._connect_btn = QPushButton("连接")
+        self._connect_btn = QPushButton(locale.tr("btn_connect", "Connect"))
         self._connect_btn.setIcon(get_action_icon("连接"))
         self._connect_btn.clicked.connect(self._connect)
         address_row.addWidget(self._connect_btn)
 
-        self._disconnect_btn = QPushButton("断开")
+        self._disconnect_btn = QPushButton(locale.tr("btn_disconnect", "Disconnect"))
         self._disconnect_btn.setIcon(get_action_icon("断开"))
         self._disconnect_btn.clicked.connect(self._disconnect)
         address_row.addWidget(self._disconnect_btn)
 
-        self._refresh_btn = QPushButton("刷新")
+        self._refresh_btn = QPushButton(locale.tr("btn_refresh", "Refresh"))
         self._refresh_btn.setIcon(get_action_icon("刷新"))
         self._refresh_btn.clicked.connect(self._refresh_devices)
         address_row.addWidget(self._refresh_btn)
         connection_layout.addLayout(address_row)
 
         status_form = QFormLayout()
-        self._connection_status = QLabel("未连接")
+        self._connection_status = QLabel(locale.tr("connection_disconnected", "Disconnected"))
         self._selected_device = QLabel("-")
-        status_form.addRow("状态", self._connection_status)
-        status_form.addRow("当前设备", self._selected_device)
+        status_form.addRow(locale.tr("status_label", "Status"), self._connection_status)
+        status_form.addRow(locale.tr("current_device", "Current Device"), self._selected_device)
         connection_layout.addLayout(status_form)
         content_root.addWidget(connection_card)
 
-        history_card = QGroupBox("历史连接")
+        history_card = QGroupBox(locale.tr("connection_history", "Connection History"))
         history_layout = QVBoxLayout(history_card)
         history_layout.setSpacing(8)
         self._history_list = QListWidget()
         self._history_list.itemClicked.connect(lambda item: self._address_input.setText(item.text()))
         history_layout.addWidget(self._history_list)
-        history_hint = QLabel("点击历史地址可直接填入。")
+        history_hint = QLabel(locale.tr("history_hint", "Click a history address to fill it in."))
         history_hint.setProperty("variant", "secondary")
         history_layout.addWidget(history_hint)
         content_root.addWidget(history_card)
 
-        devices_card = QGroupBox("设备列表")
+        devices_card = QGroupBox(locale.tr("device_list", "Device List"))
         devices_layout = QVBoxLayout(devices_card)
         devices_layout.setSpacing(8)
         self._device_list = QListWidget()
         devices_layout.addWidget(self._device_list)
         content_root.addWidget(devices_card, 1)
 
-        runtime_card = QGroupBox("连接日志")
+        runtime_card = QGroupBox(locale.tr("connection_log", "Connection Log"))
         runtime_layout = QVBoxLayout(runtime_card)
         self._log_text = QTextEdit()
         self._log_text.setReadOnly(True)
@@ -121,14 +123,14 @@ class DeviceSettingsPage(QWidget):
     def _connect(self) -> None:
         serial = self._address_input.text().strip()
         if not serial:
-            self._append_log("未填写设备地址，无法连接。")
+            self._append_log(locale.tr("address_required", "Device address not filled, cannot connect."))
             return
-        self._append_log(f"请求连接: {serial}")
+        self._append_log(locale.tr("connect_request", "Request connect: {serial}").format(serial=serial))
         self._bridge.execute("system connect", {"serial": serial})
 
     def _disconnect(self) -> None:
         serial = self._address_input.text().strip()
-        self._append_log(f"请求断开: {serial or '当前设备'}")
+        self._append_log(locale.tr("disconnect_request", "Request disconnect: {serial}").format(serial=serial or locale.tr("current_device", "Current Device")))
         params = {"serial": serial} if serial else {}
         self._bridge.execute("system disconnect", params)
 
@@ -144,7 +146,7 @@ class DeviceSettingsPage(QWidget):
         if not serial:
             return
         self._address_input.setText(serial)
-        self._append_log(f"自动连接上次设备: {serial}")
+        self._append_log(locale.tr("auto_connect_last", "Auto-connect last device: {serial}").format(serial=serial))
         self._connect()
 
     def _on_command_finished(self, command: str, result: dict) -> None:
@@ -154,15 +156,15 @@ class DeviceSettingsPage(QWidget):
             ok = bool(result.get("status") == "success")
             serial = self._address_input.text().strip()
             self._connected = ok
-            self._connection_status.setText("已连接" if ok else "连接失败")
+            self._connection_status.setText(locale.tr("connection_ok" if ok else "connection_failed", "Connected" if ok else "Connection Failed"))
             self._selected_device.setText(serial or "-")
-            self._append_log(f"连接结果: {result}")
+            self._append_log(locale.tr("connect_result", "Connect result: {result}").format(result=result))
             if ok and serial:
                 self._remember_device(serial)
         elif command.startswith("system disconnect"):
             self._connected = False
-            self._connection_status.setText("未连接")
-            self._append_log(f"断开结果: {result}")
+            self._connection_status.setText(locale.tr("connection_disconnected", "Disconnected"))
+            self._append_log(locale.tr("disconnect_result", "Disconnect result: {result}").format(result=result))
 
     def _on_command_error(self, command: str, message: str) -> None:
         self._append_log(f"{command} 失败: {message}")
@@ -170,14 +172,14 @@ class DeviceSettingsPage(QWidget):
     def _update_device_info(self, result: dict) -> None:
         self._device_list.clear()
         if result.get("status") != "success":
-            self._append_log(f"刷新设备失败: {result}")
+            self._append_log(locale.tr("refresh_devices_failed", "Failed to refresh devices: {result}").format(result=result))
             return
         devices = result.get("devices") or []
         if not devices:
-            self._device_list.addItem("未发现设备")
+            self._device_list.addItem(locale.tr("no_devices_found", "No devices found"))
         for device in devices:
             self._device_list.addItem(self._format_device_entry(device))
-        self._append_log(f"设备刷新完成，共 {len(devices)} 个。")
+        self._append_log(locale.tr("devices_refreshed", "Devices refreshed, {count} found.").format(count=len(devices)))
 
     def _format_device_entry(self, device: Any) -> str:
         if isinstance(device, dict):

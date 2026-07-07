@@ -17,11 +17,15 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.icons import get_action_icon
 from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE, INPUT_STYLE, LOG_STYLE
 from gui.pyqt6.responsive import LoadingOverlay
+
+
+locale = get_locale_manager()
 
 
 class StatCard(QFrame):
@@ -50,7 +54,7 @@ class StatCard(QFrame):
 
     def set_status(self, status: str) -> None:
         self._status_label.setText(status)
-        variant = "success" if status == "正常" else "danger"
+        variant = "success" if status == locale.tr("normal_status", "Normal") else "danger"
         self._status_label.setProperty("variant", variant)
         self.style().unpolish(self._status_label)
         self.style().polish(self._status_label)
@@ -83,7 +87,7 @@ class PrtsFullIntelligencePage(QWidget):
         content_root.setContentsMargins(16, 16, 16, 16)
         content_root.setSpacing(10)
 
-        header = HeroHeader("PRTS全智能", "自动化分析与智能决策控制台。", content)
+        header = HeroHeader(locale.tr("prts_title", "PRTS Intelligence"), locale.tr("prts_subtitle", "Automated analysis and intelligent decision console."), content)
         content_root.addWidget(header)
 
         # Skeleton status grid (shown before first data load) -------------
@@ -100,32 +104,32 @@ class PrtsFullIntelligencePage(QWidget):
         self._real_grid.setSpacing(10)
         self._real_grid.setContentsMargins(0, 0, 0, 0)
 
-        self._device_card = StatCard("设备", "未连接", "离线")
+        self._device_card = StatCard(locale.tr("device_status", "Device"), locale.tr("offline", "Offline"), locale.tr("offline", "Offline"))
         self._device_card.setAccessibleName("设备状态卡片")
         self._device_card.setAccessibleDescription("显示设备连接状态和序列号")
         self._real_grid.addWidget(self._device_card, 0, 0)
 
-        self._connection_card = StatCard("连接状态", "断开", "离线")
+        self._connection_card = StatCard(locale.tr("connection_status", "Connection"), locale.tr("offline", "Offline"), locale.tr("offline", "Offline"))
         self._connection_card.setAccessibleName("连接状态卡片")
         self._connection_card.setAccessibleDescription("显示与后端服务的连接状态")
         self._real_grid.addWidget(self._connection_card, 0, 1)
 
-        self._llm_card = StatCard("LLM 服务", "未知", "未知")
+        self._llm_card = StatCard(locale.tr("llm_service", "LLM Service"), locale.tr("disabled_status", "Disabled"), locale.tr("disabled_status", "Disabled"))
         self._llm_card.setAccessibleName("LLM服务卡片")
         self._llm_card.setAccessibleDescription("显示大语言模型服务状态")
         self._real_grid.addWidget(self._llm_card, 0, 2)
 
-        self._task_card = StatCard("今日任务", "0/20", "正常")
+        self._task_card = StatCard(locale.tr("today_tasks", "Today's Tasks"), "0/20", locale.tr("normal_status", "Normal"))
         self._task_card.setAccessibleName("今日任务卡片")
         self._task_card.setAccessibleDescription("显示今日任务完成进度")
         self._real_grid.addWidget(self._task_card, 1, 0)
 
-        self._runtime_card = StatCard("运行时", "空闲", "正常")
+        self._runtime_card = StatCard(locale.tr("runtime_status", "Runtime"), locale.tr("maaend_idle", "Idle"), locale.tr("normal_status", "Normal"))
         self._runtime_card.setAccessibleName("运行时卡片")
         self._runtime_card.setAccessibleDescription("显示当前运行时状态")
         self._real_grid.addWidget(self._runtime_card, 1, 1)
 
-        self._queue_card = StatCard("队列", "0 项", "正常")
+        self._queue_card = StatCard(locale.tr("queue_status", "Queue"), "0 项", locale.tr("normal_status", "Normal"))
         self._queue_card.setAccessibleName("队列状态卡片")
         self._queue_card.setAccessibleDescription("显示任务队列中的项目数量")
         self._real_grid.addWidget(self._queue_card, 1, 2)
@@ -139,27 +143,27 @@ class PrtsFullIntelligencePage(QWidget):
         actions_row = QHBoxLayout()
         actions_row.setSpacing(8)
 
-        self._daily_btn = QPushButton("运行日常")
+        self._daily_btn = QPushButton(locale.tr("btn_daily", "Run Daily"))
         self._daily_btn.setStyleSheet(BTN_ACTIVE)
         self._daily_btn.setIcon(get_action_icon("运行"))
-        self._daily_btn.setAccessibleName("运行日常")
-        self._daily_btn.setAccessibleDescription("执行日常任务自动化流程")
+        self._daily_btn.setAccessibleName(locale.tr("btn_daily", "Run Daily"))
+        self._daily_btn.setAccessibleDescription(locale.tr("btn_daily", "Execute daily task automation flow"))
         self._daily_btn.clicked.connect(lambda: self._run_with_loading("daily", {"options": {"preset": "DailyFull"}}))
         actions_row.addWidget(self._daily_btn)
 
-        self._harvest_btn = QPushButton("运行收获")
+        self._harvest_btn = QPushButton(locale.tr("btn_harvest", "Run Harvest"))
         self._harvest_btn.setStyleSheet(BTN_DEFAULT)
         self._harvest_btn.setIcon(get_action_icon("运行"))
-        self._harvest_btn.setAccessibleName("运行收获")
-        self._harvest_btn.setAccessibleDescription("执行收获任务自动化流程")
+        self._harvest_btn.setAccessibleName(locale.tr("btn_harvest", "Run Harvest"))
+        self._harvest_btn.setAccessibleDescription(locale.tr("btn_harvest", "Execute harvest task automation flow"))
         self._harvest_btn.clicked.connect(lambda: self._run_with_loading("harvest", {}))
         actions_row.addWidget(self._harvest_btn)
 
-        self._analyze_btn = QPushButton("分析场景")
+        self._analyze_btn = QPushButton(locale.tr("btn_analyze", "Analyze Scene"))
         self._analyze_btn.setStyleSheet(BTN_DEFAULT)
         self._analyze_btn.setIcon(get_action_icon("分析"))
-        self._analyze_btn.setAccessibleName("分析场景")
-        self._analyze_btn.setAccessibleDescription("运行场景分析任务")
+        self._analyze_btn.setAccessibleName(locale.tr("btn_analyze", "Analyze Scene"))
+        self._analyze_btn.setAccessibleDescription(locale.tr("btn_analyze", "Run scene analysis task"))
         self._analyze_btn.clicked.connect(self._run_analysis)
         actions_row.addWidget(self._analyze_btn)
 
@@ -174,15 +178,15 @@ class PrtsFullIntelligencePage(QWidget):
         self._mode_combo.addItems(["Full", "Quick", "Deep"])
         self._mode_combo.setStyleSheet(INPUT_STYLE)
         self._mode_combo.setMinimumWidth(120)
-        self._mode_combo.setAccessibleName("分析模式")
-        self._mode_combo.setAccessibleDescription("选择场景分析的模式：Full 完整分析、Quick 快速分析、Deep 深度分析")
+        self._mode_combo.setAccessibleName(locale.tr("analysis_mode", "Analysis Mode"))
+        self._mode_combo.setAccessibleDescription(locale.tr("analysis_mode", "Analysis Mode") + ": Full, Quick, Deep")
         analysis_row.addWidget(self._mode_combo)
 
-        self._run_analysis_btn = QPushButton("运行分析")
+        self._run_analysis_btn = QPushButton(locale.tr("btn_run_analysis", "Run Analysis"))
         self._run_analysis_btn.setStyleSheet(BTN_DEFAULT)
         self._run_analysis_btn.setIcon(get_action_icon("分析"))
-        self._run_analysis_btn.setAccessibleName("运行分析")
-        self._run_analysis_btn.setAccessibleDescription("根据所选模式运行场景分析")
+        self._run_analysis_btn.setAccessibleName(locale.tr("btn_run_analysis", "Run Analysis"))
+        self._run_analysis_btn.setAccessibleDescription(locale.tr("btn_run_analysis", "Run scene analysis with selected mode"))
         self._run_analysis_btn.clicked.connect(self._run_analysis)
         analysis_row.addWidget(self._run_analysis_btn)
 
@@ -196,7 +200,7 @@ class PrtsFullIntelligencePage(QWidget):
         content_root.addWidget(self._result_text, 1)
 
         # Loading overlay ---------------------------------------------------
-        self._loading = LoadingOverlay(self, text="任务执行中...")
+        self._loading = LoadingOverlay(self, text=locale.tr("task_running", "Task running..."))
         self._loading.hide()
 
     def _run_with_loading(self, command: str, params: dict) -> None:
@@ -227,14 +231,14 @@ class PrtsFullIntelligencePage(QWidget):
         connection = data.get("connection", {})
         llm = data.get("llm", {})
 
-        self._device_card.set_status("在线" if device.get("connected") else "离线")
-        self._device_card.set_value(device.get("serial", "未连接"))
+        self._device_card.set_status(locale.tr("online" if device.get("connected") else "offline", "Online" if device.get("connected") else "Offline"))
+        self._device_card.set_value(device.get("serial", locale.tr("offline", "Offline")))
 
-        self._connection_card.set_status("已连接" if connection.get("maaend_ready") else "断开")
-        self._connection_card.set_value(connection.get("address", "localhost:16512"))
+        self._connection_card.set_status(locale.tr("connection_ok" if connection.get("maaend_ready") else "connection_disconnected", "Connected" if connection.get("maaend_ready") else "Disconnected"))
+        self._connection_card.set_value(connection.get("address", locale.tr("connection_status", "Connection")))
 
-        llm_status = "正常" if llm.get("enabled") else "未启用"
-        self._llm_card.set_status(llm_status)
+        llm_status = "normal_status" if llm.get("enabled") else "disabled_status"
+        self._llm_card.set_status(locale.tr(llm_status, "Normal" if llm.get("enabled") else "Disabled"))
         self._llm_card.set_value(
-            f"端口 {llm.get('port', 9998)}" if llm.get("enabled") else "未启用"
+            (locale.tr("port", "Port") + f" {llm.get('port', 9998)}") if llm.get("enabled") else locale.tr("disabled_status", "Disabled")
         )

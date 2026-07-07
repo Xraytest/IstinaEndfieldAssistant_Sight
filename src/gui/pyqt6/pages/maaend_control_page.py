@@ -15,6 +15,9 @@ from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject, Q
 from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage, QFont
 
 from gui.pyqt6.cli_bridge import CLIBridge
+from gui.pyqt6.i18n import get_locale_manager
+
+locale = get_locale_manager()
 from gui.pyqt6.queue_state import QueueState
 from gui.pyqt6.responsive import is_narrow_size
 from gui.pyqt6.theme.icons import get_action_icon, get_status_icon
@@ -321,11 +324,11 @@ class MaaEndControlPage(QWidget):
         root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(10)
         header = QHBoxLayout()
-        title = QLabel("// 标准推理控制台")
+        title = QLabel(locale.tr("maaend_console", "// Standard Inference Console"))
         title.setStyleSheet(HEADER_STYLE)
         header.addWidget(title)
         header.addStretch()
-        self._status_label = QLabel("空闲")
+        self._status_label = QLabel(locale.tr("maaend_idle", "Idle"))
         self._status_label.setStyleSheet(GREEN_STYLE)
         header.addWidget(self._status_label)
         root.addLayout(header)
@@ -341,7 +344,7 @@ class MaaEndControlPage(QWidget):
         tasks_layout.setContentsMargins(0, 0, 0, 0)
         tasks_layout.setSpacing(10)
 
-        task_card = QGroupBox("任务")
+        task_card = QGroupBox(locale.tr("task_card", "Task"))
         task_card.setStyleSheet(CARD_STYLE)
         task_layout = QVBoxLayout(task_card)
         task_layout.setContentsMargins(2, 2, 2, 2)
@@ -354,13 +357,13 @@ class MaaEndControlPage(QWidget):
         task_btn_row = QHBoxLayout()
         task_btn_row.setContentsMargins(0, 0, 0, 0)
         task_btn_row.setSpacing(6)
-        self._run_task_btn = QPushButton("添加任务")
+        self._run_task_btn = QPushButton(locale.tr("btn_add_task", "Add Task"))
         self._run_task_btn.setMinimumHeight(24)
         self._run_task_btn.setStyleSheet(BTN_ACTIVE)
         self._run_task_btn.setIcon(get_action_icon("添加"))
         self._run_task_btn.clicked.connect(self._run_task)
         task_btn_row.addWidget(self._run_task_btn)
-        self._task_settings_btn = QPushButton("应用队列设置")
+        self._task_settings_btn = QPushButton(locale.tr("btn_apply_queue", "Apply Queue Settings"))
         self._task_settings_btn.setMinimumHeight(24)
         self._task_settings_btn.setStyleSheet(BTN_DEFAULT)
         self._task_settings_btn.setIcon(get_action_icon("保存"))
@@ -378,7 +381,7 @@ class MaaEndControlPage(QWidget):
         options_layout.setContentsMargins(0, 0, 0, 0)
         options_layout.setSpacing(10)
 
-        option_card = QGroupBox("选项")
+        option_card = QGroupBox(locale.tr("option_card", "Options"))
         option_card.setStyleSheet(CARD_STYLE)
         option_layout = QVBoxLayout(option_card)
         option_layout.setContentsMargins(2, 2, 2, 2)
@@ -396,7 +399,7 @@ class MaaEndControlPage(QWidget):
         option_btn_row = QHBoxLayout()
         option_btn_row.setContentsMargins(0, 0, 0, 0)
         option_btn_row.setSpacing(6)
-        self._save_task_settings_btn = QPushButton("保存设置")
+        self._save_task_settings_btn = QPushButton(locale.tr("btn_save", "Save Settings"))
         self._save_task_settings_btn.setMinimumHeight(24)
         self._save_task_settings_btn.setStyleSheet(BTN_DEFAULT)
         self._save_task_settings_btn.setIcon(get_action_icon("保存"))
@@ -420,7 +423,7 @@ class MaaEndControlPage(QWidget):
         right_vsplitter.setStyleSheet("QSplitter::handle { width: 1px; background: rgba(24,209,255,0.12); }")
 
         # Presets
-        preset_card = QGroupBox("预设")
+        preset_card = QGroupBox(locale.tr("preset_card", "Presets"))
         preset_card.setStyleSheet(CARD_STYLE)
         preset_layout = QVBoxLayout(preset_card)
         preset_layout.setContentsMargins(2, 2, 2, 2)
@@ -433,7 +436,7 @@ class MaaEndControlPage(QWidget):
         preset_btn_row = QHBoxLayout()
         preset_btn_row.setContentsMargins(0, 0, 0, 0)
         preset_btn_row.setSpacing(6)
-        self._run_preset_btn = QPushButton("应用预设")
+        self._run_preset_btn = QPushButton(locale.tr("btn_apply_preset", "Apply Preset"))
         self._run_preset_btn.setMinimumHeight(24)
         self._run_preset_btn.setStyleSheet(BTN_ACTIVE)
         self._run_preset_btn.setIcon(get_action_icon("运行"))
@@ -444,7 +447,7 @@ class MaaEndControlPage(QWidget):
         right_vsplitter.addWidget(preset_card)
 
         # Queue
-        queue_card = QGroupBox("队列")
+        queue_card = QGroupBox(locale.tr("queue_card", "Queue"))
         queue_card.setStyleSheet(CARD_STYLE)
         queue_layout = QVBoxLayout(queue_card)
         queue_layout.setContentsMargins(2, 2, 2, 2)
@@ -463,13 +466,13 @@ class MaaEndControlPage(QWidget):
         queue_btn_row = QHBoxLayout()
         queue_btn_row.setContentsMargins(0, 0, 0, 0)
         queue_btn_row.setSpacing(6)
-        self._add_queue_btn = QPushButton("添加")
+        self._add_queue_btn = QPushButton(locale.tr("btn_add", "Add"))
         self._add_queue_btn.setMinimumHeight(24)
         self._add_queue_btn.setStyleSheet(BTN_DEFAULT)
         self._add_queue_btn.setIcon(get_action_icon("添加"))
         self._add_queue_btn.clicked.connect(self._add_to_queue)
         queue_btn_row.addWidget(self._add_queue_btn)
-        self._run_queue_btn = QPushButton("运行")
+        self._run_queue_btn = QPushButton(locale.tr("btn_run", "Run"))
         self._run_queue_btn.setMinimumHeight(24)
         self._run_queue_btn.setStyleSheet(BTN_ACTIVE)
         self._run_queue_btn.setIcon(get_action_icon("运行"))
@@ -480,19 +483,19 @@ class MaaEndControlPage(QWidget):
         queue_move_row = QHBoxLayout()
         queue_move_row.setContentsMargins(0, 0, 0, 0)
         queue_move_row.setSpacing(6)
-        self._queue_up_btn = QPushButton("上移")
+        self._queue_up_btn = QPushButton(locale.tr("btn_up", "Move Up"))
         self._queue_up_btn.setMinimumHeight(24)
         self._queue_up_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_up_btn.setIcon(get_action_icon("上移"))
         self._queue_up_btn.clicked.connect(self._queue_move_up)
         queue_move_row.addWidget(self._queue_up_btn)
-        self._queue_down_btn = QPushButton("下移")
+        self._queue_down_btn = QPushButton(locale.tr("btn_down", "Move Down"))
         self._queue_down_btn.setMinimumHeight(24)
         self._queue_down_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_down_btn.setIcon(get_action_icon("下移"))
         self._queue_down_btn.clicked.connect(self._queue_move_down)
         queue_move_row.addWidget(self._queue_down_btn)
-        self._queue_clear_btn = QPushButton("清空")
+        self._queue_clear_btn = QPushButton(locale.tr("btn_clear", "Clear"))
         self._queue_clear_btn.setMinimumHeight(24)
         self._queue_clear_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_clear_btn.setIcon(get_action_icon("清空"))
@@ -503,7 +506,7 @@ class MaaEndControlPage(QWidget):
         right_vsplitter.addWidget(queue_card)
 
         # SimpleLog
-        log_card = QGroupBox("执行日志")
+        log_card = QGroupBox(locale.tr("log_card", "Execution Log"))
         log_card.setStyleSheet(CARD_STYLE)
         log_layout = QVBoxLayout(log_card)
         log_layout.setContentsMargins(2, 2, 2, 2)
@@ -515,7 +518,7 @@ class MaaEndControlPage(QWidget):
         log_btn_row = QHBoxLayout()
         log_btn_row.setContentsMargins(0, 0, 0, 0)
         log_btn_row.setSpacing(4)
-        self._clear_log_btn = QPushButton("清空")
+        self._clear_log_btn = QPushButton(locale.tr("btn_clear", "Clear"))
         self._clear_log_btn.setMinimumHeight(24)
         self._clear_log_btn.setStyleSheet(BTN_DEFAULT)
         self._clear_log_btn.setIcon(get_action_icon("删除"))
@@ -539,7 +542,7 @@ class MaaEndControlPage(QWidget):
         bottom = QHBoxLayout()
         bottom.setContentsMargins(0, 0, 0, 0)
         bottom.addSpacing(4)
-        self._stop_btn = QPushButton("停止")
+        self._stop_btn = QPushButton(locale.tr("btn_stop", "Stop"))
         self._stop_btn.setStyleSheet(BTN_STOP)
         self._stop_btn.setMinimumHeight(24)
         self._stop_btn.setEnabled(False)
@@ -640,11 +643,11 @@ class MaaEndControlPage(QWidget):
         if self._selected_preset:
             preset = self._presets_cache.get(self._selected_preset)
             if not preset:
-                QMessageBox.warning(self, "预设不存在", f"预设 '{self._selected_preset}' 未找到。")
+                QMessageBox.warning(self, locale.tr("preset_not_found", "Preset Not Found"), locale.tr("preset_not_found_msg", "Preset '{preset}' not found.").format(preset=self._selected_preset))
                 return
             task_list = preset.get("task", [])
             if not task_list:
-                QMessageBox.information(self, "预设为空", f"预设 '{self._selected_preset}' 中没有任务。")
+                QMessageBox.information(self, locale.tr("preset_empty", "Preset Is Empty"), locale.tr("preset_empty_msg", "Preset '{preset}' has no tasks.").format(preset=self._selected_preset))
             # 添加预设到队列 = 覆盖现有队列（清空再填充），不是追加；与 _run_preset 共享同一覆盖语义。
             for entry in list(self._queue_state.queue_items):
                 name = entry.get("name")
@@ -664,7 +667,7 @@ class MaaEndControlPage(QWidget):
                 items.append({"name": name, "display_name": name, "type": "task", "options": dict(options)})
             self._queue_state.set_queue_items(items)
             self._restore_queue_ui()
-            self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
+            self._append_log("预设", locale.tr("btn_apply_preset", "Applied preset '{name}' ({count} tasks)").format(name=_zh(self._selected_preset), count=len(task_list)))
             self._queue_state.persist()
         elif self._selected_task:
             name = self._selected_task
@@ -679,7 +682,7 @@ class MaaEndControlPage(QWidget):
             self._restore_queue_ui()
             self._queue_state.persist()
         else:
-            QMessageBox.information(self, "未选择", "请先选择一个任务或预设。")
+            QMessageBox.information(self, locale.tr("select_task_or_preset", "Please select a task or preset first."), locale.tr("select_task_or_preset", "Please select a task or preset first."))
 
     def _queue_move_up(self):
         row = self._queue_list.currentRow()
@@ -723,7 +726,7 @@ class MaaEndControlPage(QWidget):
             entry["status"] = "running"
             self._refresh_queue_list()
             self._progress_bar.setValue(int((idx - 1) / total * 100))
-            self._progress_bar.setFormat(f"执行中 {idx}/{total}")
+            self._progress_bar.setFormat(locale.tr("task_progress", "Running {idx}/{total}").format(idx=idx, total=total))
             name, inline_options = self._normalize_runtime_entry(entry)
             item_type = entry.get("type", "task")
             options = entry.get("options") or {}
@@ -743,13 +746,13 @@ class MaaEndControlPage(QWidget):
             ok = bool(result and result.get("status") == "success")
             entry["status"] = "success" if ok else "failed"
             self._refresh_queue_list()
-            self._append_log("队列", f"{_zh(name)} -> {'成功' if ok else '失败'} ({idx}/{total})")
+            self._append_log("队列", f"{_zh(name)} -> {locale.tr("queue_success" if ok else "queue_failed", "Success" if ok else "Failed")} ({idx}/{total})")
             if not ok:
                 self._progress_bar.setValue(100)
-                self._progress_bar.setFormat("执行失败")
+                self._progress_bar.setFormat(locale.tr("execution_failed", "Failed"))
                 return False
         self._progress_bar.setValue(100)
-        self._progress_bar.setFormat("执行完成")
+        self._progress_bar.setFormat(locale.tr("execution_completed", "Completed"))
         return True
 
     # ------------------------------------------------------------------
@@ -763,7 +766,7 @@ class MaaEndControlPage(QWidget):
                 widget.deleteLater()
         self._option_widgets.clear()
         if not self._selected_task:
-            hint = QLabel("请先选择一个任务以编辑选项。")
+            hint = QLabel(locale.tr("select_task_first", "Please select a task first to edit options."))
             hint.setStyleSheet(INFO_STYLE)
             self._option_form.addWidget(hint)
             return
@@ -772,7 +775,7 @@ class MaaEndControlPage(QWidget):
             return
         option_names = task.get("option", [])
         if not option_names:
-            hint = QLabel("该任务无可编辑选项。")
+            hint = QLabel(locale.tr("no_editable_options", "This task has no editable options."))
             hint.setStyleSheet(INFO_STYLE)
             self._option_form.addWidget(hint)
             return
@@ -955,7 +958,7 @@ class MaaEndControlPage(QWidget):
             QApplication.beep()
             self._refresh_queue_list()
         except Exception as e:
-            QMessageBox.critical(self, "保存失败", str(e))
+            QMessageBox.critical(self, locale.tr("save_failed", "Save Failed"), str(e))
 
     def _refresh_queue_list(self) -> None:
         for row in range(self._queue_list.rowCount()):
@@ -1040,7 +1043,7 @@ class MaaEndControlPage(QWidget):
             self._queue_state.set_selected_preset(self._selected_preset)
             self._queue_state.persist()
         except Exception as e:
-            self.log_message.emit("持久化", f"保存失败: {e}")
+            self.log_message.emit(locale.tr("persist", "Persist"), f"{locale.tr("save_failed", "Save Failed")}: {e}")
 
     def _open_task_settings(self):
         dialog = QDialog(self)
@@ -1078,12 +1081,12 @@ class MaaEndControlPage(QWidget):
     def _apply_queue_focus_task_settings(self) -> None:
         row = self._queue_list.currentRow()
         if row < 0 or row >= len(self._queue_state.queue_items):
-            QMessageBox.information(self, "未选择", "请先在队列中选择一个任务。")
+            QMessageBox.information(self, locale.tr("preset_not_selected", "Not Selected"), locale.tr("select_queue_first", "Please select a task in the queue first."))
             return
         entry = self._queue_state.queue_items[row]
         name = entry.get("name")
         if not name:
-            QMessageBox.information(self, "未选择", "请先在队列中选择一个任务。")
+            QMessageBox.information(self, locale.tr("preset_not_selected", "Not Selected"), locale.tr("select_queue_first", "Please select a task in the queue first."))
             return
         if self._selected_task != name:
             self._selected_task = name
@@ -1150,10 +1153,10 @@ class MaaEndControlPage(QWidget):
         result = self._sync_execute("system connect", timeout_ms=15000)
         if not result or result.get("status") != "success":
             self._auto_connect_attempted = True
-            self._append_log("系统", "启动时自动连接失败，后续不再主动重试。")
+            self._append_log("系统", locale.tr("auto_connect_failed", "Auto-connect failed at startup, will not retry."))
         else:
             self._connected = True
-            self._append_log("系统", "启动时自动连接成功")
+            self._append_log("系统", locale.tr("auto_connect_success", "Auto-connect succeeded at startup"))
 
     def set_connected(self, connected: bool) -> None:
         """由 MainWindow 同步设备连接状态。"""
@@ -1169,15 +1172,15 @@ class MaaEndControlPage(QWidget):
             return True
         if self._auto_connect_attempted:
             return False
-        self._append_log("系统", "正在连接 MaaEnd runtime...")
+        self._append_log("系统", locale.tr("connecting_maaend", "Connecting to MaaEnd runtime..."))
         result = self._sync_execute("system connect", timeout_ms=15000)
         if not result or result.get("status") != "success":
             self._auto_connect_attempted = True
-            QMessageBox.warning(self, "连接失败", "无法连接 MaaEnd runtime，请检查设备。")
+            QMessageBox.warning(self, locale.tr("connection_failed", "Connection Failed"), locale.tr("connect_failed_msg", "Cannot connect to MaaEnd runtime. Please check the device."))
             return False
         self._connected = True
         self._auto_connect_attempted = False
-        self._append_log("系统", "MaaEnd runtime 已连接")
+        self._append_log("系统", locale.tr("maaend_connected", "MaaEnd runtime connected"))
         return True
 
     def _run_task(self):
@@ -1193,7 +1196,7 @@ class MaaEndControlPage(QWidget):
         self._queue_state.set_queue_items(items)
         self._restore_queue_ui()
         self._queue_state.persist()
-        self._append_log("队列", f"已添加 {_zh(name)}")
+        self._append_log("队列", locale.tr("btn_add", "Added {name}").format(name=_zh(name)))
 
     def _bridge_task_run(self, name: str, options: Dict[str, Any]) -> bool:
         clean_name, inline_options = self._parse_inline_task_name(name)
@@ -1208,11 +1211,11 @@ class MaaEndControlPage(QWidget):
             return
         preset = self._presets_cache.get(self._selected_preset)
         if not preset:
-            QMessageBox.warning(self, "预设不存在", f"预设 '{self._selected_preset}' 未找到。")
+            QMessageBox.warning(self, locale.tr("preset_not_found", "Preset Not Found"), locale.tr("preset_not_found_msg", "Preset '{preset}' not found.").format(preset=self._selected_preset))
             return
         task_list = preset.get("task", [])
         if not task_list:
-            QMessageBox.information(self, "预设为空", f"预设 '{self._selected_preset}' 中没有任务。")
+            QMessageBox.information(self, locale.tr("preset_empty", "Preset Is Empty"), locale.tr("preset_empty_msg", "Preset '{preset}' has no tasks.").format(preset=self._selected_preset))
             return
         # 应用预设 = 用预设中的任务列表覆盖现有队列（清空再填充），不是追加。
         for entry in list(self._queue_state.queue_items):
@@ -1233,7 +1236,7 @@ class MaaEndControlPage(QWidget):
             items.append({"name": name, "type": "task", "options": dict(options)})
         self._queue_state.set_queue_items(items)
         self._restore_queue_ui()
-        self._append_log("预设", f"已应用预设 '{_zh(self._selected_preset)}' ({len(task_list)} 个任务)")
+        self._append_log("预设", locale.tr("btn_apply_preset", "Applied preset '{name}' ({count} tasks)").format(name=_zh(self._selected_preset), count=len(task_list)))
         self._persist_state()
         return
 
@@ -1247,7 +1250,7 @@ class MaaEndControlPage(QWidget):
     def _start_execution(self, target):
         self._is_executing = True
         self._update_execution_ui()
-        self._append_log("系统", "开始执行")
+        self._append_log("系统", locale.tr("execution_started", "Start execution"))
         self._worker = TaskRunWorker(target)
         self._worker.log.connect(self._append_log)
         self._worker.finished.connect(self._on_execution_finished)
@@ -1256,7 +1259,7 @@ class MaaEndControlPage(QWidget):
     def _stop_execution(self):
         if self._worker:
             self._worker.stop()
-        self._append_log("系统", "已请求停止")
+        self._append_log("系统", locale.tr("execution_stop_requested", "Stop requested"))
 
     def _on_execution_finished(self, success: bool):
         self._is_executing = False
@@ -1264,7 +1267,7 @@ class MaaEndControlPage(QWidget):
             self._status_pulse_animation.stop()
             del self._status_pulse_animation
         self._update_execution_ui()
-        self._append_log("系统", f"执行结束: {success}")
+        self._append_log("系统", locale.tr("execution_finished", "Execution finished: {success}").format(success=success))
         self.execution_state_changed.emit(False)
 
     def _update_execution_ui(self):
@@ -1279,7 +1282,7 @@ class MaaEndControlPage(QWidget):
         self._progress_bar.setVisible(self._is_executing)
         if not self._is_executing:
             self._progress_bar.setValue(0)
-        self._status_label.setText("运行中" if self._is_executing else "空闲")
+        self._status_label.setText(locale.tr("maaend_running" if self._is_executing else "maaend_idle", "Running" if self._is_executing else "Idle"))
         self._status_label.setStyleSheet(RED_STYLE if self._is_executing else GREEN_STYLE)
         if self._is_executing:
             self._pulse_status_label()

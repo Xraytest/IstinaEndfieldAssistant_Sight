@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
 )
 
 from gui.pyqt6.theme.theme_manager import ThemeManager, get_theme
+from gui.pyqt6.i18n import get_locale_manager
 
 
 class TrayIcon(QObject):
@@ -32,21 +33,22 @@ class TrayIcon(QObject):
         if not QSystemTrayIcon.isSystemTrayAvailable():
             return
 
+        locale = get_locale_manager()
         self._tray = QSystemTrayIcon(self._main_window)
-        self._tray.setToolTip("Istina Endfield Assistant")
+        self._tray.setToolTip(locale.tr("app_title"))
 
         menu = QMenu()
-        show_action = QAction("显示主窗口", self._main_window)
+        show_action = QAction(locale.tr("tray_show"), self._main_window)
         show_action.triggered.connect(self._show_window)
         menu.addAction(show_action)
 
-        hide_action = QAction("隐藏到托盘", self._main_window)
+        hide_action = QAction(locale.tr("tray_hide"), self._main_window)
         hide_action.triggered.connect(self._main_window.hide)
         menu.addAction(hide_action)
 
         menu.addSeparator()
 
-        quit_action = QAction("退出", self._main_window)
+        quit_action = QAction(locale.tr("tray_quit"), self._main_window)
         quit_action.triggered.connect(QApplication.instance().quit)
         menu.addAction(quit_action)
 
