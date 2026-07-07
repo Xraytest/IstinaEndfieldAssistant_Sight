@@ -86,6 +86,19 @@ def apply_dpi_scaling(widget: QWidget, base_font_size: int = 12) -> None:
         child.setFont(child_font)
 
 
+def fade_widget(widget: QWidget, duration: int = 200) -> None:
+    """Fade a widget in/out using opacity animation."""
+    from PyQt6.QtCore import QPropertyAnimation
+    from PyQt6.QtWidgets import QGraphicsOpacityEffect
+    effect = QGraphicsOpacityEffect(widget)
+    widget.setGraphicsEffect(effect)
+    anim = QPropertyAnimation(effect, b"opacity", widget)
+    anim.setDuration(duration)
+    anim.setStartValue(0.0)
+    anim.setEndValue(1.0)
+    anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+
 def clamp_window_size(available: QSize, preferred: Tuple[int, int], minimum: Tuple[int, int]) -> QSize:
     max_width = max(minimum[0], int(available.width() * 0.92))
     max_height = max(minimum[1], int(available.height() * 0.92))

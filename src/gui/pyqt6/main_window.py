@@ -30,7 +30,7 @@ from gui.pyqt6.pages.log_page import LogPage
 from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
-from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, ui_mode_for_size
+from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, fade_widget, ui_mode_for_size
 
 from PyQt6.QtCore import QTimer
 
@@ -218,6 +218,9 @@ class MainWindow(QMainWindow):
         if self._page_stack is None or index < 0:
             return
         self._page_stack.setCurrentIndex(index)
+        page = self._page_stack.currentWidget()
+        if page is not None:
+            fade_widget(page, duration=180)
         self._preview_timer.start()
 
     def _on_bridge_command_finished(self, command: str, result: dict) -> None:
