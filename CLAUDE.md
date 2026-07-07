@@ -84,6 +84,10 @@ Tests are in `tests/` (flat structure, no subdirectories). `pyproject.toml` sets
 - **Manual disconnect**: Disconnecting from the "设备" page updates both pages. Subsequent task execution requires a new manual connection.
 - **Config keys**: `device.last_connected`, `device.serial`, `device.auto_connect_last` in `config/client_config.json`.
 
+## Git Workflow
+
+- **每改即提交推送**：每次修改完成后，必须 `git add` 对应修改、`git commit` 并 `git push` 到远程仓库。不允许累积多个未提交的修改。
+
 ## Gotchas
 
 - **Windows-only**: ADB at `3rd-part/adb/adb.exe`, git at `3rd-part/git/bin/git.exe`. Both directories are gitignored.
