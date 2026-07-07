@@ -87,3 +87,37 @@
 - **Files Modified**:
   - `src/gui/pyqt6/main_window.py`
   - `src/gui/pyqt6/pages/prts_full_intelligence_page.py`
+
+## 2026-07-07 23:52
+
+- **User Request**: 清除主题相关内容，仅保留一套最合适的蓝色色彩；去除页面 icon；减少按钮高度。
+- **Outcome**: 
+  1. `theme_manager.py`：删除 endfield/minimal/high_contrast 三套主题，仅保留 arknight 单主题（低调蓝灰 `#5c7cfa`）；删除系统主题检测、主题切换 API、`_CURRENT_THEME` 全局变量；`apply_theme()` 固定应用 arknight。
+  2. `widget_styles.py`：将所有硬编码青色 `rgba(24,209,255,...)` 统一替换为蓝色 `rgba(92,124,250,...)`；按钮 `min-height` 从 36px 降为 28px，`padding` 从 `8px 16px` 降为 `4px 12px`。
+  3. `main_window.py`：删除 `_cycle_theme` 方法与 Ctrl+T 快捷键；删除 `apply_nav_icons` 调用。
+  4. `main.py`：删除 `apply_nav_icons`、`get_system_theme` 导入，`apply_theme(app)` 不再传 theme_name。
+  5. `settings_page.py`：删除主题选择器卡片、`get_action_icon` 导入、按钮图标、`_on_theme_changed` 方法。
+  6. `device_settings_page.py`、`log_page.py`、`maaend_control_page.py`、`quick_actions_widget.py`、`scripting_page.py`：删除所有 `get_action_icon`/`get_status_icon` 导入及 `.setIcon()` 调用；`maaend_control_page.py` 队列状态列由 2 列减为 1 列。
+- **Commit**: `45545d3`
+- **Files Modified**:
+  - `src/gui/pyqt6/theme/theme_manager.py`
+  - `src/gui/pyqt6/theme/widget_styles.py`
+  - `src/gui/pyqt6/main_window.py`
+  - `src/gui/pyqt6/main.py`
+  - `src/gui/pyqt6/pages/settings_page.py`
+  - `src/gui/pyqt6/pages/device_settings_page.py`
+  - `src/gui/pyqt6/pages/log_page.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
+  - `src/gui/pyqt6/dashboard/widgets/quick_actions_widget.py`
+  - `src/gui/pyqt6/scripting/scripting_page.py`
+
+## 2026-07-07 23:50
+
+- **User Request**: 分析设备预览难以加载的问题。
+- **Outcome**: 深入分析预览调用链后识别出 5 个根因：
+  1. **CLI 子进程开销（P0）**：每次预览 tick 启动全新 `python src/cli/istina.py` 子进程，含模块导入、`IstinaRuntime` 初始化、JSON-RPC/mmap 通信、base64 编解码，单次耗时 2-4 秒。`CLIBridge._start_next_process` 发现上一进程仍在运行时会直接丢弃新请求，导致 1.5s 定时器被压制为 3-4 秒/帧。
+  2. **`_connected` 单向闩锁（P0）**：`_connected` 仅在 `system connect` 成功或手动断开时变更。截图失败不反写状态，设备意外断开后预览静默失败且无提示。
+  3. **`MaaEndRuntime.connect()` 未校验首次截图结果（P1）**：`post_screencap()` 后未检查 `succeeded`，`_connected` 可能提前置为 `True` 而后续截图全部失败。
+  4. **预览请求未传递 serial（P1）**：`_sync_execute("screenshot")` 不携带 serial，`_screenshot` 回退到配置中的 `last_connected`，若当前设备与配置不一致则请求错误设备。
+  5. **底层 MaaFW 环境不稳定（P2）**：`MAAFW_BINARY_PATH` 双副本冲突、`input_methods=3` 硬编码、`_start_agent()` 静默失败，放大预览失败率。
+- **Files Modified**: `docs/TASK_LOG.md`、`docs/GUI_TASK_QUEUE_ANALYSIS.md`（补充预览开销分析）
