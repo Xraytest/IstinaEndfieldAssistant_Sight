@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, List
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QListWidgetItem, QGroupBox, QScrollArea,
-    QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox, QSizePolicy, QProgressBar,
+    QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox, QSizePolicy, QProgressBar, QFileDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage, QFont
@@ -501,6 +501,18 @@ class MaaEndControlPage(QWidget):
         self._queue_clear_btn.setIcon(get_action_icon("清空"))
         self._queue_clear_btn.clicked.connect(self._queue_clear)
         queue_move_row.addWidget(self._queue_clear_btn)
+        self._export_queue_btn = QPushButton(locale.tr("btn_export", "Export"))
+        self._export_queue_btn.setMinimumHeight(24)
+        self._export_queue_btn.setStyleSheet(BTN_DEFAULT)
+        self._export_queue_btn.setIcon(get_action_icon("导出"))
+        self._export_queue_btn.clicked.connect(self._export_queue)
+        queue_move_row.addWidget(self._export_queue_btn)
+        self._import_queue_btn = QPushButton(locale.tr("btn_import", "Import"))
+        self._import_queue_btn.setMinimumHeight(24)
+        self._import_queue_btn.setStyleSheet(BTN_DEFAULT)
+        self._import_queue_btn.setIcon(get_action_icon("导入"))
+        self._import_queue_btn.clicked.connect(self._import_queue)
+        queue_move_row.addWidget(self._import_queue_btn)
         queue_move_row.addStretch()
         queue_layout.addLayout(queue_move_row)
         right_vsplitter.addWidget(queue_card)
@@ -714,6 +726,53 @@ class MaaEndControlPage(QWidget):
         self._queue_state.clear_queue()
         self._restore_queue_ui()
         self._queue_state.persist()
+
+    def _export_queue(self) -> None:
+        if not self._queue_state.queue_items:
+            QMessageBox.information(self, locale.tr("queue_empty", "Queue Empty"), locale.tr("queue_empty_msg", "The queue is empty."))
+            return
+        path, _ = QFileDialog.getSaveFileName(self, locale.tr("export_queue", "Export Queue"), "queue_preset.json", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            data = {
+                "version": 1,
+                "queue_items": self._queue_state.queue_items,
+                "task_options": self._queue_state.saved_task_options,
+            }
+            Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            QMessageBox.information(self, locale.tr("export_success", "Export Successful"), locale.tr("export_success_msg", "Queue exported to {path}").format(path=path))
+        except Exception as exc:
+            QMessageBox.warning(self, locale.tr("export_failed", "Export Failed"), str(exc))
+
+    def _import_queue(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, locale.tr("import_queue", "Import Queue"), "", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            raw = Path(path).read_text(encoding="utf-8")
+            data = json.loads(raw)
+            items = data.get("queue_items") if isinstance(data.get("queue_items"), list) else None
+            if not items:
+                raise ValueError("Invalid queue preset file: missing queue_items")
+            reply = QMessageBox.question(self, locale.tr("import_confirm", "Import Confirm"), locale.tr("import_confirm_msg", "Replace current queue with {count} items?").format(count=len(items)))
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+            for entry in list(self._queue_state.queue_items):
+                name = entry.get("name")
+                if name:
+                    self._queue_state.clear_saved_options(name)
+            self._queue_state.set_queue_items(items)
+            saved = data.get("task_options")
+            if isinstance(saved, dict):
+                for k, v in saved.items():
+                    if isinstance(v, dict):
+                        self._queue_state.save_options(k, v)
+            self._restore_queue_ui()
+            self._queue_state.persist()
+            QMessageBox.information(self, locale.tr("import_success", "Import Successful"), locale.tr("import_success_msg", "Imported {count} queue items.").format(count=len(items)))
+        except Exception as exc:
+            QMessageBox.warning(self, locale.tr("import_failed", "Import Failed"), str(exc))
 
     def _runtime_queue_runner(self) -> bool:
         items = list(self._queue_state.queue_items)
