@@ -46,8 +46,8 @@ class MainWindow(QMainWindow):
 
         central = QWidget(self)
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(20, 20, 20, 16)
-        layout.setSpacing(14)
+        layout.setContentsMargins(16, 16, 16, 12)
+        layout.setSpacing(10)
         self.setCentralWidget(central)
 
         self.setStatusBar(QStatusBar(self))
@@ -89,8 +89,8 @@ class MainWindow(QMainWindow):
         hero = QFrame(self)
         hero.setObjectName("heroPanel")
         hero_layout = QHBoxLayout(hero)
-        hero_layout.setContentsMargins(18, 14, 18, 14)
-        hero_layout.setSpacing(16)
+        hero_layout.setContentsMargins(14, 10, 14, 10)
+        hero_layout.setSpacing(12)
 
         title_label = QLabel("Istina Endfield Assistant")
         title_label.setProperty("variant", "hero")
@@ -101,13 +101,13 @@ class MainWindow(QMainWindow):
         shell = QWidget(self)
         shell_layout = QHBoxLayout(shell)
         shell_layout.setContentsMargins(0, 0, 0, 0)
-        shell_layout.setSpacing(18)
+        shell_layout.setSpacing(12)
 
         nav_panel = QFrame(shell)
         nav_panel.setObjectName("navPanel")
         nav_layout = QVBoxLayout(nav_panel)
-        nav_layout.setContentsMargins(14, 14, 14, 14)
-        nav_layout.setSpacing(10)
+        nav_layout.setContentsMargins(10, 10, 10, 10)
+        nav_layout.setSpacing(8)
 
         nav_title = QLabel("页面")
         nav_title.setProperty("variant", "eyebrow")
@@ -115,7 +115,7 @@ class MainWindow(QMainWindow):
 
         self._navigation_list = QListWidget(nav_panel)
         self._navigation_list.setObjectName("mainNavigation")
-        self._navigation_list.setFixedWidth(250)
+        self._navigation_list.setFixedWidth(220)
         self._navigation_list.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._navigation_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._navigation_list.currentRowChanged.connect(self._on_nav_changed)
@@ -125,7 +125,7 @@ class MainWindow(QMainWindow):
         content_panel = QFrame(shell)
         content_panel.setObjectName("contentPanel")
         content_layout = QVBoxLayout(content_panel)
-        content_layout.setContentsMargins(12, 12, 12, 12)
+        content_layout.setContentsMargins(10, 10, 10, 10)
         content_layout.setSpacing(0)
 
         self._page_stack = QStackedWidget(content_panel)
@@ -172,14 +172,14 @@ class MainWindow(QMainWindow):
             layout = central.layout()
             if layout is not None:
                 if mode == "compact":
-                    layout.setContentsMargins(12, 12, 12, 10)
-                    layout.setSpacing(8)
+                    layout.setContentsMargins(10, 10, 10, 8)
+                    layout.setSpacing(6)
                 else:
-                    layout.setContentsMargins(20, 20, 20, 16)
-                    layout.setSpacing(14)
+                    layout.setContentsMargins(16, 16, 16, 12)
+                    layout.setSpacing(10)
         navigation_list = getattr(self, "_navigation_list", None)
         if navigation_list is not None:
-            navigation_list.setFixedWidth(180 if mode == "compact" else 250)
+            navigation_list.setFixedWidth(180 if mode == "compact" else 220)
 
     def _on_nav_changed(self, index: int) -> None:
         if self._page_stack is None or index < 0:

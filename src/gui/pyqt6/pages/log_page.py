@@ -13,6 +13,10 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
+    QListWidget,
+    QListWidgetItem,
+    QSplitter,
+    QComboBox,
 )
 
 from core.foundation.paths import get_project_root
@@ -23,8 +27,10 @@ class LogPage(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._config_path = get_project_root() / "config" / "client_config.json"
+        self._logs_dir = get_project_root() / "logs"
         self._setup_ui()
-        self._load_log()
+        self._refresh_file_list()
+        self._load_selected_log()
 
     def _setup_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -50,7 +56,7 @@ class LogPage(QWidget):
         title = QLabel("日志")
         title.setProperty("variant", "hero")
         header_layout.addWidget(title)
-        summary = QLabel("显示当前日志文件的完整内容。")
+        summary = QLabel("显示全部日志文件内容。")
         summary.setProperty("variant", "secondary")
         header_layout.addWidget(summary)
         content_root.addWidget(header)
@@ -59,19 +65,40 @@ class LogPage(QWidget):
         self._path_label = QLabel("")
         self._path_label.setProperty("variant", "secondary")
         action_row.addWidget(self._path_label, 1)
-        refresh_btn = QPushButton("刷新日志")
-        refresh_btn.clicked.connect(self._load_log)
+
+        refresh_btn = QPushButton("刷新")
+        refresh_btn.clicked.connect(self._load_selected_log)
         action_row.addWidget(refresh_btn)
+
+        self._file_combo = QComboBox()
+        self._file_combo.setMinimumWidth(220)
+        self._file_combo.currentIndexChanged.connect(self._load_selected_log)
+        action_row.addWidget(self._file_combo)
+
         content_root.addLayout(action_row)
 
         self._log_view = QTextEdit()
         self._log_view.setReadOnly(True)
         content_root.addWidget(self._log_view, 1)
 
-    def _load_log(self) -> None:
-        config = self._read_config()
-        relative_path = str(config.get("logging", {}).get("file") or "logs/iea_local.log")
-        log_path = get_project_root() / relative_path
+    def _refresh_file_list(self) -> None:
+        self._file_combo.clear()
+        if not self._logs_dir.exists():
+            self._file_combo.addItem("日志目录不存在")
+            return
+        files = sorted(self._logs_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+        log_files = [f for f in files if f.is_file() and f.suffix.lower() in (".log", ".txt")]
+        if not log_files:
+            self._file_combo.addItem("未发现日志文件")
+            return
+        for f in log_files:
+            self._file_combo.addItem(f.name, str(f))
+
+    def _load_selected_log(self) -> None:
+        data = self._file_combo.currentData()
+        if not data:
+            return
+        log_path = Path(str(data))
         self._path_label.setText(elide_text(self._path_label, f"日志文件：{log_path}"))
         if not log_path.exists():
             self._log_view.setPlainText("日志文件不存在。")
@@ -80,6 +107,11 @@ class LogPage(QWidget):
             self._log_view.setPlainText(log_path.read_text(encoding="utf-8", errors="replace"))
         except OSError as exc:
             self._log_view.setPlainText(f"读取日志失败：{exc}")
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self._refresh_file_list()
+        self._load_selected_log()
 
     def _read_config(self) -> Dict[str, Any]:
         if not self._config_path.exists():

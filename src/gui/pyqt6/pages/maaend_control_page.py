@@ -346,10 +346,12 @@ class MaaEndControlPage(QWidget):
         self._preview_label = None
 
     def _restore_queue_ui(self) -> None:
-        self._queue_list.clear()
+        self._queue_list.setRowCount(0)
         self._queue_items = self._queue_state.queue_items
         for entry in self._queue_items:
-            self._queue_list.addItem(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
+            row = self._queue_list.rowCount()
+            self._queue_list.insertRow(row)
+            self._queue_list.setItem(row, 0, QTableWidgetItem(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {})))
 
     # ------------------------------------------------------------------
     # bridge compatibility
@@ -465,42 +467,18 @@ class MaaEndControlPage(QWidget):
         self._status_label.setStyleSheet(GREEN_STYLE)
         header.addWidget(self._status_label)
         root.addLayout(header)
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        self._splitter = splitter
-        splitter.setChildrenCollapsible(False)
-        splitter.setStyleSheet("QSplitter::handle { width: 1px; background: rgba(24,209,255,0.12); }")
-        left = QWidget()
-        self._splitter_left = left
-        left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(10)
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter = main_splitter
+        main_splitter.setChildrenCollapsible(False)
+        main_splitter.setStyleSheet("QSplitter::handle { width: 1px; background: rgba(24,209,255,0.12); }")
 
-        # 预设 -------------------------------------------------------
-        preset_card = QGroupBox("预设")
-        preset_card.setStyleSheet(CARD_STYLE)
-        preset_layout = QVBoxLayout(preset_card)
-        preset_layout.setContentsMargins(2, 2, 2, 2)
-        preset_layout.setSpacing(2)
-        self._preset_list = QListWidget()
-        self._preset_list.setStyleSheet(LIST_STYLE)
-        self._preset_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._preset_list.setMinimumHeight(92)
-        self._preset_list.setMaximumHeight(126)
-        self._preset_list.itemSelectionChanged.connect(self._on_preset_selected)
-        preset_layout.addWidget(self._preset_list)
-        preset_btn_row = QHBoxLayout()
-        preset_btn_row.setContentsMargins(0, 0, 0, 0)
-        preset_btn_row.setSpacing(6)
-        self._run_preset_btn = QPushButton("应用预设")
-        self._run_preset_btn.setMinimumHeight(24)
-        self._run_preset_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_preset_btn.clicked.connect(self._run_preset)
-        preset_btn_row.addWidget(self._run_preset_btn)
-        preset_btn_row.addStretch()
-        preset_layout.addLayout(preset_btn_row)
-        left_layout.addWidget(preset_card)
+        # Column 1: Tasks -----------------------------------------------
+        tasks_col = QWidget()
+        self._tasks_col = tasks_col
+        tasks_layout = QVBoxLayout(tasks_col)
+        tasks_layout.setContentsMargins(0, 0, 0, 0)
+        tasks_layout.setSpacing(10)
 
-        # 任务 --------------------------------------------------------
         task_card = QGroupBox("任务")
         task_card.setStyleSheet(CARD_STYLE)
         task_layout = QVBoxLayout(task_card)
@@ -508,9 +486,7 @@ class MaaEndControlPage(QWidget):
         task_layout.setSpacing(2)
         self._task_list = QListWidget()
         self._task_list.setStyleSheet(LIST_STYLE)
-        self._task_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._task_list.setMinimumHeight(110)
-        self._task_list.setMaximumHeight(160)
+        self._task_list.setMinimumHeight(80)
         self._task_list.itemSelectionChanged.connect(self._on_task_selected)
         task_layout.addWidget(self._task_list)
         task_btn_row = QHBoxLayout()
@@ -528,21 +504,90 @@ class MaaEndControlPage(QWidget):
         task_btn_row.addWidget(self._task_settings_btn)
         task_btn_row.addStretch()
         task_layout.addLayout(task_btn_row)
-        left_layout.addWidget(task_card)
+        tasks_layout.addWidget(task_card)
+        tasks_layout.addStretch()
+        tasks_col.setMinimumWidth(220)
 
-        # 队列 --------------------------------------------------------
+        # Column 2: Options ---------------------------------------------
+        options_col = QWidget()
+        self._options_col = options_col
+        options_layout = QVBoxLayout(options_col)
+        options_layout.setContentsMargins(0, 0, 0, 0)
+        options_layout.setSpacing(10)
+
+        option_card = QGroupBox("选项")
+        option_card.setStyleSheet(CARD_STYLE)
+        option_layout = QVBoxLayout(option_card)
+        option_layout.setContentsMargins(2, 2, 2, 2)
+        option_layout.setSpacing(2)
+        self._option_scroll = QScrollArea()
+        self._option_scroll.setWidgetResizable(True)
+        self._option_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        self._option_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._option_container = QWidget()
+        self._option_form = QVBoxLayout(self._option_container)
+        self._option_form.setContentsMargins(0, 0, 0, 0)
+        self._option_form.setSpacing(4)
+        self._option_scroll.setWidget(self._option_container)
+        option_layout.addWidget(self._option_scroll)
+        option_btn_row = QHBoxLayout()
+        option_btn_row.setContentsMargins(0, 0, 0, 0)
+        option_btn_row.setSpacing(6)
+        option_btn_row.addStretch()
+        option_layout.addLayout(option_btn_row)
+        options_layout.addWidget(option_card)
+        options_col.setMinimumWidth(240)
+
+        # Column 3: Right (Presets | Queue | Preview | SimpleLog) -------
+        right_col = QWidget()
+        self._right_col = right_col
+        right_layout = QVBoxLayout(right_col)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(10)
+
+        right_vsplitter = QSplitter(Qt.Orientation.Vertical)
+        self._right_vsplitter = right_vsplitter
+        right_vsplitter.setChildrenCollapsible(False)
+        right_vsplitter.setStyleSheet("QSplitter::handle { width: 1px; background: rgba(24,209,255,0.12); }")
+
+        # Presets
+        preset_card = QGroupBox("预设")
+        preset_card.setStyleSheet(CARD_STYLE)
+        preset_layout = QVBoxLayout(preset_card)
+        preset_layout.setContentsMargins(2, 2, 2, 2)
+        preset_layout.setSpacing(2)
+        self._preset_list = QListWidget()
+        self._preset_list.setStyleSheet(LIST_STYLE)
+        self._preset_list.setMinimumHeight(60)
+        self._preset_list.itemSelectionChanged.connect(self._on_preset_selected)
+        preset_layout.addWidget(self._preset_list)
+        preset_btn_row = QHBoxLayout()
+        preset_btn_row.setContentsMargins(0, 0, 0, 0)
+        preset_btn_row.setSpacing(6)
+        self._run_preset_btn = QPushButton("应用预设")
+        self._run_preset_btn.setMinimumHeight(24)
+        self._run_preset_btn.setStyleSheet(BTN_ACTIVE)
+        self._run_preset_btn.clicked.connect(self._run_preset)
+        preset_btn_row.addWidget(self._run_preset_btn)
+        preset_btn_row.addStretch()
+        preset_layout.addLayout(preset_btn_row)
+        right_vsplitter.addWidget(preset_card)
+
+        # Queue
         queue_card = QGroupBox("队列")
         queue_card.setStyleSheet(CARD_STYLE)
         queue_layout = QVBoxLayout(queue_card)
         queue_layout.setContentsMargins(2, 2, 2, 2)
         queue_layout.setSpacing(2)
-        self._queue_list = QListWidget()
-        self._queue_list.setStyleSheet(LIST_STYLE)
-        self._queue_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._queue_list.setMinimumHeight(96)
-        self._queue_list.setMaximumHeight(140)
+        self._queue_list = QTableWidget()
+        self._queue_list.setColumnCount(1)
+        self._queue_list.horizontalHeader().setVisible(False)
+        self._queue_list.horizontalHeader().setStretchLastSection(True)
+        self._queue_list.verticalHeader().setVisible(False)
+        self._queue_list.setStyleSheet(TABLE_STYLE)
+        self._queue_list.setMinimumHeight(60)
         self._queue_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self._queue_list.currentRowChanged.connect(self._on_queue_focus_changed)
+        self._queue_list.selectionModel().currentChanged.connect(lambda current, previous: self._on_queue_focus_changed(current.row()))
         queue_layout.addWidget(self._queue_list)
         queue_btn_row = QHBoxLayout()
         queue_btn_row.setContentsMargins(0, 0, 0, 0)
@@ -579,42 +624,9 @@ class MaaEndControlPage(QWidget):
         queue_move_row.addWidget(self._queue_clear_btn)
         queue_move_row.addStretch()
         queue_layout.addLayout(queue_move_row)
-        left_layout.addWidget(queue_card)
-        left_layout.addStretch()
-        left.setMinimumWidth(280)
-        splitter.addWidget(left)
+        right_vsplitter.addWidget(queue_card)
 
-        # RIGHT --------------------------------------------------------
-        right = QWidget()
-        self._splitter_right = right
-        right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(10)
-
-        # 选项 ------------------------------------------------------
-        option_card = QGroupBox("选项")
-        option_card.setStyleSheet(CARD_STYLE)
-        option_layout = QVBoxLayout(option_card)
-        option_layout.setContentsMargins(2, 2, 2, 2)
-        option_layout.setSpacing(2)
-        self._option_scroll = QScrollArea()
-        self._option_scroll.setWidgetResizable(True)
-        self._option_scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        self._option_scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        self._option_container = QWidget()
-        self._option_form = QVBoxLayout(self._option_container)
-        self._option_form.setContentsMargins(0, 0, 0, 0)
-        self._option_form.setSpacing(4)
-        self._option_scroll.setWidget(self._option_container)
-        option_layout.addWidget(self._option_scroll)
-        option_btn_row = QHBoxLayout()
-        option_btn_row.setContentsMargins(0, 0, 0, 0)
-        option_btn_row.setSpacing(6)
-        option_btn_row.addStretch()
-        option_layout.addLayout(option_btn_row)
-        right_layout.addWidget(option_card, 2)
-
-        # 预览 ------------------------------------------------------
+        # Preview
         preview_card = QGroupBox("预览")
         preview_card.setStyleSheet(CARD_STYLE)
         preview_layout = QVBoxLayout(preview_card)
@@ -626,19 +638,16 @@ class MaaEndControlPage(QWidget):
         self._preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._preview_label.setMinimumHeight(180)
         preview_layout.addWidget(self._preview_label)
-        right_layout.addWidget(preview_card, 3)
+        right_vsplitter.addWidget(preview_card)
 
-        # 日志 ----------------------------------------------------------
-        log_card = QGroupBox("日志")
+        # SimpleLog
+        log_card = QGroupBox("执行日志")
         log_card.setStyleSheet(CARD_STYLE)
         log_layout = QVBoxLayout(log_card)
         log_layout.setContentsMargins(2, 2, 2, 2)
         log_layout.setSpacing(2)
         self._log_text = QTextEdit()
         self._log_text.setReadOnly(True)
-        self._log_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._log_text.setMinimumHeight(100)
-        self._log_text.setMaximumHeight(140)
         self._log_text.setStyleSheet(LOG_STYLE)
         log_layout.addWidget(self._log_text)
         log_btn_row = QHBoxLayout()
@@ -651,7 +660,29 @@ class MaaEndControlPage(QWidget):
         log_btn_row.addWidget(self._clear_log_btn)
         log_btn_row.addStretch()
         log_layout.addLayout(log_btn_row)
-        right_layout.addWidget(log_card, 1)
+        right_vsplitter.addWidget(log_card)
+
+        right_layout.addWidget(right_vsplitter)
+
+        main_splitter.addWidget(tasks_col)
+        main_splitter.addWidget(options_col)
+        main_splitter.addWidget(right_col)
+        main_splitter.setStretchFactor(0, 2)
+        main_splitter.setStretchFactor(1, 3)
+        main_splitter.setStretchFactor(2, 5)
+        root.addWidget(main_splitter, 1)
+
+        # BOTTOM -------------------------------------------------------
+        bottom = QHBoxLayout()
+        bottom.setContentsMargins(0, 0, 0, 0)
+        bottom.addSpacing(4)
+        self._stop_btn = QPushButton("停止")
+        self._stop_btn.setStyleSheet(BTN_STOP)
+        self._stop_btn.setMinimumHeight(24)
+        self._stop_btn.setEnabled(False)
+        self._stop_btn.clicked.connect(self._stop_execution)
+        bottom.addWidget(self._stop_btn)
+        root.addLayout(bottom)
 
         font = QFont("Microsoft YaHei UI")
         for widget in (
@@ -669,23 +700,6 @@ class MaaEndControlPage(QWidget):
         ):
             widget.setFont(font)
 
-        right.setMinimumWidth(360)
-        splitter.addWidget(right)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 4)
-        root.addWidget(splitter, 1)
-
-        # BOTTOM -------------------------------------------------------
-        bottom = QHBoxLayout()
-        bottom.setContentsMargins(0, 0, 0, 0)
-        bottom.addSpacing(4)
-        self._stop_btn = QPushButton("停止")
-        self._stop_btn.setStyleSheet(BTN_STOP)
-        self._stop_btn.setMinimumHeight(24)
-        self._stop_btn.setEnabled(False)
-        self._stop_btn.clicked.connect(self._stop_execution)
-        bottom.addWidget(self._stop_btn)
-        root.addLayout(bottom)
         self._sync_layout_geometry()
 
     # ------------------------------------------------------------------
@@ -786,18 +800,18 @@ class MaaEndControlPage(QWidget):
         items[row], items[row - 1] = items[row - 1], items[row]
         self._queue_state.set_queue_items(items)
         self._restore_queue_ui()
-        self._queue_list.setCurrentRow(row - 1)
+        self._queue_list.setCurrentCell(row - 1, 0)
         self._queue_state.persist()
 
     def _queue_move_down(self):
         row = self._queue_list.currentRow()
-        if row < 0 or row >= self._queue_list.count() - 1:
+        if row < 0 or row >= self._queue_list.rowCount() - 1:
             return
         items = self._queue_state.queue_items
         items[row], items[row + 1] = items[row + 1], items[row]
         self._queue_state.set_queue_items(items)
         self._restore_queue_ui()
-        self._queue_list.setCurrentRow(row + 1)
+        self._queue_list.setCurrentCell(row + 1, 0)
         self._queue_state.persist()
 
     def _queue_clear(self):
@@ -902,25 +916,26 @@ class MaaEndControlPage(QWidget):
         required = ("_preset_list", "_task_list", "_queue_list", "_log_text")
         if preview_label is None or not all(hasattr(self, name) for name in required):
             return
-        left = getattr(self, "_splitter_left", None)
-        right = getattr(self, "_splitter_right", None)
-        if left is not None and right is not None:
-            left.setMinimumWidth(280)
-            right.setMinimumWidth(360)
+        tasks_col = getattr(self, "_tasks_col", None)
+        options_col = getattr(self, "_options_col", None)
+        right_col = getattr(self, "_right_col", None)
+        if tasks_col is not None:
+            tasks_col.setMinimumWidth(220)
+        if options_col is not None:
+            options_col.setMinimumWidth(240)
+        if right_col is not None:
+            right_col.setMinimumWidth(400)
         total = max(self.width(), 1)
-        left_width = max(320, int(total * 0.34))
-        right_width = max(540, total - left_width - 12)
-        splitter.setSizes([left_width, right_width])
-        self._preset_list.setMinimumHeight(92)
-        self._preset_list.setMaximumHeight(132)
-        self._task_list.setMinimumHeight(110)
-        self._task_list.setMaximumHeight(168)
-        self._queue_list.setMinimumHeight(96)
-        self._queue_list.setMaximumHeight(144)
-        self._log_text.setMinimumHeight(100)
-        self._log_text.setMaximumHeight(144)
-        self._option_scroll.setMinimumHeight(180)
-        preview_label.setMinimumHeight(180)
+        tasks_width = max(220, int(total * 0.20))
+        options_width = max(240, int(total * 0.30))
+        right_width = max(400, total - tasks_width - options_width - 12)
+        splitter.setSizes([tasks_width, options_width, right_width])
+        self._preset_list.setMinimumHeight(60)
+        self._task_list.setMinimumHeight(80)
+        self._queue_list.setMinimumHeight(60)
+        self._log_text.setMinimumHeight(60)
+        self._option_scroll.setMinimumHeight(120)
+        preview_label.setMinimumHeight(120)
 
     def _create_option_widget(self, name: str, opt_def: Dict[str, Any]) -> QWidget:
         opt_type = opt_def.get("type", "switch")
@@ -1022,7 +1037,7 @@ class MaaEndControlPage(QWidget):
             value = options[key]
             if isinstance(value, dict):
                 inner = ", ".join(f"{k}={v}" for k, v in value.items())
-                parts.append(f"{key}={{ {inner} }}")
+                parts.append(f"{key}={{{inner}}}")
             elif isinstance(value, list):
                 parts.append(f"{key}=[{', '.join(map(str, value))}]")
             else:
@@ -1210,7 +1225,7 @@ class MaaEndControlPage(QWidget):
         options = self._collect_options()
         entry["options"] = dict(options)
         self._queue_state.save_options(name, dict(options))
-        self._queue_list.item(row).setText(self._format_queue_label(name, entry.get("type", "task"), options))
+        self._queue_list.item(row, 0).setText(self._format_queue_label(name, entry.get("type", "task"), options))
         self._persist_state()
 
     def _normalize_task_entry(self, task_entry: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
@@ -1267,18 +1282,24 @@ class MaaEndControlPage(QWidget):
             QMessageBox.warning(self, "连接失败", "无法连接 MaaEnd runtime，请检查设备。")
             return False
         self._connected = True
+        self.start_preview_timer()
         self._append_log("系统", "MaaEnd runtime 已连接")
         return True
 
     def _run_task(self):
         if not self._selected_task or self._is_executing:
             return
-        if not self._ensure_connected():
-            return
-        saved = self._load_options(self._selected_task)
+        name = self._selected_task
         options = self._collect_options()
-        options.update(saved)
-        self._start_execution(lambda: self._bridge_task_run(self._selected_task, options))
+        saved = self._load_options(name)
+        if saved:
+            options.update(saved)
+        entry = {"name": name, "display_name": name, "type": "task", "options": dict(options)}
+        items = self._queue_state.queue_items + [entry]
+        self._queue_state.set_queue_items(items)
+        self._restore_queue_ui()
+        self._queue_state.persist()
+        self._append_log("队列", f"已添加 {_zh(name)}")
 
     def _bridge_task_run(self, name: str, options: Dict[str, Any]) -> bool:
         clean_name, inline_options = self._parse_inline_task_name(name)

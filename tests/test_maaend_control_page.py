@@ -6,7 +6,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QTableWidgetItem
 
 
 def _load_control_page():
@@ -84,13 +84,14 @@ def test_apply_preset_button_replaces_queue():
     page._queue_state.set_state_path(page._state_path)
 
     page._queue_state.set_queue_items([{"name": "OldTask", "type": "task", "options": {}}])
-    page._queue_list.addItem("[TASK] OldTask")
+    page._queue_list.setRowCount(1)
+    page._queue_list.setItem(0, 0, QTableWidgetItem("[TASK] OldTask"))
     page._selected_preset = "TestPreset"
 
     page._run_preset_btn.click()
 
     assert [entry["name"] for entry in page._queue_items] == ["TaskA", "TaskB"]
-    assert page._queue_list.count() == 2
+    assert page._queue_list.rowCount() == 2
     assert page._is_executing is False
     assert not any(command == "system connect" for command, _ in bridge.calls)
     app.quit()
@@ -106,8 +107,10 @@ def test_control_page_uses_cjk_capable_font_for_chinese_ui():
 
     assert page._status_label.text() == "空闲"
     assert page._run_preset_btn.text() == "应用预设"
+    assert page._run_task_btn.text() == "添加任务"
     assert page._status_label.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     assert page._run_preset_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
+    assert page._run_task_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     assert page._log_text.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     app.quit()
 
@@ -190,11 +193,12 @@ def test_control_page_resize_keeps_fixed_layout_geometry():
     app.processEvents()
     second_sizes = page._splitter.sizes()
 
-    assert len(first_sizes) == 2
-    assert len(second_sizes) == 2
-    assert page._preset_list.maximumHeight() >= 120
-    assert page._queue_list.maximumHeight() >= 140
-    assert page._log_text.maximumHeight() >= 140
+    assert len(first_sizes) == 3
+    assert len(second_sizes) == 3
+    assert page._preset_list.minimumHeight() >= 60
+    assert page._task_list.minimumHeight() >= 80
+    assert page._queue_list.minimumHeight() >= 60
+    assert page._log_text.minimumHeight() >= 60
     app.quit()
 
 
@@ -208,8 +212,9 @@ def test_apply_queue_focus_task_settings_saves_to_queue_state():
         {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"speed": "fast"}}
     ])
     page._queue_items = page._queue_state.queue_items
-    page._queue_list.addItem("[TASK] TaskA")
-    page._queue_list.setCurrentRow(0)
+    page._queue_list.setRowCount(1)
+    page._queue_list.setItem(0, 0, QTableWidgetItem("[TASK] TaskA"))
+    page._queue_list.setCurrentCell(0, 0)
 
     page._selected_task = "TaskA"
     page._tasks_cache = {"TaskA": {"option": []}}
@@ -236,8 +241,9 @@ def test_queue_clear_removes_specific_task_settings():
         {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {}},
         {"name": "TaskB", "display_name": "TaskB", "type": "task", "options": {}},
     ])
-    page._queue_list.addItem("[TASK] TaskA")
-    page._queue_list.addItem("[TASK] TaskB")
+    page._queue_list.setRowCount(2)
+    page._queue_list.setItem(0, 0, QTableWidgetItem("[TASK] TaskA"))
+    page._queue_list.setItem(1, 0, QTableWidgetItem("[TASK] TaskB"))
 
     page._queue_clear()
 
@@ -262,7 +268,8 @@ def test_apply_preset_overrides_queue_and_clears_old_settings():
     page._queue_state.set_queue_items([
         {"name": "OldTask", "display_name": "OldTask", "type": "task", "options": {}},
     ])
-    page._queue_list.addItem("[TASK] OldTask")
+    page._queue_list.setRowCount(1)
+    page._queue_list.setItem(0, 0, QTableWidgetItem("[TASK] OldTask"))
     page._selected_preset = "TestPreset"
 
     page._run_preset()

@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QFrame, QScrollArea, QWidget
 @dataclass(frozen=True)
 class UiBreakpoints:
     normal_width: int = 1280
-    compact_width: int = 900
+    compact_width: int = 960
     narrow_width: int = 800
     normal_height: int = 720
 
