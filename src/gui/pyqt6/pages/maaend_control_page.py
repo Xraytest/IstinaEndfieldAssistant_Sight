@@ -257,6 +257,11 @@ class MaaEndControlPage(QWidget):
             if not entry:
                 continue
             item.setText(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
+            icon_item = self._queue_list.item(row, 1)
+            if icon_item is None:
+                icon_item = QTableWidgetItem()
+                self._queue_list.setItem(row, 1, icon_item)
+            icon_item.setIcon(self._format_status_icon(entry))
 
     def _restore_queue_ui(self) -> None:
         self._queue_list.setRowCount(0)
@@ -264,6 +269,9 @@ class MaaEndControlPage(QWidget):
             row = self._queue_list.rowCount()
             self._queue_list.insertRow(row)
             self._queue_list.setItem(row, 0, QTableWidgetItem(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {})))
+            icon_item = QTableWidgetItem()
+            icon_item.setIcon(self._format_status_icon(entry))
+            self._queue_list.setItem(row, 1, icon_item)
 
     # ------------------------------------------------------------------
     # bridge compatibility
@@ -441,9 +449,10 @@ class MaaEndControlPage(QWidget):
         queue_layout.setContentsMargins(2, 2, 2, 2)
         queue_layout.setSpacing(2)
         self._queue_list = QTableWidget()
-        self._queue_list.setColumnCount(1)
+        self._queue_list.setColumnCount(2)
         self._queue_list.horizontalHeader().setVisible(False)
         self._queue_list.horizontalHeader().setStretchLastSection(True)
+        self._queue_list.setColumnWidth(0, 28)
         self._queue_list.verticalHeader().setVisible(False)
         self._queue_list.setStyleSheet(TABLE_STYLE)
         self._queue_list.setMinimumHeight(60)
@@ -710,6 +719,8 @@ class MaaEndControlPage(QWidget):
         for idx, entry in enumerate(items, 1):
             if self._worker and getattr(self._worker, '_stopped', False):
                 break
+            entry["status"] = "running"
+            self._refresh_queue_list()
             self._progress_bar.setValue(int((idx - 1) / total * 100))
             self._progress_bar.setFormat(f"执行中 {idx}/{total}")
             name, inline_options = self._normalize_runtime_entry(entry)
@@ -729,6 +740,8 @@ class MaaEndControlPage(QWidget):
             payload = json.dumps({"name": clean_name, "options": merged_options}, ensure_ascii=False)
             result = self._sync_execute(f"task run {clean_name} --options {payload}", timeout_ms=300000)
             ok = bool(result and result.get("status") == "success")
+            entry["status"] = "success" if ok else "failed"
+            self._refresh_queue_list()
             self._append_log("队列", f"{_zh(name)} -> {'成功' if ok else '失败'} ({idx}/{total})")
             if not ok:
                 self._progress_bar.setValue(100)
@@ -906,6 +919,10 @@ class MaaEndControlPage(QWidget):
 
     def _format_queue_label(self, name: str, item_type: str, options: Dict[str, Any]) -> str:
         return f"[{item_type.upper()}] {_zh(name)}"
+
+    def _format_status_icon(self, entry: Dict[str, Any]) -> QIcon:
+        status = entry.get("status", "pending")
+        return get_status_icon(status)
 
     def _summarize_options(self, options: Dict[str, Any]) -> str:
         if not options:

@@ -52,6 +52,14 @@ _ACTION_ICONS: Dict[str, str] = {
     "保存": "💾",
 }
 
+# Queue status icons
+_STATUS_ICONS: Dict[str, str] = {
+    "pending": "○",
+    "running": "◉",
+    "success": "✓",
+    "failed": "✗",
+}
+
 _cache: Dict[str, QIcon] = {}
 
 
@@ -74,6 +82,23 @@ def get_action_icon(name: str, size: int = 14) -> QIcon:
     key = f"action:{name}:{size}"
     if key not in _cache:
         _cache[key] = QIcon(_pixmap_from_text(text, size=size, color="#e8e8ee"))
+    return _cache[key]
+
+
+def get_status_icon(status: str, size: int = 14) -> QIcon:
+    """Return an icon for a queue item status."""
+    text = _STATUS_ICONS.get(status, "")
+    if not text:
+        return QIcon()
+    key = f"status:{status}:{size}"
+    if key not in _cache:
+        color = {
+            "pending": "#9090a8",
+            "running": "#18d1ff",
+            "success": "#00ffa2",
+            "failed": "#ff3355",
+        }.get(status, "#9090a8")
+        _cache[key] = QIcon(_pixmap_from_text(text, size=size, color=color))
     return _cache[key]
 
 
