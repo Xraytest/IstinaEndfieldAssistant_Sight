@@ -107,7 +107,7 @@ def test_control_page_uses_cjk_capable_font_for_chinese_ui():
 
     assert page._status_label.text() == "空闲"
     assert page._run_preset_btn.text() == "应用预设"
-    assert page._run_task_btn.text() == "添加任务"
+    assert page._run_task_btn.text() == "运行任务"
     assert page._status_label.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     assert page._run_preset_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     assert page._run_task_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
@@ -169,7 +169,6 @@ def test_control_page_persists_queue_state():
     page._queue_state.set_queue_items([
         {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"repeat": 2}}
     ])
-    page._queue_items = page._queue_state.queue_items
     page._queue_state.save_options("TaskA", {"repeat": 2})
     page._persist_state()
 
@@ -292,16 +291,17 @@ def test_queue_task_settings_persist_through_restart():
     page._queue_state.set_queue_items([
         {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"speed": "fast"}}
     ])
-    page._queue_items = page._queue_state.queue_items
     page._queue_state.save_options("TaskA", {"speed": "fast", "repeat": 3})
     page._queue_state.set_selected_task("TaskA")
     page._persist_state()
 
     new_page = module.MaaEndControlPage(bridge)
     new_page._state_path = state_dir / "maaend_task_state.json"
-    new_page._load_state()
+    new_page._queue_state.set_state_path(new_page._state_path)
+    new_page._queue_state.load()
+    new_page._restore_queue_ui()
 
     assert new_page._queue_state.load_options("TaskA") == {"speed": "fast", "repeat": 3}
-    assert new_page._queue_items[0]["options"] == {"speed": "fast"}
+    assert new_page._queue_state.queue_items[0]["options"] == {"speed": "fast"}
     assert new_page._selected_task == "TaskA"
     app.quit()

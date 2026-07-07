@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from gui.pyqt6.theme.theme_manager import PREVIEW_STYLE
 
 from core.foundation.gpu_check import check_gpu, format_gpu_warning
 from core.foundation.paths import ensure_src_path
@@ -27,6 +28,8 @@ from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
 from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, ui_mode_for_size
+
+from PyQt6.QtCore import QTimer
 
 ensure_src_path(__file__)
 
@@ -55,6 +58,10 @@ class MainWindow(QMainWindow):
 
         self._navigation_list: Optional[QListWidget] = None
         self._page_stack: Optional[QStackedWidget] = None
+        self._preview_label: Optional[QLabel] = None
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setInterval(1500)
+        self._preview_timer.timeout.connect(self._refresh_preview)
         self._build_shell()
         self._restore_or_fit_window()
         self._update_responsive_mode()
@@ -103,8 +110,7 @@ class MainWindow(QMainWindow):
         shell_layout.setContentsMargins(0, 0, 0, 0)
         shell_layout.setSpacing(12)
 
-        nav_panel = QFrame(shell)
-        nav_panel.setObjectName("navPanel")
+        nav_panel = QWidget(shell)
         nav_layout = QVBoxLayout(nav_panel)
         nav_layout.setContentsMargins(10, 10, 10, 10)
         nav_layout.setSpacing(8)
@@ -120,6 +126,14 @@ class MainWindow(QMainWindow):
         self._navigation_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._navigation_list.currentRowChanged.connect(self._on_nav_changed)
         nav_layout.addWidget(self._navigation_list)
+
+        self._preview_label = QLabel("暂无预览")
+        self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._preview_label.setStyleSheet(PREVIEW_STYLE)
+        self._preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._preview_label.setMinimumHeight(160)
+        nav_layout.addWidget(self._preview_label, 1)
+
         shell_layout.addWidget(nav_panel, 0, Qt.AlignmentFlag.AlignTop)
 
         content_panel = QFrame(shell)
@@ -185,6 +199,39 @@ class MainWindow(QMainWindow):
         if self._page_stack is None or index < 0:
             return
         self._page_stack.setCurrentIndex(index)
+        if index == 1:  # 标准推理页
+            self._preview_timer.start()
+        else:
+            self._preview_timer.stop()
+
+    def _refresh_preview(self) -> None:
+        if self._preview_label is None:
+            return
+        # 获取当前标准推理页的 bridge 并截图
+        current_widget = self._page_stack.currentWidget()
+        if isinstance(current_widget, MaaEndControlPage):
+            result = current_widget._sync_execute("screenshot")
+            if not result or result.get("status") != "success":
+                return
+            data = result.get("base64")
+            if not data:
+                path = result.get("path")
+                if path:
+                    try:
+                        data = Path(path).read_bytes()
+                    except Exception:
+                        return
+                else:
+                    return
+            try:
+                import base64
+                image_data = base64.b64decode(data)
+            except Exception:
+                return
+            pixmap = QPixmap()
+            if pixmap.loadFromData(image_data):
+                scaled = pixmap.scaled(self._preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                self._preview_label.setPixmap(scaled)
 
     def _resize_navigation_list(self) -> None:
         if self._navigation_list is None:
