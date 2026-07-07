@@ -185,5 +185,12 @@
   "widget_recent_tasks": "Recent Tasks",
   "widget_recent_tasks_desc": "Shows recent task history",
   "widget_chart": "Trend Chart",
-  "widget_chart_desc": "Shows execution trend chart"
+  "widget_chart_desc": "Shows execution trend chart",
+  "widget_settings_general": "General",
+  "widget_refresh_interval": "Refresh interval:",
+  "widget_auto_refresh": "Auto refresh",
+  "widget_settings_display": "Display",
+  "widget_display_mode": "Display mode:",
+  "widget_settings": "Settings",
+  "widget_refresh_now": "Refresh now"
 }

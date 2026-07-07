@@ -185,5 +185,12 @@
   "widget_recent_tasks": "最近任务",
   "widget_recent_tasks_desc": "显示最近任务历史",
   "widget_chart": "趋势图表",
-  "widget_chart_desc": "显示执行趋势图表"
+  "widget_chart_desc": "显示执行趋势图表",
+  "widget_settings_general": "常规",
+  "widget_refresh_interval": "刷新间隔：",
+  "widget_auto_refresh": "自动刷新",
+  "widget_settings_display": "显示",
+  "widget_display_mode": "显示模式：",
+  "widget_settings": "设置",
+  "widget_refresh_now": "立即刷新"
 }
