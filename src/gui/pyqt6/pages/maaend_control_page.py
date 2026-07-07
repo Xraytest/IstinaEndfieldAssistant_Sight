@@ -104,7 +104,7 @@ BTN_ACTIVE = """
         color: #00ffa2;
         border: 1px solid rgba(0, 255, 162, 0.30);
         border-radius: 2px;
-        padding: 0px 0px;
+        padding: 0px 2px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(0, 255, 162, 0.20); }
@@ -115,7 +115,7 @@ BTN_DEFAULT = """
         color: #18d1ff;
         border: 1px solid rgba(24, 209, 255, 0.30);
         border-radius: 2px;
-        padding: 0px 0px;
+        padding: 0px 2px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(24, 209, 255, 0.20); }
@@ -126,7 +126,7 @@ BTN_STOP = """
         color: #ff3355;
         border: 1px solid rgba(255, 51, 85, 0.40);
         border-radius: 2px;
-        padding: 0px 0px;
+        padding: 0px 2px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(255, 51, 85, 0.25); }
@@ -171,7 +171,7 @@ NAME_ZH = {
     "AccountSwitch": "自动切换账号",
     "WebEvent202605": "🎁自动共贺庆典网页活动",
     "AndroidOpenGame": "🎮打开游戏",
-    "CloseGame": "❌关闭游戏（安卓端）",
+    "CloseGame": "❌关闭游戏",
     "RealTimeTask": "🤖实时开荒辅助",
     "ItemTransfer": "🐌库存转移",
     "Crafting": "🧪简易制作",
@@ -409,10 +409,10 @@ class MaaEndControlPage(QWidget):
         self._run_task_btn.setStyleSheet(BTN_ACTIVE)
         self._run_task_btn.clicked.connect(self._run_task)
         task_btn_row.addWidget(self._run_task_btn)
-        self._task_settings_btn = QPushButton("任务设置")
+        self._task_settings_btn = QPushButton("应用队列设置")
         self._task_settings_btn.setMinimumHeight(24)
         self._task_settings_btn.setStyleSheet(BTN_DEFAULT)
-        self._task_settings_btn.clicked.connect(self._open_task_settings)
+        self._task_settings_btn.clicked.connect(self._apply_queue_focus_task_settings)
         task_btn_row.addWidget(self._task_settings_btn)
         task_btn_row.addStretch()
         task_layout.addLayout(task_btn_row)
@@ -430,6 +430,7 @@ class MaaEndControlPage(QWidget):
         self._queue_list.setMinimumHeight(96)
         self._queue_list.setMaximumHeight(140)
         self._queue_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._queue_list.currentRowChanged.connect(self._on_queue_focus_changed)
         queue_layout.addWidget(self._queue_list)
         queue_btn_row = QHBoxLayout()
         queue_btn_row.setContentsMargins(0, 0, 0, 0)
@@ -497,11 +498,6 @@ class MaaEndControlPage(QWidget):
         option_btn_row = QHBoxLayout()
         option_btn_row.setContentsMargins(0, 0, 0, 0)
         option_btn_row.setSpacing(6)
-        self._save_option_btn = QPushButton("保存")
-        self._save_option_btn.setMinimumHeight(24)
-        self._save_option_btn.setStyleSheet(BTN_DEFAULT)
-        self._save_option_btn.clicked.connect(self._save_options)
-        option_btn_row.addWidget(self._save_option_btn)
         option_btn_row.addStretch()
         option_layout.addLayout(option_btn_row)
         right_layout.addWidget(option_card, 2)
@@ -556,7 +552,6 @@ class MaaEndControlPage(QWidget):
             self._queue_up_btn,
             self._queue_down_btn,
             self._queue_clear_btn,
-            self._save_option_btn,
             self._clear_log_btn,
             self._log_text,
         ):
@@ -637,6 +632,10 @@ class MaaEndControlPage(QWidget):
             if not task_list:
                 QMessageBox.information(self, "预设为空", f"预设 '{self._selected_preset}' 中没有任务。")
             # 添加预设到队列 = 覆盖现有队列（清空再填充），不是追加；与 _run_preset 共享同一覆盖语义。
+            for entry in list(self._queue_items):
+                name = entry.get("name")
+                if name:
+                    self._clear_saved_options(name)
             self._queue_items.clear()
             self._queue_list.clear()
             for task_entry in task_list:
@@ -688,6 +687,10 @@ class MaaEndControlPage(QWidget):
         self._persist_state()
 
     def _queue_clear(self):
+        for entry in list(self._queue_items):
+            name = entry.get("name")
+            if name:
+                self._clear_saved_options(name)
         self._queue_items.clear()
         self._queue_list.clear()
         self._persist_state()
@@ -934,6 +937,9 @@ class MaaEndControlPage(QWidget):
             return dict(saved)
         return {}
 
+    def _clear_saved_options(self, task_name: str) -> None:
+        self._saved_task_options.pop(task_name, None)
+
     def _apply_saved_option_values(self, task_name: str) -> None:
         saved = self._load_options(task_name)
         if not saved:
@@ -1065,6 +1071,33 @@ class MaaEndControlPage(QWidget):
         layout.addWidget(buttons)
         dialog.exec()
 
+    def _on_queue_focus_changed(self, row: int) -> None:
+        if row < 0 or row >= len(self._queue_items):
+            return
+        entry = self._queue_items[row]
+        name = entry.get("name")
+        if not name:
+            return
+        self._selected_task = name
+        self._build_option_editor()
+
+    def _apply_queue_focus_task_settings(self) -> None:
+        row = self._queue_list.currentRow()
+        if row < 0 or row >= len(self._queue_items):
+            QMessageBox.information(self, "未选择", "请先在队列中选择一个任务。")
+            return
+        entry = self._queue_items[row]
+        name = entry.get("name")
+        if not name:
+            QMessageBox.information(self, "未选择", "请先在队列中选择一个任务。")
+            return
+        self._selected_task = name
+        self._build_option_editor()
+        options = self._collect_options()
+        entry["options"] = dict(options)
+        self._queue_list.item(row).setText(self._format_queue_label(name, entry.get("type", "task"), options))
+        self._persist_state()
+
     def _normalize_task_entry(self, task_entry: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
         name = str(task_entry.get("name") or "").strip()
         options = task_entry.get("option")
@@ -1152,6 +1185,10 @@ class MaaEndControlPage(QWidget):
             QMessageBox.information(self, "预设为空", f"预设 '{self._selected_preset}' 中没有任务。")
             return
         # 应用预设 = 用预设中的任务列表覆盖现有队列（清空再填充），不是追加。
+        for entry in list(self._queue_items):
+            name = entry.get("name")
+            if name:
+                self._clear_saved_options(name)
         self._queue_items.clear()
         self._queue_list.clear()
         for task_entry in task_list:
