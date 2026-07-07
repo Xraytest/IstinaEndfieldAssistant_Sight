@@ -134,8 +134,6 @@ class PipelineRunner:
             return self._match_template(screen, node)
         if node.recognition == RecognitionType.OCR:
             return self._match_ocr(screen, node)
-        if node.recognition == RecognitionType.ColorMatch:
-            return self._match_color(screen, node)
         if node.recognition == RecognitionType.And:
             return self._evaluate_and(screen, node)
         if node.recognition == RecognitionType.Or:
@@ -279,32 +277,6 @@ class PipelineRunner:
             except Exception as e:
                 logger.debug(f"maafw OCR in runner failed: {e}")
         return []
-
-    def _match_color(
-        self, screen: np.ndarray, node: PipelineNode
-    ) -> List[Dict]:
-        lower = getattr(node, "lower", None) or node.metadata.get("lower", [0, 0, 0])
-        upper = getattr(node, "upper", None) or node.metadata.get("upper", [180, 255, 255])
-        try:
-            hsv = cv2.cvtColor(screen, cv2.COLOR_BGR2HSV)
-            mask = cv2.inRange(hsv, np.array(lower, dtype=np.uint8), np.array(upper, dtype=np.uint8))
-            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            results = []
-            for c in contours:
-                area = cv2.contourArea(c)
-                if area < (node.metadata.get("min_area", 30)):
-                    continue
-                x, y, bw, bh = cv2.boundingRect(c)
-                results.append({
-                    "x": x, "y": y, "w": bw, "h": bh,
-                    "confidence": 0.7,
-                    "center": (x + bw // 2, y + bh // 2),
-                    "method": "color_match",
-                })
-            return results
-        except Exception as e:
-            logger.debug(f"Color match failed: {e}")
-            return []
 
     def _evaluate_and(
         self, screen: np.ndarray, node: PipelineNode

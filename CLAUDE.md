@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Mandatory Skills (Conversation Start)
+
+At the start of every conversation for this project, you **must** read and obey:
+
+- `.agents/skills/read-and-log-docs/SKILL.md`
+
+This skill mandates reading all project docs before any action, and logging completed tasks to `docs/TASK_LOG.md` with conflict checks.
+
 ## Project
 
 Arknights: Endfield（明日方舟：终末地）game automation client. Python 3.12+, Windows-only, PyQt6 GUI.

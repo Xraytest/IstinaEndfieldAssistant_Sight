@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from pathlib import Path
+
 from PyQt6.QtCore import QSettings, QTimer, Qt
-from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtGui import QCloseEvent, QPixmap
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
