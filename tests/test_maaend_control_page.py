@@ -207,6 +207,7 @@ def test_apply_queue_focus_task_settings_saves_to_queue_state():
     page._queue_state.set_queue_items([
         {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"speed": "fast"}}
     ])
+    page._queue_items = page._queue_state.queue_items
     page._queue_list.addItem("[TASK] TaskA")
     page._queue_list.setCurrentRow(0)
 

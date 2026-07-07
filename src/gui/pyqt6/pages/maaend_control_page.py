@@ -258,23 +258,23 @@ class ToggleSwitch(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
-        radius = h / 2
+        corner_radius = 4
 
         # Outer border: fixed gray-white, no state change
         outer_path = QPainterPath()
-        outer_path.addRoundedRect(QRectF(0, 0, w, h), radius, radius)
+        outer_path.addRoundedRect(QRectF(0, 0, w, h), corner_radius, corner_radius)
         painter.fillPath(outer_path, QColor("#d8d8d8"))
 
         # Inner gap: background color shows through, creating a ring effect
         gap = 2
         inner_gap_path = QPainterPath()
-        inner_gap_path.addRoundedRect(QRectF(gap, gap, w - gap * 2, h - gap * 2), radius - gap, radius - gap)
+        inner_gap_path.addRoundedRect(QRectF(gap, gap, w - gap * 2, h - gap * 2), corner_radius - gap, corner_radius - gap)
         painter.fillPath(inner_gap_path, QColor("#1a1a2e"))
 
         # Inner track: translucent color based on state
         inner_gap = 1
         inner_path = QPainterPath()
-        inner_path.addRoundedRect(QRectF(gap + inner_gap, gap + inner_gap, w - (gap + inner_gap) * 2, h - (gap + inner_gap) * 2), radius - gap - inner_gap, radius - gap - inner_gap)
+        inner_path.addRoundedRect(QRectF(gap + inner_gap, gap + inner_gap, w - (gap + inner_gap) * 2, h - (gap + inner_gap) * 2), corner_radius - gap - inner_gap, corner_radius - gap - inner_gap)
 
         if self._checked:
             track_color = QColor(24, 209, 255, 45)
@@ -287,10 +287,10 @@ class ToggleSwitch(QWidget):
 
         painter.fillPath(inner_path, track_color)
 
-        # Slider: rounded square
+        # Slider: rounded square with subtle corners
         slider_margin = 3
         slider_size = h - (slider_margin * 2)
-        slider_radius = slider_size / 2
+        slider_radius = 3
         slider_x = w - slider_size - slider_margin if self._checked else slider_margin
         slider_rect = QRectF(slider_x, slider_margin, slider_size, slider_size)
         slider_path = QPainterPath()
@@ -1108,17 +1108,11 @@ class MaaEndControlPage(QWidget):
 
     def _persist_state(self) -> None:
         try:
+            self._queue_state.set_state_path(self._state_path)
             self._queue_state.set_selected_task(self._selected_task)
             self._queue_state.set_selected_preset(self._selected_preset)
             self._queue_state.set_queue_items(self._queue_items)
-            state = {
-                "selected_task": self._selected_task,
-                "selected_preset": self._selected_preset,
-                "queue_items": self._queue_state.queue_items,
-                "task_options": self._queue_state.saved_task_options,
-            }
-            self._state_path.parent.mkdir(parents=True, exist_ok=True)
-            self._state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._queue_state.persist()
         except Exception as e:
             self.log_message.emit("持久化", f"保存失败: {e}")
 
