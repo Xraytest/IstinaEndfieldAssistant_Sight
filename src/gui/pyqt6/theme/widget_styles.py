@@ -75,7 +75,7 @@ CARD_STYLE = f"""
         padding-top: 18px;
     }}
     QGroupBox:hover {{
-        border: 1px solid rgba(24, 209, 255, 0.35);
+        border: 1px solid rgba(92, 124, 250, 0.35);
         background-color: {_BG_CARD};
     }}
     QGroupBox::title {{
@@ -102,7 +102,7 @@ LIST_STYLE = f"""
         color: {_TEXT_PRIMARY}; font-family: '{_FONT}'; font-size: {_SIZE_BASE}px;
     }}
     QListWidget::item {{ padding: 3px 6px; }}
-    QListWidget::item:hover {{ background-color: rgba(24, 209, 255, 0.08); border-left: 2px solid rgba(24, 209, 255, 0.35); }}
+    QListWidget::item:hover {{ background-color: rgba(92, 124, 250, 0.08); border-left: 2px solid rgba(92, 124, 250, 0.35); }}
     QListWidget::item:selected {{ background-color: {_PRIMARY}33; color: {_PRIMARY}; border-left: 2px solid {_PRIMARY}; }}
 """
 
@@ -120,7 +120,7 @@ INPUT_STYLE = f"""
     QLineEdit, QSpinBox, QComboBox {{
         background-color: rgba(16, 16, 26, 0.85);
         color: {_TEXT_PRIMARY}; border: 1px solid {_BORDER};
-        border-radius: 2px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; padding: 6px 10px; min-height: 32px;
+        border-radius: 2px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; padding: 4px 10px; min-height: 28px;
     }}
     QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{ border-color: {_PRIMARY}; }}
 """
@@ -134,7 +134,7 @@ CHECK_STYLE = f"""
 COMBO_STYLE = f"""
     QComboBox {{
         background-color: rgba(10, 10, 15, 0.80); color: {_TEXT_PRIMARY}; border: 1px solid {_BORDER};
-        border-radius: 2px; padding: 8px 12px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; min-height: 36px;
+        border-radius: 2px; padding: 4px 10px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; min-height: 28px;
     }}
     QComboBox::drop-down {{ border: none; width: 28px; }}
     QComboBox::down-arrow {{ image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid {_PRIMARY}80; width: 0; height: 0; }}
@@ -144,8 +144,8 @@ COMBO_STYLE = f"""
 TABLE_STYLE = f"""
     QTableWidget {{ background-color: rgba(16, 16, 26, 0.85); border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; gridline-color: {_BORDER_LIGHT}; }}
     QTableWidget::item {{ padding: 6px; }}
-    QTableWidget::item:hover {{ background-color: rgba(24, 209, 255, 0.08); }}
-    QTableWidget::item:selected {{ background-color: rgba(24, 209, 255, 0.25); color: #000000; border-left: 3px solid {_PRIMARY}; }}
+    QTableWidget::item:hover {{ background-color: rgba(92, 124, 250, 0.08); }}
+    QTableWidget::item:selected {{ background-color: rgba(92, 124, 250, 0.25); color: #000000; border-left: 3px solid {_PRIMARY}; }}
     QHeaderView::section {{ background-color: {_PRIMARY}14; color: {_PRIMARY}; font-size: 11px; font-weight: bold; padding: 6px; border: none; }}
 """
 
@@ -179,12 +179,12 @@ LOADING_OVERLAY_STYLE = f"""
     }}
 """
 
-SPLITTER_HANDLE_STYLE = "QSplitter::handle { width: 1px; background: rgba(24, 209, 255, 0.12); }"
+SPLITTER_HANDLE_STYLE = "QSplitter::handle { width: 1px; background: rgba(92, 124, 250, 0.12); }"
 SCROLL_AREA_TRANSPARENT_STYLE = "QScrollArea { border: none; background: transparent; }"
 PROGRESS_BAR_STYLE = f"""
     QProgressBar {{
         background-color: rgba(16, 16, 26, 0.85);
-        border: 1px solid rgba(24, 209, 255, 0.15);
+        border: 1px solid rgba(92, 124, 250, 0.15);
         border-radius: 4px;
         height: 16px;
         text-align: center;
@@ -207,9 +207,9 @@ BTN_ACTIVE = f"""
         color: {_SUCCESS};
         border: 1px solid {_SUCCESS}4d;
         border-radius: 2px;
-        padding: 8px 16px;
+        padding: 4px 12px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
-        min-height: 36px;
+        min-height: 28px;
     }}
     QPushButton:hover {{ background-color: {_SUCCESS}33; }}
 """
@@ -220,9 +220,9 @@ BTN_DEFAULT = f"""
         color: {_PRIMARY};
         border: 1px solid {_PRIMARY}4d;
         border-radius: 2px;
-        padding: 8px 16px;
+        padding: 4px 12px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
-        min-height: 36px;
+        min-height: 28px;
     }}
     QPushButton:hover {{ background-color: {_PRIMARY}33; }}
 """
@@ -233,9 +233,9 @@ BTN_STOP = f"""
         color: {_DANGER};
         border: 1px solid {_DANGER}66;
         border-radius: 2px;
-        padding: 8px 16px;
+        padding: 4px 12px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
-        min-height: 36px;
+        min-height: 28px;
     }}
     QPushButton:hover {{ background-color: {_DANGER}40; }}
 """

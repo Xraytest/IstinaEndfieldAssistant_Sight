@@ -20,7 +20,6 @@ from PyQt6.QtWidgets import (
 
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
-from gui.pyqt6.theme.icons import get_action_icon
 from gui.pyqt6.theme.widget_styles import (
     BTN_ACTIVE,
     BTN_DEFAULT,
@@ -93,7 +92,6 @@ class ScriptingPage(QWidget):
 
         self._record_btn = QPushButton(locale.tr("scripting_record", "Record"))
         self._record_btn.setStyleSheet(BTN_ACTIVE)
-        self._record_btn.setIcon(get_action_icon("录制"))
         self._record_btn.clicked.connect(self._on_record_clicked)
         btn_row.addWidget(self._record_btn)
 
@@ -105,13 +103,11 @@ class ScriptingPage(QWidget):
 
         self._play_btn = QPushButton(locale.tr("scripting_play", "Play"))
         self._play_btn.setStyleSheet(BTN_DEFAULT)
-        self._play_btn.setIcon(get_action_icon("运行"))
         self._play_btn.clicked.connect(self._on_play_clicked)
         btn_row.addWidget(self._play_btn)
 
         self._delete_btn = QPushButton(locale.tr("scripting_delete", "Delete"))
         self._delete_btn.setStyleSheet(BTN_DEFAULT)
-        self._delete_btn.setIcon(get_action_icon("删除"))
         self._delete_btn.clicked.connect(self._on_delete_clicked)
         btn_row.addWidget(self._delete_btn)
 

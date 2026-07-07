@@ -24,11 +24,8 @@ from PyQt6.QtWidgets import (
 
 from core.foundation.paths import get_project_root
 
-
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
-from gui.pyqt6.theme.icons import get_action_icon
-from gui.pyqt6.theme.theme_manager import get_theme
 
 locale = get_locale_manager()
 
@@ -58,20 +55,6 @@ class SettingsPage(QWidget):
 
         header = HeroHeader(locale.tr("settings_interface", "Settings"), locale.tr("settings_interface", "Interface theme settings"), content)
         content_root.addWidget(header)
-
-        theme_card = QGroupBox(locale.tr("settings_interface", "Interface Theme"))
-        theme_form = QFormLayout(theme_card)
-        self._theme_combo = QComboBox()
-        theme_manager = get_theme()
-        for t in theme_manager.get_available_themes():
-            self._theme_combo.addItem(f"{t['name']} - {t['description']}", t["id"])
-        current_theme = theme_manager.get_current_theme()
-        idx = self._theme_combo.findData(current_theme)
-        if idx >= 0:
-            self._theme_combo.setCurrentIndex(idx)
-        self._theme_combo.currentIndexChanged.connect(self._on_theme_changed)
-        theme_form.addRow(locale.tr("status_label", "Status"), self._theme_combo)
-        content_root.addWidget(theme_card)
 
         language_card = QGroupBox(locale.tr("settings_language", "Language"))
         language_form = QFormLayout(language_card)
@@ -105,13 +88,11 @@ class SettingsPage(QWidget):
         action_row = QHBoxLayout()
         self._reload_btn = QPushButton(locale.tr("btn_reload", "Reload"))
         self._reload_btn.setProperty("variant", "secondary")
-        self._reload_btn.setIcon(get_action_icon("刷新"))
         self._reload_btn.clicked.connect(self._load_settings)
         action_row.addWidget(self._reload_btn)
 
         self._save_btn = QPushButton(locale.tr("btn_save", "Save Settings"))
         self._save_btn.setProperty("variant", "primary")
-        self._save_btn.setIcon(get_action_icon("保存"))
         self._save_btn.clicked.connect(self._save_settings)
         action_row.addWidget(self._save_btn)
         action_row.addStretch()
@@ -120,16 +101,6 @@ class SettingsPage(QWidget):
         self._raw_preview = QTextEdit()
         self._raw_preview.setReadOnly(True)
         content_root.addWidget(self._raw_preview, 1)
-
-    def _on_theme_changed(self, index: int) -> None:
-        theme_id = self._theme_combo.currentData()
-        if not theme_id:
-            return
-        theme_manager = get_theme()
-        theme_manager.set_current_theme(theme_id)
-        app = QApplication.instance()
-        if app is not None:
-            theme_manager.apply_theme(app, theme_id)
 
     def _on_language_changed(self, index: int) -> None:
         new_locale = self._language_combo.currentData()

@@ -1,145 +1,20 @@
 """Endfield industrial sci-fi theme for PyQt6.
 
-Dark industrial black + terminal cyan primary color + CRT micro-glow borders.
-Design language references ak.hypergryph.com / endfield.hypergryph.com.
+Single arknight theme:低调暗黑 + 低调蓝灰高对比。
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication
 
 # ---------------------------------------------------------------------------
-# System theme detection (Windows)
-# ---------------------------------------------------------------------------
-
-def is_system_dark_mode() -> bool:
-    """Detect if Windows is using dark mode for apps."""
-    if sys.platform != "win32":
-        return True  # Default to dark on non-Windows
-    try:
-        import winreg
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
-        )
-        value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-        winreg.CloseKey(key)
-        return value == 0
-    except Exception:
-        return True  # Default to dark if detection fails
-
-
-def get_system_theme() -> str:
-    """Return the theme name matching the current system theme."""
-    return "minimal" if not is_system_dark_mode() else "endfield"
-
-
-# ---------------------------------------------------------------------------
 # Theme definitions
 # ---------------------------------------------------------------------------
 
 THEMES: Dict[str, Dict[str, Any]] = {
-    "endfield": {
-        "name": "Endfield",
-        "description": "工业科幻 - 终端青 + 暗黑底色",
-        "colors": {
-            "bg_primary": "#0a0a0f",
-            "bg_secondary": "#101016",
-            "bg_tertiary": "#14141a",
-            "bg_card": "rgba(18, 18, 26, 0.92)",
-            "bg_elevated": "rgba(26, 26, 38, 0.90)",
-            "canvas_bg": "#050508",
-            "surface": "#0a0a0f",
-            "surface_dim": "#07070b",
-            "surface_bright": "rgba(30, 30, 45, 0.85)",
-            "surface_container": "rgba(16, 16, 26, 0.88)",
-            "surface_container_low": "rgba(12, 12, 20, 0.93)",
-            "surface_container_lowest": "#050508",
-            "surface_container_high": "rgba(22, 22, 36, 0.85)",
-            "surface_container_highest": "rgba(28, 28, 46, 0.82)",
-            "log_bg": "rgba(5, 5, 8, 0.95)",
-            "text_primary": "#e8e8ee",
-            "text_secondary": "#9090a8",
-            "text_tertiary": "#606080",
-            "text_muted": "#404058",
-            "text_disabled": "#282840",
-            "on_surface": "#e8e8ee",
-            "on_surface_variant": "#9090a8",
-            "primary": "#18d1ff",
-            "primary_dark": "#06bbff",
-            "primary_darker": "#0099cc",
-            "primary_light": "#6ae5ff",
-            "primary_lighter": "#a3f0ff",
-            "primary_hover": "#3ddbff",
-            "primary_container": "rgba(24, 209, 255, 0.12)",
-            "primary_light_container": "rgba(24, 209, 255, 0.12)",
-            "primary_dark_container": "rgba(0, 153, 204, 0.25)",
-            "on_primary": "#000000",
-            "on_primary_container": "#c0f0ff",
-            "info": "#18d1ff",
-            "info_dark": "#0099cc",
-            "info_light": "#6ae5ff",
-            "info_container": "rgba(24, 209, 255, 0.12)",
-            "on_info": "#000000",
-            "success": "#00ffa2",
-            "success_dark": "#00cc81",
-            "success_light": "#4dffbc",
-            "success_container": "rgba(0, 255, 162, 0.12)",
-            "on_success": "#000000",
-            "tertiary": "#00ffa2",
-            "tertiary_dark": "#00cc81",
-            "tertiary_light": "#4dffbc",
-            "tertiary_container": "rgba(0, 255, 162, 0.12)",
-            "on_tertiary": "#000000",
-            "on_tertiary_container": "#ccffee",
-            "danger": "#ff3355",
-            "danger_dark": "#cc0022",
-            "danger_light": "#ff6680",
-            "danger_container": "rgba(255, 51, 85, 0.12)",
-            "on_danger": "#ffffff",
-            "warning": "#fffa00",
-            "warning_dark": "#e6de01",
-            "warning_light": "#fffb4d",
-            "warning_container": "rgba(255, 250, 0, 0.12)",
-            "on_warning": "#000000",
-            "accent_gold": "#fffa00",
-            "accent_gold_dark": "#e6de01",
-            "accent_gold_light": "#fffb4d",
-            "accent_gold_glow": "rgba(255, 250, 0, 0.2)",
-            "secondary": "#ff1aac",
-            "secondary_dark": "#cc0088",
-            "secondary_light": "#ff4dc0",
-            "secondary_container": "rgba(255, 26, 172, 0.12)",
-            "on_secondary": "#000000",
-            "on_secondary_container": "#ffccee",
-            "inverse_surface": "#e0e0e8",
-            "inverse_primary": "#0099cc",
-            "inverse_on_surface": "#0a0a0f",
-            "border_color": "rgba(24, 209, 255, 0.15)",
-            "border_light": "rgba(24, 209, 255, 0.08)",
-            "border_glow": "rgba(255, 250, 0, 0.08)",
-            "outline": "rgba(24, 209, 255, 0.20)",
-            "outline_variant": "rgba(24, 209, 255, 0.12)",
-            "divider_color": "rgba(24, 209, 255, 0.10)",
-            "hover_bg": "rgba(24, 209, 255, 0.08)",
-            "selection_bg": "rgba(24, 209, 255, 0.25)",
-            "selection_border": "#18d1ff",
-            "shadow": "rgba(0, 0, 0, 0.5)",
-            "shadow_light": "rgba(0, 0, 0, 0.3)",
-            "shadow_cyan": "rgba(24, 209, 255, 0.06)",
-            "entity_near": "#00ffa2",
-            "entity_near_container": "rgba(0, 255, 162, 0.12)",
-            "entity_mid": "#fffa00",
-            "entity_mid_container": "rgba(255, 250, 0, 0.12)",
-            "entity_far": "#ff3355",
-            "entity_far_container": "rgba(255, 51, 85, 0.12)",
-        },
-    },
     "arknight": {
         "name": "Arknight",
         "description": "经典暗黑 - 低调蓝灰 + 高对比",
@@ -207,12 +82,12 @@ THEMES: Dict[str, Dict[str, Any]] = {
             "accent_gold_dark": "#d97706",
             "accent_gold_light": "#f59f00",
             "accent_gold_glow": "rgba(240, 140, 0, 0.15)",
-            "secondary": "#be4bdb",
-            "secondary_dark": "#9c36b5",
-            "secondary_light": "#da77f2",
-            "secondary_container": "rgba(190, 75, 219, 0.10)",
+            "secondary": "#5c7cfa",
+            "secondary_dark": "#4c6ef5",
+            "secondary_light": "#82a5ff",
+            "secondary_container": "rgba(92, 124, 250, 0.10)",
             "on_secondary": "#ffffff",
-            "on_secondary_container": "#f3d9ff",
+            "on_secondary_container": "#d0d8ff",
             "inverse_surface": "#e4e6f0",
             "inverse_primary": "#4c6ef5",
             "inverse_on_surface": "#0b0d10",
@@ -230,192 +105,12 @@ THEMES: Dict[str, Dict[str, Any]] = {
             "shadow_cyan": "rgba(92, 124, 250, 0.05)",
         },
     },
-    "minimal": {
-        "name": "Minimal",
-        "description": "极简白昼 - 浅色高对比 + 低饱和",
-        "colors": {
-            "bg_primary": "#f8f9fa",
-            "bg_secondary": "#ffffff",
-            "bg_tertiary": "#f1f3f5",
-            "bg_card": "rgba(255, 255, 255, 0.96)",
-            "bg_elevated": "rgba(255, 255, 255, 0.98)",
-            "canvas_bg": "#f1f3f5",
-            "surface": "#f8f9fa",
-            "surface_dim": "#e9ecef",
-            "surface_bright": "#ffffff",
-            "surface_container": "rgba(255, 255, 255, 0.95)",
-            "surface_container_low": "rgba(248, 249, 250, 0.98)",
-            "surface_container_lowest": "#f8f9fa",
-            "surface_container_high": "rgba(255, 255, 255, 0.92)",
-            "surface_container_highest": "rgba(255, 255, 255, 0.88)",
-            "log_bg": "rgba(248, 249, 250, 0.98)",
-            "text_primary": "#1a1d28",
-            "text_secondary": "#5a5f72",
-            "text_tertiary": "#8a8fa2",
-            "text_muted": "#a8adbe",
-            "text_disabled": "#c8ccd8",
-            "on_surface": "#1a1d28",
-            "on_surface_variant": "#5a5f72",
-            "primary": "#228be6",
-            "primary_dark": "#1c7ed6",
-            "primary_darker": "#1864ab",
-            "primary_light": "#4dabf7",
-            "primary_lighter": "#74c0fc",
-            "primary_hover": "#339af0",
-            "primary_container": "rgba(34, 139, 230, 0.08)",
-            "primary_light_container": "rgba(34, 139, 230, 0.06)",
-            "primary_dark_container": "rgba(24, 100, 171, 0.12)",
-            "on_primary": "#ffffff",
-            "on_primary_container": "#e7f5ff",
-            "info": "#228be6",
-            "info_dark": "#1c7ed6",
-            "info_light": "#4dabf7",
-            "info_container": "rgba(34, 139, 230, 0.08)",
-            "on_info": "#ffffff",
-            "success": "#2f9e44",
-            "success_dark": "#268538",
-            "success_light": "#5cb85c",
-            "success_container": "rgba(47, 158, 68, 0.08)",
-            "on_success": "#ffffff",
-            "tertiary": "#5c7cfa",
-            "tertiary_dark": "#4c6ef5",
-            "tertiary_light": "#82a5ff",
-            "tertiary_container": "rgba(92, 124, 250, 0.08)",
-            "on_tertiary": "#ffffff",
-            "on_tertiary_container": "#e7f5ff",
-            "danger": "#e03131",
-            "danger_dark": "#c92a2a",
-            "danger_light": "#ff6b6b",
-            "danger_container": "rgba(224, 49, 49, 0.08)",
-            "on_danger": "#ffffff",
-            "warning": "#f08c00",
-            "warning_dark": "#d97706",
-            "warning_light": "#f59f00",
-            "warning_container": "rgba(240, 140, 0, 0.08)",
-            "on_warning": "#000000",
-            "accent_gold": "#f08c00",
-            "accent_gold_dark": "#d97706",
-            "accent_gold_light": "#f59f00",
-            "accent_gold_glow": "rgba(240, 140, 0, 0.12)",
-            "secondary": "#be4bdb",
-            "secondary_dark": "#9c36b5",
-            "secondary_light": "#da77f2",
-            "secondary_container": "rgba(190, 75, 219, 0.08)",
-            "on_secondary": "#ffffff",
-            "on_secondary_container": "#f3d9ff",
-            "inverse_surface": "#1a1d28",
-            "inverse_primary": "#4dabf7",
-            "inverse_on_surface": "#f8f9fa",
-            "border_color": "rgba(0, 0, 0, 0.10)",
-            "border_light": "rgba(0, 0, 0, 0.06)",
-            "border_glow": "rgba(240, 140, 0, 0.04)",
-            "outline": "rgba(0, 0, 0, 0.15)",
-            "outline_variant": "rgba(0, 0, 0, 0.10)",
-            "divider_color": "rgba(0, 0, 0, 0.08)",
-            "hover_bg": "rgba(0, 0, 0, 0.04)",
-            "selection_bg": "rgba(34, 139, 230, 0.15)",
-            "selection_border": "#228be6",
-            "shadow": "rgba(0, 0, 0, 0.08)",
-            "shadow_light": "rgba(0, 0, 0, 0.04)",
-            "shadow_cyan": "rgba(34, 139, 230, 0.04)",
-        },
-    },
-    "high_contrast": {
-        "name": "High Contrast",
-        "description": "高对比度 - 纯黑白 + 高亮强调色",
-        "colors": {
-            "bg_primary": "#000000",
-            "bg_secondary": "#0a0a0a",
-            "bg_tertiary": "#141414",
-            "bg_card": "#000000",
-            "bg_elevated": "#0a0a0a",
-            "canvas_bg": "#000000",
-            "surface": "#000000",
-            "surface_dim": "#000000",
-            "surface_bright": "#1a1a1a",
-            "surface_container": "#0a0a0a",
-            "surface_container_low": "#050505",
-            "surface_container_lowest": "#000000",
-            "surface_container_high": "#141414",
-            "surface_container_highest": "#1a1a1a",
-            "log_bg": "#000000",
-            "text_primary": "#ffffff",
-            "text_secondary": "#e0e0e0",
-            "text_tertiary": "#cccccc",
-            "text_muted": "#999999",
-            "text_disabled": "#666666",
-            "on_surface": "#ffffff",
-            "on_surface_variant": "#e0e0e0",
-            "primary": "#00ffff",
-            "primary_dark": "#00cccc",
-            "primary_darker": "#009999",
-            "primary_light": "#66ffff",
-            "primary_lighter": "#99ffff",
-            "primary_hover": "#33ffff",
-            "primary_container": "rgba(0, 255, 255, 0.15)",
-            "primary_light_container": "rgba(0, 255, 255, 0.10)",
-            "primary_dark_container": "rgba(0, 204, 204, 0.25)",
-            "on_primary": "#000000",
-            "on_primary_container": "#000000",
-            "info": "#00ffff",
-            "info_dark": "#00cccc",
-            "info_light": "#66ffff",
-            "info_container": "rgba(0, 255, 255, 0.10)",
-            "on_info": "#000000",
-            "success": "#00ff00",
-            "success_dark": "#00cc00",
-            "success_light": "#66ff66",
-            "success_container": "rgba(0, 255, 0, 0.10)",
-            "on_success": "#000000",
-            "tertiary": "#00ffff",
-            "tertiary_dark": "#00cccc",
-            "tertiary_light": "#66ffff",
-            "tertiary_container": "rgba(0, 255, 255, 0.10)",
-            "on_tertiary": "#000000",
-            "on_tertiary_container": "#000000",
-            "danger": "#ff0000",
-            "danger_dark": "#cc0000",
-            "danger_light": "#ff6666",
-            "danger_container": "rgba(255, 0, 0, 0.10)",
-            "on_danger": "#ffffff",
-            "warning": "#ffff00",
-            "warning_dark": "#cccc00",
-            "warning_light": "#ffff66",
-            "warning_container": "rgba(255, 255, 0, 0.10)",
-            "on_warning": "#000000",
-            "accent_gold": "#ffff00",
-            "accent_gold_dark": "#cccc00",
-            "accent_gold_light": "#ffff66",
-            "accent_gold_glow": "rgba(255, 255, 0, 0.15)",
-            "secondary": "#ff00ff",
-            "secondary_dark": "#cc00cc",
-            "secondary_light": "#ff66ff",
-            "secondary_container": "rgba(255, 0, 255, 0.10)",
-            "on_secondary": "#ffffff",
-            "on_secondary_container": "#000000",
-            "inverse_surface": "#ffffff",
-            "inverse_primary": "#00cccc",
-            "inverse_on_surface": "#000000",
-            "border_color": "#ffffff",
-            "border_light": "#cccccc",
-            "border_glow": "#ffff00",
-            "outline": "#ffffff",
-            "outline_variant": "#e0e0e0",
-            "divider_color": "#cccccc",
-            "hover_bg": "rgba(255, 255, 255, 0.08)",
-            "selection_bg": "rgba(0, 255, 255, 0.20)",
-            "selection_border": "#00ffff",
-            "shadow": "rgba(255, 255, 255, 0.1)",
-            "shadow_light": "rgba(255, 255, 255, 0.05)",
-            "shadow_cyan": "rgba(0, 255, 255, 0.05)",
-        },
-    },
 }
 
 # ---------------------------------------------------------------------------
 # Color palette (legacy - kept for backward compatibility)
 # ---------------------------------------------------------------------------
-COLORS: Dict[str, str] = THEMES["endfield"]["colors"]
+COLORS: Dict[str, str] = THEMES["arknight"]["colors"]
 
 FONTS: Dict[str, str] = {
     "family": "Microsoft YaHei UI",
@@ -462,10 +157,6 @@ CORNER_RADIUS: Dict[str, int] = {
     "menu": 4, "snackbar": 4, "tooltip": 3,
 }
 
-TIER_COLORS: Dict[str, str] = {
-    "free": "#404058", "plus": "#fffa00", "prime": "#18d1ff", "pro": "#ff1aac",
-}
-
 ANIMATION_CONFIG: Dict[str, Any] = {
     "enabled": True, "fade_enabled": True, "slide_enabled": True,
     "scale_enabled": True, "hover_enabled": True,
@@ -481,7 +172,6 @@ DURATION: Dict[str, int] = {
 
 _STYLESHEET: Optional[str] = None
 _FONT_RESOURCES_LOADED = False
-_CURRENT_THEME: str = "endfield"
 
 
 # ---------------------------------------------------------------------------
@@ -490,17 +180,13 @@ _CURRENT_THEME: str = "endfield"
 def _build_stylesheet(theme_colors: Dict[str, str]) -> str:
     c = theme_colors
     return r"""/* ============================================================================
- * Endfield industrial sci-fi style - PyQt6 QSS
+ * Arknight industrial sci-fi style - PyQt6 QSS
  * ============================================================================ */
 
 /* Global */
 QWidget { font-family: 'Microsoft YaHei UI'; font-size: 12px; color: """ + c["text_primary"] + """; background-color: """ + c["bg_primary"] + """; }
 QMainWindow {
     background-color: """ + c["bg_primary"] + """;
-    background-image: qlineargradient(x1:0, y1:0, x2:1, y2:1,
-        stop:0 rgba(11,15,25,0.98),
-        stop:0.45 rgba(7,8,13,1),
-        stop:1 rgba(6,8,12,1));
 }
 QWidget[ui-mode="compact"] QLabel[variant="hero"] { font-size: 22px; }
 QWidget[ui-mode="compact"] QLabel[variant="header"] { font-size: 17px; }
@@ -515,7 +201,7 @@ QWidget[ui-mode="compact"] QTextEdit,
 QWidget[ui-mode="compact"] QPlainTextEdit { padding: 6px; }
 
 /* Buttons */
-QPushButton { background-color: rgba(13,19,28,0.92); color: """ + c["text_primary"] + """; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: 0.8px; min-height: 36px; }
+QPushButton { background-color: rgba(13,19,28,0.92); color: """ + c["text_primary"] + """; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 4px 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.8px; min-height: 28px; }
 QPushButton:hover { background-color: """ + c["hover_bg"] + """; border-color: """ + c["primary_light"] + """80; }
 QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: """ + c["primary"] + """80; }
 QPushButton:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; border-color: """ + c["border_light"] + """; }
@@ -543,19 +229,19 @@ QLabel[variant="success"] { color: """ + c["success"] + """; }
 QLabel[variant="danger"] { color: """ + c["danger"] + """; }
 
 /* Inputs */
-QLineEdit { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 8px 12px; font-size: 12px; min-height: 36px; }
+QLineEdit { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 4px 10px; font-size: 12px; min-height: 28px; }
 QLineEdit:hover { border-color: """ + c["primary"] + """40; }
 QLineEdit:focus { border-color: """ + c["primary"] + """; }
 QLineEdit:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; }
 
-QComboBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 8px 12px; font-size: 12px; min-height: 36px; }
+QComboBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 4px 10px; font-size: 12px; min-height: 28px; }
 QComboBox:hover { border-color: """ + c["primary"] + """40; }
 QComboBox:focus { border-color: """ + c["primary"] + """; }
 QComboBox::drop-down { border: none; width: 28px; padding-right: 8px; }
 QComboBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid """ + c["text_secondary"] + """; width: 0; height: 0; }
 QComboBox QAbstractItemView { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; selection-background-color: """ + c["selection_bg"] + """; selection-color: """ + c["on_primary"] + """; padding: 2px; }
 
-QSpinBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 6px 10px; font-size: 12px; min-height: 32px; }
+QSpinBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 4px 10px; font-size: 12px; min-height: 28px; }
 QSpinBox:hover { border-color: """ + c["primary"] + """40; }
 QSpinBox:focus { border-color: """ + c["primary"] + """; }
 QSpinBox::up-button, QSpinBox::down-button { background-color: """ + c["surface_container_lowest"] + """; border: none; width: 24px; subcontrol-position: right; }
@@ -680,8 +366,8 @@ QFrame[frameShape="5"] { background-color: """ + c["divider_color"] + """; max-w
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-def get_stylesheet(theme_name: str = "endfield") -> str:
-    return _build_stylesheet(THEMES.get(theme_name, THEMES["endfield"])["colors"])
+def get_stylesheet(theme_name: str = "arknight") -> str:
+    return _build_stylesheet(THEMES.get(theme_name, THEMES["arknight"])["colors"])
 
 
 class ThemeManager:
@@ -740,19 +426,15 @@ class ThemeManager:
     def get_available_themes(self) -> list[dict]:
         return [{"id": k, **v} for k, v in THEMES.items()]
     def set_current_theme(self, theme_name: str) -> None:
-        global _CURRENT_THEME, COLORS
+        global COLORS
         if theme_name in THEMES:
-            _CURRENT_THEME = theme_name
             COLORS.clear()
             COLORS.update(THEMES[theme_name]["colors"])
     def get_current_theme(self) -> str:
-        return _CURRENT_THEME
+        return "arknight"
     def get_stylesheet(self, theme_name: Optional[str] = None) -> str:
-        if theme_name is None:
-            theme_name = _CURRENT_THEME
-        return get_stylesheet(theme_name)
+        return get_stylesheet("arknight")
     def apply_theme(self, app: QApplication, theme_name: Optional[str] = None) -> None:
-        self.set_current_theme(theme_name or _CURRENT_THEME)
         app.setStyleSheet(self.get_stylesheet())
 
 
@@ -812,4 +494,4 @@ def apply_theme(app: Optional[QApplication] = None, theme_name: Optional[str] = 
         if dpi > 110:
             base_size = max(base_size, int(round(base_size * (dpi / 96.0))))
     app.setFont(QFont(font_family, base_size))
-    app.setStyleSheet(get_stylesheet(theme_name or _CURRENT_THEME))
+    app.setStyleSheet(get_stylesheet("arknight"))

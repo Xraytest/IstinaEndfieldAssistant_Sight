@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox, QSizePolicy, QProgressBar, QFileDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QColor, QBrush, QIcon, QPixmap, QImage, QFont
+from PyQt6.QtGui import QColor, QBrush, QFont
 
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
@@ -20,8 +20,6 @@ from gui.pyqt6.i18n import get_locale_manager
 locale = get_locale_manager()
 from gui.pyqt6.queue_state import QueueState
 from gui.pyqt6.responsive import is_narrow_size
-from gui.pyqt6.theme.icons import get_action_icon, get_status_icon
-
 from gui.pyqt6.theme.widget_styles import (
     BLUE_STYLE,
     BTN_ACTIVE,
@@ -269,11 +267,6 @@ class MaaEndControlPage(QWidget):
             if not entry:
                 continue
             item.setText(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
-            icon_item = self._queue_list.item(row, 1)
-            if icon_item is None:
-                icon_item = QTableWidgetItem()
-                self._queue_list.setItem(row, 1, icon_item)
-            icon_item.setIcon(self._format_status_icon(entry))
 
     def _restore_queue_ui(self) -> None:
         self._queue_list.setRowCount(0)
@@ -281,9 +274,6 @@ class MaaEndControlPage(QWidget):
             row = self._queue_list.rowCount()
             self._queue_list.insertRow(row)
             self._queue_list.setItem(row, 0, QTableWidgetItem(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {})))
-            icon_item = QTableWidgetItem()
-            icon_item.setIcon(self._format_status_icon(entry))
-            self._queue_list.setItem(row, 1, icon_item)
 
     # ------------------------------------------------------------------
     # bridge compatibility
@@ -368,13 +358,11 @@ class MaaEndControlPage(QWidget):
         self._run_task_btn = QPushButton(locale.tr("btn_run_task", "Run Task"))
         self._run_task_btn.setMinimumHeight(24)
         self._run_task_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_task_btn.setIcon(get_action_icon("添加"))
         self._run_task_btn.clicked.connect(self._run_task)
         task_btn_row.addWidget(self._run_task_btn)
         self._task_settings_btn = QPushButton(locale.tr("btn_apply_queue", "Apply Queue Settings"))
         self._task_settings_btn.setMinimumHeight(24)
         self._task_settings_btn.setStyleSheet(BTN_DEFAULT)
-        self._task_settings_btn.setIcon(get_action_icon("保存"))
         self._task_settings_btn.clicked.connect(self._apply_queue_focus_task_settings)
         task_btn_row.addWidget(self._task_settings_btn)
         task_btn_row.addStretch()
@@ -410,7 +398,6 @@ class MaaEndControlPage(QWidget):
         self._save_task_settings_btn = QPushButton(locale.tr("btn_save", "Save Settings"))
         self._save_task_settings_btn.setMinimumHeight(24)
         self._save_task_settings_btn.setStyleSheet(BTN_DEFAULT)
-        self._save_task_settings_btn.setIcon(get_action_icon("保存"))
         self._save_task_settings_btn.clicked.connect(self._save_options)
         option_btn_row.addWidget(self._save_task_settings_btn)
         option_btn_row.addStretch()
@@ -447,7 +434,6 @@ class MaaEndControlPage(QWidget):
         self._run_preset_btn = QPushButton(locale.tr("btn_apply_preset", "Apply Preset"))
         self._run_preset_btn.setMinimumHeight(24)
         self._run_preset_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_preset_btn.setIcon(get_action_icon("运行"))
         self._run_preset_btn.clicked.connect(self._run_preset)
         preset_btn_row.addWidget(self._run_preset_btn)
         preset_btn_row.addStretch()
@@ -461,10 +447,9 @@ class MaaEndControlPage(QWidget):
         queue_layout.setContentsMargins(2, 2, 2, 2)
         queue_layout.setSpacing(2)
         self._queue_list = QTableWidget()
-        self._queue_list.setColumnCount(2)
+        self._queue_list.setColumnCount(1)
         self._queue_list.horizontalHeader().setVisible(False)
         self._queue_list.horizontalHeader().setStretchLastSection(True)
-        self._queue_list.setColumnWidth(0, 28)
         self._queue_list.verticalHeader().setVisible(False)
         self._queue_list.setStyleSheet(TABLE_STYLE)
         self._queue_list.setMinimumHeight(60)
@@ -477,13 +462,11 @@ class MaaEndControlPage(QWidget):
         self._add_queue_btn = QPushButton(locale.tr("btn_add", "Add"))
         self._add_queue_btn.setMinimumHeight(24)
         self._add_queue_btn.setStyleSheet(BTN_DEFAULT)
-        self._add_queue_btn.setIcon(get_action_icon("添加"))
         self._add_queue_btn.clicked.connect(self._add_to_queue)
         queue_btn_row.addWidget(self._add_queue_btn)
         self._run_queue_btn = QPushButton(locale.tr("btn_run", "Run"))
         self._run_queue_btn.setMinimumHeight(24)
         self._run_queue_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_queue_btn.setIcon(get_action_icon("运行"))
         self._run_queue_btn.clicked.connect(self._run_queue)
         queue_btn_row.addWidget(self._run_queue_btn)
         queue_btn_row.addStretch()
@@ -494,31 +477,26 @@ class MaaEndControlPage(QWidget):
         self._queue_up_btn = QPushButton(locale.tr("btn_up", "Move Up"))
         self._queue_up_btn.setMinimumHeight(24)
         self._queue_up_btn.setStyleSheet(BTN_DEFAULT)
-        self._queue_up_btn.setIcon(get_action_icon("上移"))
         self._queue_up_btn.clicked.connect(self._queue_move_up)
         queue_move_row.addWidget(self._queue_up_btn)
         self._queue_down_btn = QPushButton(locale.tr("btn_down", "Move Down"))
         self._queue_down_btn.setMinimumHeight(24)
         self._queue_down_btn.setStyleSheet(BTN_DEFAULT)
-        self._queue_down_btn.setIcon(get_action_icon("下移"))
         self._queue_down_btn.clicked.connect(self._queue_move_down)
         queue_move_row.addWidget(self._queue_down_btn)
         self._queue_clear_btn = QPushButton(locale.tr("btn_clear", "Clear"))
         self._queue_clear_btn.setMinimumHeight(24)
         self._queue_clear_btn.setStyleSheet(BTN_DEFAULT)
-        self._queue_clear_btn.setIcon(get_action_icon("清空"))
         self._queue_clear_btn.clicked.connect(self._queue_clear)
         queue_move_row.addWidget(self._queue_clear_btn)
         self._export_queue_btn = QPushButton(locale.tr("btn_export", "Export"))
         self._export_queue_btn.setMinimumHeight(24)
         self._export_queue_btn.setStyleSheet(BTN_DEFAULT)
-        self._export_queue_btn.setIcon(get_action_icon("导出"))
         self._export_queue_btn.clicked.connect(self._export_queue)
         queue_move_row.addWidget(self._export_queue_btn)
         self._import_queue_btn = QPushButton(locale.tr("btn_import", "Import"))
         self._import_queue_btn.setMinimumHeight(24)
         self._import_queue_btn.setStyleSheet(BTN_DEFAULT)
-        self._import_queue_btn.setIcon(get_action_icon("导入"))
         self._import_queue_btn.clicked.connect(self._import_queue)
         queue_move_row.addWidget(self._import_queue_btn)
         queue_move_row.addStretch()
@@ -541,7 +519,6 @@ class MaaEndControlPage(QWidget):
         self._clear_log_btn = QPushButton(locale.tr("btn_clear", "Clear"))
         self._clear_log_btn.setMinimumHeight(24)
         self._clear_log_btn.setStyleSheet(BTN_DEFAULT)
-        self._clear_log_btn.setIcon(get_action_icon("删除"))
         self._clear_log_btn.clicked.connect(self._log_text.clear)
         log_btn_row.addWidget(self._clear_log_btn)
         self._log_filter_combo = QComboBox()
@@ -572,14 +549,12 @@ class MaaEndControlPage(QWidget):
         self._stop_btn.setStyleSheet(BTN_STOP)
         self._stop_btn.setMinimumHeight(24)
         self._stop_btn.setEnabled(False)
-        self._stop_btn.setIcon(get_action_icon("停止"))
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
         self._retry_btn = QPushButton(locale.tr("btn_retry", "Retry"))
         self._retry_btn.setStyleSheet(BTN_DEFAULT)
         self._retry_btn.setMinimumHeight(24)
         self._retry_btn.setEnabled(False)
-        self._retry_btn.setIcon(get_action_icon("重试"))
         self._retry_btn.clicked.connect(self._retry_failed)
         bottom.addWidget(self._retry_btn)
         self._progress_bar = QProgressBar()
@@ -998,10 +973,6 @@ class MaaEndControlPage(QWidget):
 
     def _format_queue_label(self, name: str, item_type: str, options: Dict[str, Any]) -> str:
         return f"[{item_type.upper()}] {_zh(name)}"
-
-    def _format_status_icon(self, entry: Dict[str, Any]) -> QIcon:
-        status = entry.get("status", "pending")
-        return get_status_icon(status)
 
     def _summarize_options(self, options: Dict[str, Any]) -> str:
         if not options:

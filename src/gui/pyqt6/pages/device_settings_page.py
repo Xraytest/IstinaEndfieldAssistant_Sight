@@ -24,7 +24,6 @@ from core.foundation.paths import get_project_root
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
-from gui.pyqt6.theme.icons import get_action_icon
 from gui.pyqt6.theme.widget_styles import LIST_STYLE
 
 
@@ -78,17 +77,14 @@ class DeviceSettingsPage(QWidget):
         address_row.addWidget(self._address_input)
 
         self._connect_btn = QPushButton(locale.tr("btn_connect", "Connect"))
-        self._connect_btn.setIcon(get_action_icon("连接"))
         self._connect_btn.clicked.connect(self._connect)
         address_row.addWidget(self._connect_btn)
 
         self._disconnect_btn = QPushButton(locale.tr("btn_disconnect", "Disconnect"))
-        self._disconnect_btn.setIcon(get_action_icon("断开"))
         self._disconnect_btn.clicked.connect(self._disconnect)
         address_row.addWidget(self._disconnect_btn)
 
         self._refresh_btn = QPushButton(locale.tr("btn_refresh", "Refresh"))
-        self._refresh_btn.setIcon(get_action_icon("刷新"))
         self._refresh_btn.clicked.connect(self._refresh_devices)
         address_row.addWidget(self._refresh_btn)
         connection_layout.addLayout(address_row)

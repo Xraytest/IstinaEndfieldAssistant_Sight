@@ -92,29 +92,9 @@ class MainWindow(QMainWindow):
         refresh_shortcut = QShortcut("F5", self)
         refresh_shortcut.activated.connect(self._refresh_preview)
 
-        theme_shortcut = QShortcut("Ctrl+T", self)
-        theme_shortcut.activated.connect(self._cycle_theme)
-
     def _setup_tray_icon(self) -> None:
         """Setup system tray icon for minimize-to-tray support."""
         self._tray_icon = TrayIcon(self)
-
-    def _cycle_theme(self) -> None:
-        """Cycle through available themes."""
-        from gui.pyqt6.theme.theme_manager import get_theme
-        theme_manager = get_theme()
-        themes = theme_manager.get_available_themes()
-        if not themes:
-            return
-        current = theme_manager.get_current_theme()
-        current_index = next((i for i, t in enumerate(themes) if t["id"] == current), -1)
-        next_index = (current_index + 1) % len(themes)
-        next_theme = themes[next_index]["id"]
-        theme_manager.set_current_theme(next_theme)
-        app = QApplication.instance()
-        if app is not None:
-            theme_manager.apply_theme(app, next_theme)
-        self.statusBar().showMessage(locale.tr("theme_switched", "Theme switched"), 2000)
 
     def _async_warmup(self) -> None:
         self._bridge.execute("llm start", {})
@@ -228,9 +208,6 @@ class MainWindow(QMainWindow):
             item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, locale.tr(key, f"Switch to {label} page"))
             self._navigation_list.addItem(item)
             self._page_stack.addWidget(page)
-
-        from gui.pyqt6.theme.icons import apply_nav_icons
-        apply_nav_icons(self._navigation_list)
 
         self._bridge.commandFinished.connect(self._on_bridge_command_finished)
         self._maaend_page.execution_state_changed.connect(self._on_execution_state_changed)
