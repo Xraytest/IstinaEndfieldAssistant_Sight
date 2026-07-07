@@ -104,7 +104,7 @@ BTN_ACTIVE = """
         color: #00ffa2;
         border: 1px solid rgba(0, 255, 162, 0.30);
         border-radius: 2px;
-        padding: 0px 2px;
+        padding: 0px 10px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(0, 255, 162, 0.20); }
@@ -115,7 +115,7 @@ BTN_DEFAULT = """
         color: #18d1ff;
         border: 1px solid rgba(24, 209, 255, 0.30);
         border-radius: 2px;
-        padding: 0px 2px;
+        padding: 0px 10px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(24, 209, 255, 0.20); }
@@ -126,7 +126,7 @@ BTN_STOP = """
         color: #ff3355;
         border: 1px solid rgba(255, 51, 85, 0.40);
         border-radius: 2px;
-        padding: 0px 2px;
+        padding: 0px 10px;
         font-size: 11px; font-family: 'Microsoft YaHei UI'; font-weight: bold; letter-spacing: 1px;
     }
     QPushButton:hover { background-color: rgba(255, 51, 85, 0.25); }
@@ -942,7 +942,14 @@ class MaaEndControlPage(QWidget):
 
     def _apply_saved_option_values(self, task_name: str) -> None:
         saved = self._load_options(task_name)
-        if not saved:
+        queue_options = None
+        for entry in self._queue_items:
+            if entry.get("name") == task_name:
+                queue_options = entry.get("options")
+                break
+        if queue_options:
+            saved = dict(queue_options)
+        elif not saved:
             return
         task = self._tasks_cache.get(task_name)
         if not task:
@@ -1095,6 +1102,7 @@ class MaaEndControlPage(QWidget):
         self._build_option_editor()
         options = self._collect_options()
         entry["options"] = dict(options)
+        self._saved_task_options[name] = dict(options)
         self._queue_list.item(row).setText(self._format_queue_label(name, entry.get("type", "task"), options))
         self._persist_state()
 
