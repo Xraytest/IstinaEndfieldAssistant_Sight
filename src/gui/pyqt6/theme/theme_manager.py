@@ -13,94 +13,286 @@ from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication
 
 # ---------------------------------------------------------------------------
-# Color palette
+# Theme definitions
 # ---------------------------------------------------------------------------
-COLORS: Dict[str, str] = {
-    "bg_primary": "#0a0a0f",
-    "bg_secondary": "#101016",
-    "bg_tertiary": "#14141a",
-    "bg_card": "rgba(18, 18, 26, 0.92)",
-    "bg_elevated": "rgba(26, 26, 38, 0.90)",
-    "canvas_bg": "#050508",
-    "surface": "#0a0a0f",
-    "surface_dim": "#07070b",
-    "surface_bright": "rgba(30, 30, 45, 0.85)",
-    "surface_container": "rgba(16, 16, 26, 0.88)",
-    "surface_container_low": "rgba(12, 12, 20, 0.93)",
-    "surface_container_lowest": "#050508",
-    "surface_container_high": "rgba(22, 22, 36, 0.85)",
-    "surface_container_highest": "rgba(28, 28, 46, 0.82)",
-    "log_bg": "rgba(5, 5, 8, 0.95)",
-    "text_primary": "#e8e8ee",
-    "text_secondary": "#9090a8",
-    "text_tertiary": "#606080",
-    "text_muted": "#404058",
-    "text_disabled": "#282840",
-    "on_surface": "#e8e8ee",
-    "on_surface_variant": "#9090a8",
-    "primary": "#18d1ff",
-    "primary_dark": "#06bbff",
-    "primary_darker": "#0099cc",
-    "primary_light": "#6ae5ff",
-    "primary_lighter": "#a3f0ff",
-    "primary_hover": "#3ddbff",
-    "primary_container": "rgba(24, 209, 255, 0.12)",
-    "primary_light_container": "rgba(24, 209, 255, 0.12)",
-    "primary_dark_container": "rgba(0, 153, 204, 0.25)",
-    "on_primary": "#000000",
-    "on_primary_container": "#c0f0ff",
-    "info": "#18d1ff",
-    "info_dark": "#0099cc",
-    "info_light": "#6ae5ff",
-    "info_container": "rgba(24, 209, 255, 0.12)",
-    "on_info": "#000000",
-    "success": "#00ffa2",
-    "success_dark": "#00cc81",
-    "success_light": "#4dffbc",
-    "success_container": "rgba(0, 255, 162, 0.12)",
-    "on_success": "#000000",
-    "tertiary": "#00ffa2",
-    "tertiary_dark": "#00cc81",
-    "tertiary_light": "#4dffbc",
-    "tertiary_container": "rgba(0, 255, 162, 0.12)",
-    "on_tertiary": "#000000",
-    "on_tertiary_container": "#ccffee",
-    "danger": "#ff3355",
-    "danger_dark": "#cc0022",
-    "danger_light": "#ff6680",
-    "danger_container": "rgba(255, 51, 85, 0.12)",
-    "on_danger": "#ffffff",
-    "warning": "#fffa00",
-    "warning_dark": "#e6de01",
-    "warning_light": "#fffb4d",
-    "warning_container": "rgba(255, 250, 0, 0.12)",
-    "on_warning": "#000000",
-    "accent_gold": "#fffa00",
-    "accent_gold_dark": "#e6de01",
-    "accent_gold_light": "#fffb4d",
-    "accent_gold_glow": "rgba(255, 250, 0, 0.2)",
-    "secondary": "#ff1aac",
-    "secondary_dark": "#cc0088",
-    "secondary_light": "#ff4dc0",
-    "secondary_container": "rgba(255, 26, 172, 0.12)",
-    "on_secondary": "#000000",
-    "on_secondary_container": "#ffccee",
-    "inverse_surface": "#e0e0e8",
-    "inverse_primary": "#0099cc",
-    "inverse_on_surface": "#0a0a0f",
-    "border_color": "rgba(24, 209, 255, 0.15)",
-    "border_light": "rgba(24, 209, 255, 0.08)",
-    "border_glow": "rgba(255, 250, 0, 0.08)",
-    "outline": "rgba(24, 209, 255, 0.20)",
-    "outline_variant": "rgba(24, 209, 255, 0.12)",
-    "divider_color": "rgba(24, 209, 255, 0.10)",
-    "hover_bg": "rgba(24, 209, 255, 0.08)",
-    "selection_bg": "rgba(24, 209, 255, 0.25)",
-    "selection_border": "#18d1ff",
-    "shadow": "rgba(0, 0, 0, 0.5)",
-    "shadow_light": "rgba(0, 0, 0, 0.3)",
-    "shadow_cyan": "rgba(24, 209, 255, 0.06)",
+
+THEMES: Dict[str, Dict[str, Any]] = {
+    "endfield": {
+        "name": "Endfield",
+        "description": "工业科幻 - 终端青 + 暗黑底色",
+        "colors": {
+            "bg_primary": "#0a0a0f",
+            "bg_secondary": "#101016",
+            "bg_tertiary": "#14141a",
+            "bg_card": "rgba(18, 18, 26, 0.92)",
+            "bg_elevated": "rgba(26, 26, 38, 0.90)",
+            "canvas_bg": "#050508",
+            "surface": "#0a0a0f",
+            "surface_dim": "#07070b",
+            "surface_bright": "rgba(30, 30, 45, 0.85)",
+            "surface_container": "rgba(16, 16, 26, 0.88)",
+            "surface_container_low": "rgba(12, 12, 20, 0.93)",
+            "surface_container_lowest": "#050508",
+            "surface_container_high": "rgba(22, 22, 36, 0.85)",
+            "surface_container_highest": "rgba(28, 28, 46, 0.82)",
+            "log_bg": "rgba(5, 5, 8, 0.95)",
+            "text_primary": "#e8e8ee",
+            "text_secondary": "#9090a8",
+            "text_tertiary": "#606080",
+            "text_muted": "#404058",
+            "text_disabled": "#282840",
+            "on_surface": "#e8e8ee",
+            "on_surface_variant": "#9090a8",
+            "primary": "#18d1ff",
+            "primary_dark": "#06bbff",
+            "primary_darker": "#0099cc",
+            "primary_light": "#6ae5ff",
+            "primary_lighter": "#a3f0ff",
+            "primary_hover": "#3ddbff",
+            "primary_container": "rgba(24, 209, 255, 0.12)",
+            "primary_light_container": "rgba(24, 209, 255, 0.12)",
+            "primary_dark_container": "rgba(0, 153, 204, 0.25)",
+            "on_primary": "#000000",
+            "on_primary_container": "#c0f0ff",
+            "info": "#18d1ff",
+            "info_dark": "#0099cc",
+            "info_light": "#6ae5ff",
+            "info_container": "rgba(24, 209, 255, 0.12)",
+            "on_info": "#000000",
+            "success": "#00ffa2",
+            "success_dark": "#00cc81",
+            "success_light": "#4dffbc",
+            "success_container": "rgba(0, 255, 162, 0.12)",
+            "on_success": "#000000",
+            "tertiary": "#00ffa2",
+            "tertiary_dark": "#00cc81",
+            "tertiary_light": "#4dffbc",
+            "tertiary_container": "rgba(0, 255, 162, 0.12)",
+            "on_tertiary": "#000000",
+            "on_tertiary_container": "#ccffee",
+            "danger": "#ff3355",
+            "danger_dark": "#cc0022",
+            "danger_light": "#ff6680",
+            "danger_container": "rgba(255, 51, 85, 0.12)",
+            "on_danger": "#ffffff",
+            "warning": "#fffa00",
+            "warning_dark": "#e6de01",
+            "warning_light": "#fffb4d",
+            "warning_container": "rgba(255, 250, 0, 0.12)",
+            "on_warning": "#000000",
+            "accent_gold": "#fffa00",
+            "accent_gold_dark": "#e6de01",
+            "accent_gold_light": "#fffb4d",
+            "accent_gold_glow": "rgba(255, 250, 0, 0.2)",
+            "secondary": "#ff1aac",
+            "secondary_dark": "#cc0088",
+            "secondary_light": "#ff4dc0",
+            "secondary_container": "rgba(255, 26, 172, 0.12)",
+            "on_secondary": "#000000",
+            "on_secondary_container": "#ffccee",
+            "inverse_surface": "#e0e0e8",
+            "inverse_primary": "#0099cc",
+            "inverse_on_surface": "#0a0a0f",
+            "border_color": "rgba(24, 209, 255, 0.15)",
+            "border_light": "rgba(24, 209, 255, 0.08)",
+            "border_glow": "rgba(255, 250, 0, 0.08)",
+            "outline": "rgba(24, 209, 255, 0.20)",
+            "outline_variant": "rgba(24, 209, 255, 0.12)",
+            "divider_color": "rgba(24, 209, 255, 0.10)",
+            "hover_bg": "rgba(24, 209, 255, 0.08)",
+            "selection_bg": "rgba(24, 209, 255, 0.25)",
+            "selection_border": "#18d1ff",
+            "shadow": "rgba(0, 0, 0, 0.5)",
+            "shadow_light": "rgba(0, 0, 0, 0.3)",
+            "shadow_cyan": "rgba(24, 209, 255, 0.06)",
+        },
+    },
+    "arknight": {
+        "name": "Arknight",
+        "description": "经典暗黑 - 低调蓝灰 + 高对比",
+        "colors": {
+            "bg_primary": "#0b0d10",
+            "bg_secondary": "#111318",
+            "bg_tertiary": "#16181f",
+            "bg_card": "rgba(22, 24, 32, 0.94)",
+            "bg_elevated": "rgba(30, 32, 42, 0.92)",
+            "canvas_bg": "#06070a",
+            "surface": "#0b0d10",
+            "surface_dim": "#07080b",
+            "surface_bright": "rgba(34, 36, 48, 0.88)",
+            "surface_container": "rgba(18, 20, 28, 0.90)",
+            "surface_container_low": "rgba(14, 16, 22, 0.94)",
+            "surface_container_lowest": "#06070a",
+            "surface_container_high": "rgba(24, 26, 36, 0.88)",
+            "surface_container_highest": "rgba(32, 34, 46, 0.85)",
+            "log_bg": "rgba(6, 7, 10, 0.96)",
+            "text_primary": "#e4e6f0",
+            "text_secondary": "#8a8ea4",
+            "text_tertiary": "#5a5e74",
+            "text_muted": "#3a3e54",
+            "text_disabled": "#262a40",
+            "on_surface": "#e4e6f0",
+            "on_surface_variant": "#8a8ea4",
+            "primary": "#5c7cfa",
+            "primary_dark": "#4c6ef5",
+            "primary_darker": "#3b5de7",
+            "primary_light": "#82a5ff",
+            "primary_lighter": "#a8c0ff",
+            "primary_hover": "#7b9bff",
+            "primary_container": "rgba(92, 124, 250, 0.12)",
+            "primary_light_container": "rgba(92, 124, 250, 0.10)",
+            "primary_dark_container": "rgba(59, 93, 231, 0.20)",
+            "on_primary": "#ffffff",
+            "on_primary_container": "#d0d8ff",
+            "info": "#5c7cfa",
+            "info_dark": "#4c6ef5",
+            "info_light": "#82a5ff",
+            "info_container": "rgba(92, 124, 250, 0.10)",
+            "on_info": "#ffffff",
+            "success": "#2f9e44",
+            "success_dark": "#268538",
+            "success_light": "#5cb85c",
+            "success_container": "rgba(47, 158, 68, 0.10)",
+            "on_success": "#ffffff",
+            "tertiary": "#5c7cfa",
+            "tertiary_dark": "#4c6ef5",
+            "tertiary_light": "#82a5ff",
+            "tertiary_container": "rgba(92, 124, 250, 0.10)",
+            "on_tertiary": "#ffffff",
+            "on_tertiary_container": "#d0d8ff",
+            "danger": "#e03131",
+            "danger_dark": "#c92a2a",
+            "danger_light": "#ff6b6b",
+            "danger_container": "rgba(224, 49, 49, 0.10)",
+            "on_danger": "#ffffff",
+            "warning": "#f08c00",
+            "warning_dark": "#d97706",
+            "warning_light": "#f59f00",
+            "warning_container": "rgba(240, 140, 0, 0.10)",
+            "on_warning": "#000000",
+            "accent_gold": "#f08c00",
+            "accent_gold_dark": "#d97706",
+            "accent_gold_light": "#f59f00",
+            "accent_gold_glow": "rgba(240, 140, 0, 0.15)",
+            "secondary": "#be4bdb",
+            "secondary_dark": "#9c36b5",
+            "secondary_light": "#da77f2",
+            "secondary_container": "rgba(190, 75, 219, 0.10)",
+            "on_secondary": "#ffffff",
+            "on_secondary_container": "#f3d9ff",
+            "inverse_surface": "#e4e6f0",
+            "inverse_primary": "#4c6ef5",
+            "inverse_on_surface": "#0b0d10",
+            "border_color": "rgba(92, 124, 250, 0.18)",
+            "border_light": "rgba(92, 124, 250, 0.10)",
+            "border_glow": "rgba(240, 140, 0, 0.06)",
+            "outline": "rgba(92, 124, 250, 0.25)",
+            "outline_variant": "rgba(92, 124, 250, 0.15)",
+            "divider_color": "rgba(92, 124, 250, 0.12)",
+            "hover_bg": "rgba(92, 124, 250, 0.08)",
+            "selection_bg": "rgba(92, 124, 250, 0.22)",
+            "selection_border": "#5c7cfa",
+            "shadow": "rgba(0, 0, 0, 0.55)",
+            "shadow_light": "rgba(0, 0, 0, 0.35)",
+            "shadow_cyan": "rgba(92, 124, 250, 0.05)",
+        },
+    },
+    "minimal": {
+        "name": "Minimal",
+        "description": "极简白昼 - 浅色高对比 + 低饱和",
+        "colors": {
+            "bg_primary": "#f8f9fa",
+            "bg_secondary": "#ffffff",
+            "bg_tertiary": "#f1f3f5",
+            "bg_card": "rgba(255, 255, 255, 0.96)",
+            "bg_elevated": "rgba(255, 255, 255, 0.98)",
+            "canvas_bg": "#f1f3f5",
+            "surface": "#f8f9fa",
+            "surface_dim": "#e9ecef",
+            "surface_bright": "#ffffff",
+            "surface_container": "rgba(255, 255, 255, 0.95)",
+            "surface_container_low": "rgba(248, 249, 250, 0.98)",
+            "surface_container_lowest": "#f8f9fa",
+            "surface_container_high": "rgba(255, 255, 255, 0.92)",
+            "surface_container_highest": "rgba(255, 255, 255, 0.88)",
+            "log_bg": "rgba(248, 249, 250, 0.98)",
+            "text_primary": "#1a1d28",
+            "text_secondary": "#5a5f72",
+            "text_tertiary": "#8a8fa2",
+            "text_muted": "#a8adbe",
+            "text_disabled": "#c8ccd8",
+            "on_surface": "#1a1d28",
+            "on_surface_variant": "#5a5f72",
+            "primary": "#228be6",
+            "primary_dark": "#1c7ed6",
+            "primary_darker": "#1864ab",
+            "primary_light": "#4dabf7",
+            "primary_lighter": "#74c0fc",
+            "primary_hover": "#339af0",
+            "primary_container": "rgba(34, 139, 230, 0.08)",
+            "primary_light_container": "rgba(34, 139, 230, 0.06)",
+            "primary_dark_container": "rgba(24, 100, 171, 0.12)",
+            "on_primary": "#ffffff",
+            "on_primary_container": "#e7f5ff",
+            "info": "#228be6",
+            "info_dark": "#1c7ed6",
+            "info_light": "#4dabf7",
+            "info_container": "rgba(34, 139, 230, 0.08)",
+            "on_info": "#ffffff",
+            "success": "#2f9e44",
+            "success_dark": "#268538",
+            "success_light": "#5cb85c",
+            "success_container": "rgba(47, 158, 68, 0.08)",
+            "on_success": "#ffffff",
+            "tertiary": "#5c7cfa",
+            "tertiary_dark": "#4c6ef5",
+            "tertiary_light": "#82a5ff",
+            "tertiary_container": "rgba(92, 124, 250, 0.08)",
+            "on_tertiary": "#ffffff",
+            "on_tertiary_container": "#e7f5ff",
+            "danger": "#e03131",
+            "danger_dark": "#c92a2a",
+            "danger_light": "#ff6b6b",
+            "danger_container": "rgba(224, 49, 49, 0.08)",
+            "on_danger": "#ffffff",
+            "warning": "#f08c00",
+            "warning_dark": "#d97706",
+            "warning_light": "#f59f00",
+            "warning_container": "rgba(240, 140, 0, 0.08)",
+            "on_warning": "#000000",
+            "accent_gold": "#f08c00",
+            "accent_gold_dark": "#d97706",
+            "accent_gold_light": "#f59f00",
+            "accent_gold_glow": "rgba(240, 140, 0, 0.12)",
+            "secondary": "#be4bdb",
+            "secondary_dark": "#9c36b5",
+            "secondary_light": "#da77f2",
+            "secondary_container": "rgba(190, 75, 219, 0.08)",
+            "on_secondary": "#ffffff",
+            "on_secondary_container": "#f3d9ff",
+            "inverse_surface": "#1a1d28",
+            "inverse_primary": "#4dabf7",
+            "inverse_on_surface": "#f8f9fa",
+            "border_color": "rgba(0, 0, 0, 0.10)",
+            "border_light": "rgba(0, 0, 0, 0.06)",
+            "border_glow": "rgba(240, 140, 0, 0.04)",
+            "outline": "rgba(0, 0, 0, 0.15)",
+            "outline_variant": "rgba(0, 0, 0, 0.10)",
+            "divider_color": "rgba(0, 0, 0, 0.08)",
+            "hover_bg": "rgba(0, 0, 0, 0.04)",
+            "selection_bg": "rgba(34, 139, 230, 0.15)",
+            "selection_border": "#228be6",
+            "shadow": "rgba(0, 0, 0, 0.08)",
+            "shadow_light": "rgba(0, 0, 0, 0.04)",
+            "shadow_cyan": "rgba(34, 139, 230, 0.04)",
+        },
+    },
 }
+
+# ---------------------------------------------------------------------------
+# Color palette (legacy - kept for backward compatibility)
+# ---------------------------------------------------------------------------
+COLORS: Dict[str, str] = THEMES["endfield"]["colors"]
 
 FONTS: Dict[str, str] = {
     "family": "Microsoft YaHei UI",
@@ -166,17 +358,22 @@ DURATION: Dict[str, int] = {
 
 _STYLESHEET: Optional[str] = None
 _FONT_RESOURCES_LOADED = False
+_CURRENT_THEME: str = "endfield"
 
 
-def _build_stylesheet() -> str:
+# ---------------------------------------------------------------------------
+# Stylesheet builder
+# ---------------------------------------------------------------------------
+def _build_stylesheet(theme_colors: Dict[str, str]) -> str:
+    c = theme_colors
     return r"""/* ============================================================================
  * Endfield industrial sci-fi style - PyQt6 QSS
  * ============================================================================ */
 
 /* Global */
-QWidget { font-family: 'Microsoft YaHei UI'; font-size: 12px; color: #e8e8ee; background-color: #07080d; }
+QWidget { font-family: 'Microsoft YaHei UI'; font-size: 12px; color: """ + c["text_primary"] + """; background-color: """ + c["bg_primary"] + """; }
 QMainWindow {
-    background-color: #07080d;
+    background-color: """ + c["bg_primary"] + """;
     background-image: qlineargradient(x1:0, y1:0, x2:1, y2:1,
         stop:0 rgba(11,15,25,0.98),
         stop:0.45 rgba(7,8,13,1),
@@ -195,145 +392,145 @@ QWidget[ui-mode="compact"] QTextEdit,
 QWidget[ui-mode="compact"] QPlainTextEdit { padding: 6px; }
 
 /* Buttons */
-QPushButton { background-color: rgba(13,19,28,0.92); color: #e8e8ee; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 2px 10px; font-size: 12px; font-weight: 500; min-height: 28px; }
-QPushButton:hover { background-color: rgba(24,209,255,0.08); border-color: rgba(104,217,244,0.52); }
-QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: rgba(104,217,244,0.60); }
-QPushButton:disabled { background-color: rgba(22,22,36,0.85); color: #282840; border-color: rgba(24,209,255,0.12); }
-QPushButton[variant="primary"] { background-color: rgba(22,188,214,0.14); color: #c8f7ff; border: 1px solid rgba(81,219,244,0.64); }
-QPushButton[variant="primary"]:hover { background-color: rgba(22,188,214,0.22); }
-QPushButton[variant="primary"]:pressed { background-color: rgba(22,188,214,0.30); }
-QPushButton[variant="secondary"] { background-color: rgba(255,255,255,0.02); color: #d6dde8; border: 1px solid rgba(88,98,121,0.48); }
-QPushButton[variant="secondary"]:hover { background-color: rgba(24,209,255,0.06); border-color: rgba(120,214,236,0.50); }
-QPushButton[variant="text"] { background-color: transparent; color: #9090a8; border: none; }
-QPushButton[variant="text"]:hover { background-color: rgba(24,209,255,0.08); }
-QPushButton[variant="danger"] { background-color: transparent; color: #ff3355; border: 1px solid #ff3355; }
-QPushButton[variant="danger"]:hover { background-color: rgba(255,51,85,0.12); border-color: #ff6680; }
+QPushButton { background-color: rgba(13,19,28,0.92); color: """ + c["text_primary"] + """; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 2px 10px; font-size: 12px; font-weight: 500; min-height: 28px; }
+QPushButton:hover { background-color: """ + c["hover_bg"] + """; border-color: """ + c["primary_light"] + """80; }
+QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: """ + c["primary"] + """80; }
+QPushButton:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; border-color: """ + c["border_light"] + """; }
+QPushButton[variant="primary"] { background-color: """ + c["primary_container"] + """; color: """ + c["primary_light"] + """; border: 1px solid """ + c["primary"] + """60; }
+QPushButton[variant="primary"]:hover { background-color: """ + c["primary_container"] + """66; }
+QPushButton[variant="primary"]:pressed { background-color: """ + c["primary_container"] + """88; }
+QPushButton[variant="secondary"] { background-color: rgba(255,255,255,0.02); color: """ + c["text_primary"] + """; border: 1px solid rgba(88,98,121,0.48); }
+QPushButton[variant="secondary"]:hover { background-color: """ + c["hover_bg"] + """; border-color: """ + c["primary_light"] + """60; }
+QPushButton[variant="text"] { background-color: transparent; color: """ + c["text_secondary"] + """; border: none; }
+QPushButton[variant="text"]:hover { background-color: """ + c["hover_bg"] + """; }
+QPushButton[variant="danger"] { background-color: transparent; color: """ + c["danger"] + """; border: 1px solid """ + c["danger"] + """66; }
+QPushButton[variant="danger"]:hover { background-color: """ + c["danger_container"] + """; border-color: """ + c["danger_light"] + """; }
 
 /* Labels */
-QLabel { color: #e8e8ee; background-color: transparent; border: none; }
-QLabel[variant="header"] { font-size: 20px; font-weight: 600; color: #e8e8ee; }
-QLabel[variant="title"] { font-size: 17px; font-weight: 600; color: #e8e8ee; }
-QLabel[variant="hero"] { font-size: 28px; font-weight: 700; color: #edf2f7; letter-spacing: 1px; }
-QLabel[variant="secondary"] { color: #9090a8; }
-QLabel[variant="muted"] { color: #404058; }
-QLabel[variant="terminal"] { font-family: 'Microsoft YaHei UI'; color: #18d1ff; font-size: 12px; }
-QLabel[variant="eyebrow"] { color: #6fd7ef; font-size: 11px; font-weight: 600; letter-spacing: 2px; }
-QLabel[variant="accent"] { color: #fffa00; }
-QLabel[variant="success"] { color: #00ffa2; }
-QLabel[variant="danger"] { color: #ff3355; }
+QLabel { color: """ + c["text_primary"] + """; background-color: transparent; border: none; }
+QLabel[variant="header"] { font-size: 20px; font-weight: 600; color: """ + c["text_primary"] + """; }
+QLabel[variant="title"] { font-size: 17px; font-weight: 600; color: """ + c["text_primary"] + """; }
+QLabel[variant="hero"] { font-size: 28px; font-weight: 700; color: """ + c["on_surface"] + """; letter-spacing: 1px; }
+QLabel[variant="secondary"] { color: """ + c["text_secondary"] + """; }
+QLabel[variant="muted"] { color: """ + c["text_muted"] + """; }
+QLabel[variant="terminal"] { font-family: 'Microsoft YaHei UI'; color: """ + c["primary"] + """; font-size: 12px; }
+QLabel[variant="eyebrow"] { color: """ + c["primary_light"] + """; font-size: 11px; font-weight: 600; letter-spacing: 2px; }
+QLabel[variant="accent"] { color: """ + c["accent_gold"] + """; }
+QLabel[variant="success"] { color: """ + c["success"] + """; }
+QLabel[variant="danger"] { color: """ + c["danger"] + """; }
 
 /* Inputs */
-QLineEdit { background-color: rgba(16,16,26,0.88); color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; padding: 6px 10px; font-size: 12px; min-height: 28px; }
-QLineEdit:hover { border-color: rgba(24,209,255,0.20); }
-QLineEdit:focus { border-color: #18d1ff; }
-QLineEdit:disabled { background-color: rgba(22,22,36,0.85); color: #282840; }
+QLineEdit { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 6px 10px; font-size: 12px; min-height: 28px; }
+QLineEdit:hover { border-color: """ + c["primary"] + """40; }
+QLineEdit:focus { border-color: """ + c["primary"] + """; }
+QLineEdit:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; }
 
-QComboBox { background-color: rgba(16,16,26,0.88); color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; padding: 6px 10px; font-size: 12px; min-height: 28px; }
-QComboBox:hover { border-color: rgba(24,209,255,0.20); }
-QComboBox:focus { border-color: #18d1ff; }
+QComboBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 6px 10px; font-size: 12px; min-height: 28px; }
+QComboBox:hover { border-color: """ + c["primary"] + """40; }
+QComboBox:focus { border-color: """ + c["primary"] + """; }
 QComboBox::drop-down { border: none; width: 28px; padding-right: 8px; }
-QComboBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #9090a8; width: 0; height: 0; }
-QComboBox QAbstractItemView { background-color: rgba(16,16,26,0.88); color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; selection-background-color: rgba(24,209,255,0.25); selection-color: #000000; padding: 2px; }
+QComboBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid """ + c["text_secondary"] + """; width: 0; height: 0; }
+QComboBox QAbstractItemView { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; selection-background-color: """ + c["selection_bg"] + """; selection-color: """ + c["on_primary"] + """; padding: 2px; }
 
-QSpinBox { background-color: rgba(16,16,26,0.88); color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; padding: 4px 8px; font-size: 12px; min-height: 24px; }
-QSpinBox:hover { border-color: rgba(24,209,255,0.20); }
-QSpinBox:focus { border-color: #18d1ff; }
-QSpinBox::up-button, QSpinBox::down-button { background-color: #050508; border: none; width: 24px; subcontrol-position: right; }
-QSpinBox::up-button:hover, QSpinBox::down-button:hover { background-color: rgba(24,209,255,0.08); }
-QSpinBox::up-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 6px solid #e8e8ee; width: 0; height: 0; }
-QSpinBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #e8e8ee; width: 0; height: 0; }
+QSpinBox { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 4px 8px; font-size: 12px; min-height: 24px; }
+QSpinBox:hover { border-color: """ + c["primary"] + """40; }
+QSpinBox:focus { border-color: """ + c["primary"] + """; }
+QSpinBox::up-button, QSpinBox::down-button { background-color: """ + c["surface_container_lowest"] + """; border: none; width: 24px; subcontrol-position: right; }
+QSpinBox::up-button:hover, QSpinBox::down-button:hover { background-color: """ + c["hover_bg"] + """; }
+QSpinBox::up-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 6px solid """ + c["text_primary"] + """; width: 0; height: 0; }
+QSpinBox::down-arrow { image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid """ + c["text_primary"] + """; width: 0; height: 0; }
 
 /* Checkbox */
-QCheckBox { color: #e8e8ee; spacing: 8px; font-size: 12px; }
-QCheckBox::indicator { width: 18px; height: 18px; border-radius: 3px; border: 1px solid rgba(24,209,255,0.20); background-color: transparent; }
-QCheckBox::indicator:hover { border-color: #18d1ff; }
-QCheckBox::indicator:checked { background-color: #18d1ff; border-color: #18d1ff; }
-QCheckBox::indicator:disabled { border-color: #282840; background-color: rgba(16,16,26,0.88); }
+QCheckBox { color: """ + c["text_primary"] + """; spacing: 8px; font-size: 12px; }
+QCheckBox::indicator { width: 18px; height: 18px; border-radius: 3px; border: 1px solid """ + c["border_color"] + """; background-color: transparent; }
+QCheckBox::indicator:hover { border-color: """ + c["primary"] + """; }
+QCheckBox::indicator:checked { background-color: """ + c["primary"] + """; border-color: """ + c["primary"] + """; }
+QCheckBox::indicator:disabled { border-color: """ + c["text_disabled"] + """; background-color: """ + c["surface_container"] + """; }
 
 /* Tabs */
-QTabWidget::pane { background-color: #0a0a0f; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; top: -1px; }
-QTabBar::tab { background-color: transparent; color: #9090a8; border: none; border-bottom: 2px solid transparent; padding: 8px 20px; font-size: 12px; min-width: 80px; }
-QTabBar::tab:hover { background-color: rgba(24,209,255,0.08); }
-QTabBar::tab:selected { color: #18d1ff; border-bottom: 2px solid #18d1ff; }
+QTabWidget::pane { background-color: """ + c["bg_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; top: -1px; }
+QTabBar::tab { background-color: transparent; color: """ + c["text_secondary"] + """; border: none; border-bottom: 2px solid transparent; padding: 8px 20px; font-size: 12px; min-width: 80px; }
+QTabBar::tab:hover { background-color: """ + c["hover_bg"] + """; }
+QTabBar::tab:selected { color: """ + c["primary"] + """; border-bottom: 2px solid """ + c["primary"] + """; }
 
 /* Splitter */
-QSplitter::handle { background-color: rgba(24,209,255,0.10); }
+QSplitter::handle { background-color: """ + c["border_light"] + """; }
 QSplitter::handle:horizontal { width: 1px; }
 QSplitter::handle:vertical { height: 1px; }
 
 /* Scrollbar */
 QScrollBar:vertical { background-color: transparent; width: 4px; border-radius: 2px; margin: 0; }
-QScrollBar::handle:vertical { background-color: rgba(24,209,255,0.10); border-radius: 2px; min-height: 20px; margin: 0px; }
-QScrollBar::handle:vertical:hover { background-color: rgba(24,209,255,0.22); }
+QScrollBar::handle:vertical { background-color: """ + c["primary"] + """18; border-radius: 2px; min-height: 20px; margin: 0px; }
+QScrollBar::handle:vertical:hover { background-color: """ + c["primary"] + """38; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; background-color: transparent; }
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background-color: transparent; }
 QScrollBar:horizontal { background-color: transparent; height: 4px; border-radius: 2px; margin: 0; }
-QScrollBar::handle:horizontal { background-color: rgba(24,209,255,0.10); border-radius: 2px; min-width: 20px; margin: 0px; }
-QScrollBar::handle:horizontal:hover { background-color: rgba(24,209,255,0.22); }
+QScrollBar::handle:horizontal { background-color: """ + c["primary"] + """18; border-radius: 2px; min-width: 20px; margin: 0px; }
+QScrollBar::handle:horizontal:hover { background-color: """ + c["primary"] + """38; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; background-color: transparent; }
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background-color: transparent; }
 
 /* List */
-QListWidget { background-color: rgba(10,14,20,0.88); color: #e8e8ee; border: 1px solid rgba(65,110,140,0.34); border-radius: 2px; padding: 4px 6px; font-size: 12px; outline: none; }
+QListWidget { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 4px 6px; font-size: 12px; outline: none; }
 QListWidget::item { background-color: transparent; padding: 4px 6px; border-left: 2px solid transparent; border-radius: 0; }
-QListWidget::item:hover { background-color: rgba(24,209,255,0.06); border-left: 2px solid rgba(24,209,255,0.28); }
-QListWidget::item:selected { background-color: rgba(22,188,214,0.16); color: #eafaff; border: 1px solid rgba(94,210,236,0.45); border-left: 2px solid #71e8ff; }
-QListWidget::item:selected:!active { background-color: rgba(22,188,214,0.12); }
+QListWidget::item:hover { background-color: """ + c["hover_bg"] + """; border-left: 2px solid """ + c["primary"] + """45; }
+QListWidget::item:selected { background-color: """ + c["primary_container"] + """; color: """ + c["primary_light"] + """; border: 1px solid """ + c["primary"] + """50; border-left: 2px solid """ + c["primary"] + """; }
+QListWidget::item:selected:!active { background-color: """ + c["primary_container"] + """cc; }
 
 /* Tables */
-QTableWidget, QTableView { background-color: #0a0a0f; color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; gridline-color: rgba(24,209,255,0.10); font-size: 12px; }
+QTableWidget, QTableView { background-color: """ + c["bg_primary"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; gridline-color: """ + c["border_light"] + """; font-size: 12px; }
 QTableWidget::item, QTableView::item { padding: 4px 6px; border: none; }
-QTableWidget::item:hover, QTableView::item:hover { background-color: rgba(24,209,255,0.08); }
-QTableWidget::item:selected, QTableView::item:selected { background-color: rgba(24,209,255,0.25); color: #000000; }
-QHeaderView::section { background-color: rgba(16,16,26,0.88); color: #e8e8ee; border: none; border-bottom: 1px solid rgba(24,209,255,0.12); padding: 8px; font-size: 12px; font-weight: 500; }
+QTableWidget::item:hover, QTableView::item:hover { background-color: """ + c["hover_bg"] + """; }
+QTableWidget::item:selected, QTableView::item:selected { background-color: """ + c["selection_bg"] + """; color: """ + c["on_primary"] + """; }
+QHeaderView::section { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: none; border-bottom: 1px solid """ + c["border_color"] + """; padding: 8px; font-size: 12px; font-weight: 500; }
 
 /* Tree */
-QTreeWidget, QTreeView { background-color: #0a0a0f; color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; font-size: 12px; }
+QTreeWidget, QTreeView { background-color: """ + c["bg_primary"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; font-size: 12px; }
 QTreeWidget::item, QTreeView::item { padding: 10px; border-radius: 2px; }
-QTreeWidget::item:hover, QTreeView::item:hover { background-color: rgba(24,209,255,0.08); }
-QTreeWidget::item:selected, QTreeView::item:selected { background-color: rgba(24,209,255,0.25); color: #000000; }
+QTreeWidget::item:hover, QTreeView::item:hover { background-color: """ + c["hover_bg"] + """; }
+QTreeWidget::item:selected, QTreeView::item:selected { background-color: """ + c["selection_bg"] + """; color: """ + c["on_primary"] + """; }
 
 /* GroupBox */
-QGroupBox { background-color: rgba(11,15,22,0.88); color: #e8e8ee; border: 1px solid rgba(66,105,132,0.35); border-radius: 2px; font-size: 12px; padding-top: 4px; margin-top: 6px; }
-QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 4px; color: #7ec9da; font-weight: 600; letter-spacing: 1px; }
+QGroupBox { background-color: """ + c["bg_card"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 6px; font-size: 12px; padding-top: 4px; margin-top: 6px; }
+QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 4px; color: """ + c["primary_light"] + """; font-weight: 600; letter-spacing: 1px; }
 
 /* ProgressBar */
-QProgressBar { background-color: rgba(16,16,26,0.88); border: none; border-radius: 9999px; height: 4px; text-align: center; color: #e8e8ee; }
-QProgressBar::chunk { background-color: #18d1ff; border-radius: 9999px; }
+QProgressBar { background-color: """ + c["surface_container"] + """; border: none; border-radius: 9999px; height: 4px; text-align: center; color: """ + c["text_primary"] + """; }
+QProgressBar::chunk { background-color: """ + c["primary"] + """; border-radius: 9999px; }
 
 /* TextEdit */
-QTextEdit, QPlainTextEdit { background-color: rgba(5,5,8,0.95); color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: 'Microsoft YaHei UI'; }
-QTextEdit:focus, QPlainTextEdit:focus { border-color: #18d1ff; }
+QTextEdit, QPlainTextEdit { background-color: """ + c["log_bg"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: 'Microsoft YaHei UI'; }
+QTextEdit:focus, QPlainTextEdit:focus { border-color: """ + c["primary"] + """; }
 
 /* Menu */
-QMenu { background-color: rgba(16,16,26,0.88); color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 4px; padding: 4px; }
+QMenu { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 4px; padding: 4px; }
 QMenu::item { padding: 8px 20px; border-radius: 2px; }
-QMenu::item:selected { background-color: rgba(24,209,255,0.08); }
-QMenu::separator { height: 1px; background-color: rgba(24,209,255,0.10); margin: 4px 8px; }
+QMenu::item:selected { background-color: """ + c["hover_bg"] + """; }
+QMenu::separator { height: 1px; background-color: """ + c["divider_color"] + """; margin: 4px 8px; }
 
 /* Tooltip */
-QToolTip { background-color: rgba(30,30,45,0.85); color: #e8e8ee; border: 1px solid rgba(24,209,255,0.12); border-radius: 3px; padding: 8px 12px; font-size: 11px; }
+QToolTip { background-color: """ + c["surface_bright"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 3px; padding: 8px 12px; font-size: 11px; }
 
 /* Dialog */
-QDialog { background-color: #0a0a0f; border: 1px solid rgba(24,209,255,0.12); }
+QDialog { background-color: """ + c["bg_primary"] + """; border: 1px solid """ + c["border_color"] + """; }
 
 /* StatusBar */
-QStatusBar { background-color: #07070b; color: #9090a8; border-top: 1px solid rgba(24,209,255,0.12); font-size: 11px; }
+QStatusBar { background-color: """ + c["surface_dim"] + """; color: """ + c["text_secondary"] + """; border-top: 1px solid """ + c["border_color"] + """; font-size: 11px; }
 QStatusBar::item { border: none; }
 
 /* StackedWidget */
-QStackedWidget { background-color: #0a0a0f; }
-QStackedWidget > QWidget { background-color: #0a0a0f; }
+QStackedWidget { background-color: """ + c["bg_primary"] + """; }
+QStackedWidget > QWidget { background-color: """ + c["bg_primary"] + """; }
 
 QFrame#heroPanel, QFrame#pageHero, QFrame#settingsHero {
-    background-color: rgba(10,14,22,0.92);
-    border: 1px solid rgba(72,118,147,0.38);
-    border-radius: 2px;
+    background-color: """ + c["bg_elevated"] + """;
+    border: 1px solid """ + c["border_color"] + """;
+    border-radius: 6px;
 }
 QFrame#navPanel, QFrame#contentPanel, QFrame#metricCard, QFrame#controlBar {
-    background-color: rgba(9,12,18,0.88);
-    border: 1px solid rgba(59,94,119,0.34);
-    border-radius: 2px;
+    background-color: """ + c["bg_card"] + """;
+    border: 1px solid """ + c["border_light"] + """;
+    border-radius: 8px;
 }
 QListWidget#mainNavigation {
     background-color: transparent;
@@ -341,27 +538,27 @@ QListWidget#mainNavigation {
     padding: 0;
 }
 QStatusBar {
-    background-color: rgba(7,8,12,0.98);
-    color: #6f7e95;
-    border-top: 1px solid rgba(57,92,120,0.32);
+    background-color: """ + c["surface_dim"] + """;
+    color: """ + c["text_secondary"] + """;
+    border-top: 1px solid """ + c["border_color"] + """;
     font-size: 11px;
 }
 
 /* ScrollArea */
-QScrollArea { background-color: #0a0a0f; border: none; }
-QScrollArea > QWidget > QWidget { background-color: #0a0a0f; }
+QScrollArea { background-color: """ + c["bg_primary"] + """; border: none; }
+QScrollArea > QWidget > QWidget { background-color: """ + c["bg_primary"] + """; }
 
 /* Separator */
-QFrame[frameShape="4"] { background-color: rgba(24,209,255,0.10); max-height: 1px; border: none; }
-QFrame[frameShape="5"] { background-color: rgba(24,209,255,0.10); max-width: 1px; border: none; }
+QFrame[frameShape="4"] { background-color: """ + c["divider_color"] + """; max-height: 1px; border: none; }
+QFrame[frameShape="5"] { background-color: """ + c["divider_color"] + """; max-width: 1px; border: none; }
 """
 
 
-def get_stylesheet() -> str:
-    global _STYLESHEET
-    if _STYLESHEET is None:
-        _STYLESHEET = _build_stylesheet()
-    return _STYLESHEET
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+def get_stylesheet(theme_name: str = "endfield") -> str:
+    return _build_stylesheet(THEMES.get(theme_name, THEMES["endfield"])["colors"])
 
 
 class ThemeManager:
@@ -417,10 +614,23 @@ class ThemeManager:
         ANIMATION_CONFIG["enabled"] = enabled
     def set_animation_duration(self, name: str, value: int) -> None:
         DURATION[name] = value
-    def get_stylesheet(self) -> str:
-        return get_stylesheet()
-    def apply_theme(self, app: QApplication) -> None:
-        app.setStyleSheet(get_stylesheet())
+    def get_available_themes(self) -> list[dict]:
+        return [{"id": k, **v} for k, v in THEMES.items()]
+    def set_current_theme(self, theme_name: str) -> None:
+        global _CURRENT_THEME, COLORS
+        if theme_name in THEMES:
+            _CURRENT_THEME = theme_name
+            COLORS.clear()
+            COLORS.update(THEMES[theme_name]["colors"])
+    def get_current_theme(self) -> str:
+        return _CURRENT_THEME
+    def get_stylesheet(self, theme_name: Optional[str] = None) -> str:
+        if theme_name is None:
+            theme_name = _CURRENT_THEME
+        return get_stylesheet(theme_name)
+    def apply_theme(self, app: QApplication, theme_name: Optional[str] = None) -> None:
+        self.set_current_theme(theme_name or _CURRENT_THEME)
+        app.setStyleSheet(self.get_stylesheet())
 
 
 def _get_qt_app() -> Optional[QApplication]:
@@ -465,7 +675,7 @@ def get_theme() -> ThemeManager:
     return ThemeManager.get_instance()
 
 
-def apply_theme(app: Optional[QApplication] = None) -> None:
+def apply_theme(app: Optional[QApplication] = None, theme_name: Optional[str] = None) -> None:
     if app is None:
         app = _get_qt_app()
     if app is None:
@@ -479,4 +689,4 @@ def apply_theme(app: Optional[QApplication] = None) -> None:
         if dpi > 110:
             base_size = max(base_size, int(round(base_size * (dpi / 96.0))))
     app.setFont(QFont(font_family, base_size))
-    app.setStyleSheet(get_stylesheet())
+    app.setStyleSheet(get_stylesheet(theme_name or _CURRENT_THEME))

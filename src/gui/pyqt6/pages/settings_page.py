@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFrame,
     QFormLayout,
     QGroupBox,
@@ -25,6 +26,7 @@ from core.foundation.paths import get_project_root
 
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.icons import get_action_icon
+from gui.pyqt6.theme.theme_manager import get_theme
 
 
 class SettingsPage(QWidget):
@@ -52,6 +54,20 @@ class SettingsPage(QWidget):
 
         header = HeroHeader("系统设置", "这里仅保留必要设置项。", content)
         content_root.addWidget(header)
+
+        theme_card = QGroupBox("界面主题")
+        theme_form = QFormLayout(theme_card)
+        self._theme_combo = QComboBox()
+        theme_manager = get_theme()
+        for t in theme_manager.get_available_themes():
+            self._theme_combo.addItem(f"{t['name']} - {t['description']}", t["id"])
+        current_theme = theme_manager.get_current_theme()
+        idx = self._theme_combo.findData(current_theme)
+        if idx >= 0:
+            self._theme_combo.setCurrentIndex(idx)
+        self._theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        theme_form.addRow("主题", self._theme_combo)
+        content_root.addWidget(theme_card)
 
         llm_card = QGroupBox("LLM 参数")
         llm_form = QFormLayout(llm_card)
@@ -87,6 +103,16 @@ class SettingsPage(QWidget):
         self._raw_preview = QTextEdit()
         self._raw_preview.setReadOnly(True)
         content_root.addWidget(self._raw_preview, 1)
+
+    def _on_theme_changed(self, index: int) -> None:
+        theme_id = self._theme_combo.currentData()
+        if not theme_id:
+            return
+        theme_manager = get_theme()
+        theme_manager.set_current_theme(theme_id)
+        app = QApplication.instance()
+        if app is not None:
+            theme_manager.apply_theme(app, theme_id)
 
     def _load_settings(self) -> None:
         config = self._read_config()
