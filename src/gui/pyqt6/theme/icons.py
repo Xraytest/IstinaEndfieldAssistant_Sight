@@ -258,8 +258,8 @@ _ACTION_ICONS: Dict[str, callable] = {
 # Queue status icon registry
 _STATUS_ICONS: Dict[str, callable] = {
     "pending": lambda: _icon_dot(4, "#9090a8"),
-    "running": lambda: _icon_dot(4, "#18d1ff"),
-    "success": lambda: _icon_check(4, "#00ffa2"),
+    "running": lambda: _icon_dot(4, "#5c7cfa"),
+    "success": lambda: _icon_check(4, "#5c7cfa"),
     "failed": lambda: _icon_cross_small(4, "#ff3355"),
 }
 
@@ -326,8 +326,8 @@ def get_status_icon(status: str, size: int = 14) -> QIcon:
         path = factory()
         color = {
             "pending": "#9090a8",
-            "running": "#18d1ff",
-            "success": "#00ffa2",
+            "running": "#5c7cfa",
+            "success": "#5c7cfa",
             "failed": "#ff3355",
         }.get(status, "#9090a8")
         pixmap = _pixmap_from_path(path, size=16, color=color, stroke_width=1.6)

@@ -12,7 +12,6 @@ from gui.pyqt6.theme.theme_manager import COLORS, FONTS, FONT_SIZES, SPACING
 # Color shortcuts
 # ---------------------------------------------------------------------------
 _PRIMARY = COLORS["primary"]
-_SUCCESS = COLORS["success"]
 _DANGER = COLORS["danger"]
 _WARNING = COLORS["warning"]
 _ACCENT_GOLD = COLORS["accent_gold"]
@@ -36,8 +35,8 @@ VAL_STYLE = (
     f"color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px;"
     f" font-family: '{_FONT}'; padding: 3px 0;"
 )
-GREEN_STYLE = (
-    f"color: {_SUCCESS}; font-size: {_SIZE_BASE}px;"
+BLUE_STYLE = (
+    f"color: {_PRIMARY}; font-size: {_SIZE_BASE}px;"
     f" font-family: '{_FONT}'; padding: 3px 0;"
 )
 RED_STYLE = (

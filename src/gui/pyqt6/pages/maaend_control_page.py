@@ -22,13 +22,13 @@ from gui.pyqt6.queue_state import QueueState
 from gui.pyqt6.responsive import is_narrow_size
 from gui.pyqt6.theme.widget_styles import (
     BLUE_STYLE,
+    BLUE_STYLE,
     BTN_ACTIVE,
     BTN_DEFAULT,
     BTN_STOP,
     CARD_STYLE,
     CHECK_STYLE,
     COMBO_STYLE,
-    GREEN_STYLE,
     HEADER_STYLE,
     INFO_STYLE,
     INPUT_STYLE,
@@ -327,7 +327,7 @@ class MaaEndControlPage(QWidget):
         header.addWidget(title)
         header.addStretch()
         self._status_label = QLabel(locale.tr("maaend_idle", "Idle"))
-        self._status_label.setStyleSheet(GREEN_STYLE)
+        self._status_label.setStyleSheet(BLUE_STYLE)
         header.addWidget(self._status_label)
         root.addLayout(header)
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1170,8 +1170,17 @@ class MaaEndControlPage(QWidget):
     # ------------------------------------------------------------------
     def _delayed_init(self) -> None:
         """延迟初始化：启动时自动连接，再刷新列表。"""
+        # 初始化期间停止预览定时器，避免与系统连接的嵌套事件循环冲突
+        main_window = self.window()
+        preview_timer = getattr(main_window, "_preview_timer", None)
+        if preview_timer is not None:
+            preview_timer.stop()
+
         self._try_auto_connect()
         self.refresh()
+
+        if preview_timer is not None and self._connected:
+            preview_timer.start()
 
     def _try_auto_connect(self) -> None:
         """启动时尝试自动连接上次设备，失败后标记不再重试。"""
@@ -1325,7 +1334,7 @@ class MaaEndControlPage(QWidget):
         if not self._is_executing:
             self._progress_bar.setValue(0)
         self._status_label.setText(locale.tr("maaend_running" if self._is_executing else "maaend_idle", "Running" if self._is_executing else "Idle"))
-        self._status_label.setStyleSheet(RED_STYLE if self._is_executing else GREEN_STYLE)
+        self._status_label.setStyleSheet(RED_STYLE if self._is_executing else BLUE_STYLE)
         if self._is_executing:
             self._pulse_status_label()
         self.execution_state_changed.emit(self._is_executing)

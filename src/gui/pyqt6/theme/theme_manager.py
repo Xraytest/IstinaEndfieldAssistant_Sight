@@ -58,10 +58,10 @@ THEMES: Dict[str, Dict[str, Any]] = {
             "info_light": "#82a5ff",
             "info_container": "rgba(92, 124, 250, 0.10)",
             "on_info": "#ffffff",
-            "success": "#2f9e44",
-            "success_dark": "#268538",
-            "success_light": "#5cb85c",
-            "success_container": "rgba(47, 158, 68, 0.10)",
+            "success": "#5c7cfa",
+            "success_dark": "#4c6ef5",
+            "success_light": "#82a5ff",
+            "success_container": "rgba(92, 124, 250, 0.10)",
             "on_success": "#ffffff",
             "tertiary": "#5c7cfa",
             "tertiary_dark": "#4c6ef5",
@@ -226,7 +226,7 @@ QLabel[variant="muted"] { color: """ + c["text_muted"] + """; }
 QLabel[variant="terminal"] { font-family: 'Microsoft YaHei UI'; color: """ + c["primary"] + """; font-size: 12px; }
 QLabel[variant="eyebrow"] { color: """ + c["primary_light"] + """; font-size: 11px; font-weight: 600; letter-spacing: 2px; }
 QLabel[variant="accent"] { color: """ + c["accent_gold"] + """; }
-QLabel[variant="success"] { color: """ + c["success"] + """; }
+QLabel[variant="success"] { color: """ + c["primary"] + """; }
 QLabel[variant="danger"] { color: """ + c["danger"] + """; }
 
 /* Inputs */
