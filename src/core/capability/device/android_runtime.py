@@ -56,9 +56,12 @@ class _ScrcpySession:
 
     def start(self, serial: str, jar_path: str, max_size: int = 1280, bit_rate: int = 8000000) -> None:
         if self._thread is not None:
-            return
+            if self._thread.is_alive():
+                return
+            self._thread = None
         self._serial = serial
         self._stop_event.clear()
+        self._latest_frame = None
         self._thread = threading.Thread(
             target=self._run,
             args=(jar_path, max_size, bit_rate),
@@ -447,19 +450,19 @@ class _Daemon:
                     return {"result": True}
                 if method == "screenshot":
                     serial = params.get("serial", self._serial)
-                    if self._scrcpy_session is None:
-                        self._scrcpy_session = _ScrcpySession(self._adb_manager, self._logger)
-                        self._scrcpy_session.start(
-                            serial or self._serial,
-                            jar_path=self._scrcpy_jar_path,
-                            max_size=int(params.get("maxSize", 1280)),
-                            bit_rate=int(params.get("bitRate", 8000000)),
-                        )
-                    frame = self._scrcpy_session.get_latest_frame()
-                    if frame is None:
-                        return {"error": "scrcpy frame not ready"}
-                    _, buf = cv2.imencode(".png", frame)
-                    return self._encode_binary(buf.tobytes())
+                    frame = None
+                    if self._scrcpy_session is not None:
+                        frame = self._scrcpy_session.get_latest_frame()
+                    if frame is not None:
+                        _, buf = cv2.imencode(".png", frame)
+                        return self._encode_binary(buf.tobytes())
+                    try:
+                        output = self._adb_manager.screencap(serial=serial)
+                        if output is not None:
+                            return self._encode_binary(output)
+                    except Exception:
+                        pass
+                    return {"error": "screenshot failed"}
                 if method == "tap":
                     self._touch.tap(int(params.get("x", 0)), int(params.get("y", 0)), serial=params.get("serial", self._serial))
                     return {"result": True}
