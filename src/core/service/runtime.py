@@ -168,6 +168,11 @@ class IstinaRuntime:
         if not resource_ok:
             self._logger.error(LogCategory.MAIN, "MaaEnd runtime 资源加载失败")
             return False
+        # 连接成功后立即启动 scrcpy 常驻图像通道，供预览按需取用。
+        try:
+            self.android(serial).start_scrcpy(serial=serial)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "scrcpy 预览通道启动失败", error=str(exc))
         self._logger.info(LogCategory.MAIN, "MaaEnd runtime 已就绪")
         return True
 
@@ -200,6 +205,12 @@ class IstinaRuntime:
                 runtime.disconnect()
             except Exception as e:
                 self._logger.error(LogCategory.MAIN, "断开连接异常", serial=target, error=str(e))
+        # 断开所有设备时，同步停止 scrcpy 预览通道。
+        try:
+            android = self.android(serial)
+            android.stop_scrcpy(serial=serial)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "停止 scrcpy 预览通道失败", error=str(exc))
 
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> Any:
         self._config = self._load_config()
@@ -307,6 +318,14 @@ class IstinaRuntime:
 
     def _screenshot(self, params: Dict[str, Any]) -> Optional[bytes]:
         serial = params.get("serial")
+        # 优先使用 AndroidRuntime (scrcpy 常驻通道)，失败则回退到 MaaEndRuntime (AdbController)。
+        try:
+            android = self.android(serial)
+            data = android.screenshot(serial)
+            if data is not None:
+                return data
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "scrcpy 预览取帧失败，回退到 MaaEnd", error=str(exc))
         legacy = getattr(self, "_maaend", None)
         if legacy is not None and not self._maaend_clients:
             return legacy.screenshot()

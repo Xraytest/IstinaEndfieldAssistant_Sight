@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
 from gui.pyqt6.theme.widget_styles import PREVIEW_STYLE, PANEL_STYLE
 
 from core.foundation.gpu_check import check_gpu, format_gpu_warning
+from core.foundation.logger import get_logger, LogCategory
 from core.foundation.paths import ensure_src_path
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
@@ -51,6 +52,7 @@ class MainWindow(QMainWindow):
         self._bridge = bridge_factory() if bridge_factory is not None else CLIBridge(self)
         if self._bridge.parent() is None:
             self._bridge.setParent(self)
+        self._logger = get_logger(__name__)
 
         central = QWidget(self)
         layout = QVBoxLayout(central)
@@ -79,7 +81,6 @@ class MainWindow(QMainWindow):
         self._setup_tray_icon()
 
         QTimer.singleShot(0, self._show_gpu_warning_if_needed)
-        QTimer.singleShot(0, self._async_warmup)
         self._setup_keyboard_shortcuts()
 
     def _setup_keyboard_shortcuts(self) -> None:
@@ -96,9 +97,6 @@ class MainWindow(QMainWindow):
         """Setup system tray icon for minimize-to-tray support."""
         self._tray_icon = TrayIcon(self)
 
-    def _async_warmup(self) -> None:
-        self._bridge.execute("llm start", {})
-
     def _show_gpu_warning_if_needed(self) -> None:
         result = check_gpu()
         message = format_gpu_warning(result)
@@ -110,7 +108,6 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event: QCloseEvent) -> None:
         settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
         settings.setValue("mainWindow/geometry", self.saveGeometry())
-        self._bridge.execute("llm stop", {})
         if self._tray_icon is not None and self._tray_icon.is_available():
             event.ignore()
             self.hide()
@@ -316,6 +313,7 @@ class MainWindow(QMainWindow):
             return  # 任务执行期间不刷新预览
         result = self._maaend_page._sync_execute("screenshot", timeout_ms=5000)
         if not result or result.get("status") != "success":
+            self._logger.debug(LogCategory.GUI, "预览刷新失败", result=result)
             return
         data = result.get("base64")
         if not data:
