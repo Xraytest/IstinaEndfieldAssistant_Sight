@@ -289,8 +289,9 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
                 result = {"status": "error", "message": str(exc)}
                 self_logger.error("CLI 交互循环: 执行异常", command=line, error=str(exc))
             try:
-                sys.stdout.write(_json_dumps(result) + "\n")
-                sys.stdout.flush()
+                payload = (_json_dumps(result) + "\n").encode("utf-8")
+                sys.stdout.buffer.write(payload)
+                sys.stdout.buffer.flush()
             except Exception as exc:
                 self_logger.error("CLI 交互循环: stdout 写入异常", error=str(exc))
     return 0
