@@ -158,3 +158,14 @@
 - **Files Modified**:
   - `docs/GUI_TASK_QUEUE_ANALYSIS.md`
   - `docs/TASK_LOG.md`
+
+## 2026-07-08 00:08
+
+- **User Request**: 不要绿色按钮，使用蓝色，内部文本使用白色。按钮透明度高一些。
+- **Outcome**: 
+  1. `widget_styles.py`：`BTN_ACTIVE`/`BTN_DEFAULT` 改为蓝底白字高透明（`background-color: {_PRIMARY}12`，`color: #ffffff`，`border: 1px solid {_PRIMARY}26`）；`BTN_STOP` 同步改为白字，保持危险色边框。
+  2. `theme_manager.py`：全局 `QPushButton` 改为白字，`background-color` 降低为 `rgba(13,19,28,0.80)`，边框透明度提高；`variant="primary"`/`"secondary"`/`"danger"` 文本统一改为白色。
+- **Commit**: `1121895`
+- **Files Modified**:
+  - `src/gui/pyqt6/theme/theme_manager.py`
+  - `src/gui/pyqt6/theme/widget_styles.py`
