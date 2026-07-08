@@ -102,6 +102,21 @@
 - **Files Modified**:
   - `src/gui/pyqt6/theme/theme_manager.py`
   - `src/gui/pyqt6/theme/widget_styles.py`
+
+## 2026-07-08 00:10
+
+- **User Request**: 按钮依然是绿色的，查找全部的绿色内容，改为高透明度的蓝色。
+- **Outcome**: 
+  1. `theme_manager.py`：将 `success`/`success_dark`/`success_light`/`success_container` 颜色从绿色系（`#2f9e44`/`#268538`/`#5cb85c`）替换为蓝色系（`#5c7cfa`/`#4c6ef5`/`#82a5ff`）；`QLabel[variant="success"]` 改为使用 `primary` 蓝色。
+  2. `widget_styles.py`：删除 `_SUCCESS` 变量与 `GREEN_STYLE`，新增 `BLUE_STYLE`；`maaend_control_page.py` 中两处 `GREEN_STYLE` 改为 `BLUE_STYLE`。
+  3. `icons.py`：状态图标 `running`/`success` 从 `#18d1ff`/`#00ffa2` 统一改为 `#5c7cfa`。
+  4. 全量 grep 验证：`src/gui/pyqt6` 下已无绿色 hex 值残留。
+- **Commit**: `598eb2a`
+- **Files Modified**:
+  - `src/gui/pyqt6/theme/theme_manager.py`
+  - `src/gui/pyqt6/theme/widget_styles.py`
+  - `src/gui/pyqt6/theme/icons.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
   - `src/gui/pyqt6/main_window.py`
   - `src/gui/pyqt6/main.py`
   - `src/gui/pyqt6/pages/settings_page.py`
@@ -130,6 +145,21 @@
 - **Files Modified**:
   - `src/gui/pyqt6/theme/theme_manager.py`
   - `src/gui/pyqt6/theme/widget_styles.py`
+
+## 2026-07-08 00:10
+
+- **User Request**: 按钮依然是绿色的，查找全部的绿色内容，改为高透明度的蓝色。
+- **Outcome**: 
+  1. `theme_manager.py`：将 `success`/`success_dark`/`success_light`/`success_container` 颜色从绿色系（`#2f9e44`/`#268538`/`#5cb85c`）替换为蓝色系（`#5c7cfa`/`#4c6ef5`/`#82a5ff`）；`QLabel[variant="success"]` 改为使用 `primary` 蓝色。
+  2. `widget_styles.py`：删除 `_SUCCESS` 变量与 `GREEN_STYLE`，新增 `BLUE_STYLE`；`maaend_control_page.py` 中两处 `GREEN_STYLE` 改为 `BLUE_STYLE`。
+  3. `icons.py`：状态图标 `running`/`success` 从 `#18d1ff`/`#00ffa2` 统一改为 `#5c7cfa`。
+  4. 全量 grep 验证：`src/gui/pyqt6` 下已无绿色 hex 值残留。
+- **Commit**: `598eb2a`
+- **Files Modified**:
+  - `src/gui/pyqt6/theme/theme_manager.py`
+  - `src/gui/pyqt6/theme/widget_styles.py`
+  - `src/gui/pyqt6/theme/icons.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
   - `src/gui/pyqt6/pages/maaend_control_page.py`
 
 ## 2026-07-07 23:50
@@ -169,3 +199,18 @@
 - **Files Modified**:
   - `src/gui/pyqt6/theme/theme_manager.py`
   - `src/gui/pyqt6/theme/widget_styles.py`
+
+## 2026-07-08 00:10
+
+- **User Request**: 按钮依然是绿色的，查找全部的绿色内容，改为高透明度的蓝色。
+- **Outcome**: 
+  1. `theme_manager.py`：将 `success`/`success_dark`/`success_light`/`success_container` 颜色从绿色系（`#2f9e44`/`#268538`/`#5cb85c`）替换为蓝色系（`#5c7cfa`/`#4c6ef5`/`#82a5ff`）；`QLabel[variant="success"]` 改为使用 `primary` 蓝色。
+  2. `widget_styles.py`：删除 `_SUCCESS` 变量与 `GREEN_STYLE`，新增 `BLUE_STYLE`；`maaend_control_page.py` 中两处 `GREEN_STYLE` 改为 `BLUE_STYLE`。
+  3. `icons.py`：状态图标 `running`/`success` 从 `#18d1ff`/`#00ffa2` 统一改为 `#5c7cfa`。
+  4. 全量 grep 验证：`src/gui/pyqt6` 下已无绿色 hex 值残留。
+- **Commit**: `598eb2a`
+- **Files Modified**:
+  - `src/gui/pyqt6/theme/theme_manager.py`
+  - `src/gui/pyqt6/theme/widget_styles.py`
+  - `src/gui/pyqt6/theme/icons.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
