@@ -106,6 +106,11 @@ class CLIDispatch:
             return _handle_preset_list(self._runtime, args)
         return {"status": "error", "message": "unknown preset action"}
 
+    def _handle_metadata(self, args: argparse.Namespace) -> Dict[str, Any]:
+        if args.action == "list":
+            return _handle_metadata_list(self._runtime, args)
+        return {"status": "error", "message": "unknown metadata action"}
+
     def _handle_device(self, args: argparse.Namespace) -> Dict[str, Any]:
         if args.action == "status":
             return _handle_device_status(self._runtime, args)

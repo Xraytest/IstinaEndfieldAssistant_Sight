@@ -82,6 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_preset_list = p_preset_sub.add_parser("list", help="list presets")
     p_preset_list.add_argument("--serial", default=None, help="device serial")
 
+    p_meta = sub.add_parser("metadata", help="metadata commands")
+    p_meta_sub = p_meta.add_subparsers(dest="action")
+    p_meta_list = p_meta_sub.add_parser("list", help="list tasks and presets together")
+    p_meta_list.add_argument("--serial", default=None, help="device serial")
+
     p_dev = sub.add_parser("device", help="device commands")
     p_dev_sub = p_dev.add_subparsers(dest="action")
     p_dev_sub.add_parser("status", help="device status")

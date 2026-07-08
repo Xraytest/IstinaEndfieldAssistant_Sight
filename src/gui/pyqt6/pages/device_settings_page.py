@@ -45,7 +45,6 @@ class DeviceSettingsPage(QWidget):
         self._setup_ui()
         self._load_device_preferences()
         self._refresh_devices()
-        QTimer.singleShot(0, self._auto_connect_last_device)
 
     def _setup_ui(self) -> None:
         root = QVBoxLayout(self)
@@ -161,18 +160,6 @@ class DeviceSettingsPage(QWidget):
 
     def _refresh_devices(self) -> None:
         self._bridge.execute("device info")
-
-    def _auto_connect_last_device(self) -> None:
-        config = self._read_config()
-        device_cfg = config.get("device", {})
-        if not device_cfg.get("auto_connect_last", True):
-            return
-        serial = str(device_cfg.get("last_connected") or "").strip()
-        if not serial:
-            return
-        self._address_input.setText(serial)
-        self._append_log(locale.tr("auto_connect_last", "Auto-connect last device: {serial}").format(serial=serial))
-        self._connect()
 
     def _on_command_finished(self, command: str, result: dict) -> None:
         if command == "device info":
