@@ -250,10 +250,38 @@ def main(argv: Optional[list[str]] = None) -> int:
     return 0 if isinstance(result, dict) and result.get("status") == "success" else 1
 
 
+def _interactive_loop(parser: argparse.ArgumentParser) -> int:
+    runtime = IstinaRuntime()
+    buffer = ""
+    while True:
+        chunk = sys.stdin.read(1)
+        if not chunk:
+            break
+        buffer += chunk
+        if chunk == "\n":
+            line = buffer.strip()
+            buffer = ""
+            if not line:
+                continue
+            try:
+                args = parser.parse_args(line.split())
+                result = CLIDispatch(runtime).dispatch(args)
+            except SystemExit:
+                result = {"status": "error", "message": "invalid command"}
+            except Exception as exc:
+                result = {"status": "error", "message": str(exc)}
+            sys.stdout.write(_json_dumps(result) + "\n")
+            sys.stdout.flush()
+    return 0
+
+
 def _auto_warmup(runtime: IstinaRuntime, args: argparse.Namespace) -> None:
     if args.command == "llm":
         runtime.warmup_llm()
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
+        parser = build_parser()
+        sys.exit(_interactive_loop(parser))
     sys.exit(main())

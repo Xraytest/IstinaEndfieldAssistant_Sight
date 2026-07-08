@@ -44,44 +44,34 @@ class CLIBridge(QObject):
         self._istina_path = str(get_project_root() / "src" / "cli" / "istina.py")
         self._last_command: List[str] = []
         self._stdout_buffer = ""
+        self._interactive = True
+        self._command_ready = False
         self._logger = get_logger(__name__)
 
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> None:
         params = params or {}
         args = self._build_args(command, params)
         self._pending_commands.append(args)
-        self._start_next_process()
+        if self._interactive:
+            self._send_next_if_idle()
+        else:
+            self._start_next_process()
 
-    def _build_args(self, command: str, params: Dict[str, Any]) -> List[str]:
-        args: List[str] = []
-        current = ""
-        depth = 0
-        for char in command:
-            if char in "{[":
-                depth += 1
-                current += char
-            elif char in "}]":
-                depth = max(0, depth - 1)
-                current += char
-            elif char == " " and depth == 0:
-                if current:
-                    args.append(current)
-                    current = ""
-            else:
-                current += char
-        if current:
-            args.append(current)
-        for key, value in params.items():
-            if value is None:
-                continue
-            if isinstance(value, bool):
-                if value:
-                    args.append(f"--{key}")
-            else:
-                args.extend([f"--{key}", str(value)])
-        return args
+    def _send_next_if_idle(self) -> None:
+        if self._process is not None and self._process.state() == QProcess.ProcessState.Running:
+            if self._current_command is not None:
+                return
+            if not self._pending_commands:
+                return
+            args = self._pending_commands.pop(0)
+            self._current_command = args
+            self._last_command = list(args)
+            self._stdout_buffer = ""
+            self._send_pending_command()
+        else:
+            self._start_interactive_process()
 
-    def _start_next_process(self) -> None:
+    def _start_interactive_process(self) -> None:
         if self._process is not None and self._process.state() != QProcess.ProcessState.NotRunning:
             return
         if not self._pending_commands:
@@ -98,13 +88,28 @@ class CLIBridge(QObject):
         self._process.finished.connect(self._on_finished)
         self._process.errorOccurred.connect(self._on_error)
 
-        cmd = [self._python_path, self._istina_path] + args
-        self._logger.debug(LogCategory.GUI, "启动 CLI 子进程", cmd=" ".join(cmd))
+        cmd = [self._python_path, self._istina_path, "--interactive"]
+        self._logger.debug(LogCategory.GUI, "启动 CLI 交互进程", cmd=" ".join(cmd))
         self._process.start(cmd[0], cmd[1:])
         if not self._process.waitForStarted(5000):
             self._handle_process_error("进程启动超时")
             self._finalize_current_process()
-            self._start_next_process()
+            self._start_interactive_process()
+            return
+        self._command_ready = True
+        self._send_pending_command()
+
+    def _send_pending_command(self) -> None:
+        if not self._command_ready or self._process is None or self._current_command is None:
+            return
+        if self._process.state() == QProcess.ProcessState.NotRunning:
+            return
+        line = " ".join(self._current_command) + "\n"
+        try:
+            self._process.write(line.encode("utf-8"))
+            self._process.waitForBytesWritten(1000)
+        except Exception as exc:
+            self._logger.error(LogCategory.GUI, "写入 CLI 命令失败", error=str(exc))
 
     def _on_stdout(self) -> None:
         data = bytes(self._process.readAllStandardOutput()).decode("utf-8", errors="replace")
@@ -113,16 +118,19 @@ class CLIBridge(QObject):
             newline_index = self._stdout_buffer.find("\n")
             if newline_index == -1:
                 break
-            line = self._stdout_buffer[:newline_index].strip()
+            line = self._stdout_buffer[:newline_index + 1]
             self._stdout_buffer = self._stdout_buffer[newline_index + 1:]
-            if not line:
+            if not line.strip():
                 continue
             try:
-                result = json.loads(line)
+                result = json.loads(line.strip())
                 command = " ".join(self._last_command)
                 self.commandFinished.emit(command, result)
             except json.JSONDecodeError:
                 pass
+            if self._interactive:
+                self._current_command = None
+                self._send_next_if_idle()
 
     def _on_stderr(self) -> None:
         data = bytes(self._process.readAllStandardError()).decode("utf-8", errors="replace")
@@ -130,6 +138,19 @@ class CLIBridge(QObject):
 
     def _on_finished(self, exit_code: int, exit_status: QProcess.ExitStatus) -> None:
         if self._restart_pending:
+            self._finalize_current_process()
+            return
+        if self._interactive:
+            # 交互模式下进程退出视为异常，尝试重启以保持长连接。
+            self._crash_count += 1
+            self.processCrashed.emit(self._crash_count)
+            if self._crash_count < self._max_crashes and not self._restart_pending:
+                self._restart_pending = True
+                if self._current_command:
+                    self._pending_commands.insert(0, list(self._current_command))
+                QTimer.singleShot(1000, self._restart_last_command)
+            else:
+                self._show_crash_dialog()
             self._finalize_current_process()
             return
         if exit_status == QProcess.ExitStatus.CrashExit:
