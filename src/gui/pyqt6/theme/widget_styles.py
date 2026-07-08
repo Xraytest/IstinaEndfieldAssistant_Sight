@@ -113,7 +113,7 @@ LIST_STYLE = f"""
     }}
     QListWidget::item {{ padding: 3px 6px; }}
     QListWidget::item:hover {{ background-color: rgba(92, 124, 250, 0.08); border-left: 2px solid rgba(92, 124, 250, 0.35); }}
-    QListWidget::item:selected {{ background-color: {_PRIMARY}33; color: {_PRIMARY}; border-left: 2px solid {_PRIMARY}; }}
+    QListWidget::item:selected {{ background-color: {_rgba(_PRIMARY, 0.10)}; color: {_PRIMARY}; border-left: 2px solid {_PRIMARY}; }}
 """
 
 LOG_STYLE = f"""
@@ -155,7 +155,7 @@ TABLE_STYLE = f"""
     QTableWidget {{ background-color: rgba(16, 16, 26, 0.85); border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; gridline-color: {_BORDER_LIGHT}; }}
     QTableWidget::item {{ padding: 6px; }}
     QTableWidget::item:hover {{ background-color: rgba(92, 124, 250, 0.08); }}
-    QTableWidget::item:selected {{ background-color: rgba(92, 124, 250, 0.25); color: #000000; border-left: 3px solid {_PRIMARY}; }}
+    QTableWidget::item:selected {{ background-color: {_rgba(_PRIMARY, 0.12)}; color: #000000; border-left: 3px solid {_PRIMARY}; }}
     QHeaderView::section {{ background-color: {_PRIMARY}14; color: {_PRIMARY}; font-size: 11px; font-weight: bold; padding: 6px; border: none; }}
 """
 

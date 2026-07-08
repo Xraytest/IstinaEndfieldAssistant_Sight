@@ -114,7 +114,7 @@ THEMES: Dict[str, Dict[str, Any]] = {
             "outline_variant": "rgba(92, 124, 250, 0.15)",
             "divider_color": "rgba(92, 124, 250, 0.12)",
             "hover_bg": "rgba(92, 124, 250, 0.08)",
-            "selection_bg": "rgba(92, 124, 250, 0.22)",
+            "selection_bg": "rgba(92, 124, 250, 0.10)",
             "selection_border": "#5c7cfa",
             "shadow": "rgba(0, 0, 0, 0.55)",
             "shadow_light": "rgba(0, 0, 0, 0.35)",
@@ -299,8 +299,8 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background-co
 QListWidget { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 6px 8px; font-size: 12px; outline: none; }
 QListWidget::item { background-color: transparent; padding: 8px 10px; border-left: 2px solid transparent; border-radius: 0; }
 QListWidget::item:hover { background-color: """ + c["hover_bg"] + """; border-left: 2px solid """ + c["primary"] + """45; }
-QListWidget::item:selected { background-color: """ + c["primary_container"] + """; color: """ + c["primary_light"] + """; border: 1px solid """ + c["primary"] + """50; border-left: 2px solid """ + c["primary"] + """; }
-QListWidget::item:selected:!active { background-color: """ + c["primary_container"] + """cc; }
+QListWidget::item:selected { background-color: rgba(92, 124, 250, 0.10); color: """ + c["primary_light"] + """; border: 1px solid """ + c["primary"] + """30; border-left: 2px solid """ + c["primary"] + """; }
+QListWidget::item:selected:!active { background-color: rgba(92, 124, 250, 0.06); }
 
 /* Tables */
 QTableWidget, QTableView { background-color: """ + c["bg_primary"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; gridline-color: """ + c["border_light"] + """; font-size: 12px; }
