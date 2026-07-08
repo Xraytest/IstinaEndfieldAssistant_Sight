@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
 
 from core.foundation.logger import get_logger
-from core.foundation.paths import get_project_root
+
 from .map_data_loader import MapDataLoader
 
 
@@ -170,16 +170,14 @@ class MinimapLocator:
                 tier_str = parts[1]
                 grid_data = self._data.load_grid_tiers()
                 for gk, gc in grid_data.items():
-                    for item_hash, tier_id in gc.items.items():
+                    for tier_id in gc.items.values():
                         if tier_id.endswith(f"tier_{tier_str}"):
                             grid_cell = gk
                             cx, cy = gc.center
                             break
                     if grid_cell:
                         break
-                if tile_class.startswith("Map01Lv"):
-                    level_id = tile_class[5:11].lower()
-                elif tile_class.startswith("Map02Lv"):
+                if tile_class.startswith(("Map01Lv", "Map02Lv")):
                     level_id = tile_class[5:11].lower()
         elif "Base" in tile_class and "__r" in tile_class:
             import re

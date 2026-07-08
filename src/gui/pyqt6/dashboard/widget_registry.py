@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from gui.pyqt6.dashboard.widget_base import DashboardWidget
-
 
 class WidgetRegistry:
     """Registry of available dashboard widgets."""

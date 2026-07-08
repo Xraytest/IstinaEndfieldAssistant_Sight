@@ -30,7 +30,7 @@ Bundled Python at `3rd-part/python/python.exe` (3.12.10) — all dependencies pr
 | Unified CLI | `3rd-part/python/python.exe scripts/istina.py <subcommand>` — routes to `src/cli/istina.py` |
 | GUI | `3rd-part/python/python.exe src/gui/pyqt6/main.py` |
 
-CLI subcommands: `daily`, `harvest`, `analyze`, `explore`, `gpu`, `system`, `device`, `scene`, `config`, `auth`, `llm`, `nav`, `model`.
+CLI subcommands: `daily`, `harvest`, `analyze`, `explore`, `screenshot`, `task`, `preset`, `metadata`, `device`, `shell`, `gpu`, `scene`, `config`, `auth`, `model`, `llm`, `nav`, `nav2`, `nav3`.
 
 ## Path Management (Critical)
 
@@ -48,19 +48,20 @@ project_root = get_project_root()
 
 ### Core subsystems (`src/core/`)
 
-- **`foundation/`** — `paths.py`, `logger.py`, `config_manager.py`, `game_coords.py`, `constants.py`
-- **`capability/`** — hardware-facing: `device/` (ADB, touch), `input/` (screenshot), `ocr/`, `element_recognition/` (template matching, YOLO), `recognition/` (template matching, YOLO)
-- **`service/`** — business logic: `maa_end/` (MaaFramework runtime), `runtime.py` (unified runtime for GUI/CLI)
+- **`foundation/`** — `paths.py`, `logger.py`, `gpu_check.py`
+- **`capability/`** — hardware-facing: `device/` (ADB, touch, `android_runtime.py`), `input/`, `llm/` (LLM runtime, VLM), `element_recognition/` (Template/OCR/Color/YOLO backends + Pipeline engine)
+- **`service/`** — business logic: `maa_end/` (MaaFramework runtime), `runtime.py` (unified runtime for GUI/CLI), `navigation/` (Nav1/Nav2/Nav3)
 
 ### Device Layer
 
 - **ADB**: `ADBDeviceManager` at `src/core/capability/device/adb_manager.py`. Binary at `3rd-part/adb/adb.exe`. Auto-detects device type (MuMu, LDPlayer, BlueStacks, WSA, real device).
-- **Touch**: `TouchManager` at `src/core/capability/device/touch/touch_manager.py`. Supports MaaTouch, minitouch, scrcpy, ADB with automatic fallback.
-- **Screenshot**: `ScreenCapture` at `src/core/capability/input/screenshot/screen_capture.py`. Multiple methods with auto-selection and fallback chain.
+- **Touch**: `TouchManager` at `src/core/capability/device/touch_manager.py`. Supports MaaTouch, minitouch, scrcpy, ADB with automatic fallback.
+- **Android runtime**: `AndroidRuntime` / `AndroidRuntimeProxy` at `src/core/capability/device/android_runtime.py`. JSON-RPC daemon, scrcpy H.264/HEVC/AV1 decoding, mmap zero-copy screenshot.
+- **Screenshot**: Actual screenshot is performed by `ADBDeviceManager.screencap()` and MaaFramework `AdbController.post_screencap()`. The former `screen_capture.py` was removed.
 
 ### MaaEnd Integration
 
-`MaaEndRuntime` (`src/core/service/maa_end/runtime.py`) wraps MaaFramework for pipeline tasks, OCR, and touch. Uses `3rd-part/maaend/` for interface and task definitions.
+`MaaEndRuntime` (`src/core/service/maa_end/runtime.py`) wraps MaaFramework for pipeline tasks. Uses `3rd-part/maaend/` for interface and task definitions.
 
 ## Configuration
 
@@ -74,7 +75,7 @@ project_root = get_project_root()
 3rd-part/python/python.exe -m pytest
 ```
 
-Tests are in `tests/` (flat structure, no subdirectories). `pyproject.toml` sets `testpaths = ["tests"]`, `pythonpath = ["."]`.
+Tests are in `tests/` (mostly flat, with an empty `integration/` subdirectory). `pyproject.toml` sets `testpaths = ["tests"]`, `pythonpath = ["."]`.
 
 ## Device Connection
 

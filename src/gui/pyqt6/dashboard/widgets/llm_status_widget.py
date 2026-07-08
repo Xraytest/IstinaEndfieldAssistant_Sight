@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QLabel, QWidget
 
 from gui.pyqt6.dashboard.widget_base import DashboardWidget
 from gui.pyqt6.i18n import get_locale_manager
@@ -39,4 +39,3 @@ class LLMStatusWidget(DashboardWidget):
 
     def refresh(self) -> None:
         """Refresh LLM status from bridge."""
-        pass

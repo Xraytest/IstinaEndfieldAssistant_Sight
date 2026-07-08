@@ -48,7 +48,7 @@ def _can_execute_tasks() -> bool:
 _CAN_EXECUTE_TASKS = _can_execute_tasks()
 
 
-def _run_cli(argv, env=None):
+def _run_cli(argv, env=None, timeout=300):
     if env is None:
         env = dict(os.environ)
     proc = subprocess.run(
@@ -59,6 +59,7 @@ def _run_cli(argv, env=None):
         encoding="utf-8",
         errors="replace",
         env=env,
+        timeout=timeout,
     )
     out = proc.stdout.strip()
     err = proc.stderr.strip()
@@ -153,16 +154,16 @@ def test_task_run_accepts_timeout_arg() -> None:
     assert args.timeout == 1.5
 
 
-@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="需要已连接的设备才能执行业务命令")
 def test_nav_command_returns_success_with_target() -> None:
-    returncode, parsed, _ = _run_cli(["nav", "hub"])
+    returncode, parsed, _ = _run_cli(["nav", "CloseGame"])
     assert returncode in (0, 1)
     assert parsed.get("status") == "success"
     assert parsed.get("command") == "nav.to"
-    assert parsed.get("target") == "hub"
+    assert parsed.get("target") == "CloseGame"
 
 
-@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="需要已连接的设备才能执行业务命令")
 def test_daily_returns_success() -> None:
     returncode, parsed, _ = _run_cli(["daily"])
     assert returncode in (0, 1)
@@ -171,7 +172,7 @@ def test_daily_returns_success() -> None:
     assert parsed.get("flow") == "daily_quest"
 
 
-@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="需要已连接的设备才能执行业务命令")
 def test_harvest_returns_success() -> None:
     returncode, parsed, _ = _run_cli(["harvest"])
     assert returncode in (0, 1)
@@ -180,7 +181,7 @@ def test_harvest_returns_success() -> None:
     assert parsed.get("flow") == "entity_harvest"
 
 
-@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="需要已连接的设备才能执行业务命令")
 def test_analyze_returns_success() -> None:
     returncode, parsed, _ = _run_cli(["analyze"])
     assert returncode in (0, 1)
@@ -188,7 +189,7 @@ def test_analyze_returns_success() -> None:
     assert parsed.get("command") == "analyze.run"
 
 
-@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="需要已连接的设备才能执行业务命令")
 def test_explore_returns_success() -> None:
     returncode, parsed, _ = _run_cli(["explore"])
     assert returncode in (0, 1)

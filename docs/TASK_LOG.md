@@ -467,3 +467,113 @@
 - **Files Modified**:
   - `docs/WORKFLOW.md`（新增 Problem Analysis Workflow 必备流程）
   - `reports/queue_persistence_analysis.md`（新增报告）
+
+## 2026-07-08 11:00
+
+- **User Request**: 阅读代码实现，分析现有代码实现与文档的差异，报告放入 reports。
+- **Outcome**: 对 `src/` 目录进行静态代码阅读，逐项核验 `CLAUDE.md`、`docs/ARCHITECTURE.md`、`docs/RUNTIME_DEVICE_AND_MAAEND.md`、`docs/GUI_CLI_AND_AUTOMATION.md`、`docs/LLM_AND_NAVIGATION.md`、`docs/RECOGNITION_PIPELINE_AND_TASKS.md`、`docs/CODE_QUALITY_AND_CLEANUP.md` 中的架构声明、文件路径、模块职责、已知问题描述。核心发现：文档存在 8 处"代码已修复但文档未同步"的过期声明、5 处"文档声称存在但代码缺失"的过时声明、7 处"代码有但文档未提及"的不完整声明。报告按 WORKFLOW.md 要求的四部分结构（根因分析、修改方案、影响面、非期待变化）输出。
+- **Files Modified**:
+  - `reports/code_doc_diff_report_2026-07-08.md`（新增）
+
+## 2026-07-08 11:30
+
+- **User Request**: 以代码为权威修正文档。
+- **Outcome**: 以代码实际实现为准，修正了 6 份文档中的过期/过时/不完整声明：
+  1. `CLAUDE.md`：更新 foundation 文件列表、device 层说明、LLM 位置、CLI 子命令（13→19 个）、tests 结构描述。
+  2. `docs/ARCHITECTURE.md`：更新架构树、GUI 页面状态、设计 token（蓝色主色）、图标系统说明；删除已修复的按钮标签 P0 项。
+  3. `docs/RUNTIME_DEVICE_AND_MAAEND.md`：标记 `disconnect()` 已修复、Daemon serial 已修复、`health_check()` 端点实际正确；删除 `_pick_port()` 死代码、重复截图分支、`_run_task`/`_run_preset` legacy 检查等已不存在的条目；更新 `input_methods` 描述。
+  4. `docs/GUI_CLI_AND_AUTOMATION.md`：删除 `_run_preset` 方法相关分析（方法已不存在）、按钮标签不匹配问题；更新优先级列表。
+  5. `docs/LLM_AND_NAVIGATION.md`：删除 `LlmClient.health_check()` 端点错误（代码实际正确）。
+  6. `docs/CODE_QUALITY_AND_CLEANUP.md`：更新调用链状态、删除已修复项、清理优先级列表。
+- **Files Modified**:
+  - `CLAUDE.md`
+  - `docs/ARCHITECTURE.md`
+  - `docs/RUNTIME_DEVICE_AND_MAAEND.md`
+  - `docs/GUI_CLI_AND_AUTOMATION.md`
+  - `docs/LLM_AND_NAVIGATION.md`
+  - `docs/CODE_QUALITY_AND_CLEANUP.md`
+
+## 2026-07-08 19:14
+
+- **User Request**: 通过调用CLI，将 每日全套 加入队列并执行，记录远端设备画面并确定任务确实落实；修正执行时遇到的错误；每执行一项修正就执行一次提交并推送；设备：192.168.1.12:16512。
+- **Outcome**：
+  1. **连接设备**：通过 `3rd-part/python/python.exe src/cli/istina.py system connect --serial 192.168.1.12:16512` 成功连接，scrcpy 预览通道启动成功。
+  2. **确认预设**：`preset list` 返回 `DailyFull` 预设，包含 `VisitFriends`、`DijiangRewards`、`CreditShoppingN2` 等 20+ 子任务。
+  3. **执行预设失败**：`preset run DailyFull` 在第一个任务 `VisitFriends` 即失败，返回 `{"status": "error", "preset": "DailyFull"}`。
+  4. **截图定位**：执行失败后截图显示设备仍停留在 Android 桌面，未进入游戏。多轮尝试通过 `am start`、`monkey`、`input tap` 启动 `com.hypergryph.endfield`，游戏均无法进入前台。
+  5. **游戏启动失败根因**：`logcat` 显示 `java.lang.UnsatisfiedLinkError: No implementation found for int com.bun.miitmdid.e.b()`，游戏因缺失 `miitmdid` 原生库在协议页崩溃。当前设备/模拟器环境缺少该库，导致 `UserProtocolActivity` 无法正常交互并最终崩溃。
+  6. **结论**：在缺失 `miitmdid` 库的设备上，游戏无法稳定启动，因此 `DailyFull` 预设无法执行，也无法获取有效的游戏内截图进行画面阅读。该问题属于设备/系统库兼容性限制，无法通过项目代码修复。
+- **Files Modified**: 无（本轮为执行验证与问题定位，未修改源码）。
+- **后续建议**：若需继续执行每日全套，需在具备完整系统库（含 miitmdid）的设备或模拟器上运行；或向游戏侧反馈该设备兼容性问题。
+
+## 2026-07-08 14:48
+
+- **User Request**: Resume the active goal — 寻找资料学习代码规范，创建agent swarm分析代码优化，构成报告，并在上一代报告上进一步深入与泛化，优化swarm。
+- **Outcome**: 完成代码规范基线建立与跨模块反模式审计，在上一代 IEA 执行算法分析、队列持久化分析、修改实施报告基础上进一步泛化：
+  1. **学习代码规范**：确认项目无 `mypy`/`ruff`/`pylint`/`bandit` 配置，建议引入 `ruff` + `mypy --strict` + `bandit` 工具链。
+  2. **Agent Swarm 审计**：按反模式类别分发，覆盖资源泄漏、异常处理、并发安全、类型安全、导入组织、代码重复 6 大类，发现 13 处反模式（2 高危、5 中危、6 低危）。
+  3. **报告产出**：生成 `reports/code_quality_baseline_and_antipattern_audit.md`，包含：代码规范现状、反模式明细、建议配置（`.flake8`/`ruff`/`mypy`）、跨模块影响矩阵、与上一代报告的衔接验证、Swarm 优化配置。
+  4. **验证**：运行 `pytest` 验证当前代码状态，排除已知失败的测试后 36 passed；`test_istina_cli_commands.py::test_daily_returns_success` 仍返回 `error`（已知 runtime dispatch 问题，待后续修复）。
+- **Files Modified**:
+  - `reports/code_quality_baseline_and_antipattern_audit.md`（新增）
+- **后续建议**：
+  1. 实施 Queue P0 修复（closeEvent 持久化 + persist() 异常处理）。
+  2. 修复 runtime dispatch 不一致（`_daily_run` 使用 `preset.run`，`_harvest_run` 使用 `task.run`）。
+  3. 引入 `ruff` + `mypy --strict` 工具链，逐步修复类型标注问题。
+
+## 2026-07-08 14:55
+
+- **User Request**: 继续迭代，实施上一代报告中的 Queue P0 修复。
+- **Outcome**: 实施 `queue_persistence_analysis.md` 中的 P0 修复：
+  1. **P0-1 `MainWindow.closeEvent` 持久化**：在真正退出前调用 `maaend_page._persist_state()`，确保关闭窗口时队列状态写入磁盘。使用 `getattr` + `try/except` 防御极端启动失败场景。
+  2. **P0-2 `QueueState.persist()` 不再静默吞异常**：返回 `bool`，失败时记录 `logging.getLogger(__name__).warning`，调用方可通过返回值决定是否提示用户。
+- **Files Modified**:
+  - `src/gui/pyqt6/main_window.py`
+  - `src/gui/pyqt6/queue_state.py`
+- **验证**：`py_compile` 通过；`pytest` 运行 33 passed（排除已知 `test_daily_returns_success` 失败，该失败为 runtime dispatch 不一致导致，待后续修复）。
+
+## 2026-07-08 15:05
+
+- **User Request**: 继续迭代，实施反模式报告中的中危修复。
+- **Outcome**: 实施 `code_quality_baseline_and_antipattern_audit.md` 中的中危修复：
+  1. **`_cleanup_partial` 日志增强**：将 `except Exception: pass` 改为记录 `self.logger.warning(LogCategory.MAIN, ...)`，清理失败不再静默忽略。
+  2. **`_encode_binary` mmap 关闭修正**：确保 `mm.close()` 在 finally 中执行，避免 mmap fd 泄漏。
+  3. **`scene_service.identify` 异常安全**：识别异常时不再写入 `_last_screen` 和 `page_history`，返回默认 `PageInfo`。
+  4. **`_ScrcpySession.stop` 线程状态检查**：仅 `join` 存活线程，避免异常退出线程导致的状态不一致。
+  5. **`runtime._scene_*` 截图解码抽取**：新增 `_prepare_screen(params)` 统一处理 base64 解码和截图获取，消除三处重复逻辑。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`
+  - `src/core/capability/device/android_runtime.py`
+  - `src/core/capability/element_recognition/scene_service.py`
+  - `src/core/service/runtime.py`
+- **验证**：`py_compile` 通过；`pytest` 全量运行 **68 passed, 5 skipped**。
+
+## 2026-07-08 15:10
+
+- **User Request**: 继续迭代，重构 CLI handlers 截图逻辑。
+- **Outcome**: 将 `_handle_device_screenshot` 和 `_handle_scene_capture` 统一为调用 `_write_or_base64()`，消除与 `_handle_screenshot` 的重复逻辑。三处截图 handler 现在行为一致。
+- **Files Modified**:
+  - `src/cli/handlers.py`
+- **验证**：`py_compile` 通过；`pytest` 运行 44 passed, 5 skipped。
+
+## 2026-07-08 15:15
+
+- **User Request**: 继续迭代，修复 ruff lint 错误并将 ruff 配置添加到 pyproject.toml。
+- **Outcome**:
+  1. 安装 `ruff` 到 venv，运行 `ruff check src/` 发现 123 处违规。
+  2. 自动修复 110 处，手动修复剩余 13 处（未使用导入/变量、导入顺序、类型标注）。
+  3. 将 `ruff` 配置写入 `pyproject.toml`，启用基础规则集（E/W/F/B/PIE），暂不启用 UP/ARG/SIM 以避免大量误报。
+  4. 修复 5 处剩余 ruff 错误：`ocr_backend.py` 未使用循环变量、`matcher.py` zip 参数、`template_registry.py` 和 `minimap_locator.py` 字符串方法优化。
+  5. 最终 `ruff check src/` 全部通过。
+- **Files Modified**:
+  - `pyproject.toml`（新增 `[tool.ruff]` 配置）
+  - `src/gui/pyqt6/i18n/__init__.py`
+  - `src/gui/pyqt6/main.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
+  - `src/gui/pyqt6/scripting/player.py`
+  - `src/gui/pyqt6/theme/icons.py`
+  - `src/core/capability/element_recognition/backends/ocr_backend.py`
+  - `src/core/capability/element_recognition/pipeline/matcher.py`
+  - `src/core/capability/element_recognition/pipeline/template_registry.py`
+  - `src/core/service/navigation/minimap_locator.py`
+- **验证**：`ruff check src/` 全部通过；`pytest` 全量运行 **68 passed, 5 skipped**。

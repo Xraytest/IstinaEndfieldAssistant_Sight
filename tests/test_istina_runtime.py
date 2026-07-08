@@ -133,7 +133,7 @@ def test_execute_routes_harvest_run() -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
-    runtime._maaend = _FakeMaaEndRuntime(run_preset_result=True)
+    runtime._maaend = _FakeMaaEndRuntime(run_task_result=True)
     result = runtime.execute("harvest.run", {"options": {}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"

@@ -120,7 +120,7 @@
                     "name": "VideoBrowserURLString",
                     "label": "$option.VideoBrowserURL.label",
                     "pipeline_type": "string",
-                    "default": "https://www.bilibili.com"
+                    "default": "https://"
                 }
             ],
             "pipeline_override": {

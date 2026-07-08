@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from ..pipeline import PipelineGraph, PipelineLoader, PipelineNode, PipelineRunner
 from .task_loader import TaskLoader
-from ..pipeline import PipelineGraph, PipelineRunner, PipelineLoader, RecognitionType
 
 logger = logging.getLogger(__name__)
 

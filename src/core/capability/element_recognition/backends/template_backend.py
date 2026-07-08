@@ -15,14 +15,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from ..element_info import ElementInfo, ELEMENT_TYPES
+from ..element_info import ElementInfo
 from ..pipeline import (
-    TemplateRegistry,
-    TemplateMatcher as PipelineTemplateMatcher,
     PipelineRunner,
-    PipelineNode,
-    PipelineGraph,
-    RecognitionType,
+    TemplateRegistry,
+)
+from ..pipeline import (
+    TemplateMatcher as PipelineTemplateMatcher,
 )
 
 logger = logging.getLogger(__name__)

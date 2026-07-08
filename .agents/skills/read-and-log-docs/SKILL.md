@@ -13,13 +13,13 @@ metadata:
 每次与该项目的用户开始对话时，**必须先读取**以下全部文件：
 
 - `CLAUDE.md`
-- `docs/CODE_REVIEW_NAMING_AND_BINDING.md`
-- `docs/DEAD_CODE_CLEANUP.md`
-- `docs/GUI_TASK_QUEUE_ANALYSIS.md`
-- `docs/DELEGATION_CHAIN_ANALYSIS.md`
-- `docs/IEA_VS_MaaEnd_COMPARISON.md`
-- `docs/CHAIN_RECONSTRUCTION_REPORT.md`
-- `docs/LLM_PERFORMANCE.md`
+- `docs/ARCHITECTURE.md`
+- `docs/RUNTIME_DEVICE_AND_MAAEND.md`
+- `docs/GUI_CLI_AND_AUTOMATION.md`
+- `docs/LLM_AND_NAVIGATION.md`
+- `docs/RECOGNITION_PIPELINE_AND_TASKS.md`
+- `docs/CODE_QUALITY_AND_CLEANUP.md`
+- `docs/WORKFLOW.md`
 
 读取结果用于指导后续所有工具调用、代码修改与实现规划。
 

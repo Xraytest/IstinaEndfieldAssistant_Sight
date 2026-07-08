@@ -6,18 +6,16 @@ from typing import Optional
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
-    QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from gui.pyqt6.dashboard.widget_registry import get_widget_registry
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.widget_styles import BTN_DEFAULT, BTN_ACTIVE, CARD_STYLE, LIST_STYLE
+from gui.pyqt6.theme.widget_styles import LIST_STYLE
 
 locale = get_locale_manager()
 

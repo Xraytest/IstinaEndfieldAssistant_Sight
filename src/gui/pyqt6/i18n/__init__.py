@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from PyQt6.QtCore import QLocale, QSettings, QTranslator
 from PyQt6.QtWidgets import QApplication

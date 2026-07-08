@@ -2,3 +2,31 @@
 testpaths = ["tests"]
 norecursedirs = ["3rd-part", "cache", "logs", "venv", ".git", ".claude", ".qwen"]
 cache_dir = ".tmp/pytest_cache"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "B",   # flake8-bugbear
+    "PIE", # flake8-pie
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+    "B008", # do not perform function calls in argument defaults
+]
+# 暂不启用 isort/ARG/SIM 规则，避免大量回调签名和 try/except/pass 模式被误报。
+# 后续迭代可逐文件开启并修复。
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "src", "gui"]
+known-third-party = ["cv2", "numpy", "PyQt6", "maa", "av", "pynvml", "GPUtil"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true

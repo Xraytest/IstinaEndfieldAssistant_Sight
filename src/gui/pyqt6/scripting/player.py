@@ -5,12 +5,11 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import QTimer, QObject, QPoint, pyqtSignal
-from PyQt6.QtWidgets import QApplication, QLineEdit, QComboBox
+from PyQt6.QtCore import QObject, QPoint, Qt, QTimer, pyqtSignal
 from PyQt6.QtTest import QTest
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication, QComboBox, QLineEdit
 
-from gui.pyqt6.scripting.models import Script, ActionRecord
+from gui.pyqt6.scripting.models import ActionRecord, Script
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +98,6 @@ class Player(QObject):
             self._on_finished()
             return
 
-        action = self._script.actions[self._current_index]
         self._action_timer = QTimer(self)
         self._action_timer.setSingleShot(True)
         self._action_timer.timeout.connect(self._execute_action)

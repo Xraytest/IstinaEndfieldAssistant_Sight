@@ -9,14 +9,13 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import QObject, QProcess, QTimer, pyqtSignal
 from PyQt6.QtWidgets import QMessageBox
 
-from core.foundation.logger import get_logger, LogCategory
-from core.foundation.paths import get_project_root, ensure_src_path
+from core.foundation.logger import LogCategory, get_logger
+from core.foundation.paths import ensure_src_path, get_project_root
 from gui.pyqt6.i18n import get_locale_manager
 
 ensure_src_path(__file__)
@@ -156,26 +155,25 @@ class CLIBridge(QObject):
         if self._restart_pending:
             self._finalize_current_process()
             return
-        if self._interactive:
-            if exit_code != 0:
-                self._crash_count += 1
-                self._logger.warning(LogCategory.GUI, "CLI 交互进程异常退出", exit_code=exit_code, exit_status=str(exit_status), crash_count=self._crash_count)
-                self.processCrashed.emit(self._crash_count)
-            else:
-                self._logger.info(LogCategory.GUI, "CLI 交互进程正常退出", exit_code=exit_code)
-            if self._crash_count < self._max_crashes and not self._restart_pending:
-                self._restart_pending = True
-                if self._current_command:
-                    self._pending_commands.insert(0, list(self._current_command))
-                QTimer.singleShot(1000, self._restart_last_command)
-            else:
-                self._show_crash_dialog()
-            self._finalize_current_process()
-            return
-        if exit_status == QProcess.ExitStatus.CrashExit:
+        crashed = exit_status == QProcess.ExitStatus.CrashExit
+        if crashed:
             self._crash_count += 1
             self._logger.error(LogCategory.GUI, "CLI 进程崩溃", exit_code=exit_code, crash_count=self._crash_count)
             self.processCrashed.emit(self._crash_count)
+        if self._interactive:
+            if crashed:
+                if self._crash_count < self._max_crashes and not self._restart_pending:
+                    self._restart_pending = True
+                    if self._current_command:
+                        self._pending_commands.insert(0, list(self._current_command))
+                    QTimer.singleShot(1000, self._restart_last_command)
+                else:
+                    self._show_crash_dialog()
+            else:
+                self._logger.info(LogCategory.GUI, "CLI 交互进程正常退出", exit_code=exit_code)
+            self._finalize_current_process()
+            return
+        if crashed:
             if self._crash_count < self._max_crashes and not self._restart_pending:
                 self._restart_pending = True
                 if self._current_command:
@@ -199,15 +197,8 @@ class CLIBridge(QObject):
 
     def _on_error(self, error: QProcess.ProcessError) -> None:
         if error == QProcess.ProcessError.Crashed:
-            self._crash_count += 1
-            self.processCrashed.emit(self._crash_count)
-            if self._crash_count < self._max_crashes and not self._restart_pending:
-                self._restart_pending = True
-                if self._current_command:
-                    self._pending_commands.insert(0, list(self._current_command))
-                QTimer.singleShot(1000, self._restart_last_command)
-            else:
-                self._show_crash_dialog()
+            # 崩溃计数统一在 _on_finished 中处理，避免与 finished 信号重复触发。
+            self._logger.error(LogCategory.GUI, "CLI 进程崩溃(errorOccurred)", crash_count=self._crash_count)
 
     def _restart_last_command(self) -> None:
         self._restart_pending = False

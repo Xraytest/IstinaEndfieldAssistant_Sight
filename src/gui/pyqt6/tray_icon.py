@@ -6,17 +6,16 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QObject, QTimer
+from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QMenu,
-    QMessageBox,
     QSystemTrayIcon,
 )
 
-from gui.pyqt6.theme.theme_manager import ThemeManager, get_theme
 from gui.pyqt6.i18n import get_locale_manager
+from gui.pyqt6.theme.theme_manager import ThemeManager, get_theme
 
 
 class TrayIcon(QObject):
@@ -38,8 +37,8 @@ class TrayIcon(QObject):
         self._tray.setToolTip(locale.tr("app_title"))
 
         # Provide a simple fallback icon so tray activation does not warn.
-        from PyQt6.QtGui import QPixmap, QPainter, QColor
         from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QColor, QPainter, QPixmap
         pixmap = QPixmap(64, 64)
         pixmap.fill(QColor("transparent"))
         painter = QPainter(pixmap)

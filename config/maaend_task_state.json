@@ -2,5 +2,76 @@
   "selected_task": "TaskA",
   "selected_preset": "DailyFull",
   "queue_items": [],
-  "task_options": {}
+  "task_options": {
+    "VisitFriends": {
+      "VisitFriendsRemark": "Yes",
+      "ProductionAssistControl": [
+        "ProductionAssistMFGCabin",
+        "ProductionAssistGrowthChamber"
+      ]
+    },
+    "DijiangRewards": {
+      "AutoStartExchange": "Yes",
+      "StageTaskSetting": "No",
+      "ClueSetting": "No",
+      "SelectToGrow": "GrowAgain"
+    },
+    "CreditShoppingN2": {
+      "CreditShoppingForce": "Refresh",
+      "CreditShoppingReserve": {
+        "ReserveCreditThreshold": "300"
+      },
+      "CreditShoppingPriority1": "Yes",
+      "CreditShoppingPriority1Items": [
+        "ArsenalTicket",
+        "Oroberyl"
+      ],
+      "CreditShoppingPriority1DiscountValue": "Any",
+      "CreditShoppingPriority2": "Yes",
+      "CreditShoppingPriority2Items": [
+        "ArsenalTicket",
+        "Oroberyl",
+        "TCreds",
+        "ElementaryCognitiveCarrier",
+        "ElementaryCombatRecord",
+        "IntermediateCombatRecord",
+        "ArmsInspector",
+        "ArmsINSPKit",
+        "CastDie",
+        "HeavyCastDie",
+        "Protodisk",
+        "Protoset",
+        "Protoprism",
+        "Protohedron"
+      ],
+      "CreditShoppingPriority2DiscountValue": "-75%",
+      "CreditShoppingPriority3": "No"
+    },
+    "DeliveryJobs": {
+      "ValleyIV": "Yes",
+      "Wuling": "Yes"
+    },
+    "SellProduct": {},
+    "AutoStockpile": {},
+    "AutoStockStaple": {},
+    "AutoSell": {},
+    "EnvironmentMonitoring": {},
+    "DailyRewards": {
+      "DailyEmailRewards": "Yes",
+      "DailyEventRewards": "Yes",
+      "DailyTaskRewards": "Yes",
+      "DailyClaimDeliveryJobsRewards": "Yes",
+      "DailyProtocolPassRewards": "Yes"
+    },
+    "SeizeDeliveryJobs": {},
+    "AutoCollect": {
+      "AutoCollectRoutes": [
+        "Route1",
+        "Route2",
+        "Route3",
+        "Route4",
+        "Route5"
+      ]
+    }
+  }
 }

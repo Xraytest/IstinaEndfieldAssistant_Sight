@@ -5,10 +5,9 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Optional
 
-from core.foundation.logger import get_logger, LogCategory
+from core.foundation.logger import LogCategory, get_logger
 
 
 class TouchManager:

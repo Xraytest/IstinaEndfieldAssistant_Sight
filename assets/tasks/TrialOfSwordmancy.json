@@ -18,6 +18,25 @@
         }
     ],
     "option": {
+        "TrialOfSwordmancyConfirmRisk": {
+            "type": "switch",
+            "label": "$option.TrialOfSwordmancyConfirmRisk.label",
+            "description": "$option.TrialOfSwordmancyConfirmRisk.description",
+            "default_case": "No",
+            "cases": [
+                {
+                    "name": "No"
+                },
+                {
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "TrialOfSwordmancyDisabledError": {
+                            "enabled": false
+                        }
+                    }
+                }
+            ]
+        },
         "TrialOfSwordmancyMode": {
             "type": "select",
             "label": "$option.TrialOfSwordmancyMode.label",
@@ -28,6 +47,7 @@
                     "name": "Daily",
                     "label": "$option.TrialOfSwordmancyMode.cases.Daily.label",
                     "option": [
+                        "TrialOfSwordmancyConfirmRisk",
                         "TrialOfSwordmancyOverflow",
                         "TrialOfSwordmancyAutoFight"
                     ],
@@ -86,11 +106,18 @@
             "type": "select",
             "label": "$option.TrialOfSwordmancyOverflow.label",
             "description": "$option.TrialOfSwordmancyOverflow.description",
-            "default_case": "None",
+            "default_case": "Twice",
             "cases": [
                 {
                     "name": "None",
-                    "label": "$option.TrialOfSwordmancyOverflow.cases.None.label"
+                    "label": "$option.TrialOfSwordmancyOverflow.cases.None.label",
+                    "pipeline_override": {
+                        "TrialOfSwordmancyDecide": {
+                            "custom_action_param": {
+                                "overflowMode": "OverflowNone"
+                            }
+                        }
+                    }
                 },
                 {
                     "name": "Once",
@@ -105,21 +132,14 @@
                 },
                 {
                     "name": "Twice",
-                    "label": "$option.TrialOfSwordmancyOverflow.cases.Twice.label",
-                    "pipeline_override": {
-                        "TrialOfSwordmancyDecide": {
-                            "custom_action_param": {
-                                "overflowMode": "OverflowTwice"
-                            }
-                        }
-                    }
+                    "label": "$option.TrialOfSwordmancyOverflow.cases.Twice.label"
                 }
             ]
         },
         "TrialOfSwordmancyAutoFight": {
             "type": "switch",
             "label": "$option.TrialOfSwordmancyAutoFight.label",
-            "default_case": "No",
+            "default_case": "Yes",
             "cases": [
                 {
                     "name": "No",

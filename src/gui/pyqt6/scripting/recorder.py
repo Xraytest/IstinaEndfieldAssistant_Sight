@@ -4,23 +4,23 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from PyQt6.QtCore import QObject, QEvent, Qt, QTimer, QPoint, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
-    QApplication,
     QAbstractScrollArea,
-    QScrollBar,
     QAbstractSlider,
-    QMenu,
+    QApplication,
+    QComboBox,
     QDialog,
     QHeaderView,
-    QStatusBar,
     QLineEdit,
-    QComboBox,
+    QMenu,
+    QScrollBar,
+    QStatusBar,
 )
 
-from gui.pyqt6.scripting.models import Script, ActionRecord
+from gui.pyqt6.scripting.models import ActionRecord, Script
 
 if TYPE_CHECKING:
     from PyQt6.QtWidgets import QMainWindow

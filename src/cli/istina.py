@@ -12,10 +12,16 @@ from typing import Any, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from cli.handlers import (
+    CLIDispatch,
+    _handle_analyze,
+    _handle_daily,
+    _handle_explore,
+    _handle_harvest,
+)
 from core.foundation.logger import get_logger
 from core.foundation.paths import ensure_src_path
 from core.service.runtime import IstinaRuntime
-from cli.handlers import CLIDispatch, _handle_daily, _handle_harvest, _handle_analyze, _handle_explore
 
 __all__ = [
     "build_parser",
@@ -306,6 +312,7 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
                 sys.stdout.buffer.flush()
             except Exception as exc:
                 self_logger.error("CLI 交互循环: stdout 写入异常", error=str(exc))
+    self_logger.info("CLI 交互循环: 退出")
     return 0
 
 

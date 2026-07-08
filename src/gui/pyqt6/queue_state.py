@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -83,7 +84,7 @@ class QueueState:
                     "options": dict(entry.get("options") or {}),
                 })
 
-    def persist(self) -> None:
+    def persist(self) -> bool:
         try:
             state = {
                 "selected_task": self._selected_task,
@@ -93,8 +94,10 @@ class QueueState:
             }
             self._state_path.parent.mkdir(parents=True, exist_ok=True)
             self._state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-        except Exception:
-            pass
+            return True
+        except Exception as exc:
+            logging.getLogger(__name__).warning("QueueState persist failed: %s", exc)
+            return False
 
     def clear_queue(self) -> None:
         self._queue_items.clear()

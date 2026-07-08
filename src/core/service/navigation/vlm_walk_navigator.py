@@ -1,4 +1,4 @@
-﻿"""VlmWalkNavigator - VLM-driven walk controller for open-world navigation.
+"""VlmWalkNavigator - VLM-driven walk controller for open-world navigation.
 
 Replaces MaaEnd's blind-walk (ZONE + hard-coded waypoints) with an LLM/VLM
 loop: screenshot -> VLM decides action -> execute -> screenshot again, until
@@ -27,18 +27,18 @@ from __future__ import annotations
 import base64
 import json
 import time
-from dataclasses import dataclass, field
-from pathlib import Path
+from collections import deque
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 
-from core.foundation.logger import get_logger, LogCategory
-from core.foundation.paths import get_project_root
 from core.capability.llm import LlmClient
-from .minimap_locator import MinimapLocator, MapPosition
+from core.foundation.logger import get_logger
+
 from .map_data_loader import MapDataLoader
+from .minimap_locator import MapPosition, MinimapLocator
 
 
 @dataclass
@@ -115,7 +115,7 @@ class VlmWalkNavigator:
         self._config = config or VlmWalkConfig()
         self._system_prompt = system_prompt or _DEFAULT_SYSTEM_PROMPT
         self._logger = get_logger(__name__)
-        self._last_positions: List[Tuple[float, float]] = []
+        self._last_positions: deque[Tuple[float, float]] = deque(maxlen=self._config.stuck_threshold)
 
     # ------------------------------------------------------------------
     # Public API
@@ -189,8 +189,7 @@ class VlmWalkNavigator:
                     history.append({"step": step_idx, "action": "stuck_fallback_navmesh"})
                     # Return early — caller should retry via navmesh
                     break
-                else:
-                    history.append({"step": step_idx, "action": "stuck_continue"})
+                history.append({"step": step_idx, "action": "stuck_continue"})
 
             # Encode frame to base64 for VLM
             img_b64 = self._frame_to_base64(frame)
@@ -238,7 +237,7 @@ class VlmWalkNavigator:
             time.sleep(0.3)
 
         final_pos = self._grab_frame()
-        final_dist = -1.0
+        final_dist = float('inf')
         if final_pos is not None:
             p = self._locator.locate(final_pos)
             if p:
@@ -246,8 +245,9 @@ class VlmWalkNavigator:
                 dy = target_y - p.center_y
                 final_dist = (dx * dx + dy * dy) ** 0.5
 
+        arrived = final_dist <= self._config.target_radius * 1.5
         return {
-            "status": "success" if final_dist <= self._config.target_radius * 1.5 else "partial",
+            "status": "success" if arrived else "partial",
             "action": "vlm_walk",
             "steps_taken": len([h for h in history if "step" in h]),
             "total_decisions": step_idx + 1,
@@ -297,13 +297,11 @@ class VlmWalkNavigator:
             return None
 
     def _frame_to_base64(self, frame: np.ndarray) -> str:
-        _, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        _, buf = cv2.imencode(".png", frame)
         return base64.b64encode(buf).decode("ascii")
 
     def _is_stuck(self, cx: float, cy: float) -> bool:
         self._last_positions.append((cx, cy))
-        if len(self._last_positions) > self._config.stuck_threshold:
-            self._last_positions.pop(0)
         if len(self._last_positions) < self._config.stuck_threshold:
             return False
         # Check if all recent positions are within a tiny bounding box

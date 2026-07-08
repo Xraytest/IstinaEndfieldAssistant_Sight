@@ -10,12 +10,12 @@ _src_str = str(_SRC_DIR)
 if _src_str not in sys.path:
     sys.path.insert(0, _src_str)
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication  # noqa: E402
 
-from core.foundation.paths import ensure_src_path
-from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.main_window import MainWindow
-from gui.pyqt6.theme.theme_manager import apply_theme
+from core.foundation.paths import ensure_src_path  # noqa: E402
+from gui.pyqt6.i18n import get_locale_manager  # noqa: E402
+from gui.pyqt6.main_window import MainWindow  # noqa: E402
+from gui.pyqt6.theme.theme_manager import apply_theme  # noqa: E402
 
 ensure_src_path(__file__)
 

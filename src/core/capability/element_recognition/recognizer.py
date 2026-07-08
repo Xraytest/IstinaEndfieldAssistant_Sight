@@ -20,11 +20,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from .element_info import ElementInfo, PageInfo, ELEMENT_TYPES, PAGE_TYPES
-from .backends.template_backend import TemplateBackend
-from .backends.ocr_backend import OCRBackend
 from .backends.color_backend import ColorBackend
+from .backends.ocr_backend import OCRBackend
+from .backends.template_backend import TemplateBackend
 from .backends.yolo_backend import YOLOBackend
+from .element_info import PAGE_TYPES, ElementInfo, PageInfo
+
 logger = logging.getLogger(__name__)
 
 
@@ -168,6 +169,8 @@ class EndfieldElementRecognizer:
                     metadata={"method": "non_blue", "area": obj["area"],
                               "aspect": obj["aspect"]},
                 ))
+            # Phase 2.5 追加后二次去重，避免冗余元素
+            deduped = self._deduplicate(deduped)
 
         # Phase 3: 页面分类
         page_info = self._classify_page(screen, deduped, page_hint)
@@ -303,6 +306,7 @@ class EndfieldElementRecognizer:
             color_elems = self._color_backend.recognize(screen, color_sigs)
             if color_elems:
                 score += 1.0
+                element_sources.add("color")
 
         # Tier 3: OCR keywords (any element, not just required)
         ocr_keywords = sig.get("ocr_keywords", [])
@@ -341,24 +345,40 @@ class EndfieldElementRecognizer:
     def _deduplicate(self, elements: List[ElementInfo]) -> List[ElementInfo]:
         """Remove duplicate elements (same position within threshold + same/similar label).
 
-        Uses spatial proximity (0.05 normalized distance) instead of exact match.
+        Uses grid-based spatial bucketing for O(n) average-case dedup.
         """
         if len(elements) <= 1:
             return elements
 
-        # Sort by confidence descending — keep highest confidence
         sorted_elems = sorted(elements, key=lambda e: -e.confidence)
+        CELL_SIZE = 0.05
+        grid: Dict[Tuple[int, int], List[ElementInfo]] = {}
+
+        def _cell_key(cx: float, cy: float) -> Tuple[int, int]:
+            return (int(cx / CELL_SIZE), int(cy / CELL_SIZE))
+
+        def _check_duplicate(elem: ElementInfo, candidates: List[ElementInfo]) -> bool:
+            for existing in candidates:
+                if self._is_nearby(elem, existing, threshold=CELL_SIZE):
+                    return True
+            return False
 
         result: List[ElementInfo] = []
         for elem in sorted_elems:
+            cx, cy = elem.center
+            key = _cell_key(cx, cy)
             is_dup = False
-            for existing in result:
-                if self._is_nearby(elem, existing, threshold=0.05):
-                    # Same location — keep the one with higher confidence
-                    is_dup = True
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    neighbors = grid.get((key[0] + dx, key[1] + dy), [])
+                    if _check_duplicate(elem, neighbors):
+                        is_dup = True
+                        break
+                if is_dup:
                     break
             if not is_dup:
                 result.append(elem)
+                grid.setdefault(key, []).append(elem)
 
         return result
 

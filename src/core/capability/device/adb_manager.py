@@ -5,12 +5,11 @@
 
 from __future__ import annotations
 
-import logging
 import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-from core.foundation.logger import get_logger, LogCategory
+from core.foundation.logger import LogCategory, get_logger
 
 
 class ADBDeviceInfo:
@@ -124,7 +123,11 @@ class ADBDeviceManager:
         if serial:
             args += ["-s", serial]
         args += ["shell", "screencap", "-p"]
-        return subprocess.check_output(args, timeout=self._timeout)
+        data = subprocess.check_output(args, timeout=self._timeout)
+        # ADB on Windows may translate LF to CRLF in screencap output.
+        if data[:4] == b"\x89PNG" and b"\x0d\x0a" in data:
+            data = data.replace(b"\x0d\x0a", b"\x0a")
+        return data
 
     def version(self) -> str:
         output = subprocess.check_output([self._resolve_adb_path(), "version"], text=True, timeout=self._timeout)

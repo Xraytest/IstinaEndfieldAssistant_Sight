@@ -37,7 +37,7 @@
     registry.load_module("Common")
     pipeline_runner = PipelineRunner(registry)
 """
-from .element_info import ElementInfo, PageInfo, ELEMENT_TYPES, PAGE_TYPES
+from .element_info import ELEMENT_TYPES, PAGE_TYPES, ElementInfo, PageInfo
 from .recognizer import EndfieldElementRecognizer
 from .scene_service import SceneUnderstandingService
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
@@ -18,10 +18,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from gui.pyqt6.dashboard.widget_base import DashboardWidget
 from gui.pyqt6.dashboard.widget_registry import get_widget_registry
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.widget_styles import BTN_ACTIVE, BTN_DEFAULT, CARD_STYLE
+from gui.pyqt6.theme.widget_styles import BTN_ACTIVE
 
 locale = get_locale_manager()
 

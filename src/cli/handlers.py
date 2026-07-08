@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from core.foundation.logger import get_logger, LogCategory
+from core.foundation.logger import get_logger
 from core.foundation.paths import get_project_root
 from core.service.runtime import IstinaRuntime
 
@@ -25,6 +25,17 @@ def _json_dumps(result: Any) -> str:
         return json.dumps(result, ensure_ascii=False)
     except Exception as exc:
         return json.dumps({"status": "error", "message": str(exc)}, ensure_ascii=False)
+
+
+def _write_or_base64(data: bytes, out_path: Optional[str]) -> Dict[str, Any]:
+    if data is None:
+        return {"status": "error", "message": "screenshot returned None"}
+    out = Path(out_path) if out_path else None
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(data)
+        return {"status": "success", "path": str(out), "size": len(data)}
+    return {"status": "success", "size": len(data), "base64": base64.b64encode(data).decode("ascii")}
 
 
 class CLIDispatch:
@@ -267,14 +278,7 @@ def _handle_screenshot(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
     _logger.info("CLI handler: 开始 screenshot", out=getattr(args, "out", None))
     data = runtime.execute("screenshot", {})
     _logger.info("CLI handler: screenshot 完成", data_type=type(data).__name__, data_size=len(data) if isinstance(data, (bytes, bytearray)) else None)
-    if data is None:
-        return {"status": "error", "message": "screenshot returned None"}
-    out = Path(args.out) if args.out else None
-    if out:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(data)
-        return {"status": "success", "path": str(out), "size": len(data)}
-    return {"status": "success", "size": len(data), "base64": base64.b64encode(data).decode("ascii")}
+    return _write_or_base64(data, getattr(args, "out", None))
 
 
 def _handle_task_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
@@ -282,14 +286,14 @@ def _handle_task_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
         options = json.loads(args.options)
     except json.JSONDecodeError as exc:
         return {"status": "error", "message": f"options JSON 解析失败: {exc}"}
-    ok = runtime.execute(
-        "task.run",
-        {
-            "name": args.name,
-            "options": options,
-            "serial": getattr(args, "serial", None),
-        },
-    )
+    params = {
+        "name": args.name,
+        "options": options,
+        "serial": getattr(args, "serial", None),
+    }
+    if hasattr(args, "timeout") and args.timeout is not None:
+        params["timeout"] = args.timeout
+    ok = runtime.execute("task.run", params)
     return {"status": "success" if ok else "error", "task": args.name}
 
 
@@ -356,14 +360,7 @@ def _handle_device_status(runtime: IstinaRuntime, args: argparse.Namespace) -> D
 def _handle_device_screenshot(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     android = runtime.android()
     data = android.screenshot()
-    if data is None:
-        return {"status": "error", "message": "device screenshot returned None"}
-    out = Path(args.out) if getattr(args, "out", None) else None
-    if out:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(data)
-        return {"status": "success", "path": str(out), "size": len(data)}
-    return {"status": "success", "size": len(data), "base64": base64.b64encode(data).decode("ascii")}
+    return _write_or_base64(data, getattr(args, "out", None))
 
 
 def _handle_device_tap(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
@@ -430,14 +427,7 @@ def _handle_shell(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str,
 
 def _handle_scene_capture(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     data = runtime.android().screenshot()
-    if data is None:
-        return {"status": "error", "message": "scene capture returned None"}
-    out = Path(args.out) if getattr(args, "out", None) else None
-    if out:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(data)
-        return {"status": "success", "path": str(out), "size": len(data)}
-    return {"status": "success", "size": len(data), "base64": base64.b64encode(data).decode("ascii")}
+    return _write_or_base64(data, getattr(args, "out", None))
 
 
 def _handle_scene_nav(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
@@ -545,21 +535,24 @@ def _handle_gpu_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
     try:
         import pynvml
         pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        name = pynvml.nvmlDeviceGetName(handle)
-        mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        return {
-            "status": "success",
-            "gpus": [
-                {
-                    "index": 0,
-                    "name": name,
-                    "total_memory_bytes": mem.total,
-                    "free_memory_bytes": mem.free,
-                    "used_memory_bytes": mem.used,
-                }
-            ],
-        }
+        try:
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            name = pynvml.nvmlDeviceGetName(handle)
+            mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            return {
+                "status": "success",
+                "gpus": [
+                    {
+                        "index": 0,
+                        "name": name,
+                        "total_memory_bytes": mem.total,
+                        "free_memory_bytes": mem.free,
+                        "used_memory_bytes": mem.used,
+                    }
+                ],
+            }
+        finally:
+            pynvml.nvmlShutdown()
     except Exception:
         try:
             import GPUtil
@@ -585,21 +578,24 @@ def _handle_gpu_monitor(runtime: IstinaRuntime, args: argparse.Namespace) -> Dic
     try:
         import pynvml
         pynvml.nvmlInit()
-        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-        mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        return {
-            "status": "success",
-            "utilization": {
-                "gpu_percent": util.gpu,
-                "memory_percent": util.memory,
-            },
-            "memory": {
-                "total_bytes": mem.total,
-                "free_bytes": mem.free,
-                "used_bytes": mem.used,
-            },
-        }
+        try:
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            mem = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            return {
+                "status": "success",
+                "utilization": {
+                    "gpu_percent": util.gpu,
+                    "memory_percent": util.memory,
+                },
+                "memory": {
+                    "total_bytes": mem.total,
+                    "free_bytes": mem.free,
+                    "used_bytes": mem.used,
+                },
+            }
+        finally:
+            pynvml.nvmlShutdown()
     except Exception:
         try:
             import GPUtil
@@ -625,9 +621,7 @@ def _handle_gpu_recommend(runtime: IstinaRuntime, args: argparse.Namespace) -> D
     recommendation = "CPU"
     if gpus:
         mem = gpus[0].get("free_memory_bytes", 0)
-        if mem and mem >= 4 * 1024 * 1024 * 1024:
-            recommendation = "GPU"
-        elif mem and mem >= 2 * 1024 * 1024 * 1024:
+        if mem and mem >= 4 * 1024 * 1024 * 1024 or mem and mem >= 2 * 1024 * 1024 * 1024:
             recommendation = "GPU"
     return {
         "status": "success",

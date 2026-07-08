@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 from PyQt6.QtCore import QEvent, QObject, QSize, Qt
-from PyQt6.QtGui import QFontMetrics, QGuiApplication
+from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
 
 

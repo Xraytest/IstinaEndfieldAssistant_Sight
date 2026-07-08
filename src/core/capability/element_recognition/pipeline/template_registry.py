@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set
 import cv2
 import numpy as np
 
-from core.foundation.paths import get_project_root, ensure_src_path
+from core.foundation.paths import get_project_root
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,7 @@ class TemplateRegistry:
         if img is not None:
             return img
         for tpl_key, tpl_img in self._templates.items():
-            if tpl_key.endswith(key) or tpl_key.endswith(key.replace("/", "_")):
+            if tpl_key.endswith((key, key.replace("/", "_"))):
                 return tpl_img
             if key.endswith(tpl_key.split("/")[-1]):
                 return tpl_img

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import logging
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 
 from core.foundation.paths import get_cache_subdir
+
 from .backends.scene_geometry import SceneGeometryAnalyzer
 from .element_info import ElementInfo, PageInfo, SceneAnalysis3D
 from .recognizer import EndfieldElementRecognizer

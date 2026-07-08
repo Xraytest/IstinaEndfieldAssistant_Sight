@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtWidgets import QHBoxLayout, QPushButton, QWidget
+from PyQt6.QtWidgets import QPushButton, QWidget
 
 from gui.pyqt6.dashboard.widget_base import DashboardWidget
 from gui.pyqt6.i18n import get_locale_manager

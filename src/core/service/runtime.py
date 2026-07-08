@@ -7,17 +7,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import cv2
 import numpy as np
 
-from core.foundation.logger import get_logger, LogCategory
+from core.foundation.logger import LogCategory, get_logger
 from core.foundation.paths import get_project_root
 
 if TYPE_CHECKING:
-    from core.capability.llm import LlmClient, LlamaServerRuntime
-    from core.service.maa_end.runtime import MaaEndRuntime
+    pass
 
 # 以下模块按需导入，避免 CLI 轻量命令（如 metadata list）触发重依赖
 _AndroidRuntime = None
@@ -81,6 +80,10 @@ class AndroidRuntimeProxy:
         self._logger = get_logger(__name__)
         self._clients: Dict[str, Any] = {}
 
+    def __getattr__(self, name: str) -> Any:
+        client = self._client_for(None)
+        return getattr(client, name)
+
     @property
     def default_client(self):
         return self._client_for(None)
@@ -92,33 +95,6 @@ class AndroidRuntimeProxy:
             client = _get_android_runtime()(serial=resolved, adb_path=self._adb_path)
             self._clients[resolved] = client
         return client
-
-    def get_devices(self) -> List[Any]:
-        return self._client_for(None).get_devices()
-
-    def screenshot(self, serial: Optional[str] = None) -> Optional[bytes]:
-        return self._client_for(serial).screenshot(serial=serial)
-
-    def tap(self, x: int, y: int, serial: Optional[str] = None) -> None:
-        self._client_for(serial).tap(x, y, serial=serial)
-
-    def swipe(self, x1: int, y1: int, x2: int, y2: int, duration_ms: int = 300, serial: Optional[str] = None) -> None:
-        self._client_for(serial).swipe(x1, y1, x2, y2, duration_ms=duration_ms, serial=serial)
-
-    def keyevent(self, key: str, serial: Optional[str] = None) -> str:
-        return self._client_for(serial).keyevent(key, serial=serial)
-
-    def shell(self, cmd: str, serial: Optional[str] = None) -> str:
-        return self._client_for(serial).shell(cmd, serial=serial)
-
-    def start_scrcpy(self, max_size: int = 1280, bit_rate: int = 8000000, serial: Optional[str] = None) -> Dict[str, Any]:
-        return self._client_for(serial).start_scrcpy(max_size=max_size, bit_rate=bit_rate, serial=serial)
-
-    def stop_scrcpy(self, serial: Optional[str] = None) -> Dict[str, Any]:
-        return self._client_for(serial).stop_scrcpy(serial=serial)
-
-    def version(self) -> str:
-        return self._client_for(None).version()
 
 
 AndroidRuntimeProxy.__name__ = "AndroidRuntime"
@@ -134,10 +110,22 @@ class IstinaRuntime:
         self._android_clients: Dict[str, AndroidRuntimeProxy] = {}
         self._maaend_clients: Dict[str, Any] = {}
         self._maaend: Optional[Any] = None
-        self._llm_runtime = _get_llama_runtime(self._config)
-        self._llm_client = _get_llm_client(self._llm_runtime)
+        self._llm_runtime: Optional[Any] = None
+        self._llm_client: Optional[Any] = None
         self._scene_svc: Optional[Any] = None
         self._nav: Optional[Any] = None
+
+    @property
+    def _llm_runtime_instance(self) -> Any:
+        if self._llm_runtime is None:
+            self._llm_runtime = _get_llama_runtime(self._config)
+        return self._llm_runtime
+
+    @property
+    def _llm_client_instance(self) -> Any:
+        if self._llm_client is None:
+            self._llm_client = _get_llm_client(self._llm_runtime_instance)
+        return self._llm_client
 
     @property
     def config(self) -> Dict[str, Any]:
@@ -167,17 +155,19 @@ class IstinaRuntime:
             self._android_clients[resolved] = runtime
         return runtime
 
+    def _resolve_serial(self, serial: Optional[str]) -> Optional[str]:
+        device_cfg = self._config.get("device", {}) or {}
+        return (
+            serial
+            or device_cfg.get("last_connected")
+            or device_cfg.get("serial")
+        )
+
     def maaend(self, serial: Optional[str] = None) -> Any:
         legacy = getattr(self, "_maaend", None)
         if legacy is not None and not self._maaend_clients:
             return legacy
-        device_cfg = self._config.get("device", {}) or {}
-        resolved = (
-            serial
-            or device_cfg.get("last_connected")
-            or device_cfg.get("serial")
-            or "default"
-        )
+        resolved = self._resolve_serial(serial)
         runtime = self._maaend_clients.get(resolved)
         if runtime is None:
             from core.service.maa_end.runtime import MaaEndRuntime
@@ -256,6 +246,7 @@ class IstinaRuntime:
                 runtime.disconnect()
             except Exception as e:
                 self._logger.error(LogCategory.MAIN, "断开连接异常", serial=target, error=str(e))
+            self._maaend_clients.pop(target, None)
         # 断开所有设备时，同步停止 scrcpy 预览通道。
         try:
             self._logger.info(LogCategory.MAIN, "停止 scrcpy 预览通道", serial=serial)
@@ -266,7 +257,6 @@ class IstinaRuntime:
             self._logger.warning(LogCategory.MAIN, "停止 scrcpy 预览通道失败", error=str(exc))
 
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        self._config = self._load_config()
         params = params or {}
         parts = command.split(".")
         if len(parts) == 2:
@@ -399,7 +389,7 @@ class IstinaRuntime:
             self._logger.debug(LogCategory.MAIN, "_screenshot legacy MaaEnd 完成", size=len(data) if data else None)
             return data
         runtime = self.maaend(serial)
-        data = runtime.screenshot(serial)
+        data = runtime.screenshot()
         self._logger.debug(LogCategory.MAIN, "_screenshot MaaEndRuntime 完成", size=len(data) if data else None)
         return data
 
@@ -450,7 +440,7 @@ class IstinaRuntime:
 
     def _harvest_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}
-        preset_name = options.get("preset", "AutoCollect")
+        task_name = options.get("task", "AutoCollect")
         serial = params.get("serial")
         runtime = self.maaend(serial)
         if not self._ensure_maaend_ready(runtime):
@@ -458,16 +448,16 @@ class IstinaRuntime:
                 "status": "error",
                 "command": "harvest.run",
                 "flow": "entity_harvest",
-                "preset": preset_name,
+                "task": task_name,
                 "options": options,
                 "maaend_connected": False,
             }
-        ok = self.execute("preset.run", {"name": preset_name, "serial": serial})
+        ok = self.execute("task.run", {"name": task_name, "options": options, "serial": serial})
         return {
             "status": "success" if ok else "error",
             "command": "harvest.run",
             "flow": "entity_harvest",
-            "preset": preset_name,
+            "task": task_name,
             "options": options,
             "maaend_connected": self.connected,
         }
@@ -637,12 +627,17 @@ class IstinaRuntime:
     # Scene understanding commands
     # ------------------------------------------------------------------
 
-    def _scene_identify(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        svc = self.scene()
+    def _decode_image(self, image_bytes: bytes) -> Optional[np.ndarray]:
+        arr = np.frombuffer(image_bytes, dtype=np.uint8)
+        return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
+    def _prepare_screen(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """统一处理截图获取与解码。"""
+        import base64
+
         serial = params.get("serial")
         image_data = params.get("image")
         if image_data is not None:
-            import base64
             try:
                 image_bytes = base64.b64decode(image_data)
             except Exception:
@@ -651,10 +646,17 @@ class IstinaRuntime:
             image_bytes = self.android(serial).screenshot(serial=serial)
         if image_bytes is None:
             return {"status": "error", "message": "无法获取截图"}
-        arr = np.frombuffer(image_bytes, dtype=np.uint8)
-        screen = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        screen = self._decode_image(image_bytes)
         if screen is None:
             return {"status": "error", "message": "截图解码失败"}
+        return {"status": "success", "screen": screen}
+
+    def _scene_identify(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        svc = self.scene()
+        prepared = self._prepare_screen(params)
+        if "status" in prepared and prepared["status"] == "error":
+            return prepared
+        screen = prepared["screen"]
         page = svc.identify(screen)
         context = svc.get_scene_context()
         dominant_page, dominant_ratio = svc.get_dominant_page()
@@ -685,23 +687,11 @@ class IstinaRuntime:
         expected = params.get("expected")
         if not expected:
             return {"status": "error", "message": "缺少 expected 参数"}
-        serial = params.get("serial")
-        image_data = params.get("image")
-        if image_data is not None:
-            import base64
-            try:
-                image_bytes = base64.b64decode(image_data)
-            except Exception:
-                return {"status": "error", "message": "base64 解码失败"}
-        else:
-            image_bytes = self.android(serial).screenshot(serial=serial)
-        if image_bytes is None:
-            return {"status": "error", "message": "无法获取截图"}
-        arr = np.frombuffer(image_bytes, dtype=np.uint8)
-        screen = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if screen is None:
-            return {"status": "error", "message": "截图解码失败"}
         svc = self.scene()
+        prepared = self._prepare_screen(params)
+        if "status" in prepared and prepared["status"] == "error":
+            return prepared
+        screen = prepared["screen"]
         is_match, page = svc.verify(screen, expected)
         return {
             "status": "success",
@@ -714,22 +704,10 @@ class IstinaRuntime:
 
     def _scene_analyze_elements(self, params: Dict[str, Any]) -> Dict[str, Any]:
         svc = self.scene()
-        serial = params.get("serial")
-        image_data = params.get("image")
-        if image_data is not None:
-            import base64
-            try:
-                image_bytes = base64.b64decode(image_data)
-            except Exception:
-                return {"status": "error", "message": "base64 解码失败"}
-        else:
-            image_bytes = self.android(serial).screenshot(serial=serial)
-        if image_bytes is None:
-            return {"status": "error", "message": "无法获取截图"}
-        arr = np.frombuffer(image_bytes, dtype=np.uint8)
-        screen = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if screen is None:
-            return {"status": "error", "message": "截图解码失败"}
+        prepared = self._prepare_screen(params)
+        if "status" in prepared and prepared["status"] == "error":
+            return prepared
+        screen = prepared["screen"]
         enable_template = params.get("enable_template", True)
         enable_ocr = params.get("enable_ocr", True)
         enable_color = params.get("enable_color", True)
@@ -771,19 +749,19 @@ class IstinaRuntime:
     # ------------------------------------------------------------------
 
     def warmup_llm(self) -> bool:
-        if self._llm_runtime.ready:
+        if self._llm_runtime_instance.ready:
             return True
-        return self._llm_runtime.start()
+        return self._llm_runtime_instance.start()
 
     def cooldown_llm(self) -> None:
         try:
-            self._llm_runtime.stop()
+            self._llm_runtime_instance.stop()
         except Exception as exc:
             self._logger.warning("cooldown_llm 异常: %s", exc)
 
     def _llm_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        if not self._llm_runtime.ready:
-            ok = self._llm_runtime.start()
+        if not self._llm_runtime_instance.ready:
+            ok = self._llm_runtime_instance.start()
             if not ok:
                 return {"status": "error", "message": "llama-server 启动失败"}
         prompt = params.get("prompt") or params.get("text") or ""
@@ -792,7 +770,7 @@ class IstinaRuntime:
         max_tokens = params.get("max_tokens")
         image = params.get("image")
         try:
-            output = self._llm_client.chat(
+            output = self._llm_client_instance.chat(
                 prompt,
                 system=system,
                 temperature=temperature,
@@ -804,11 +782,19 @@ class IstinaRuntime:
             return {"status": "error", "command": "llm.chat", "message": str(exc)}
 
     def _llm_status(self) -> Dict[str, Any]:
+        try:
+            runtime = self._llm_runtime_instance
+        except Exception as exc:
+            return {
+                "status": "error",
+                "command": "llm.status",
+                "message": f"LLM runtime init failed: {exc}",
+            }
         return {
             "status": "success",
             "command": "llm.status",
             "enabled": self._config.get("llm", {}).get("enabled", True),
-            "ready": self._llm_runtime.ready,
-            "port": self._llm_runtime.port,
-            "base_url": self._llm_runtime.base_url,
+            "ready": runtime.ready,
+            "port": runtime.port,
+            "base_url": runtime.base_url,
         }

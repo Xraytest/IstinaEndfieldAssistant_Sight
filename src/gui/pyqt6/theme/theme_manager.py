@@ -6,11 +6,11 @@ Single arknight theme:低调暗黑 + 低调蓝灰高对比。
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication
-from pathlib import Path
 
 
 def _color_with_alpha(color: str, alpha_hex: str) -> str:

@@ -7,15 +7,14 @@ and a consistent Endfield industrial sci-fi aesthetic.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict
 
-from PyQt6.QtGui import QIcon, QPainter, QColor, QPainterPath, QPen
-from PyQt6.QtCore import QSize, Qt, QPointF
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 
 def _pixmap_from_path(path: QPainterPath, size: int = 16, color: str = "#19d1ff", stroke_width: float = 1.5) -> QPixmap:
     """Render a QPainterPath into a pixmap for use as an icon."""
-    from PyQt6.QtGui import QPixmap
     pixmap = QPixmap(size, size)
     pixmap.fill(QColor("transparent"))
     painter = QPainter(pixmap)
@@ -71,7 +70,6 @@ def _icon_device() -> QPainterPath:
 def _icon_settings() -> QPainterPath:
     p = QPainterPath()
     # Gear shape using arc approximations
-    from PyQt6.QtCore import QRectF
     p.arcMoveTo(3, 3, 10, 10, 0)
     p.arcTo(3, 3, 10, 10, 0, 360)
     p.addEllipse(5.5, 5.5, 5, 5)
@@ -174,7 +172,6 @@ def _icon_trash() -> QPainterPath:
 
 def _icon_refresh() -> QPainterPath:
     p = QPainterPath()
-    from PyQt6.QtCore import QRectF
     p.arcMoveTo(2, 2, 12, 12, 0)
     p.arcTo(2, 2, 12, 12, 0, 270)
     p.moveTo(8, 2)

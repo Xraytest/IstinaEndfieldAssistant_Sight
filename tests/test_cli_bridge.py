@@ -69,18 +69,20 @@ def test_cli_bridge_on_error_increments_crash_count_and_restarts(qapp: QApplicat
 
     with patch.object(QTimer, "singleShot") as mock_timer:
         bridge._on_error(QProcess.ProcessError.Crashed)
-        assert bridge._crash_count == 1
-        assert finished_crashes == [1]
-        assert mock_timer.call_count == 1
+        # 崩溃计数统一在 _on_finished 中处理，_on_error 只记录日志。
+        assert bridge._crash_count == 0
+        assert finished_crashes == []
+        assert mock_timer.call_count == 0
 
 
-def test_cli_bridge_on_error_shows_dialog_after_max_crashes(qapp: QApplication) -> None:
+def test_cli_bridge_on_finished_shows_dialog_after_max_crashes(qapp: QApplication) -> None:
     bridge = CLIBridge()
     bridge._crash_count = 4
+    bridge._last_command = ["daily"]
     bridge._process = MagicMock()
 
     with patch("gui.pyqt6.cli_bridge.QMessageBox.critical") as mock_dialog:
-        bridge._on_error(QProcess.ProcessError.Crashed)
+        bridge._on_finished(1, QProcess.ExitStatus.CrashExit)
         assert bridge._crash_count == 5
         assert mock_dialog.call_count == 1
 

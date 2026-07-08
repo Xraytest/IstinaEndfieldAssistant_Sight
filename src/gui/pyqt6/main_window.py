@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Callable, Optional
 
-from pathlib import Path
-
-from PyQt6.QtCore import QSettings, QTimer, Qt
+from PyQt6.QtCore import QSettings, Qt, QTimer
 from PyQt6.QtGui import QCloseEvent, QCursor, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
@@ -21,11 +21,10 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from gui.pyqt6.theme.widget_styles import PREVIEW_STYLE, PANEL_STYLE
 
 from core.foundation.gpu_check import check_gpu, format_gpu_warning
-from core.foundation.logger import get_logger, LogCategory
-from core.foundation.paths import ensure_src_path
+from core.foundation.logger import LogCategory, get_logger
+from core.foundation.paths import ensure_src_path, get_project_root
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
@@ -34,6 +33,7 @@ from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
 from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, fade_widget, ui_mode_for_size
+from gui.pyqt6.theme.widget_styles import PANEL_STYLE, PREVIEW_STYLE
 from gui.pyqt6.tray_icon import TrayIcon
 
 ensure_src_path(__file__)
@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         self._page_stack: Optional[QStackedWidget] = None
         self._preview_label: Optional[QLabel] = None
         self._preview_timer = QTimer(self)
-        self._preview_timer.setInterval(1500)
+        self._preview_timer.setInterval(self._preview_interval_ms())
         self._preview_timer.timeout.connect(self._refresh_preview)
         self._tray_icon: Optional[TrayIcon] = None
         self._title_animation_timer = QTimer(self)
@@ -113,6 +113,12 @@ class MainWindow(QMainWindow):
             self.hide()
             self._tray_icon.show_message(locale.tr("app_title", "IstinaEndfieldAssistant Sight"), locale.tr("tray_minimized", "Minimized to tray. Double-click tray icon to restore."))
         else:
+            maaend_page = getattr(self, "_maaend_page", None)
+            if maaend_page is not None:
+                try:
+                    maaend_page._persist_state()
+                except Exception as exc:
+                    self._logger.warning(LogCategory.GUI, "closeEvent 持久化队列状态失败", error=str(exc))
             super().closeEvent(event)
 
     def resizeEvent(self, event) -> None:
@@ -164,8 +170,8 @@ class MainWindow(QMainWindow):
         self._preview_label = QLabel(locale.tr("preview_empty", "No preview"))
         self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview_label.setStyleSheet(PREVIEW_STYLE)
-        self._preview_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self._preview_label.setMinimumHeight(160)
+        self._preview_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self._preview_label.setFixedSize(220, 124)
         self._preview_label.setAccessibleName("preview_area")
         self._preview_label.setAccessibleDescription("preview_area_desc")
         nav_layout.addWidget(self._preview_label, 1)
@@ -254,6 +260,11 @@ class MainWindow(QMainWindow):
         navigation_list = getattr(self, "_navigation_list", None)
         if navigation_list is not None:
             navigation_list.setFixedWidth(180 if mode == "compact" else 220)
+        preview_label = getattr(self, "_preview_label", None)
+        if preview_label is not None:
+            width = 180 if mode == "compact" else 220
+            height = max(101, int(width * 9 / 16))
+            preview_label.setFixedSize(width, height)
 
     def _on_nav_changed(self, index: int) -> None:
         if self._page_stack is None or index < 0:
@@ -343,7 +354,7 @@ class MainWindow(QMainWindow):
         loaded = pixmap.loadFromData(image_data)
         self._logger.debug(LogCategory.GUI, "QPixmap 加载", loaded=loaded, image_size=len(image_data))
         if loaded:
-            scaled = pixmap.scaled(self._preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            scaled = pixmap.scaled(self._preview_label.contentsRect().size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self._preview_label.setPixmap(scaled)
             self._logger.debug(LogCategory.GUI, "预览图像已上屏")
 
@@ -354,6 +365,13 @@ class MainWindow(QMainWindow):
         row_height = self._navigation_list.sizeHintForRow(0) if self._navigation_list.count() else 36
         total_height = frame + (row_height * self._navigation_list.count()) + 8
         self._navigation_list.setFixedHeight(total_height)
+
+    def _preview_interval_ms(self) -> int:
+        try:
+            config = json.loads((get_project_root() / "config" / "client_config.json").read_text(encoding="utf-8"))
+            return int(config.get("preview_interval_ms", 1500))
+        except Exception:
+            return 1500
 
     def bridge(self) -> CLIBridge:
         return self._bridge

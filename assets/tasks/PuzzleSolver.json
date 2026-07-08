@@ -1,5 +1,5 @@
 {
-    // 终末地电路拼图游戏的自动化 Task
+
     "task": [
         {
             "name": "PuzzleSolver",
@@ -29,10 +29,10 @@
                     "label": "$option.PuzzleSolverMode.cases.Single.label",
                     "pipeline_override": {
                         "PuzzleSolverMaybeLoop": {
-                            "next": [] // 单次执行时，主入口不循环
+                            "next": []
                         },
                         "PuzzleSolverOnSuccess": {
-                            "next": [] // 单次执行时，成功一次之后不循环
+                            "next": []
                         },
                         "PuzzleSolverOnMiss": {
                             "next": [
@@ -88,11 +88,11 @@
                     "label": "$option.PuzzleSolverMode.cases.DryRun.label",
                     "pipeline_override": {
                         "PuzzleSolverMaybeLoop": {
-                            "next": [] // 仅演示时，主入口不循环
+                            "next": []
                         },
                         "PuzzleSolverOnSuccess": {
                             "action": "DoNothing",
-                            "next": [] // 仅演示时，成功一次之后不循环
+                            "next": []
                         },
                         "PuzzleSolverOnMiss": {
                             "next": [

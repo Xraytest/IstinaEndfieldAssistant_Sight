@@ -15,26 +15,23 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.foundation.logger import get_logger, LogCategory
+from core.foundation.logger import LogCategory, get_logger
 from core.foundation.paths import get_project_root
 
 # Point maa library to MaaEnd maafw DLLs for matching versions.
 _PROJECT_ROOT = get_project_root()
 _maaend_agent_dir = _PROJECT_ROOT / "3rd-part" / "maaend" / "agent"
 _maafw_dir = _maaend_agent_dir / "maafw"
-if _maafw_dir.is_dir():
-    os.environ["MAAFW_BINARY_PATH"] = str(_maafw_dir.resolve())
-
 _DEFAULT_DLL_DIR = _maafw_dir if _maafw_dir.is_dir() else None
 
 MAAFW_AVAILABLE = False
 try:
     from maa.agent_client import AgentClient
+    from maa.controller import AdbController
+    from maa.define import MaaAdbInputMethodEnum, MaaAdbScreencapMethodEnum, MaaLoggingLevel
     from maa.resource import Resource
     from maa.tasker import Tasker
-    from maa.controller import AdbController
     from maa.toolkit import Toolkit
-    from maa.define import MaaAdbScreencapMethodEnum, MaaAdbInputMethodEnum, MaaLoggingLevel
     MAAFW_AVAILABLE = True
 except ImportError:
     AgentClient = None  # type: ignore[misc,assignment]
@@ -64,8 +61,6 @@ class MaaEndRuntime:
     def __init__(self, maaend_root: Optional[str] = None, device_address: str = "localhost:16512", adb_path: str = "3rd-part/adb/adb.exe"):
         self.logger = get_logger()
         self._maaend_root = Path(maaend_root) if maaend_root else self._default_maaend_root()
-        if device_address == "default":
-            device_address = "localhost:16512"
         self._device_address = device_address
         self._adb_path = str(get_project_root() / adb_path)
         self._resource: Optional[Any] = None
@@ -98,12 +93,12 @@ class MaaEndRuntime:
         return direct
 
     def _resolve_agent_root(self) -> Path:
-        """Resolve the agent directory, falling back to 3rd-part if the dev tree lacks binaries."""
+        """Resolve the agent directory, falling back to 3rd-part if the dev tree lacks binaries or maafw."""
         direct = self._maaend_root / "agent"
-        if (direct / "go-service.exe").is_file():
+        if (direct / "go-service.exe").is_file() and (direct / "maafw" / "MaaFramework.dll").is_file():
             return direct
         fallback = get_project_root() / "3rd-part" / "maaend" / "agent"
-        if (fallback / "go-service.exe").is_file():
+        if (fallback / "go-service.exe").is_file() and (fallback / "maafw" / "MaaFramework.dll").is_file():
             return fallback
         return direct
 
@@ -173,6 +168,9 @@ class MaaEndRuntime:
         return self._presets
 
     def connect(self) -> bool:
+        if self._device_address == "default":
+            self.logger.error(LogCategory.MAIN, "设备地址为默认占位值，请先配置 device.serial 或连接设备")
+            return False
         if not MAAFW_AVAILABLE:
             self.logger.error(LogCategory.MAIN, "MaaFramework 未安装，无法连接")
             return False
@@ -192,7 +190,7 @@ class MaaEndRuntime:
                 except Exception as exc:
                     self.logger.warning(LogCategory.MAIN, "Toolkit 初始化失败", error=str(exc))
             self._resource = Resource()
-            input_methods = int(MaaAdbInputMethodEnum.Maatouch if MaaAdbInputMethodEnum else 3)
+            input_methods = int(MaaAdbInputMethodEnum.AdbShell if MaaAdbInputMethodEnum else 1)
             screencap_methods = int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0)
             self._controller = AdbController(
                 adb_path=Path(self._adb_path),
@@ -209,6 +207,10 @@ class MaaEndRuntime:
                 return False
             screencap_job = self._controller.post_screencap()
             screencap_job.wait()
+            if not screencap_job.succeeded:
+                self.logger.error(LogCategory.MAIN, "首次截图失败", address=self._device_address)
+                self._cleanup_partial()
+                return False
             self._tasker = Tasker()
             if not self._tasker.bind(self._resource, self._controller):
                 self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
@@ -216,6 +218,10 @@ class MaaEndRuntime:
                 return False
             # Start Agent after Tasker is ready so it can register sinks correctly.
             self._start_agent()
+            if self._agent_client is None and self._agent_process is None:
+                self.logger.error(LogCategory.MAIN, "Agent 未启动，连接中止")
+                self._cleanup_partial()
+                return False
             if self._agent_client is not None:
                 try:
                     self._agent_client.bind(self._resource)
@@ -236,17 +242,17 @@ class MaaEndRuntime:
         try:
             if self._tasker is not None:
                 self._tasker = None
-        except Exception:
-            pass
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "清理 tasker 失败", error=str(exc))
         try:
             if self._agent_client is not None:
                 try:
                     self._agent_client.disconnect()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self.logger.warning(LogCategory.MAIN, "清理 agent_client 失败", error=str(exc))
                 self._agent_client = None
-        except Exception:
-            pass
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "清理 agent_client 失败", error=str(exc))
         try:
             if self._agent_process is not None:
                 try:
@@ -254,23 +260,24 @@ class MaaEndRuntime:
                         self._agent_process.terminate()
                         try:
                             self._agent_process.wait(timeout=3)
-                        except Exception:
+                        except Exception as exc:
+                            self.logger.warning(LogCategory.MAIN, "终止 agent_process 失败", error=str(exc))
                             self._agent_process.kill()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self.logger.warning(LogCategory.MAIN, "清理 agent_process 失败", error=str(exc))
                 self._agent_process = None
-        except Exception:
-            pass
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "清理 agent_process 失败", error=str(exc))
         try:
             if self._controller is not None:
                 self._controller = None
-        except Exception:
-            pass
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "清理 controller 失败", error=str(exc))
         try:
             if self._resource is not None:
                 self._resource = None
-        except Exception:
-            pass
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "清理 resource 失败", error=str(exc))
 
     def disconnect(self) -> None:
         self._cleanup_partial()
@@ -286,6 +293,7 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "go-service.exe 不存在，跳过 Agent 启动", path=str(agent_exe))
             return
         agent_id = f"istina-maaend-{int(time.time() * 1000)}"
+        process = None
         try:
             agent_env = os.environ.copy()
             agent_dll_dir = agent_root / "maafw"
@@ -293,17 +301,27 @@ class MaaEndRuntime:
                 agent_env["MAAFW_BINARY_PATH"] = str(agent_dll_dir.resolve())
             elif _DEFAULT_DLL_DIR is not None:
                 agent_env["MAAFW_BINARY_PATH"] = str(_DEFAULT_DLL_DIR.resolve())
-            self._agent_process = subprocess.Popen(
+            process = subprocess.Popen(
                 [str(agent_exe), agent_id],
                 cwd=str(agent_root),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 env=agent_env,
             )
+            self._agent_process = process
             self._agent_client = AgentClient(agent_id)
             self.logger.info(LogCategory.MAIN, "Agent 启动成功", port=agent_id)
         except Exception as exc:
             self.logger.error(LogCategory.MAIN, "启动 Agent 失败", error=str(exc))
+            if process is not None and process.poll() is None:
+                try:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=3)
+                    except Exception:
+                        process.kill()
+                except Exception:
+                    pass
             self._agent_client = None
             self._agent_process = None
 
@@ -439,9 +457,11 @@ class MaaEndRuntime:
             if job.succeeded:
                 self.logger.info(LogCategory.MAIN, "自定义管道执行成功", entry=entry)
                 return True
+            self._connected = False
             self.logger.warning(LogCategory.MAIN, "自定义管道执行失败", entry=entry)
             return False
         except Exception as e:
+            self._connected = False
             self.logger.exception(LogCategory.MAIN, "自定义管道执行异常", entry=entry, error=str(e))
             return False
 
@@ -470,9 +490,11 @@ class MaaEndRuntime:
             if job.succeeded:
                 self.logger.info(LogCategory.MAIN, "任务执行成功", task=task_name)
                 return True
+            self._connected = False
             self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
             return False
         except Exception as e:
+            self._connected = False
             self.logger.exception(LogCategory.MAIN, "任务执行异常", task=task_name, error=str(e))
             return False
 
@@ -546,13 +568,14 @@ class MaaEndRuntime:
     def imported_task_paths(self) -> List[str]:
         return self.interface().get("import", [])
 
-    def screenshot(self, serial: Optional[str] = None) -> Optional[bytes]:
+    def screenshot(self) -> Optional[bytes]:
         if not self._connected or self._controller is None:
             return None
         try:
             job = self._controller.post_screencap()
             job.wait()
             if not job.succeeded:
+                self._connected = False
                 return None
             cached = self._controller.cached_image
             if cached is None:
@@ -561,5 +584,6 @@ class MaaEndRuntime:
             success, buf = cv2.imencode(".png", cached)
             return buf.tobytes() if success else None
         except Exception as e:
+            self._connected = False
             self.logger.exception(LogCategory.MAIN, "截图失败", error=str(e))
             return None

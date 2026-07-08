@@ -16,7 +16,8 @@ def test_llm_runtime_forwards_image_to_client() -> None:
 
     runtime = IstinaRuntime()
     runtime._llm_client = FakeClient()
-    runtime._llm_runtime._ready = True
+    # _llm_runtime is now lazily initialized; provide a fake for the readiness check.
+    runtime._llm_runtime = type("obj", (object,), {"ready": True})()
 
     result = runtime.execute(
         "llm.chat",

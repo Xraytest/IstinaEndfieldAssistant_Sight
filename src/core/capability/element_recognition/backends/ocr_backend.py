@@ -6,7 +6,7 @@ OCR 后端 — 优先使用 maafw 内置 OCR，回退到 MaaEndOCR / OCRManager
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 MAAFW_OCR_AVAILABLE = False
 try:
-    from maa.pipeline import JRecognitionType, JOCR
+    from maa.pipeline import JOCR, JRecognitionType
     from maa.tasker import Tasker
     MAAFW_OCR_AVAILABLE = True
 except ImportError:
@@ -213,7 +213,7 @@ class OCRBackend:
         ))
 
         # 子文本块
-        for i, sub in enumerate(all_results[:10]):
+        for sub in all_results[:10]:
             sub_text = sub.get("text", "")
             if not sub_text or sub_text == best_text:
                 continue
@@ -259,15 +259,13 @@ class OCRBackend:
                     sx, sy = min(xs), min(ys)
                     ex, ey = max(xs), max(ys)
                     return (int(sx), int(sy), int(ex - sx), int(ey - sy))
-                else:
-                    # Standard [x, y, w, h] or [x1, y1, x2, y2]
-                    vals = [int(v) for v in box[:4]]
-                    if vals[2] > vals[0] and vals[3] > vals[1]:
-                        # Looks like [x1, y1, x2, y2]
-                        return (vals[0], vals[1], vals[2] - vals[0], vals[3] - vals[1])
-                    else:
-                        # [x, y, w, h]
-                        return (vals[0], vals[1], vals[2], vals[3])
+                # Standard [x, y, w, h] or [x1, y1, x2, y2]
+                vals = [int(v) for v in box[:4]]
+                if vals[2] > vals[0] and vals[3] > vals[1]:
+                    # Looks like [x1, y1, x2, y2]
+                    return (vals[0], vals[1], vals[2] - vals[0], vals[3] - vals[1])
+                # [x, y, w, h]
+                return (vals[0], vals[1], vals[2], vals[3])
         except (TypeError, ValueError, IndexError):
             pass
 

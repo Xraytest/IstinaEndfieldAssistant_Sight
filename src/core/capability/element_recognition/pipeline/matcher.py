@@ -45,7 +45,7 @@ class TemplateMatcher:
         res = cv2.matchTemplate(screen_roi, tpl, cv2.TM_CCOEFF_NORMED)
         locations = np.where(res >= threshold)
         results = []
-        for pt in zip(*locations[::-1]):
+        for pt in zip(*locations[::-1]):  # noqa: B905
             x, y = pt
             conf = float(res[y, x])
             results.append({

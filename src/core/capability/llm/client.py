@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from core.foundation.logger import get_logger, LogCategory
+from core.foundation.logger import LogCategory, get_logger
 
 
 class LlmClientError(Exception):

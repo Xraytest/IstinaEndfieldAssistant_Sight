@@ -2,21 +2,20 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional
 
-import cv2
 import numpy as np
 
-from ..element_info import ElementInfo
-from .pipeline_node import PipelineNode, PipelineGraph, RecognitionType, NodeAction
-from .template_registry import TemplateRegistry
 from .matcher import TemplateMatcher
+from .pipeline_node import NodeAction, PipelineGraph, PipelineNode, RecognitionType
+from .template_registry import TemplateRegistry
 
 logger = logging.getLogger(__name__)
 
 MAAFW_AVAILABLE = False
 try:
-    from maa.pipeline import JRecognitionType, JOCR, JTemplateMatch as MJTemplateMatch
+    from maa.pipeline import JOCR, JRecognitionType
+    from maa.pipeline import JTemplateMatch as MJTemplateMatch
     from maa.tasker import Tasker
     MAAFW_AVAILABLE = True
 except ImportError:
@@ -71,7 +70,7 @@ class PipelineRunner:
                 time.sleep(current.pre_delay / 1000.0)
             if current.pre_wait_freezes is not None:
                 self._wait_for_freeze(screen, current.pre_wait_freezes)
-            match_result = self._evaluate(screen, current)
+            match_result = self._evaluate(screen, current, graph)
             executed.append(current.name)
             self._hit_counts[current.name] = self._hit_counts.get(current.name, 0) + 1
             self._last_run[current.name] = time.time()
@@ -106,9 +105,14 @@ class PipelineRunner:
         entry: str,
         target_node: Optional[str] = None,
         max_steps: int = 200,
+        max_retries: int = 3,
+        retry_backoff_s: float = 0.1,
     ) -> Dict[str, Any]:
         result = self.run(screen, graph, entry, max_steps)
-        while result["status"] != "matched" and result["steps"] < max_steps:
+        retries = 0
+        while result["status"] != "matched" and result["steps"] < max_steps and retries < max_retries:
+            time.sleep(retry_backoff_s)
+            retries += 1
             result = self.run(screen, graph, entry, max_steps)
             if target_node and target_node in result.get("executed", []):
                 break
@@ -126,7 +130,7 @@ class PipelineRunner:
         self._last_run.clear()
 
     def _evaluate(
-        self, screen: np.ndarray, node: PipelineNode
+        self, screen: np.ndarray, node: PipelineNode, graph: Optional[PipelineGraph] = None
     ) -> Optional[List[Dict]]:
         if node.recognition == RecognitionType.DirectHit:
             return [{"confidence": 1.0, "method": "DirectHit"}]
@@ -135,9 +139,9 @@ class PipelineRunner:
         if node.recognition == RecognitionType.OCR:
             return self._match_ocr(screen, node)
         if node.recognition == RecognitionType.And:
-            return self._evaluate_and(screen, node)
+            return self._evaluate_and(screen, node, graph)
         if node.recognition == RecognitionType.Or:
-            return self._evaluate_or(screen, node)
+            return self._evaluate_or(screen, node, graph)
         return None
 
     def _match_template(
@@ -279,37 +283,41 @@ class PipelineRunner:
         return []
 
     def _evaluate_and(
-        self, screen: np.ndarray, node: PipelineNode
+        self, screen: np.ndarray, node: PipelineNode, graph: Optional[PipelineGraph]
     ) -> Optional[List[Dict]]:
         sub_names = node.all_of or []
         all_results = []
         for sub_name in sub_names:
-            sub_node = PipelineNode(
-                name=sub_name,
-                recognition=RecognitionType.DirectHit,
-                template=None,
-                roi=None,
-                threshold=node.threshold,
-            )
-            result = self._evaluate(screen, sub_node)
+            sub_node = graph.get_node(sub_name) if graph is not None else None
+            if sub_node is None:
+                sub_node = PipelineNode(
+                    name=sub_name,
+                    recognition=RecognitionType.DirectHit,
+                    template=None,
+                    roi=None,
+                    threshold=node.threshold,
+                )
+            result = self._evaluate(screen, sub_node, graph)
             if not result:
                 return None
             all_results.extend(result)
         return all_results
 
     def _evaluate_or(
-        self, screen: np.ndarray, node: PipelineNode
+        self, screen: np.ndarray, node: PipelineNode, graph: Optional[PipelineGraph]
     ) -> Optional[List[Dict]]:
         sub_names = node.any_of or []
         for sub_name in sub_names:
-            sub_node = PipelineNode(
-                name=sub_name,
-                recognition=RecognitionType.DirectHit,
-                template=None,
-                roi=None,
-                threshold=node.threshold,
-            )
-            result = self._evaluate(screen, sub_node)
+            sub_node = graph.get_node(sub_name) if graph is not None else None
+            if sub_node is None:
+                sub_node = PipelineNode(
+                    name=sub_name,
+                    recognition=RecognitionType.DirectHit,
+                    template=None,
+                    roi=None,
+                    threshold=node.threshold,
+                )
+            result = self._evaluate(screen, sub_node, graph)
             if result:
                 return result
         return None

@@ -4,28 +4,25 @@ import base64
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import QTimer, Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
+    QFileDialog,
     QFrame,
+    QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QScrollArea,
+    QSplitter,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
-    QHBoxLayout,
-    QPushButton,
-    QTextEdit,
-    QLineEdit,
-    QCheckBox,
-    QFileDialog,
-    QSplitter,
 )
 
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
-from gui.pyqt6.theme.widget_styles import BLUE_STYLE, RED_STYLE, VAL_STYLE
-
+from gui.pyqt6.theme.widget_styles import BLUE_STYLE, RED_STYLE
 
 locale = get_locale_manager()
 

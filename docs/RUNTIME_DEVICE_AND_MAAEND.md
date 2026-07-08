@@ -1,4 +1,4 @@
-# IEA→MaaEnd 设备控制委托链错误分析
+# 运行时、设备与 MaaEnd 集成
 
 ## 1. 委托链完整路径
 
@@ -43,11 +43,96 @@
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
----
+## 2. 跨模块调用链检查
 
-## 2. 发现的 8 个关键错误点
+### 2.1 Runtime → MaaEnd → Device
 
-### 错误 1：双 MaaEnd 副本路径不一致（最严重）
+| 调用链 | 状态 | 备注 |
+|--------|------|------|
+| `IstinaRuntime.maaend()` → `MaaEndRuntime` | ✅ | 结构正确 |
+| `IstinaRuntime.android()` → `AndroidRuntimeProxy` → `AndroidRuntime` → `_Daemon` | ✅ | `_Daemon._dispatch()` 已统一使用 `params.get("serial", self._serial)` |
+| `IstinaRuntime.disconnect()` → `MaaEndRuntime.disconnect()` | ✅ | `disconnect()` 已调用 `_cleanup_partial()` 终止 agent 进程 |
+
+### 2.2 Scene → Recognizer → Backends
+
+| 调用链 | 状态 | 备注 |
+|--------|------|------|
+| `SceneUnderstandingService.identify()` → `EndfieldElementRecognizer.recognize()` | ✅ | |
+| `EndfieldElementRecognizer` → `TemplateBackend/OCRBackend/ColorBackend/YOLOBackend` | ✅ | |
+| `EndfieldElementRecognizer` → `PipelineRunner` (via TemplateBackend) | ⚠️ | MaaFW 注入仅在 TemplateBackend 中，TaskRunner 路径缺失（见下文 High #2） |
+
+### 2.3 CLI/GUI → Runtime
+
+| 调用链 | 状态 | 备注 |
+|--------|------|------|
+| `CLIDispatch.dispatch()` → `runtime.execute()` | ✅ | 19 个分支全部映射 |
+| `MaaEndControlPage._sync_execute()` → `CLIBridge.execute()` | ✅ | 存在死代码（见下文 Low #7） |
+| GUI 选项序列化 → Runtime options | ⚠️ | 合并顺序错误（见下文 High #2） |
+
+### 2.4 LLM & Navigation
+
+| 调用链 | 状态 | 备注 |
+|--------|------|------|
+| `LlamaServerRuntime` → `llama-server` 进程 | ✅ | 死锁风险（见下文 Medium #4） |
+| `LlmClient.chat()` → `/v1/chat/completions` | ✅ | |
+| `Navigator.to_coords_vlm()` → `VlmWalkNavigator` | ✅ | `level_id` 回退不一致（见下文 Medium #5） |
+| `_vlm_keyevent()` → `AndroidRuntimeProxy.keyevent()` | ✅ | 签名匹配 |
+
+## 3. Runtime & Device 层问题
+
+### High
+
+1. **`MaaEndRuntime.disconnect()` 泄漏 agent 进程** — ✅ 已修复
+   `disconnect()` 已直接调用 `self._cleanup_partial()`（`src/core/service/maa_end/runtime.py:282`）。
+
+2. **Daemon 忽略 `serial` 参数（tap/swipe/keyevent/shell）** — ✅ 已修复
+   `_Daemon._dispatch()` 已统一使用 `params.get("serial", self._serial)`（`src/core/capability/device/android_runtime.py:470-488`）。
+
+### Medium
+
+3. **`AndroidRuntimeProxy.adb_manager` 命名误导**
+   `src/core/service/runtime.py:39-40` 返回 `AndroidRuntime`，而非 `ADBDeviceManager`。
+   **修复**：改名为 `default_client` 或返回真实管理器。
+
+4. **`MaaEndRuntime.screenshot()` 缺少 `serial` 参数**
+   `src/core/service/maa_end/runtime.py:529` 与 `AndroidRuntime.screenshot(serial)` 签名不一致。
+   **修复**：添加可选 `serial` 或文档说明其 per-device 约束。
+
+5. **`device_address` 默认值不一致**
+   `MaaEndRuntime` 默认 `"localhost:16512"`，但 `IstinaRuntime.maaend()` 回退到 `"default"`，会导致 `AdbController` 连接失败。
+   **修复**：统一默认地址或在 `MaaEndRuntime.__init__` 中校验。
+
+6. **`version()` 未暴露给 `AndroidRuntimeProxy`**
+   Daemon 与 `AndroidRuntime` 已实现，但 Proxy 未转发。
+   **修复**：在 Proxy 中添加 `version()`。
+
+7. **`ADBDeviceManager` 路径解析策略不一致**
+   `AndroidRuntime` 使用 `get_project_root()` 拼接，`MaaEndRuntime` 按原始路径解析。
+   **修复**：统一使用 `get_project_root()`。
+
+8. **`tasks()`/`presets()` 在空字典时反复重载**
+   `self._tasks or self.load_tasks()` 在空 dict 时为 falsy，导致每次调用都走磁盘。
+   **修复**：改为 `if not self._tasks: self.load_tasks(); return self._tasks`。
+
+9. **`load_interface()` 缺少异常处理**
+   `src/core/service/maa_end/runtime.py:104-108` 未 try/except，`load_tasks()`/`load_presets()` 均已包裹。
+   **修复**：添加异常处理并返回 `{}`。
+
+### Low
+
+10. **不可达的 `if not self.connected` 块**
+    `_daily_run/_harvest_run/_analyze_run/_explore_run/_nav_to` 中，`_ensure_maaend_ready()` 之后必然 connected。
+    **修复**：移除死代码或将检查前移。
+
+12. **误导性类名**
+    - `IstinaRuntime` 实际是 Facade/Dispatcher。
+    - `AndroidRuntimeProxy` 是 Adapter。
+    - `MaaEndRuntime` docstring 声称 "mirror MaaEnd" 但实为本地 bridge。
+    **修复**：重命名或更新 docstring。
+
+## 4. MaaEnd 集成问题
+
+### 4.1 双 MaaEnd 副本路径不一致（最严重）
 
 **现象**：项目同时存在两个 MaaEnd 副本，内容不同步：
 
@@ -85,9 +170,7 @@
 
 **影响**：任务执行时 pipeline override 与实际资源不匹配，导致识别失败、操作错误。
 
----
-
-### 错误 2：`MAAFW_BINARY_PATH` 环境变量冲突
+### 4.2 `MAAFW_BINARY_PATH` 环境变量冲突
 
 **现象**：DLL 加载路径被多个地方设置，可能导致版本冲突。
 
@@ -129,9 +212,7 @@ maa.Init(maa.WithLibDir(libDir))
 
 **影响**：设备控制时 MaaFramework 内部状态不一致，截图/点击/识别全部失效。
 
----
-
-### 错误 3：Agent 进程启动的静默失败
+### 4.3 Agent 进程启动的静默失败
 
 **现象**：`_start_agent()` 启动 `go-service.exe` 失败时只记录 warning，继续执行。
 
@@ -160,32 +241,11 @@ def _start_agent(self) -> None:
 - 任务执行到 Custom Action 时无响应或回退到默认行为
 - 用户看到"任务执行失败"但不知道是 Agent 未启动
 
----
+### 4.4 `input_methods` 使用枚举值
 
-### 错误 4：`input_methods=3` 硬编码且无验证
+当前 `MaaEndRuntime` 使用 `MaaAdbInputMethodEnum.AdbShell` 枚举值（`src/core/service/maa_end/runtime.py:193`），无 MaaFramework 时回退为 `1`（`AdbShell`）。非硬编码字面量 `3`。
 
-**现象**：ADB 输入方法硬编码为 `3`，未验证设备兼容性。
-
-```python
-input_method = 3  # ← 硬编码
-self._controller = AdbController(
-    ...
-    input_methods=input_method,
-    config={},
-)
-```
-
-**根本原因**：
-- `MaaAdbInputMethodEnum` 的值随 MaaFramework 版本变化
-- 常见值：`0=None`, `1=AdbShell`, `2=MiniTouch`, `3=MaaTouch`
-- 如果设备未安装 `maatouch` 或版本不匹配，输入操作全部失效
-- 没有 fallback 机制（如尝试 `AdbShell`）
-
-**影响**：设备连接成功，但所有点击/滑动操作无效。
-
----
-
-### 错误 5：legacy 兼容代码干扰连接状态
+### 4.5 legacy 兼容代码干扰连接状态
 
 **现象**：`_ensure_maaend_ready()` 包含 legacy 兼容代码，可能错误修改 `_connected`。
 
@@ -210,9 +270,7 @@ def _ensure_maaend_ready(self, runtime: MaaEndRuntime) -> bool:
 
 **影响**：连接逻辑难以追踪，可能在边界条件下产生意外行为。
 
----
-
-### 错误 6：多设备 serial 处理不一致
+### 4.6 多设备 serial 处理不一致
 
 **现象**：`maaend(serial)` 按 serial 缓存 runtime，但 `connect()` 未传递 serial。
 
@@ -251,9 +309,7 @@ def connect(self, serial: Optional[str] = None) -> bool:
 
 **影响**：多设备场景下，连接状态管理混乱。
 
----
-
-### 错误 7：`_start_agent()` 在 AdbController 之前启动
+### 4.7 `_start_agent()` 在 AdbController 之前启动
 
 **现象**：Agent 进程在控制器创建之前启动。
 
@@ -280,9 +336,7 @@ def connect(self) -> bool:
 - Go 自定义 Recognition/Action 无法正确注册
 - Tasker 事件无法正确传递给 Go service
 
----
-
-### 错误 8：`Toolkit.init_option()` 路径可能无效
+### 4.8 `Toolkit.init_option()` 路径可能无效
 
 **现象**：MaaFramework 初始化路径可能不正确。
 
@@ -306,24 +360,18 @@ if Toolkit is not None:
 
 **影响**：MaaFramework 使用错误的配置运行，行为不可预测。
 
----
-
-## 3. 委托链失败的根本原因总结
+## 5. 委托链失败的根本原因总结
 
 | 错误 | 严重程度 | 根本原因 | 影响 |
 |------|----------|----------|------|
 | 双副本不一致 | **P0** | `3rd-part/maaend/` 与 `MaaEnd/` 内容不同步，IEA 默认加载旧副本 | 任务定义与资源不匹配，识别/操作全部失效 |
 | DLL 路径冲突 | **P0** | `MAAFW_BINARY_PATH` 被多个组件设置，可能加载不同版本的 DLL | Python 与 Go 端的 MaaFramework 状态不一致，崩溃或静默错误 |
 | Agent 静默失败 | **P1** | `_start_agent()` 异常被吞，不向上传递 | Go 自定义逻辑全部失效，任务执行到 Custom Action 时失败 |
-| input_methods=3 | **P1** | 硬编码输入方法，无设备兼容性检查 | 设备连接成功但点击/滑动无效 |
-| legacy 兼容代码 | **P2** | `_ensure_maaend_ready()` 残留旧版 API 假设 | 连接状态管理混乱，难以调试 |
 | 多设备 serial 处理 | **P2** | 连接状态检查未区分不同 runtime | 多设备场景下状态混乱 |
 | Agent 启动时序 | **P2** | Agent 在控制器之前启动 | Go 初始化时序错误 |
 | Toolkit 路径 | **P3** | 配置路径可能无效，异常被吞 | MaaFramework 使用默认配置 |
 
----
-
-## 4. 修复建议优先级
+## 6. 修复建议优先级
 
 ### P0 — 立即修复
 
@@ -343,29 +391,19 @@ if Toolkit is not None:
    - `_start_agent()` 失败时应该让 `connect()` 返回 `False`
    - 或者至少记录 error 级别日志，明确告知用户 Agent 未启动
 
-4. **ADB 输入方法自动检测**
-   - 尝试 `MaaTouch` (3)，失败则 fallback 到 `AdbShell` (1)
-   - 或者根据设备类型自动选择
-
 ### P2 — 中期修复
 
-5. **清理 legacy 兼容代码**
-   - 移除 `_ensure_maaend_ready()` 中的 `_connect_result` 检查
-   - 统一连接状态管理
-
-6. **Agent 启动时序调整**
+4. **Agent 启动时序调整**
    - 将 `_start_agent()` 移到 `Tasker.bind()` 之后
    - 确保控制器和 Tasker 已就绪再启动 Agent
 
 ### P3 — 长期改进
 
-7. **Toolkit 配置验证**
+5. **Toolkit 配置验证**
    - `init_option()` 失败时记录 warning
    - 提供有效的配置文件或使用项目默认配置
 
----
-
-## 5. 快速验证方法
+## 7. 快速验证方法
 
 用户可以通过以下方式验证问题：
 
@@ -382,3 +420,15 @@ ls "C:/.../3rd-part/maaend/agent/go-service.exe"
 # 4. 检查环境变量
 python -c "import os; print(os.environ.get('MAAFW_BINARY_PATH'))"
 ```
+
+## 8. 附录：命名 vs 实现对照表
+
+| 函数/类 | 命名暗示 | 实际实现 | 结论 |
+|---------|----------|----------|------|
+| `AndroidRuntimeProxy.adb_manager` | 返回 ADBDeviceManager | 返回 AndroidRuntime | ❌ 不匹配 |
+| `AndroidRuntimeProxy` | 透明代理 | 手动转发每个方法 | ⚠️ 适配器而非代理 |
+| `IstinaRuntime` | 单一运行时 | 多运行时门面/调度器 | ⚠️ 命名过宽 |
+| `MaaEndRuntime` | 镜像 MaaEnd 进程 | 本地资源加载 + Tasker bridge | ⚠️ docstring 需更新 |
+| `PipelineRunner` | 纯图执行器 | 嵌入 MaaFW SDK + 颜色匹配 | ❌ 违反 SRP |
+| `ColorBackend.recognize_gameplay_scene` | 颜色匹配 | 3D 场景理解 | ❌ 职责错位 |
+| `EndfieldElementRecognizer` 模块 docstring | 5 种后端 | 4 种后端 + 1 个后处理 | ❌ 描述不准确 |

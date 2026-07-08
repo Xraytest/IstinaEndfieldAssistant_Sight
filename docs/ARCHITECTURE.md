@@ -1,4 +1,4 @@
-# IEA vs MaaEnd 代码差异分析
+# 项目架构总览
 
 ## 1. 核心语言与生态
 
@@ -9,6 +9,7 @@
 | **运行时** | CPython + venv | Node.js 22+ + Go 可执行文件 + C++ DLL |
 | **包管理** | pip / requirements.txt | pnpm (Node.js) + Go modules + CMake |
 | **AI/ML 栈** | torch, ultralytics, onnxruntime, llama-cpp | 无 Python AI 依赖（C++ ONNX Runtime 用于算法） |
+| **LLM 位置** | `src/core/capability/llm/`（LlamaServerRuntime + LlamaClient） | Go service 中无 Python LLM 依赖 |
 | **构建系统** | 无（纯 Python 解释执行） | CMake (C++) + pnpm (TS) + Go build + Python build_and_install.py |
 | **代码格式化** | 基础 lint | Prettier (JSON/YAML/MD) + go fmt + maa-tools check |
 
@@ -20,11 +21,11 @@
 src/
 ├── core/
 │   ├── capability/        # 能力层
-│   │   ├── device/        # ADB/Android 设备交互 (AndroidRuntime + JSON-RPC daemon)
-│   │   ├── element_recognition/  # 场景理解（4 种识别后端 + Pipeline 图引擎）
-│   │   ├── input/         # 输入控制
-│   │   └── llm/           # LLM 运行时（llama-server 桥接）
-│   ├── foundation/        # 基础层（日志、路径、配置、常量、GPU 检查）
+│   │   ├── device/        # ADB/Android 设备交互 (ADBDeviceManager, TouchManager, AndroidRuntime + JSON-RPC daemon)
+│   │   ├── element_recognition/  # 场景理解（Template/OCR/Color/YOLO 4 种识别后端 + Pipeline 图引擎）
+│   │   ├── input/         # 输入控制（OCR 引擎归并在 element_recognition/backends/ 下）
+│   │   └── llm/           # LLM 运行时（llama-server 桥接、VLM）
+│   ├── foundation/        # 基础层（日志、路径、GPU 检查）
 │   └── service/           # 服务层
 │       ├── maa_end/       # MaaFramework Python 运行时桥接
 │       ├── navigation/    # 导航服务（实体/坐标/VLM 行走）
@@ -392,3 +393,134 @@ IEA 和 MaaEnd 是**互补的父子关系**。MaaEnd 提供了扎实的游戏自
 4. **设备增强**：scrcpy 镜像、mmap 零拷贝截图、JSON-RPC daemon
 
 IEA 的每日全套实际上是通过调用 MaaEnd 的预设实现的，两者的差异主要在"谁来做决策"（IEA 的 VLM/LLM vs MaaEnd 的 Pipeline FSM）和"用什么语言实现"（Python vs Go/C++）。
+
+## 14. 设计语言参考
+
+### 鹰角网络设计语言
+
+> 本文件持续收集鹰角网络（Hypergryph）相关产品的设计思路，作为本项目 GUI/平面美术优化的参考来源。
+
+#### 14.1 游戏知识库提取（`game_knowledge_base.json`）
+- **产品**：明日方舟：终末地
+- **包名**：`com.hypergryph.endfield`
+- **参考域名**：`ak.hypergryph.com`、`endfield.hypergryph.com`
+- **核心视觉元素**：
+  - 基地主界面为“多面板叠加”结构
+  - 游戏场景以“蓝色主导”（93.9%）
+  - 存在大量工业科幻风格按钮与面板（基础工业一期/二期/三期、原料开采、物流运输等）
+  - UI 元素命名带有终端/工业感：`TerminalNotice`、`EnvironmentMonitoringButton`、`WorldMenuBaker` 等
+- **当前已知交互模式**：
+  - 顶部行：通知、信用点、任务领取
+  - 左侧列：环境监测、好友列表、拍照
+  - 右侧列：世界菜单、委托领取、背包
+  - 底部行：进入按钮、任务领取、任务标签
+
+#### 14.2 鹰角产品设计共性（持续补充）
+- **明日方舟（Arknights）**
+  - 深色底 + 高对比信息色（黑/白/蓝/黄/红）
+  - 等宽/终端风格字体用于系统信息，标题使用粗体无衬线
+  - 卡片式布局，大量使用 1px 细线分割与微弱发光边框
+  - 按钮状态极简：默认/悬停/按下/禁用，几乎无渐变，以透明度区分
+  - 图标与文字严格对齐，间距遵循 4px/8px 网格
+
+- **明日方舟：终末地（Endfield）**
+  - 继承 Arknights 的深色工业科幻语言
+  - 3D 场景 UI 叠加在游戏画面上，保持低侵入性
+  - 面板采用半透明深色底 + 蓝色描边（项目当前统一使用低调蓝 #5c7cfa）
+  - 文字信息层级清晰：主标题 > 次级 > 辅助 > 禁用
+
+#### 14.3 设计 token 清单
+
+| Token | 用途 | 鹰角参考 |
+|-------|------|----------|
+| `primary` | 主按钮、选中态、高亮 | #5c7cfa（低调蓝） |
+| `success` | 成功状态、在线 | #5c7cfa（与 primary 统一） |
+| `danger` | 错误、停止、删除 | #ff3355 |
+| `accent_gold` | 重要提示、稀有 | #fffa00 |
+| `bg_primary` | 主背景 | #0a0a0f |
+| `surface` | 卡片/面板底 | rgba(16,16,26,0.88) |
+| `border` | 分割线/描边 | rgba(92,124,250,0.15) |
+| `font_display` | 标题 | Microsoft YaHei UI Bold |
+| `font_body` | 正文 | Microsoft YaHei UI Regular |
+
+## 15. GUI 设计审计
+
+> 基于 `src/gui/pyqt6/` 代码库的静态审计，持续更新。
+
+### 15.1 当前架构概览
+
+| 文件 | 角色 | 状态 |
+|------|------|------|
+| `main.py` | 入口 | 正常 |
+| `main_window.py` | 主窗口 + 导航 + 预览 | 正常 |
+| `cli_bridge.py` | CLI 子进程桥接 | 正常 |
+| `theme/theme_manager.py` | 主题系统 | 单主题（arknight），QSS + widget_styles |
+| `pages/maaend_control_page.py` | 核心控制台（任务/预设/队列/日志） | 正常 |
+| `pages/device_settings_page.py` | 设备连接 | 正常 |
+| `pages/settings_page.py` | 设置 | 正常 |
+| `pages/log_page.py` | 日志查看 | 正常 |
+| `pages/prts_full_intelligence_page.py` | 全智能/LLM 控制中心 | 正常 |
+| `responsive.py` | 响应式 | 正常 |
+
+### 15.2 发现的问题
+
+#### 15.2.1 内联样式与主题系统脱节
+- `theme_manager.py` 已有完整的 QSS 主题和 `ThemeManager`
+- 但 `maaend_control_page.py` 中定义了 `CARD_STYLE`、`BTN_ACTIVE`、`LIST_STYLE` 等大量字符串常量
+- 这些常量直接硬编码颜色值（如 `rgba(16,16,26,0.85)`），与主题系统的 token 完全重复且未同步
+- **影响**：未来修改主题色时，需要同时改 `theme_manager.py` 和多个页面文件，极易遗漏
+
+#### 15.2.2 按钮标签与行为一致性
+- 当前 `_add_task_to_queue_btn` 标签为 `"Add Task"`，连接 `_add_to_queue`；`_run_queue_btn` 标签为 `"Run"`，连接 `_run_queue`。
+- 已不存在 `_run_task` 方法，标签与行为一致。
+
+#### 15.2.3 页面间视觉节奏不一致
+- `SettingsPage`、`LogPage`、`DeviceSettingsPage` 使用 `settingsHero` / `ScrollArea` + 16px 边距
+- `MaaEndControlPage` 使用 `QVBoxLayout` + `GroupBox` + `Splitter`，边距为 16px 但卡片内边距为 2px，过于紧凑
+- 缺乏统一的页面 Hero（标题区域）模式
+
+#### 15.2.4 信息密度与可读性
+- `maaend_control_page.py` 的队列表格使用 `QTableWidget`，但列宽与内容自适应不佳
+- 任务/预设列表项选中态与悬停态对比度接近，快速扫视时边界模糊
+- 日志区使用 HTML span 着色，但缺少统一的消息类型配色规范
+
+#### 15.2.5 响应式断点单一
+- `responsive.py` 只有 `normal` / `compact` 两个模式，且仅在宽度 <960 或高度 <720 时切换
+- 鹰角产品在不同 DPI / 缩放比下都有良好的信息密度调整，本项目缺少 DPI 感知的字体/间距缩放
+
+#### 15.2.6 图标系统
+- `theme/icons.py` 已提供状态图标映射（running/success 等）
+- 当前大部分按钮已移除图标，仅保留纯文本
+
+### 15.3 建议优化方向
+
+1. **统一样式来源**：页面内联样式全部迁移到 `theme_manager.py` / `widget_styles.py`，通过 `ThemeManager` 读取
+2. **统一页面骨架**：所有页面采用 `HeroHeader + ScrollArea + 卡片组` 结构
+3. **DPI 感知**：在 `responsive.py` 中引入 `QScreen.logicalDotsPerInch`，动态调整字体与间距
+4. **微动效**：利用 `ANIMATION_CONFIG`，为按钮悬停、面板展开添加 120-200ms 过渡
+
+## 16. 持续优化待办清单
+
+> 按优先级排序，不设截止日期。每完成一项更新状态并追加到 `docs/TASK_LOG.md`。
+
+### P0 — 立即修复
+- [ ] 将页面内联样式常量迁移到 `ThemeManager`，消除重复颜色值
+
+### P1 — 本轮迭代
+- [ ] 统一所有页面的 Hero 标题区域样式（`SettingsPage`、`LogPage`、`DeviceSettingsPage`）
+- [ ] 为队列列表增加图标列（状态指示器）
+- [ ] 优化 `QTableWidget` 列宽自适应与行高
+- [ ] 建立 `gui/pyqt6/icons.py` 图标映射（使用 Qt resource 或 SVG）
+
+### P2 — 后续优化
+- [ ] 引入 DPI 感知的响应式系统（`QScreen.logicalDotsPerInch`）
+- [ ] 为按钮/面板添加微动效（120-200ms fade/scale）
+- [ ] 建立平面美术规范文档（间距网格、字体层级、色彩使用比例）
+- [ ] 为不同分辨率提供两套布局（1280x720 vs 1440x900）
+- [ ] 预览区增加“全屏预览”与“复制到剪贴板”
+
+### P3 — 长期探索
+- [ ] 支持自定义主题（深色/浅色/高对比）
+- [ ] 为不同设备类型优化触摸目标尺寸（平板/触屏）
+- [ ] 多语言文案对齐鹰角官方术语
+- [ ] 无障碍支持（屏幕阅读器、高对比度模式）

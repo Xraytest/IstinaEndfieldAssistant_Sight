@@ -6,11 +6,9 @@ buttons and interactive elements, aligned with Hypergryph's polished UI.
 
 from __future__ import annotations
 
-from typing import Optional
-
-from PyQt6.QtCore import QPropertyAnimation, QEasingCurve, QRectF, Qt
-from PyQt6.QtGui import QPainter, QColor, QMouseEvent
-from PyQt6.QtWidgets import QPushButton, QWidget
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, Qt
+from PyQt6.QtGui import QColor, QPainter
+from PyQt6.QtWidgets import QPushButton
 
 
 class AnimatedButton(QPushButton):

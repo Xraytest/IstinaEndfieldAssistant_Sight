@@ -7,9 +7,8 @@ YOLO 后端 — 包装 YOLO11n 通用物体检测
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
-import cv2
 import numpy as np
 
 from ..element_info import ElementInfo

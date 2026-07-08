@@ -11,7 +11,6 @@ import subprocess
 from dataclasses import dataclass
 from typing import Optional
 
-
 VRAM_WARNING_THRESHOLD_BYTES = 7 * 1024 * 1024 * 1024  # 7 GiB
 
 

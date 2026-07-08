@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import cv2
 import numpy as np
 
+from core.capability.llm import LlmClient
 from core.foundation.logger import get_logger
 from core.service.maa_end.runtime import MaaEndRuntime
+
 from .entity_db import Entity, EntityDatabase
 from .map_data_loader import MapDataLoader
-from .minimap_locator import MinimapLocator, MapPosition
-from core.capability.llm import LlmClient
-from .vlm_walk_navigator import VlmWalkNavigator, VlmWalkConfig
+from .minimap_locator import MapPosition, MinimapLocator
+from .vlm_walk_navigator import VlmWalkConfig, VlmWalkNavigator
 
 
 class Navigator:

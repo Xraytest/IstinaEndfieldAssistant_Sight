@@ -91,7 +91,6 @@ class DashboardWidget(QFrame):
 
     def refresh(self) -> None:
         """Override in subclasses to refresh widget data."""
-        pass
 
     def start_auto_refresh(self) -> None:
         self._refresh_timer.start()

@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -19,6 +19,9 @@ from PyQt6.QtWidgets import (
 )
 
 from gui.pyqt6.i18n import get_locale_manager
+from gui.pyqt6.scripting.models import Script
+from gui.pyqt6.scripting.player import Player
+from gui.pyqt6.scripting.recorder import Recorder
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.widget_styles import (
     BTN_ACTIVE,
@@ -29,10 +32,6 @@ from gui.pyqt6.theme.widget_styles import (
     INPUT_STYLE,
     LIST_STYLE,
 )
-
-from gui.pyqt6.scripting.models import Script, ActionRecord
-from gui.pyqt6.scripting.player import Player
-from gui.pyqt6.scripting.recorder import Recorder
 
 locale = get_locale_manager()
 logger = logging.getLogger(__name__)

@@ -266,7 +266,7 @@ class ColorBackend:
                     cy = y + y_off + bh // 2
                     results.append(ElementInfo(
                         element_type="region",
-                        label=f"color_region",
+                        label="color_region",
                         bbox=((x + x_off) / w_img, (y + y_off) / h_img,
                               (x + x_off + bw) / w_img, (y + y_off + bh) / h_img),
                         center=(cx / w_img, cy / h_img),

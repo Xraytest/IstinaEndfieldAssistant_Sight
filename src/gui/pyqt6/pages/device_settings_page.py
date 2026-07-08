@@ -6,8 +6,8 @@ from typing import Any, Dict, Optional
 from PyQt6.QtCore import QPropertyAnimation, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
-    QFrame,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -25,7 +25,6 @@ from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.widget_styles import LIST_STYLE
-
 
 locale = get_locale_manager()
 

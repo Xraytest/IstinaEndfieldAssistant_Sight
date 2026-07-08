@@ -6,24 +6,22 @@ from typing import Any, Dict, Optional
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QFrame,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTextEdit,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 from core.foundation.paths import get_project_root
-
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
 
@@ -68,6 +66,17 @@ class SettingsPage(QWidget):
         self._language_combo.currentIndexChanged.connect(self._on_language_changed)
         language_form.addRow(locale.tr("settings_language", "Language"), self._language_combo)
         content_root.addWidget(language_card)
+
+        preview_card = QGroupBox(locale.tr("settings_preview", "Preview"))
+        preview_form = QFormLayout(preview_card)
+        self._preview_interval_spin = QSpinBox()
+        self._preview_interval_spin.setRange(200, 10000)
+        self._preview_interval_spin.setSuffix(" ms")
+        self._preview_interval_spin.setToolTip(locale.tr("preview_interval_tooltip", "Interval between preview frames"))
+        self._preview_interval_spin.valueChanged.connect(self._save_settings)
+        self._preview_interval_spin.valueChanged.connect(self._apply_preview_interval)
+        preview_form.addRow(locale.tr("preview_interval", "Preview Interval"), self._preview_interval_spin)
+        content_root.addWidget(preview_card)
 
         llm_card = QGroupBox(locale.tr("settings_llm", "LLM Parameters"))
         llm_form = QFormLayout(llm_card)
@@ -126,16 +135,19 @@ class SettingsPage(QWidget):
         self._mmproj_path_input.blockSignals(True)
         self._port_input.blockSignals(True)
         self._threads_input.blockSignals(True)
+        self._preview_interval_spin.blockSignals(True)
         self._llm_enabled.setChecked(bool(llm.get("enabled", True)))
         self._model_path_input.setText(str(llm.get("model_path", "")))
         self._mmproj_path_input.setText(str(llm.get("mmproj_path", "")))
         self._port_input.setValue(int(llm.get("port", 9998)))
         self._threads_input.setValue(int(llm.get("threads", 12)))
+        self._preview_interval_spin.setValue(int(config.get("preview_interval_ms", 1500)))
         self._llm_enabled.blockSignals(False)
         self._model_path_input.blockSignals(False)
         self._mmproj_path_input.blockSignals(False)
         self._port_input.blockSignals(False)
         self._threads_input.blockSignals(False)
+        self._preview_interval_spin.blockSignals(False)
 
         self._raw_preview.setPlainText(json.dumps(config, ensure_ascii=False, indent=2))
 
@@ -150,6 +162,7 @@ class SettingsPage(QWidget):
             "port": self._port_input.value(),
             "threads": self._threads_input.value(),
         }
+        config["preview_interval_ms"] = self._preview_interval_spin.value()
         config.pop("cache", None)
 
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -164,3 +177,10 @@ class SettingsPage(QWidget):
         except json.JSONDecodeError as exc:
             QMessageBox.warning(self, locale.tr("settings_corrupt", "Configuration Corrupt"), locale.tr("settings_corrupt_msg", "Failed to parse configuration file: {exc}").format(exc=exc))
             return {}
+
+    def _apply_preview_interval(self, value: int) -> None:
+        main_window = self.window()
+        if isinstance(main_window, QMainWindow):
+            timer = getattr(main_window, "_preview_timer", None)
+            if timer is not None:
+                timer.setInterval(value)

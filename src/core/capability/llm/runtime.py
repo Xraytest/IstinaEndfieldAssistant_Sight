@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
@@ -25,6 +26,7 @@ class LlamaServerRuntime:
 
     _instances: Dict[int, LlamaServerRuntime] = {}
     _atexit_registered = False
+    _lock = threading.Lock()
 
     def __init__(self, config: Dict[str, Any]):
         self._config = config
@@ -37,10 +39,11 @@ class LlamaServerRuntime:
         self._register_atexit()
 
     def _register_atexit(self) -> None:
-        if LlamaServerRuntime._atexit_registered:
-            return
-        LlamaServerRuntime._atexit_registered = True
-        atexit.register(self._atexit_cleanup)
+        with LlamaServerRuntime._lock:
+            if LlamaServerRuntime._atexit_registered:
+                return
+            LlamaServerRuntime._atexit_registered = True
+            atexit.register(self._atexit_cleanup)
 
     def _atexit_cleanup(self) -> None:
         """进程退出时，只清理当前实例拥有的进程。"""
@@ -62,11 +65,12 @@ class LlamaServerRuntime:
     def get_instance(cls, config: Dict[str, Any]) -> LlamaServerRuntime:
         """获取或创建对应端口的单例。"""
         port = int(config.get("port", 9998))
-        if port not in cls._instances:
-            cls._instances[port] = cls(config)
-        instance = cls._instances[port]
-        instance._config = config
-        return instance
+        with cls._lock:
+            if port not in cls._instances:
+                cls._instances[port] = cls(config)
+            instance = cls._instances[port]
+            instance._config = config
+            return instance
 
     @classmethod
     def get_default_instance(cls) -> Optional[LlamaServerRuntime]:

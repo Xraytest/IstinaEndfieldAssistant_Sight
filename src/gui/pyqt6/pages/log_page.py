@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from PyQt6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -13,20 +14,13 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    QListWidget,
-    QListWidgetItem,
-    QSplitter,
-    QComboBox,
 )
 
 from core.foundation.paths import get_project_root
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.responsive import elide_text
-
-
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.widget_styles import COMBO_STYLE, INPUT_STYLE
-
 
 locale = get_locale_manager()
 

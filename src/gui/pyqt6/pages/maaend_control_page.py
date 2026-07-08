@@ -2,27 +2,50 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QListWidget, QListWidgetItem, QGroupBox, QScrollArea,
-    QTextEdit, QMessageBox, QSplitter, QCheckBox, QComboBox, QSpinBox, QLineEdit, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QApplication, QDialog, QFormLayout, QDialogButtonBox, QSizePolicy, QProgressBar, QFileDialog,
+from PyQt6.QtCore import (
+    QEasingCurve,
+    QEventLoop,
+    QPropertyAnimation,
+    Qt,
+    QThread,
+    QTimer,
+    pyqtSignal,
 )
-from PyQt6.QtCore import Qt, pyqtSignal, QThread, QTimer, QEventLoop, QObject, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QColor, QBrush, QFont
+from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
+from core.foundation.logger import LogCategory, get_logger
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
-from core.foundation.logger import get_logger, LogCategory
-
-locale = get_locale_manager()
 from gui.pyqt6.queue_state import QueueState
-from gui.pyqt6.responsive import is_narrow_size
 from gui.pyqt6.theme.widget_styles import (
-    BLUE_STYLE,
     BLUE_STYLE,
     BTN_ACTIVE,
     BTN_DEFAULT,
@@ -35,16 +58,15 @@ from gui.pyqt6.theme.widget_styles import (
     INPUT_STYLE,
     LIST_STYLE,
     LOG_STYLE,
-    METRIC_VALUE_STYLE,
-    PREVIEW_STYLE,
     PROGRESS_BAR_STYLE,
     RED_STYLE,
     SCROLL_AREA_TRANSPARENT_STYLE,
     SPLITTER_HANDLE_STYLE,
     TABLE_STYLE,
     VAL_STYLE,
-    YELLOW_STYLE,
 )
+
+locale = get_locale_manager()
 
 NAME_ZH = {
     # presets
@@ -164,8 +186,8 @@ class ToggleSwitch(QWidget):
         super().leaveEvent(event)
 
     def paintEvent(self, event):
-        from PyQt6.QtGui import QPainter, QColor, QPainterPath, QPen
         from PyQt6.QtCore import QRectF
+        from PyQt6.QtGui import QPainter, QPainterPath
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -297,14 +319,13 @@ class MaaEndControlPage(QWidget):
             nonlocal result
             if cmd == expected:
                 result = res
-                timed_out = False
                 loop.quit()
 
         self._bridge.commandFinished.connect(_on_finished)
         self._bridge.execute(expected, params or {})
         QTimer.singleShot(timeout_ms, loop.quit)
         loop.exec()
-        timed_out = True
+        timed_out = result is None
         self._bridge.commandFinished.disconnect(_on_finished)
         self._logger.debug(LogCategory.GUI, "_sync_execute 结束", command=command, timed_out=timed_out, result_type=type(result).__name__)
         return result

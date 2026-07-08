@@ -6,7 +6,7 @@ This ensures all colors, fonts, and spacing stay in sync with the project theme.
 
 from __future__ import annotations
 
-from gui.pyqt6.theme.theme_manager import COLORS, FONTS, FONT_SIZES, SPACING
+from gui.pyqt6.theme.theme_manager import COLORS, FONT_SIZES, FONTS
 
 
 def _rgba(hex_color: str, alpha: float) -> str:
