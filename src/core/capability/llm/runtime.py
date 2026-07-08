@@ -7,7 +7,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from core.foundation.logger import get_logger
 from core.foundation.paths import get_project_root
@@ -18,10 +18,13 @@ class LlamaServerRuntimeError(Exception):
 
 
 class LlamaServerRuntime:
-    """Manage a local llama-server process."""
+    """Manage a local llama-server process.
 
+    全局注册表：同一端口在整个进程内只创建一个实例。
+    """
+
+    _instances: Dict[int, LlamaServerRuntime] = {}
     _atexit_registered = False
-    _active_ports: set[int] = set()
 
     def __init__(self, config: Dict[str, Any]):
         self._config = config
@@ -30,7 +33,7 @@ class LlamaServerRuntime:
         self._cuda_failed = False
         self._logger = get_logger(__name__)
         self._default_port = int(config.get("port", 9998))
-        LlamaServerRuntime._active_ports.add(self._default_port)
+        self._owned_pids: Set[int] = set()
         self._register_atexit()
 
     def _register_atexit(self) -> None:
@@ -39,9 +42,36 @@ class LlamaServerRuntime:
         LlamaServerRuntime._atexit_registered = True
         atexit.register(self._atexit_cleanup)
 
-    @staticmethod
-    def _atexit_cleanup() -> None:
-        LlamaServerRuntime.kill_all_on_ports(list(LlamaServerRuntime._active_ports))
+    def _atexit_cleanup(self) -> None:
+        """进程退出时，只清理当前实例拥有的进程。"""
+        for instance in list(LlamaServerRuntime._instances.values()):
+            try:
+                instance._shutdown_owned()
+            except Exception:
+                pass
+
+    def _shutdown_owned(self) -> None:
+        """仅关闭由当前实例启动的进程，避免误杀其他实例的服务。"""
+        if not self._owned_pids:
+            return
+        self._http_shutdown()
+        self._kill_tracked_process()
+        self._owned_pids.clear()
+
+    @classmethod
+    def get_instance(cls, config: Dict[str, Any]) -> LlamaServerRuntime:
+        """获取或创建对应端口的单例。"""
+        port = int(config.get("port", 9998))
+        if port not in cls._instances:
+            cls._instances[port] = cls(config)
+        instance = cls._instances[port]
+        instance._config = config
+        return instance
+
+    @classmethod
+    def get_default_instance(cls) -> Optional[LlamaServerRuntime]:
+        """获取默认端口的实例，如果不存在则返回 None。"""
+        return cls._instances.get(9998)
 
     @property
     def ready(self) -> bool:
@@ -97,9 +127,7 @@ class LlamaServerRuntime:
 
     def stop(self) -> None:
         self._ready = False
-        self._http_shutdown()
-        self._kill_tracked_process()
-        self._kill_processes_on_port()
+        self._shutdown_owned()
 
     def health_check(self) -> bool:
         try:
@@ -136,6 +164,7 @@ class LlamaServerRuntime:
         if proc is None:
             return
         self._process = None
+        pid = proc.pid
         try:
             proc.terminate()
             try:
@@ -144,7 +173,9 @@ class LlamaServerRuntime:
                 proc.kill()
                 proc.wait(timeout=5)
         except Exception as exc:
-            self._logger.warning("failed to stop llama-server PID %s: %s", proc.pid, exc)
+            self._logger.warning("failed to stop llama-server PID %s: %s", pid, exc)
+        finally:
+            self._owned_pids.discard(pid)
 
     def _kill_processes_on_port(self) -> None:
         pids = self._find_pids_on_port(self._default_port)
@@ -283,12 +314,16 @@ class LlamaServerRuntime:
             self._logger.error("failed to start llama-server: %s", exc)
             return False
 
-        for _ in range(60):
-            if self._process.poll() is not None:
-                return False
-            if self.health_check():
-                self._ready = True
-                return True
-            time.sleep(1)
-        return False
+        self._owned_pids.add(self._process.pid)
+        try:
+            for _ in range(60):
+                if self._process.poll() is not None:
+                    return False
+                if self.health_check():
+                    self._ready = True
+                    return True
+                time.sleep(1)
+            return False
+        except Exception:
+            return False
 
