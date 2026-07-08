@@ -202,18 +202,18 @@ QWidget[ui-mode="compact"] QTextEdit,
 QWidget[ui-mode="compact"] QPlainTextEdit { padding: 6px; }
 
 /* Buttons */
-QPushButton { background-color: rgba(13,19,28,0.92); color: """ + c["text_primary"] + """; border: 1px solid rgba(64,132,162,0.32); border-radius: 2px; padding: 3px 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.8px; min-height: 24px; }
-QPushButton:hover { background-color: """ + c["hover_bg"] + """; border-color: """ + c["primary_light"] + """80; }
-QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: """ + c["primary"] + """80; }
+QPushButton { background-color: rgba(13,19,28,0.80); color: #ffffff; border: 1px solid rgba(64,132,162,0.18); border-radius: 2px; padding: 3px 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.8px; min-height: 24px; }
+QPushButton:hover { background-color: """ + c["hover_bg"] + """; border-color: """ + c["primary_light"] + """40; }
+QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: """ + c["primary"] + """40; }
 QPushButton:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; border-color: """ + c["border_light"] + """; }
-QPushButton[variant="primary"] { background-color: """ + c["primary_container"] + """; color: """ + c["primary_light"] + """; border: 1px solid """ + c["primary"] + """60; }
+QPushButton[variant="primary"] { background-color: """ + c["primary_container"] + """; color: #ffffff; border: 1px solid """ + c["primary"] + """60; }
 QPushButton[variant="primary"]:hover { background-color: """ + c["primary_container"] + """66; }
 QPushButton[variant="primary"]:pressed { background-color: """ + c["primary_container"] + """88; }
-QPushButton[variant="secondary"] { background-color: rgba(255,255,255,0.02); color: """ + c["text_primary"] + """; border: 1px solid rgba(88,98,121,0.48); }
+QPushButton[variant="secondary"] { background-color: rgba(255,255,255,0.02); color: #ffffff; border: 1px solid rgba(88,98,121,0.48); }
 QPushButton[variant="secondary"]:hover { background-color: """ + c["hover_bg"] + """; border-color: """ + c["primary_light"] + """60; }
 QPushButton[variant="text"] { background-color: transparent; color: """ + c["text_secondary"] + """; border: none; }
 QPushButton[variant="text"]:hover { background-color: """ + c["hover_bg"] + """; }
-QPushButton[variant="danger"] { background-color: transparent; color: """ + c["danger"] + """; border: 1px solid """ + c["danger"] + """66; }
+QPushButton[variant="danger"] { background-color: transparent; color: #ffffff; border: 1px solid """ + c["danger"] + """66; }
 QPushButton[variant="danger"]:hover { background-color: """ + c["danger_container"] + """; border-color: """ + c["danger_light"] + """; }
 
 /* Labels */

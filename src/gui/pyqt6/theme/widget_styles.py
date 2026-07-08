@@ -203,39 +203,39 @@ PROGRESS_BAR_STYLE = f"""
 # ---------------------------------------------------------------------------
 BTN_ACTIVE = f"""
     QPushButton {{
-        background-color: {_SUCCESS}1a;
-        color: {_SUCCESS};
-        border: 1px solid {_SUCCESS}4d;
+        background-color: {_PRIMARY}12;
+        color: #ffffff;
+        border: 1px solid {_PRIMARY}26;
         border-radius: 2px;
         padding: 3px 10px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
         min-height: 24px;
     }}
-    QPushButton:hover {{ background-color: {_SUCCESS}33; }}
+    QPushButton:hover {{ background-color: {_PRIMARY}1a; }}
 """
 
 BTN_DEFAULT = f"""
     QPushButton {{
-        background-color: {_PRIMARY}1a;
-        color: {_PRIMARY};
-        border: 1px solid {_PRIMARY}4d;
+        background-color: {_PRIMARY}12;
+        color: #ffffff;
+        border: 1px solid {_PRIMARY}26;
         border-radius: 2px;
         padding: 3px 10px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
         min-height: 24px;
     }}
-    QPushButton:hover {{ background-color: {_PRIMARY}33; }}
+    QPushButton:hover {{ background-color: {_PRIMARY}1a; }}
 """
 
 BTN_STOP = f"""
     QPushButton {{
-        background-color: {_DANGER}1f;
-        color: {_DANGER};
-        border: 1px solid {_DANGER}66;
+        background-color: {_DANGER}12;
+        color: #ffffff;
+        border: 1px solid {_DANGER}26;
         border-radius: 2px;
         padding: 3px 10px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
         min-height: 24px;
     }}
-    QPushButton:hover {{ background-color: {_DANGER}40; }}
+    QPushButton:hover {{ background-color: {_DANGER}1a; }}
 """
