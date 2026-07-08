@@ -6,9 +6,46 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ISTINA_SCRIPT = PROJECT_ROOT / "src" / "cli" / "istina.py"
 CLI = [sys.executable, str(ISTINA_SCRIPT)]
+
+
+def _can_execute_tasks() -> bool:
+    try:
+        proc = subprocess.run(
+            CLI + ["device", "info"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        out = proc.stdout.strip()
+        if not out:
+            return False
+        data = json.loads(out)
+        devices = data.get("devices") or []
+        if not devices:
+            return False
+        proc2 = subprocess.run(
+            CLI + ["system", "connect"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        out2 = proc2.stdout.strip()
+        if not out2:
+            return False
+        data2 = json.loads(out2)
+        return data2.get("status") == "success" and data2.get("maaend_connected") is True
+    except Exception:
+        return False
+
+
+_CAN_EXECUTE_TASKS = _can_execute_tasks()
 
 
 def _run_cli(argv, env=None):
@@ -116,6 +153,7 @@ def test_task_run_accepts_timeout_arg() -> None:
     assert args.timeout == 1.5
 
 
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
 def test_nav_command_returns_success_with_target() -> None:
     returncode, parsed, _ = _run_cli(["nav", "hub"])
     assert returncode in (0, 1)
@@ -124,6 +162,7 @@ def test_nav_command_returns_success_with_target() -> None:
     assert parsed.get("target") == "hub"
 
 
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
 def test_daily_returns_success() -> None:
     returncode, parsed, _ = _run_cli(["daily"])
     assert returncode in (0, 1)
@@ -132,6 +171,7 @@ def test_daily_returns_success() -> None:
     assert parsed.get("flow") == "daily_quest"
 
 
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
 def test_harvest_returns_success() -> None:
     returncode, parsed, _ = _run_cli(["harvest"])
     assert returncode in (0, 1)
@@ -140,6 +180,7 @@ def test_harvest_returns_success() -> None:
     assert parsed.get("flow") == "entity_harvest"
 
 
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
 def test_analyze_returns_success() -> None:
     returncode, parsed, _ = _run_cli(["analyze"])
     assert returncode in (0, 1)
@@ -147,6 +188,7 @@ def test_analyze_returns_success() -> None:
     assert parsed.get("command") == "analyze.run"
 
 
+@pytest.mark.skipif(not _CAN_EXECUTE_TASKS, reason="device/MaaEnd not available")
 def test_explore_returns_success() -> None:
     returncode, parsed, _ = _run_cli(["explore"])
     assert returncode in (0, 1)

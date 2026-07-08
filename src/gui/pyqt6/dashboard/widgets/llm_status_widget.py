@@ -20,8 +20,7 @@ class LLMStatusWidget(DashboardWidget):
         self._status_label = QLabel(locale.tr("disabled_status", "Disabled"))
         self._status_label.setProperty("variant", "danger")
         self._status_label.setAccessibleName(locale.tr("llm_status_label", "LLM service status"))
-        content = self.content_widget()
-        layout = QVBoxLayout(content)
+        layout = self._content_layout
         layout.addWidget(self._status_label)
         self.start_auto_refresh()
 

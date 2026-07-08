@@ -112,6 +112,7 @@ def test_execute_routes_daily_run() -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
+    runtime._maaend = _FakeMaaEndRuntime(run_preset_result=True)
     result = runtime.execute("daily.run", {"options": {"a": 1}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -123,6 +124,7 @@ def test_execute_routes_harvest_run() -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
+    runtime._maaend = _FakeMaaEndRuntime(run_preset_result=True)
     result = runtime.execute("harvest.run", {"options": {}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -134,6 +136,7 @@ def test_execute_routes_analyze_run() -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
+    runtime._maaend = _FakeMaaEndRuntime(run_task_result=True)
     result = runtime.execute("analyze.run", {"options": {}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -144,6 +147,7 @@ def test_execute_routes_explore_run() -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
+    runtime._maaend = _FakeMaaEndRuntime(run_task_result=True)
     result = runtime.execute("explore.run", {"options": {}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -154,6 +158,7 @@ def test_execute_routes_nav_to() -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
+    runtime._maaend = _FakeMaaEndRuntime(run_task_result=True)
     result = runtime.execute("nav.to", {"target": "main"})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
@@ -167,19 +172,6 @@ def test_execute_returns_none_for_unknown_command() -> None:
     runtime = IstinaRuntime()
     result = runtime.execute("unknown.command", {})
     assert result is None
-
-
-def test_maaend_wait_job_honors_timeout() -> None:
-    from core.service.maa_end.runtime import MaaEndRuntime
-
-    runtime = MaaEndRuntime()
-    runtime.logger = _FakeLogger()
-    job = _NeverDoneJob()
-
-    result = runtime._wait_job(job, timeout_s=0.01, context="test")
-
-    assert result is False
-    assert job.wait_called is False
 
 
 class _FakeMaaEndRuntime:

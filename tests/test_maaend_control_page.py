@@ -88,6 +88,7 @@ def test_apply_preset_button_replaces_queue():
     page._queue_list.setRowCount(1)
     page._queue_list.setItem(0, 0, QTableWidgetItem("[TASK] OldTask"))
     page._selected_preset = "TestPreset"
+    page._presets_cache = bridge._presets
 
     page._run_preset_btn.click()
 
@@ -270,6 +271,7 @@ def test_apply_preset_overrides_queue_and_clears_old_settings():
     page._queue_list.setRowCount(1)
     page._queue_list.setItem(0, 0, QTableWidgetItem("[TASK] OldTask"))
     page._selected_preset = "TestPreset"
+    page._presets_cache = bridge._presets
 
     page._run_preset()
 

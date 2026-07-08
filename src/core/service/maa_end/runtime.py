@@ -46,6 +46,17 @@ except ImportError:
     MaaAdbInputMethodEnum = None  # type: ignore[misc,assignment]
     MaaLoggingLevel = None  # type: ignore[misc,assignment]
 
+if AgentClient is not None:
+    _original_agent_client_del = AgentClient.__del__
+
+    def _safe_agent_client_del(self):
+        try:
+            _original_agent_client_del(self)
+        except Exception:
+            pass
+
+    AgentClient.__del__ = _safe_agent_client_del
+
 
 class MaaEndRuntime:
     """Thin wrapper around MaaFramework that behaves like MaaEnd's runner."""

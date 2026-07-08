@@ -130,3 +130,19 @@
   4. **预览请求未传递 serial（P1）**：`_sync_execute("screenshot")` 不携带 serial，`_screenshot` 回退到配置中的 `last_connected`，若当前设备与配置不一致则请求错误设备。
   5. **底层 MaaFW 环境不稳定（P2）**：`MAAFW_BINARY_PATH` 双副本冲突、`input_methods=3` 硬编码、`_start_agent()` 静默失败，放大预览失败率。
 - **Files Modified**: `docs/TASK_LOG.md`、`docs/GUI_TASK_QUEUE_ANALYSIS.md`（补充预览开销分析）
+
+## 2026-07-08 00:01
+
+- **User Request**: GUI 启动报错 `NameError: name 'Path' is not defined`，启动流程在 `apply_theme` -> `ensure_app_fonts` 阶段失败。
+- **Outcome**: 在 `src/gui/pyqt6/theme/theme_manager.py` 顶部补充缺失的 `from pathlib import Path` 导入，`ensure_app_fonts()` 中 `candidate_paths` 的 `Path` 引用现已可解析。
+- **Files Modified**:
+  - `src/gui/pyqt6/theme/theme_manager.py`
+  - `docs/TASK_LOG.md`
+
+## 2026-07-08 00:05
+
+- **User Request**: 按以下流程处理预览画面获取问题：连接到设备后直接建立 scrcpy 图像通道并持续保活到设备断开，图像按需取用。写入文档。
+- **Outcome**: 在 `docs/GUI_TASK_QUEUE_ANALYSIS.md` 中新增第 6 章“预览画面获取新方案：scrcpy 常驻图像通道”，完整描述替代旧 CLI 子进程截图模式的 scrcpy 常驻通道架构：连接即建通道、后台持续解码、预览定时器按需取帧、断开自动清理；包含关键组件代码路径、新旧方案对比、实施要点及回退策略。
+- **Files Modified**:
+  - `docs/GUI_TASK_QUEUE_ANALYSIS.md`
+  - `docs/TASK_LOG.md`

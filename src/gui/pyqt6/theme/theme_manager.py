@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Theme definitions

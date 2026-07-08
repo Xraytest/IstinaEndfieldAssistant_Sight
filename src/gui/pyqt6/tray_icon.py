@@ -37,6 +37,19 @@ class TrayIcon(QObject):
         self._tray = QSystemTrayIcon(self._main_window)
         self._tray.setToolTip(locale.tr("app_title"))
 
+        # Provide a simple fallback icon so tray activation does not warn.
+        from PyQt6.QtGui import QPixmap, QPainter, QColor
+        from PyQt6.QtCore import QRectF
+        pixmap = QPixmap(64, 64)
+        pixmap.fill(QColor("transparent"))
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor("#18d1ff"))
+        painter.setPen(QColor("#18d1ff"))
+        painter.drawEllipse(QRectF(4, 4, 56, 56))
+        painter.end()
+        self._tray.setIcon(QIcon(pixmap))
+
         menu = QMenu()
         show_action = QAction(locale.tr("tray_show"), self._main_window)
         show_action.triggered.connect(self._show_window)

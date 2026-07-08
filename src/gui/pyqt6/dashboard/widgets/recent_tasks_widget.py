@@ -21,8 +21,7 @@ class RecentTasksWidget(DashboardWidget):
         self._list = QListWidget()
         self._list.setStyleSheet(LIST_STYLE)
         self._list.setAccessibleName(locale.tr("recent_tasks_list", "Recent tasks list"))
-        content = self.content_widget()
-        layout = QVBoxLayout(content)
+        layout = self._content_layout
         layout.addWidget(self._list)
         self.start_auto_refresh()
 

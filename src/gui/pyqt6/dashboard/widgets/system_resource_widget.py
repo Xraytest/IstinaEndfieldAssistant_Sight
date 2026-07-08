@@ -20,8 +20,7 @@ class SystemResourceWidget(DashboardWidget):
         self._bridge = bridge
         self._cpu_label = QLabel("CPU: -")
         self._mem_label = QLabel("Memory: -")
-        content = self.content_widget()
-        layout = QVBoxLayout(content)
+        layout = self._content_layout
         layout.addWidget(self._cpu_label)
         layout.addWidget(self._mem_label)
         self.start_auto_refresh()

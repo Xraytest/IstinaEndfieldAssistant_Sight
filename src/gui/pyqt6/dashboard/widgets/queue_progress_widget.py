@@ -20,8 +20,7 @@ class QueueProgressWidget(DashboardWidget):
         self._status_label = QLabel(locale.tr("maaend_idle", "Idle"))
         self._status_label.setProperty("variant", "success")
         self._status_label.setAccessibleName(locale.tr("queue_status_label", "Queue status"))
-        content = self.content_widget()
-        layout = QVBoxLayout(content)
+        layout = self._content_layout
         layout.addWidget(self._status_label)
         self.start_auto_refresh()
 

@@ -22,8 +22,7 @@ class DeviceStatusWidget(DashboardWidget):
         self._status_label.setAccessibleName(locale.tr("device_status_label", "Device status"))
         self._serial_label = QLabel("-")
         self._serial_label.setAccessibleName(locale.tr("device_serial_label", "Device serial"))
-        content = self.content_widget()
-        layout = QVBoxLayout(content)
+        layout = self._content_layout
         layout.addWidget(self._status_label)
         layout.addWidget(self._serial_label)
         self.start_auto_refresh()
