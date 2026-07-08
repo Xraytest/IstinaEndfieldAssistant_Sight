@@ -255,3 +255,27 @@
   - `src/gui/pyqt6/pages/device_settings_page.py`
   - `src/gui/pyqt6/pages/maaend_control_page.py`
 - **验证**：`py_compile` 语法检查通过。
+
+## 2026-07-08 01:16
+
+- **User Request**: 开始构建全智能，只做我提出的内容。全智能启动时并行启动LLM Server，启动状态需要在全智能页标明。
+- **Outcome**: 
+  1. 在 `PrtsFullIntelligencePage` 中新增 `showEvent` 监听，首次切换到全智能页面时自动触发 `_start_llm()`，通过 `_auto_started` 标志位避免重复启动。
+  2. 启动状态通过 `QTimer` 每 2 秒轮询 `llm status` 更新，最长 60 秒超时；状态标签在启动期间显示 "Starting..."（蓝色），成功显示 "Ready"（蓝色），失败或超时显示 "Not Ready"/"Timeout"（红色）。
+  3. 新增 `_finalize_startup_status()` 统一收尾轮询定时器并更新状态样式，避免 UI 残留中间状态。
+- **Files Modified**: `src/gui/pyqt6/pages/prts_full_intelligence_page.py`
+- **验证**：`py_compile` 语法检查通过。
+
+## 2026-07-08 01:30
+
+- **User Request**: 按钮依然是绿色的，深入分析；鼠标悬浮、点击效果缺失。
+- **Outcome**: 
+  1. 全量搜索 `src/gui/pyqt6`：已无绿色 hex 值残留；`GREEN_STYLE`/`_SUCCESS` 变量已删除。
+  2. 根因：`widget_styles.py` 的 `_rgba()` 函数生成的 `rgba()` 格式在 QSS 中有效，但 `theme_manager.py` 全局 QSS 仍使用 `#RRGGBBAA` 8 位 hex（如 `#5c7cfa40`），PyQt6 QSS 解析器将其视为无效颜色并回退到默认样式，导致按钮显示为系统默认色（外观接近绿色）。
+  3. 修复：全局 QSS 中所有 `#RRGGBBAA` 改为 `rgba()` 格式；`primary_container` 等 token 改为纯色 hex 避免拼接 alpha 后缀。
+  4. 补充 hover/pressed 态：`BTN_ACTIVE`/`BTN_DEFAULT`/`BTN_STOP` 均添加 `:hover` 与 `:pressed` 规则，背景与边框同步加深。
+  5. 清除 `__pycache__` 避免旧字节码缓存干扰。
+- **Commit**: `9326d97`
+- **Files Modified**:
+  - `src/gui/pyqt6/theme/theme_manager.py`
+  - `src/gui/pyqt6/theme/widget_styles.py`
