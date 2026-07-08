@@ -261,7 +261,11 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
     buffer = ""
     self_logger = get_logger(__name__)
     while True:
-        chunk = sys.stdin.read(1)
+        try:
+            chunk = sys.stdin.read(1)
+        except Exception as exc:
+            self_logger.error("CLI 交互循环: stdin 读取异常", error=str(exc))
+            break
         if not chunk:
             self_logger.info("CLI 交互循环: stdin EOF")
             break
@@ -272,6 +276,7 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
             if not line:
                 continue
             self_logger.info("CLI 交互循环: 收到命令", command=line)
+            result = None
             try:
                 args = parser.parse_args(line.split())
                 self_logger.info("CLI 交互循环: 解析成功", command=getattr(args, 'command', None), action=getattr(args, 'action', None))
@@ -283,8 +288,11 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
             except Exception as exc:
                 result = {"status": "error", "message": str(exc)}
                 self_logger.error("CLI 交互循环: 执行异常", command=line, error=str(exc))
-            sys.stdout.write(_json_dumps(result) + "\n")
-            sys.stdout.flush()
+            try:
+                sys.stdout.write(_json_dumps(result) + "\n")
+                sys.stdout.flush()
+            except Exception as exc:
+                self_logger.error("CLI 交互循环: stdout 写入异常", error=str(exc))
     return 0
 
 
