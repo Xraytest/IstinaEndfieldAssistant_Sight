@@ -77,14 +77,19 @@ def test_execute_routes_preset_run() -> None:
 
 def test_execute_routes_screenshot_returns_bytes() -> None:
     from core.service.runtime import IstinaRuntime
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import MagicMock, patch
 
     runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime(screenshot_result=b"PNG")
 
-    fake_client = MagicMock()
-    fake_client.screenshot.return_value = None
-    with patch("core.service.runtime._get_android_runtime", return_value=lambda **kwargs: fake_client):
+    proxy = runtime.android()
+    fake_android = MagicMock()
+    fake_android.screenshot.return_value = None
+    proxy._clients["default"] = fake_android
+
+    # execute() 会重新加载磁盘配置，这里避免真实 device serial 干扰测试。
+    runtime._config = {"device": {}}
+    with patch.object(runtime, "_load_config", return_value=runtime._config):
         result = runtime.execute("screenshot", {})
     assert result == b"PNG"
 

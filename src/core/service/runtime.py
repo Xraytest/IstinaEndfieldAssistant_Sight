@@ -7,15 +7,17 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import cv2
 import numpy as np
 
-from core.capability.llm import LlmClient, LlamaServerRuntime
 from core.foundation.logger import get_logger, LogCategory
 from core.foundation.paths import get_project_root
-from core.service.maa_end.runtime import MaaEndRuntime
+
+if TYPE_CHECKING:
+    from core.capability.llm import LlmClient, LlamaServerRuntime
+    from core.service.maa_end.runtime import MaaEndRuntime
 
 # 以下模块按需导入，避免 CLI 轻量命令（如 metadata list）触发重依赖
 _AndroidRuntime = None
@@ -54,6 +56,16 @@ def _get_navigator():
         from core.service.navigation import Navigator
         _Navigator = Navigator
     return _Navigator
+
+
+def _get_llama_runtime(config: Dict[str, Any]) -> Any:
+    from core.capability.llm.runtime import LlamaServerRuntime
+    return LlamaServerRuntime.get_instance(config)
+
+
+def _get_llm_client(llama_runtime: Any) -> Any:
+    from core.capability.llm.client import LlmClient
+    return LlmClient(base_url=llama_runtime.base_url)
 
 
 class AndroidRuntimeProxy:
@@ -120,10 +132,10 @@ class IstinaRuntime:
         self._logger = get_logger(__name__)
         self._config = self._load_config()
         self._android_clients: Dict[str, AndroidRuntimeProxy] = {}
-        self._maaend_clients: Dict[str, MaaEndRuntime] = {}
-        self._maaend: Optional[MaaEndRuntime] = None
-        self._llm_runtime = LlamaServerRuntime.get_instance(self._config)
-        self._llm_client = LlmClient(base_url=self._llm_runtime.base_url)
+        self._maaend_clients: Dict[str, Any] = {}
+        self._maaend: Optional[Any] = None
+        self._llm_runtime = _get_llama_runtime(self._config)
+        self._llm_client = _get_llm_client(self._llm_runtime)
         self._scene_svc: Optional[Any] = None
         self._nav: Optional[Any] = None
 
@@ -155,7 +167,7 @@ class IstinaRuntime:
             self._android_clients[resolved] = runtime
         return runtime
 
-    def maaend(self, serial: Optional[str] = None) -> MaaEndRuntime:
+    def maaend(self, serial: Optional[str] = None) -> Any:
         legacy = getattr(self, "_maaend", None)
         if legacy is not None and not self._maaend_clients:
             return legacy
@@ -168,6 +180,7 @@ class IstinaRuntime:
         )
         runtime = self._maaend_clients.get(resolved)
         if runtime is None:
+            from core.service.maa_end.runtime import MaaEndRuntime
             runtime = MaaEndRuntime(
                 maaend_root=self._config.get("maaend_root"),
                 device_address=resolved,
@@ -213,7 +226,7 @@ class IstinaRuntime:
         self._logger.info(LogCategory.MAIN, "MaaEnd runtime 已就绪")
         return True
 
-    def _ensure_maaend_ready(self, runtime: MaaEndRuntime) -> bool:
+    def _ensure_maaend_ready(self, runtime: Any) -> bool:
         if runtime.connected:
             return True
         if not runtime.connect():
