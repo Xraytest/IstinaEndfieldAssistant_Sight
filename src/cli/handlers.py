@@ -51,6 +51,8 @@ class CLIDispatch:
             return self._handle_task(args)
         if args.command == "preset":
             return self._handle_preset(args)
+        if args.command == "metadata":
+            return self._handle_metadata(args)
         if args.command == "device":
             return self._handle_device(args)
         if args.command == "shell":
@@ -312,6 +314,18 @@ def _handle_preset_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dic
     if not isinstance(presets, dict):
         presets = {}
     return {"status": "success", "presets": presets}
+
+
+def _handle_metadata_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    metadata = runtime.execute("metadata.list", {"serial": getattr(args, "serial", None)})
+    if not isinstance(metadata, dict):
+        metadata = {}
+    return {
+        "status": "success",
+        "tasks": metadata.get("tasks") or {},
+        "presets": metadata.get("presets") or {},
+        "task_option_defs": metadata.get("task_option_defs") or {},
+    }
 
 
 def _handle_device_info(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:

@@ -231,6 +231,8 @@ class IstinaRuntime:
             return self._run_preset(params)
         if domain == "preset" and action == "list":
             return self._list_presets(params)
+        if domain == "metadata" and action == "list":
+            return self._list_metadata(params)
         if domain == "screenshot":
             return self._screenshot(params)
         if domain == "system" and action == "connect":
@@ -298,6 +300,15 @@ class IstinaRuntime:
         serial = params.get("serial")
         runtime = self.maaend(serial)
         return runtime.presets()
+
+    def _list_metadata(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        return {
+            "tasks": runtime.tasks(),
+            "presets": runtime.presets(),
+            "task_option_defs": runtime.task_option_defs(),
+        }
 
     def _run_task(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")

@@ -241,6 +241,8 @@ class MaaEndControlPage(QWidget):
         self._auto_retry_enabled = True
         self._max_retries = 3
         self._retry_delay_ms = 2000
+        self._metadata_cache_path = self._resolve_metadata_cache_path()
+        self._load_metadata_cache()
         self._setup_ui()
         font = QFont("Microsoft YaHei UI")
         self.setFont(font)
@@ -576,10 +578,12 @@ class MaaEndControlPage(QWidget):
     # ------------------------------------------------------------------
     def _refresh_task_list(self):
         if not self._tasks_cache:
-            result = self._sync_execute("task list", timeout_ms=10000)
+            result = self._sync_execute("metadata list", timeout_ms=10000)
             if result and result.get("status") == "success":
                 self._tasks_cache = result.get("tasks") or {}
                 self._task_option_defs = result.get("task_option_defs") or {}
+                self._presets_cache = result.get("presets") or {}
+                self._persist_metadata_cache()
         self._task_list.clear()
         for name in sorted(self._tasks_cache.keys()):
             item = QListWidgetItem(_zh(name))
@@ -592,9 +596,12 @@ class MaaEndControlPage(QWidget):
 
     def _refresh_preset_list(self):
         if not self._presets_cache:
-            result = self._sync_execute("preset list", timeout_ms=10000)
+            result = self._sync_execute("metadata list", timeout_ms=10000)
             if result and result.get("status") == "success":
+                self._tasks_cache = result.get("tasks") or {}
+                self._task_option_defs = result.get("task_option_defs") or {}
                 self._presets_cache = result.get("presets") or {}
+                self._persist_metadata_cache()
         self._preset_list.clear()
         for name in sorted(self._presets_cache.keys()):
             item = QListWidgetItem(_zh(name))
@@ -1073,6 +1080,38 @@ class MaaEndControlPage(QWidget):
         except Exception as e:
             self.log_message.emit(locale.tr("persist", "Persist"), f"{locale.tr("save_failed", "Save Failed")}: {e}")
 
+    def _resolve_metadata_cache_path(self) -> Path:
+        try:
+            from core.foundation.paths import get_project_root
+            base = Path(get_project_root()) / "cache"
+        except Exception:
+            base = Path(__file__).resolve().parent.parent.parent.parent.parent / "cache"
+        base.mkdir(parents=True, exist_ok=True)
+        return base / "metadata_cache.json"
+
+    def _load_metadata_cache(self) -> None:
+        path = self._metadata_cache_path
+        if not path.is_file():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self._tasks_cache = data.get("tasks") or {}
+            self._presets_cache = data.get("presets") or {}
+            self._task_option_defs = data.get("task_option_defs") or {}
+        except Exception:
+            pass
+
+    def _persist_metadata_cache(self) -> None:
+        try:
+            data = {
+                "tasks": self._tasks_cache,
+                "presets": self._presets_cache,
+                "task_option_defs": self._task_option_defs,
+            }
+            self._metadata_cache_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
     def _open_task_settings(self):
         dialog = QDialog(self)
         dialog.setWindowTitle(locale.tr("task_settings_title", "Task Settings"))
@@ -1369,7 +1408,8 @@ class MaaEndControlPage(QWidget):
     def refresh(self):
         self._refresh_task_list()
         self._refresh_preset_list()
-        self._build_option_editor()
+        # 延迟构建 option editor，避免阻塞列表显示
+        QTimer.singleShot(0, self._build_option_editor)
 
 class TaskRunWorker(QThread):
     log = pyqtSignal(str, str)

@@ -106,16 +106,24 @@ def test_cli_bridge_on_finished_increments_crash_count_on_crash_exit(qapp: QAppl
 
 def test_cli_bridge_on_finished_emits_error_on_nonzero_exit(qapp: QApplication) -> None:
     bridge = CLIBridge()
+    bridge._interactive = False
     bridge._last_command = ["daily"]
     bridge._process = MagicMock()
 
     errors = []
+    finished = []
 
-    def capture(command, message):
+    def capture_error(command, message):
         errors.append((command, message))
 
-    bridge.commandError.connect(capture)
+    def capture_finished(command, result):
+        finished.append((command, result))
+
+    bridge.commandError.connect(capture_error)
+    bridge.commandFinished.connect(capture_finished)
     bridge._on_finished(2, QProcess.ExitStatus.NormalExit)
     assert len(errors) == 1
     assert errors[0][0] == "daily"
     assert "2" in errors[0][1]
+    assert len(finished) == 1
+    assert finished[0][1].get("status") == "error"
