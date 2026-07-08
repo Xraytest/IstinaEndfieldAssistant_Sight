@@ -305,13 +305,19 @@ class MainWindow(QMainWindow):
         pass
 
     def _refresh_preview(self) -> None:
+        self._logger.debug(LogCategory.GUI, "预览定时器触发", connected=self._maaend_page._connected, executing=self._maaend_page._is_executing)
         if self._preview_label is None:
+            self._logger.debug(LogCategory.GUI, "预览退出: _preview_label is None")
             return
         if not self._maaend_page._connected:
+            self._logger.debug(LogCategory.GUI, "预览退出: _connected is False")
             return
         if self._maaend_page._is_executing:
-            return  # 任务执行期间不刷新预览
+            self._logger.debug(LogCategory.GUI, "预览退出: 任务执行中")
+            return
+        self._logger.debug(LogCategory.GUI, "开始同步执行 screenshot 命令")
         result = self._maaend_page._sync_execute("screenshot", timeout_ms=5000)
+        self._logger.debug(LogCategory.GUI, "screenshot 命令完成", result_type=type(result).__name__, result_status=result.get("status") if isinstance(result, dict) else None)
         if not result or result.get("status") != "success":
             self._logger.debug(LogCategory.GUI, "预览刷新失败", result=result)
             return
@@ -321,19 +327,25 @@ class MainWindow(QMainWindow):
             if path:
                 try:
                     data = Path(path).read_bytes()
-                except Exception:
+                except Exception as exc:
+                    self._logger.warning(LogCategory.GUI, "读取预览图片文件失败", path=path, error=str(exc))
                     return
             else:
+                self._logger.debug(LogCategory.GUI, "预览退出: 无 base64 且无 path")
                 return
         try:
             import base64
             image_data = base64.b64decode(data)
-        except Exception:
+        except Exception as exc:
+            self._logger.warning(LogCategory.GUI, "base64 解码失败", error=str(exc))
             return
         pixmap = QPixmap()
-        if pixmap.loadFromData(image_data):
+        loaded = pixmap.loadFromData(image_data)
+        self._logger.debug(LogCategory.GUI, "QPixmap 加载", loaded=loaded, image_size=len(image_data))
+        if loaded:
             scaled = pixmap.scaled(self._preview_label.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self._preview_label.setPixmap(scaled)
+            self._logger.debug(LogCategory.GUI, "预览图像已上屏")
 
     def _resize_navigation_list(self) -> None:
         if self._navigation_list is None:

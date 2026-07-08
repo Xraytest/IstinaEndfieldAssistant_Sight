@@ -265,10 +265,13 @@ def _handle_explore(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[st
 
 
 def _handle_screenshot(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    _logger = get_logger(__name__)
+    _logger.info("CLI handler: 开始 screenshot", out=getattr(args, "out", None))
     data = runtime.execute("screenshot", {})
-    out = Path(args.out) if args.out else None
+    _logger.info("CLI handler: screenshot 完成", data_type=type(data).__name__, data_size=len(data) if isinstance(data, (bytes, bytearray)) else None)
     if data is None:
         return {"status": "error", "message": "screenshot returned None"}
+    out = Path(args.out) if args.out else None
     if out:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(data)

@@ -454,14 +454,18 @@ class _Daemon:
                     if self._scrcpy_session is not None:
                         frame = self._scrcpy_session.get_latest_frame()
                     if frame is not None:
+                        self._logger.debug("AndroidRuntime", "daemon screenshot 使用 scrcpy 帧", serial=serial, frame_shape=frame.shape if hasattr(frame, 'shape') else None)
                         _, buf = cv2.imencode(".png", frame)
                         return self._encode_binary(buf.tobytes())
+                    self._logger.warning("AndroidRuntime", "daemon screenshot scrcpy 无帧，回退 ADB", serial=serial)
                     try:
                         output = self._adb_manager.screencap(serial=serial)
                         if output is not None:
+                            self._logger.debug("AndroidRuntime", "daemon screenshot ADB 成功", serial=serial, size=len(output))
                             return self._encode_binary(output)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        self._logger.warning("AndroidRuntime", "daemon screenshot ADB 失败", serial=serial, error=str(exc))
+                    self._logger.error("AndroidRuntime", "daemon screenshot 全部失败", serial=serial)
                     return {"error": "screenshot failed"}
                 if method == "tap":
                     self._touch.tap(int(params.get("x", 0)), int(params.get("y", 0)), serial=params.get("serial", self._serial))
@@ -586,13 +590,16 @@ class AndroidRuntime:
 
     def screenshot(self, serial: Optional[str] = None) -> Optional[bytes]:
         serial = serial or self._serial
+        self._logger.debug("AndroidRuntime", "调用 daemon screenshot", serial=serial)
         response = self._call("screenshot", {"serial": serial})
         result = response.get("result")
         if result is None:
+            self._logger.warning("AndroidRuntime", "daemon screenshot 返回 None", response=response)
             return None
         mmap_path = result.get("mmapPath")
         size = result.get("size", 0)
         if not mmap_path or size <= 0:
+            self._logger.warning("AndroidRuntime", "daemon screenshot mmap 无效", mmap_path=mmap_path, size=size)
             return None
         fd = None
         try:
@@ -602,10 +609,13 @@ class AndroidRuntime:
             fd = os.open(mmap_path, flags)
             mm = mmap.mmap(fd, size, access=mmap.ACCESS_READ)
             try:
-                return mm.read(size)
+                data = mm.read(size)
+                self._logger.debug("AndroidRuntime", "daemon screenshot mmap 读取成功", size=size)
+                return data
             finally:
                 mm.close()
-        except Exception:
+        except Exception as exc:
+            self._logger.error("AndroidRuntime", "daemon screenshot mmap 读取失败", error=str(exc))
             return None
         finally:
             if fd is not None:

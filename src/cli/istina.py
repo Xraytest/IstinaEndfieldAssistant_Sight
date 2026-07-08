@@ -258,9 +258,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 def _interactive_loop(parser: argparse.ArgumentParser) -> int:
     runtime = IstinaRuntime()
     buffer = ""
+    self_logger = get_logger(__name__)
     while True:
         chunk = sys.stdin.read(1)
         if not chunk:
+            self_logger.info("CLI 交互循环: stdin EOF")
             break
         buffer += chunk
         if chunk == "\n":
@@ -268,13 +270,18 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
             buffer = ""
             if not line:
                 continue
+            self_logger.info("CLI 交互循环: 收到命令", command=line)
             try:
                 args = parser.parse_args(line.split())
+                self_logger.info("CLI 交互循环: 解析成功", command=getattr(args, 'command', None), action=getattr(args, 'action', None))
                 result = CLIDispatch(runtime).dispatch(args)
+                self_logger.info("CLI 交互循环: 执行完成", status=result.get("status") if isinstance(result, dict) else None)
             except SystemExit:
                 result = {"status": "error", "message": "invalid command"}
+                self_logger.warning("CLI 交互循环: 参数解析失败", command=line)
             except Exception as exc:
                 result = {"status": "error", "message": str(exc)}
+                self_logger.error("CLI 交互循环: 执行异常", command=line, error=str(exc))
             sys.stdout.write(_json_dumps(result) + "\n")
             sys.stdout.flush()
     return 0

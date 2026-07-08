@@ -12,14 +12,48 @@ from typing import Any, Dict, List, Optional
 import cv2
 import numpy as np
 
-from core.capability.device.android_runtime import AndroidRuntime
-from core.capability.device.adb_manager import ADBDeviceInfo
-from core.capability.element_recognition import SceneUnderstandingService
 from core.capability.llm import LlmClient, LlamaServerRuntime
 from core.foundation.logger import get_logger, LogCategory
 from core.foundation.paths import get_project_root
 from core.service.maa_end.runtime import MaaEndRuntime
-from core.service.navigation import Navigator
+
+# 以下模块按需导入，避免 CLI 轻量命令（如 metadata list）触发重依赖
+_AndroidRuntime = None
+_ADBDeviceInfo = None
+_SceneUnderstandingService = None
+_Navigator = None
+
+
+def _get_android_runtime():
+    global _AndroidRuntime
+    if _AndroidRuntime is None:
+        from core.capability.device.android_runtime import AndroidRuntime
+        _AndroidRuntime = AndroidRuntime
+    return _AndroidRuntime
+
+
+def _get_adb_device_info():
+    global _ADBDeviceInfo
+    if _ADBDeviceInfo is None:
+        from core.capability.device.adb_manager import ADBDeviceInfo
+        _ADBDeviceInfo = ADBDeviceInfo
+    return _ADBDeviceInfo
+
+
+def _get_scene_understanding_service():
+    global _SceneUnderstandingService
+    if _SceneUnderstandingService is None:
+        from core.capability.element_recognition import SceneUnderstandingService
+        _SceneUnderstandingService = SceneUnderstandingService
+    return _SceneUnderstandingService
+
+
+def _get_navigator():
+    global _Navigator
+    if _Navigator is None:
+        from core.service.navigation import Navigator
+        _Navigator = Navigator
+    return _Navigator
 
 
 class AndroidRuntimeProxy:
@@ -33,21 +67,21 @@ class AndroidRuntimeProxy:
         self._adb_path = adb_path
         self._device_address = device_address
         self._logger = get_logger(__name__)
-        self._clients: Dict[str, AndroidRuntime] = {}
+        self._clients: Dict[str, Any] = {}
 
     @property
     def default_client(self):
         return self._client_for(None)
 
-    def _client_for(self, serial: Optional[str]) -> AndroidRuntime:
+    def _client_for(self, serial: Optional[str]) -> Any:
         resolved = serial or self._device_address or "default"
         client = self._clients.get(resolved)
         if client is None:
-            client = AndroidRuntime(serial=resolved, adb_path=self._adb_path)
+            client = _get_android_runtime()(serial=resolved, adb_path=self._adb_path)
             self._clients[resolved] = client
         return client
 
-    def get_devices(self) -> List[ADBDeviceInfo]:
+    def get_devices(self) -> List[Any]:
         return self._client_for(None).get_devices()
 
     def screenshot(self, serial: Optional[str] = None) -> Optional[bytes]:
@@ -90,8 +124,8 @@ class IstinaRuntime:
         self._maaend: Optional[MaaEndRuntime] = None
         self._llm_runtime = LlamaServerRuntime(self._config)
         self._llm_client = LlmClient(base_url=self._llm_runtime.base_url)
-        self._scene_svc: Optional[SceneUnderstandingService] = None
-        self._nav: Optional[Navigator] = None
+        self._scene_svc: Optional[Any] = None
+        self._nav: Optional[Any] = None
 
     @property
     def config(self) -> Dict[str, Any]:
@@ -142,22 +176,23 @@ class IstinaRuntime:
             self._maaend_clients[resolved] = runtime
         return runtime
 
-    def scene(self) -> SceneUnderstandingService:
+    def scene(self) -> Any:
         if self._scene_svc is None:
-            self._scene_svc = SceneUnderstandingService(
+            self._scene_svc = _get_scene_understanding_service()(
                 maaend_runtime=self.maaend(),
             )
         return self._scene_svc
 
-    def navigator(self) -> Navigator:
+    def navigator(self) -> Any:
         if self._nav is None:
-            self._nav = Navigator(
+            self._nav = _get_navigator()(
                 maaend=self.maaend(),
                 screenshot_fn=self.android().screenshot,
             )
         return self._nav
 
     def connect(self, serial: Optional[str] = None) -> bool:
+        self._logger.info(LogCategory.MAIN, "开始连接设备", serial=serial)
         runtime = self.maaend(serial)
         if not runtime.connected:
             ok = runtime.connect()
@@ -170,7 +205,9 @@ class IstinaRuntime:
             return False
         # 连接成功后立即启动 scrcpy 常驻图像通道，供预览按需取用。
         try:
+            self._logger.info(LogCategory.MAIN, "尝试启动 scrcpy 预览通道", serial=serial)
             self.android(serial).start_scrcpy(serial=serial)
+            self._logger.info(LogCategory.MAIN, "scrcpy 预览通道启动成功", serial=serial)
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "scrcpy 预览通道启动失败", error=str(exc))
         self._logger.info(LogCategory.MAIN, "MaaEnd runtime 已就绪")
@@ -189,6 +226,7 @@ class IstinaRuntime:
 
 
     def disconnect(self, serial: Optional[str] = None) -> None:
+        self._logger.info(LogCategory.MAIN, "开始断开设备", serial=serial)
         legacy = getattr(self, "_maaend", None)
         if legacy is not None and not self._maaend_clients:
             try:
@@ -207,8 +245,10 @@ class IstinaRuntime:
                 self._logger.error(LogCategory.MAIN, "断开连接异常", serial=target, error=str(e))
         # 断开所有设备时，同步停止 scrcpy 预览通道。
         try:
+            self._logger.info(LogCategory.MAIN, "停止 scrcpy 预览通道", serial=serial)
             android = self.android(serial)
             android.stop_scrcpy(serial=serial)
+            self._logger.info(LogCategory.MAIN, "scrcpy 预览通道已停止", serial=serial)
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "停止 scrcpy 预览通道失败", error=str(exc))
 
@@ -329,19 +369,26 @@ class IstinaRuntime:
 
     def _screenshot(self, params: Dict[str, Any]) -> Optional[bytes]:
         serial = params.get("serial")
+        self._logger.debug(LogCategory.MAIN, "_screenshot 开始", serial=serial)
         # 优先使用 AndroidRuntime (scrcpy 常驻通道)，失败则回退到 MaaEndRuntime (AdbController)。
         try:
             android = self.android(serial)
             data = android.screenshot(serial)
             if data is not None:
+                self._logger.debug(LogCategory.MAIN, "_screenshot AndroidRuntime 成功", serial=serial, size=len(data) if data else None)
                 return data
+            self._logger.warning(LogCategory.MAIN, "_screenshot AndroidRuntime 返回 None", serial=serial)
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "scrcpy 预览取帧失败，回退到 MaaEnd", error=str(exc))
         legacy = getattr(self, "_maaend", None)
         if legacy is not None and not self._maaend_clients:
-            return legacy.screenshot()
+            data = legacy.screenshot()
+            self._logger.debug(LogCategory.MAIN, "_screenshot legacy MaaEnd 完成", size=len(data) if data else None)
+            return data
         runtime = self.maaend(serial)
-        return runtime.screenshot(serial)
+        data = runtime.screenshot(serial)
+        self._logger.debug(LogCategory.MAIN, "_screenshot MaaEndRuntime 完成", size=len(data) if data else None)
+        return data
 
     def _load_config(self) -> Dict[str, Any]:
         path = self._resolve_config_path()

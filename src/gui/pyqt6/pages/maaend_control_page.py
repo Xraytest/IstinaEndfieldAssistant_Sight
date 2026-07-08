@@ -285,21 +285,26 @@ class MaaEndControlPage(QWidget):
         self.refresh()
 
     def _sync_execute(self, command: str, params: Optional[Dict[str, Any]] = None, timeout_ms: int = 1200) -> Optional[dict]:
+        self._logger.debug(LogCategory.GUI, "_sync_execute 开始", command=command, timeout_ms=timeout_ms)
         loop = QEventLoop()
         result = None
         expected = command
+        timed_out = False
 
         def _on_finished(cmd: str, res: dict):
             nonlocal result
             if cmd == expected:
                 result = res
+                timed_out = False
                 loop.quit()
 
         self._bridge.commandFinished.connect(_on_finished)
         self._bridge.execute(expected, params or {})
         QTimer.singleShot(timeout_ms, loop.quit)
         loop.exec()
+        timed_out = True
         self._bridge.commandFinished.disconnect(_on_finished)
+        self._logger.debug(LogCategory.GUI, "_sync_execute 结束", command=command, timed_out=timed_out, result_type=type(result).__name__)
         return result
 
     def _resolve_connect_params(self) -> Dict[str, Any]:

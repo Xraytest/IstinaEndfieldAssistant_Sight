@@ -57,6 +57,14 @@ class CLIBridge(QObject):
         else:
             self._start_next_process()
 
+    @staticmethod
+    def _build_args(command: str, params: Dict[str, Any]) -> List[str]:
+        args = command.split()
+        for key, value in params.items():
+            args.append(f"--{key}")
+            args.append(str(value))
+        return args
+
     def _send_next_if_idle(self) -> None:
         if self._process is not None and self._process.state() == QProcess.ProcessState.Running:
             if self._current_command is not None:
@@ -91,7 +99,9 @@ class CLIBridge(QObject):
         cmd = [self._python_path, self._istina_path, "--interactive"]
         self._logger.debug(LogCategory.GUI, "启动 CLI 交互进程", cmd=" ".join(cmd))
         self._process.start(cmd[0], cmd[1:])
-        if not self._process.waitForStarted(5000):
+        started = self._process.waitForStarted(5000)
+        self._logger.debug(LogCategory.GUI, "CLI 交互进程启动结果", started=started, pid=self._process.processId() if started else None)
+        if not started:
             self._handle_process_error("进程启动超时")
             self._finalize_current_process()
             self._start_interactive_process()
@@ -99,12 +109,15 @@ class CLIBridge(QObject):
         self._command_ready = True
         self._send_pending_command()
 
+    _start_next_process = _start_interactive_process
+
     def _send_pending_command(self) -> None:
         if not self._command_ready or self._process is None or self._current_command is None:
             return
         if self._process.state() == QProcess.ProcessState.NotRunning:
             return
         line = " ".join(self._current_command) + "\n"
+        self._logger.debug(LogCategory.GUI, "写入 CLI 命令", command=line.strip())
         try:
             self._process.write(line.encode("utf-8"))
             self._process.waitForBytesWritten(1000)
@@ -114,6 +127,7 @@ class CLIBridge(QObject):
     def _on_stdout(self) -> None:
         data = bytes(self._process.readAllStandardOutput()).decode("utf-8", errors="replace")
         self._stdout_buffer += data
+        self._logger.debug(LogCategory.GUI, "CLI stdout 数据到达", size=len(data))
         while True:
             newline_index = self._stdout_buffer.find("\n")
             if newline_index == -1:
@@ -122,12 +136,14 @@ class CLIBridge(QObject):
             self._stdout_buffer = self._stdout_buffer[newline_index + 1:]
             if not line.strip():
                 continue
+            self._logger.debug(LogCategory.GUI, "CLI stdout 行解析", line=line.strip()[:200])
             try:
                 result = json.loads(line.strip())
                 command = " ".join(self._last_command)
+                self._logger.debug(LogCategory.GUI, "发出 commandFinished 信号", command=command, status=result.get("status") if isinstance(result, dict) else None)
                 self.commandFinished.emit(command, result)
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as exc:
+                self._logger.warning(LogCategory.GUI, "CLI stdout JSON 解析失败", error=str(exc), line=line.strip()[:200])
             if self._interactive:
                 self._current_command = None
                 self._send_next_if_idle()
@@ -143,6 +159,7 @@ class CLIBridge(QObject):
         if self._interactive:
             # 交互模式下进程退出视为异常，尝试重启以保持长连接。
             self._crash_count += 1
+            self._logger.warning(LogCategory.GUI, "CLI 交互进程退出", exit_code=exit_code, exit_status=str(exit_status), crash_count=self._crash_count)
             self.processCrashed.emit(self._crash_count)
             if self._crash_count < self._max_crashes and not self._restart_pending:
                 self._restart_pending = True
@@ -155,6 +172,7 @@ class CLIBridge(QObject):
             return
         if exit_status == QProcess.ExitStatus.CrashExit:
             self._crash_count += 1
+            self._logger.error(LogCategory.GUI, "CLI 进程崩溃", exit_code=exit_code, crash_count=self._crash_count)
             self.processCrashed.emit(self._crash_count)
             if self._crash_count < self._max_crashes and not self._restart_pending:
                 self._restart_pending = True
