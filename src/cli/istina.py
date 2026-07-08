@@ -261,6 +261,7 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
     buffer = ""
     self_logger = get_logger(__name__)
     while True:
+        chunk = None
         try:
             chunk = sys.stdin.read(1)
         except Exception as exc:
@@ -269,7 +270,18 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
         if not chunk:
             self_logger.info("CLI 交互循环: stdin EOF")
             break
-        buffer += chunk
+        if isinstance(chunk, bytes):
+            try:
+                chunk = chunk.decode("utf-8", errors="replace")
+            except Exception:
+                chunk = ""
+        if not chunk:
+            continue
+        try:
+            buffer += chunk
+        except Exception as exc:
+            self_logger.error("CLI 交互循环: buffer 追加异常", error=str(exc))
+            break
         if chunk == "\n":
             line = buffer.strip()
             buffer = ""
