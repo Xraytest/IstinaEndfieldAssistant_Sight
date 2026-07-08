@@ -77,11 +77,15 @@ def test_execute_routes_preset_run() -> None:
 
 def test_execute_routes_screenshot_returns_bytes() -> None:
     from core.service.runtime import IstinaRuntime
+    from unittest.mock import patch, MagicMock
 
     runtime = IstinaRuntime()
     runtime._maaend = _FakeMaaEndRuntime(screenshot_result=b"PNG")
 
-    result = runtime.execute("screenshot", {})
+    fake_client = MagicMock()
+    fake_client.screenshot.return_value = None
+    with patch("core.service.runtime._get_android_runtime", return_value=lambda **kwargs: fake_client):
+        result = runtime.execute("screenshot", {})
     assert result == b"PNG"
 
 

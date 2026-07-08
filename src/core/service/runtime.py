@@ -122,7 +122,7 @@ class IstinaRuntime:
         self._android_clients: Dict[str, AndroidRuntimeProxy] = {}
         self._maaend_clients: Dict[str, MaaEndRuntime] = {}
         self._maaend: Optional[MaaEndRuntime] = None
-        self._llm_runtime = LlamaServerRuntime(self._config)
+        self._llm_runtime = LlamaServerRuntime.get_instance(self._config)
         self._llm_client = LlmClient(base_url=self._llm_runtime.base_url)
         self._scene_svc: Optional[Any] = None
         self._nav: Optional[Any] = None
@@ -791,15 +791,11 @@ class IstinaRuntime:
             return {"status": "error", "command": "llm.chat", "message": str(exc)}
 
     def _llm_status(self) -> Dict[str, Any]:
-        ready = self._llm_runtime.ready
-        if not ready:
-            self._llm_runtime.start()
-            ready = self._llm_runtime.ready
         return {
             "status": "success",
             "command": "llm.status",
             "enabled": self._config.get("llm", {}).get("enabled", True),
-            "ready": ready,
+            "ready": self._llm_runtime.ready,
             "port": self._llm_runtime.port,
             "base_url": self._llm_runtime.base_url,
         }

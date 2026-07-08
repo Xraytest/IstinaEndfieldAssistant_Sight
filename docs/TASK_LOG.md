@@ -279,3 +279,16 @@
 - **Files Modified**:
   - `src/gui/pyqt6/theme/theme_manager.py`
   - `src/gui/pyqt6/theme/widget_styles.py`
+
+## 2026-07-08 01:45
+
+- **User Request**: 分析当前 LLM 推理进程的创建与回收的漏洞；合并 LlamaServerRuntime 使其从 GUI/CLI 独立出来，成为独立实例；实现全局注册表协调多实例间的进程所有权。
+- **Outcome**: 
+  1. 将 `LlamaServerRuntime` 重构为按端口全局单例（`_instances: Dict[int, LlamaServerRuntime]`），同一端口在整个 Python 进程内只创建一个实例。
+  2. 新增 `get_instance(config)` 类方法，`IstinaRuntime` 不再直接构造，改为通过单例获取，避免多实例竞争同一端口。
+  3. 引入实例级 `_owned_pids: Set[int]` 追踪当前实例启动的进程，`stop()` 与 `atexit` 清理时仅终止自己拥有的 PID，避免误杀其他实例的服务。
+  4. 移除 `_llm_status()` 中的自动启动副作用，状态查询不再隐式触发 `llama-server` 启动。
+- **Files Modified**:
+  - `src/core/capability/llm/runtime.py`
+  - `src/core/service/runtime.py`
+- **验证**：`py_compile` 语法检查通过。
