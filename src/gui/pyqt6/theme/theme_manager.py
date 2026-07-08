@@ -5,11 +5,26 @@ Single arknight theme:低调暗黑 + 低调蓝灰高对比。
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, Optional
 
 from PyQt6.QtGui import QFont, QFontDatabase
 from PyQt6.QtWidgets import QApplication
 from pathlib import Path
+
+
+def _color_with_alpha(color: str, alpha_hex: str) -> str:
+    """Append alpha to a color string, handling both #RRGGBB and rgba() formats."""
+    if color.startswith("rgba("):
+        match = re.match(r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)", color)
+        if match:
+            r, g, b, _ = match.groups()
+            a = int(alpha_hex, 16) / 255.0
+            return f"rgba({r}, {g}, {b}, {a:.2f})"
+        return color
+    if color.startswith("#") and len(color) == 7:
+        return f"{color}{alpha_hex}"
+    return color
 
 # ---------------------------------------------------------------------------
 # Theme definitions
@@ -48,9 +63,9 @@ THEMES: Dict[str, Dict[str, Any]] = {
             "primary_light": "#82a5ff",
             "primary_lighter": "#a8c0ff",
             "primary_hover": "#7b9bff",
-            "primary_container": "rgba(92, 124, 250, 0.12)",
-            "primary_light_container": "rgba(92, 124, 250, 0.10)",
-            "primary_dark_container": "rgba(59, 93, 231, 0.20)",
+            "primary_container": "#5c7cfa",
+            "primary_light_container": "#5c7cfa",
+            "primary_dark_container": "#3b5de7",
             "on_primary": "#ffffff",
             "on_primary_container": "#d0d8ff",
             "info": "#5c7cfa",

@@ -212,42 +212,42 @@ PROGRESS_BAR_STYLE = f"""
 # ---------------------------------------------------------------------------
 BTN_ACTIVE = f"""
     QPushButton {{
-        background-color: {_rgba(_PRIMARY, 0.12)};
+        background-color: {_rgba(_PRIMARY, 0.20)};
         color: #ffffff;
-        border: 1px solid {_rgba(_PRIMARY, 0.20)};
+        border: 1px solid {_rgba(_PRIMARY, 0.35)};
         border-radius: 2px;
         padding: 3px 10px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
         min-height: 24px;
     }}
-    QPushButton:hover {{ background-color: {_rgba(_PRIMARY, 0.18)}; border-color: {_rgba(_PRIMARY, 0.35)}; }}
-    QPushButton:pressed {{ background-color: {_rgba(_PRIMARY, 0.28)}; border-color: {_rgba(_PRIMARY, 0.50)}; }}
+    QPushButton:hover {{ background-color: {_rgba(_PRIMARY, 0.35)}; border-color: {_rgba(_PRIMARY, 0.55)}; }}
+    QPushButton:pressed {{ background-color: {_rgba(_PRIMARY, 0.55)}; border-color: {_rgba(_PRIMARY, 0.80)}; }}
 """
 
 BTN_DEFAULT = f"""
     QPushButton {{
-        background-color: {_rgba(_PRIMARY, 0.12)};
+        background-color: {_rgba(_PRIMARY, 0.20)};
         color: #ffffff;
-        border: 1px solid {_rgba(_PRIMARY, 0.20)};
+        border: 1px solid {_rgba(_PRIMARY, 0.35)};
         border-radius: 2px;
         padding: 3px 10px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
         min-height: 24px;
     }}
-    QPushButton:hover {{ background-color: {_rgba(_PRIMARY, 0.18)}; border-color: {_rgba(_PRIMARY, 0.35)}; }}
-    QPushButton:pressed {{ background-color: {_rgba(_PRIMARY, 0.28)}; border-color: {_rgba(_PRIMARY, 0.50)}; }}
+    QPushButton:hover {{ background-color: {_rgba(_PRIMARY, 0.35)}; border-color: {_rgba(_PRIMARY, 0.55)}; }}
+    QPushButton:pressed {{ background-color: {_rgba(_PRIMARY, 0.55)}; border-color: {_rgba(_PRIMARY, 0.80)}; }}
 """
 
 BTN_STOP = f"""
     QPushButton {{
-        background-color: {_rgba(_DANGER, 0.12)};
+        background-color: {_rgba(_DANGER, 0.20)};
         color: #ffffff;
-        border: 1px solid {_rgba(_DANGER, 0.20)};
+        border: 1px solid {_rgba(_DANGER, 0.35)};
         border-radius: 2px;
         padding: 3px 10px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
         min-height: 24px;
     }}
-    QPushButton:hover {{ background-color: {_rgba(_DANGER, 0.18)}; border-color: {_rgba(_DANGER, 0.35)}; }}
-    QPushButton:pressed {{ background-color: {_rgba(_DANGER, 0.28)}; border-color: {_rgba(_DANGER, 0.50)}; }}
+    QPushButton:hover {{ background-color: {_rgba(_DANGER, 0.35)}; border-color: {_rgba(_DANGER, 0.55)}; }}
+    QPushButton:pressed {{ background-color: {_rgba(_DANGER, 0.55)}; border-color: {_rgba(_DANGER, 0.80)}; }}
 """
