@@ -170,60 +170,6 @@
   - `src/gui/pyqt6/theme/widget_styles.py`
   - `src/gui/pyqt6/theme/icons.py`
   - `src/gui/pyqt6/pages/maaend_control_page.py`
-  - `src/gui/pyqt6/pages/maaend_control_page.py`
-
-## 2026-07-07 23:50
-
-- **User Request**: 分析设备预览难以加载的问题。
-- **Outcome**: 深入分析预览调用链后识别出 5 个根因：
-  1. **CLI 子进程开销（P0）**：每次预览 tick 启动全新 `python src/cli/istina.py` 子进程，含模块导入、`IstinaRuntime` 初始化、JSON-RPC/mmap 通信、base64 编解码，单次耗时 2-4 秒。`CLIBridge._start_next_process` 发现上一进程仍在运行时会直接丢弃新请求，导致 1.5s 定时器被压制为 3-4 秒/帧。
-  2. **`_connected` 单向闩锁（P0）**：`_connected` 仅在 `system connect` 成功或手动断开时变更。截图失败不反写状态，设备意外断开后预览静默失败且无提示。
-  3. **`MaaEndRuntime.connect()` 未校验首次截图结果（P1）**：`post_screencap()` 后未检查 `succeeded`，`_connected` 可能提前置为 `True` 而后续截图全部失败。
-  4. **预览请求未传递 serial（P1）**：`_sync_execute("screenshot")` 不携带 serial，`_screenshot` 回退到配置中的 `last_connected`，若当前设备与配置不一致则请求错误设备。
-  5. **底层 MaaFW 环境不稳定（P2）**：`MAAFW_BINARY_PATH` 双副本冲突、`input_methods=3` 硬编码、`_start_agent()` 静默失败，放大预览失败率。
-- **Files Modified**: `docs/TASK_LOG.md`、`docs/GUI_TASK_QUEUE_ANALYSIS.md`（补充预览开销分析）
-
-## 2026-07-08 00:01
-
-- **User Request**: GUI 启动报错 `NameError: name 'Path' is not defined`，启动流程在 `apply_theme` -> `ensure_app_fonts` 阶段失败。
-- **Outcome**: 在 `src/gui/pyqt6/theme/theme_manager.py` 顶部补充缺失的 `from pathlib import Path` 导入，`ensure_app_fonts()` 中 `candidate_paths` 的 `Path` 引用现已可解析。
-- **Files Modified**:
-  - `src/gui/pyqt6/theme/theme_manager.py`
-  - `docs/TASK_LOG.md`
-
-## 2026-07-08 00:05
-
-- **User Request**: 按以下流程处理预览画面获取问题：连接到设备后直接建立 scrcpy 图像通道并持续保活到设备断开，图像按需取用。写入文档。
-- **Outcome**: 在 `docs/GUI_TASK_QUEUE_ANALYSIS.md` 中新增第 6 章“预览画面获取新方案：scrcpy 常驻图像通道”，完整描述替代旧 CLI 子进程截图模式的 scrcpy 常驻通道架构：连接即建通道、后台持续解码、预览定时器按需取帧、断开自动清理；包含关键组件代码路径、新旧方案对比、实施要点及回退策略。
-- **Files Modified**:
-  - `docs/GUI_TASK_QUEUE_ANALYSIS.md`
-  - `docs/TASK_LOG.md`
-
-## 2026-07-08 00:08
-
-- **User Request**: 不要绿色按钮，使用蓝色，内部文本使用白色。按钮透明度高一些。
-- **Outcome**: 
-  1. `widget_styles.py`：`BTN_ACTIVE`/`BTN_DEFAULT` 改为蓝底白字高透明（`background-color: {_PRIMARY}12`，`color: #ffffff`，`border: 1px solid {_PRIMARY}26`）；`BTN_STOP` 同步改为白字，保持危险色边框。
-  2. `theme_manager.py`：全局 `QPushButton` 改为白字，`background-color` 降低为 `rgba(13,19,28,0.80)`，边框透明度提高；`variant="primary"`/`"secondary"`/`"danger"` 文本统一改为白色。
-- **Commit**: `1121895`
-- **Files Modified**:
-  - `src/gui/pyqt6/theme/theme_manager.py`
-  - `src/gui/pyqt6/theme/widget_styles.py`
-
-## 2026-07-08 00:10
-
-- **User Request**: 按钮依然是绿色的，查找全部的绿色内容，改为高透明度的蓝色。
-- **Outcome**: 
-  1. `theme_manager.py`：将 `success`/`success_dark`/`success_light`/`success_container` 颜色从绿色系（`#2f9e44`/`#268538`/`#5cb85c`）替换为蓝色系（`#5c7cfa`/`#4c6ef5`/`#82a5ff`）；`QLabel[variant="success"]` 改为使用 `primary` 蓝色。
-  2. `widget_styles.py`：删除 `_SUCCESS` 变量与 `GREEN_STYLE`，新增 `BLUE_STYLE`；`maaend_control_page.py` 中两处 `GREEN_STYLE` 改为 `BLUE_STYLE`。
-  3. `icons.py`：状态图标 `running`/`success` 从 `#18d1ff`/`#00ffa2` 统一改为 `#5c7cfa`。
-  4. 全量 grep 验证：`src/gui/pyqt6` 下已无绿色 hex 值残留。
-- **Commit**: `598eb2a`
-- **Files Modified**:
-  - `src/gui/pyqt6/theme/theme_manager.py`
-  - `src/gui/pyqt6/theme/widget_styles.py`
-  - `src/gui/pyqt6/theme/icons.py`
-  - `src/gui/pyqt6/pages/maaend_control_page.py`
 
 ## 2026-07-08 00:54
 
@@ -342,3 +288,182 @@
 - **验证结果**：
   - `tests/test_maaend_control_page.py` 10 passed
   - `tests/test_error_paths.py` 6 passed
+
+## 2026-07-08 05:51
+
+- **User Request**: 检查并列举废弃及过时内容及文件；清除除 `MaaEnd_Release（SampleCode）/` 外的废弃文件。
+- **Outcome**: 删除孤立文件与一次性脚本，清理空目录：
+  1. `src/gui/pyqt6/pages/agent_page.py` — `src/` 范围内无任何引用，完全未被使用。
+  2. `scripts/migrate_tasks.py`、`scripts/migrate_templates.py`、`scripts/migrate_pipelines.py` — 一次性迁移脚本，资产已迁移至 `assets/`，后续不再需要。
+  3. `3rd-part/maaend/maafw/` — 空目录，实际 DLL 位于 `3rd-part/maaend/agent/maafw/`。
+- 保留 `MaaEnd_Release（SampleCode）/` 副本目录未处理。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/agent_page.py`（删除）
+  - `scripts/migrate_tasks.py`（删除）
+  - `scripts/migrate_templates.py`（删除）
+  - `scripts/migrate_pipelines.py`（删除）
+  - `3rd-part/maaend/maafw/`（删除空目录）
+
+## 2026-07-08 05:51 — 最近 120 个 Commit 审计
+
+- **User Request**: 创建 agent swarm 结合现有代码审计最近 120 个 commit，分析可能存在的隐患及错误修改，总结经验，合并文档。
+- **Outcome**: 完成 4 维度并行审计（diff 模式、测试回归风险、文档一致性、重复模式），输出合并报告。
+- **核心发现**：
+  - **高危 6 项**：未提交的 dispatch 不一致（`_daily_run` vs `_harvest_run`）、`maaend_control_page.py` 高频重构无测试、`LlamaServerRuntime` 单例重构无测试、跨层命名不一致（`_run_task` vs `_add_task_to_queue`）等。
+  - **中危 6 项**：CLI 交互循环连续 5 次 hotfix 无测试、按需加载重构 import 语义变化、scrcpy 回退逻辑无测试、主题系统简化无测试等。
+  - **低危 4 项**：重复 rgba 配置未提取为常量、"先建后拆" 浪费（891 行 dashboard widget 删除）、死代码清理规范执行等。
+  - **Hotfix 聚集区**：`maaend_control_page.py`（41 次修改）、`istina.py`（5 次连续修复）、`android_runtime.py`（2 次修改无测试）。
+  - **文档不一致 7 处**：TASK_LOG 时间戳倒置、虚拟记录、function_table.md 引用已删除文件、测试报告引用虚拟环境路径等。
+- **改进建议**：
+  1. 立即修复未提交的 dispatch 不一致，补充 runtime 分发逻辑单元测试。
+  2. 恢复 `maaend_control_page.py` 基础测试（QProgressBar 导入）。
+  3. Squash 578ca5e/753a44a 为单一 commit。
+  4. 为 `_interactive_loop`、`LlamaServerRuntime`、screenshot 回退路径补充测试。
+  5. 建立 GUI 页面修改 checklist，确保测试同步更新。
+  6. TASK_LOG 增加时间戳校验和文件修改验证机制。
+- **Files Modified**:
+  - `reports/commit_audit_120_report.md`（新增）
+
+## 2026-07-08 05:58
+
+- **User Request**: 创建 agent swarm，检查 IEA 代码执行算法（细化到具体的实现，及修改影响的代码片段极其位置与功能！），分析有可能的优化方案，任何一个代码文件禁止跳过，报告放到 reports/。
+- **Outcome**: 使用 AgentSwarm 对 10 个关键源码文件做并行深度审计，输出结构化报告并汇总为全局影响矩阵与优化方案。
+  - **覆盖文件**：`runtime.py`、`maa_end/runtime.py`、`navigation/navigator.py`、`navigation/vlm_walk_navigator.py`、`element_recognition/recognizer.py`、`element_recognition/scene_service.py`、`element_recognition/pipeline/pipeline_runner.py`、`element_recognition/tasks/task_runner.py`、`cli/handlers.py`、`llm/runtime.py`。
+  - **核心发现**：
+    1. **P0 阻塞性 Bug 5 项**：`PipelineRunner` 中 `And`/`Or` 复合条件硬编码 `DirectHit` 导致逻辑完全失效（`pipeline_runner.py:281-315`）；`TaskRunner` 缺失 `PipelineNode` 导入导致 `NameError`（`task_runner.py:78`）；`VlmWalkNavigator` 到达判定恒 `success`（`vlm_walk_navigator.py:250`）；JPEG 被标记为 PNG 导致 VLM 视觉理解失败（`vlm_walk_navigator.py:300-301`）；`MaaEndRuntime.connect()` 未校验首次截图结果（`maa_end/runtime.py:210-211`）。
+    2. **P1 性能/稳定性 8 项**：`IstinaRuntime.__init__` 强制初始化 LLM（`runtime.py:137-138`）；`execute()` 每次调用重读磁盘配置（`runtime.py:269`）；`run_pipeline()` 无匹配时潜在 CPU 空转（`pipeline_runner.py:102-115`）；`LlamaServerRuntime` 线程安全缺失（`llm/runtime.py:61-69`）；NVML 初始化后未释放（`handlers.py:544-562`）等。
+    3. **P2 架构/可维护性 8 项**：重复的 base64/cv2 解码（`runtime.py:640-732`）；重复的 serial 解析逻辑（`runtime.py:88-180`）；`AndroidRuntimeProxy` 11 个方法全是委托（`runtime.py:96-121`）；截图逻辑三份重复（`handlers.py:265-440`）等。
+  - **修改影响矩阵**：评估了 10 个文件修改后的直接影响、间接影响与风险等级。
+- **Files Modified**:
+  - `reports/iea_execution_algorithm_analysis.md`（新增）
+- **验证结果**：
+  - 报告覆盖全部 10 个关键文件，每个文件均包含核心类/函数签名、关键算法/逻辑流程（带行号）、上层调用关系、潜在 Bug/性能瓶颈/设计问题。
+  - 修改影响范围矩阵覆盖所有上层调用点。
+  - 优化方案按 P0/P1/P2 优先级排序，共 21 项，每项包含修复建议与预期收益。
+
+## 2026-07-08 06:00
+
+- **User Request**: 检查并列举废弃及过时内容及文件；深度分析测试文件是否真的有用，并执行清除。
+- **Outcome**: 
+  1. **已删除的冗余测试文件**：
+     - `tests/integration/test_gui_cli_chain.py` — 与 `tests/test_cli_bridge.py` 内容几乎完全重复（130 行 vs 129 行，7 个测试用例全部对应），属于复制粘贴产生的死测试文件。
+     - `tests/integration/test_full_chain.py` — 与 `tests/test_istina_cli_commands.py` 高度重叠，两者都是 CLI subprocess 集成测试，重复覆盖 device info/status、system connect、screenshot、nav hub、daily、harvest、analyze、explore、config get/set 等用例。保留 `test_istina_cli_commands.py` 因其更完整（还覆盖 task list、preset list、task run --timeout 等）。
+     - `tests/test_scene_geometry.py` — 直接读取外部文件 `cache/screenshot/debug/after_quest.png`，依赖特定截图存在且内容不变，测试极脆弱，不可作为可靠回归测试。
+  2. **清理缓存**：删除 `tests/__pycache__` 与 `tests/integration/__pycache__`。
+  3. **深度分析结论**：剩余 10 个测试文件整体有用，覆盖错误路径、核心运行时调度、LLM 多模态链路、模板匹配管道、GUI 业务逻辑、主窗口结构。约 3 个文件（21% ）为死重或脆弱测试，已清除。
+- **Files Deleted**:
+  - `tests/integration/test_gui_cli_chain.py`
+  - `tests/integration/test_full_chain.py`
+  - `tests/test_scene_geometry.py`
+- **Files Cleaned**:
+  - `tests/__pycache__/`
+  - `tests/integration/__pycache__/`
+
+## 2026-07-08 14:21
+
+- **User Request**: 阅读现有的文档，进行一次合并与重分配，保证文档文件数量少且有效分类，合并重复内容。
+- **Outcome**: 将 `docs/` 下 12 个分散文档/目录归并为 7 个有效分类文档，消除重复内容并更新引用：
+  1. 新建 `docs/ARCHITECTURE.md`：整合架构总览、IEA vs MaaEnd 对比、Pipeline/导航/设备控制差异、设计语言参考、GUI 审计与优化待办（来源：`IEA_VS_MaaEnd_COMPARISON.md` + `docs/design/` 全部内容）。
+  2. 新建 `docs/RUNTIME_DEVICE_AND_MAAEND.md`：整合委托链、Runtime/Device 层问题、MaaEnd 集成问题（双副本、DLL 路径、Agent 启动等）、跨模块调用链与优先级建议（来源：`DELEGATION_CHAIN_ANALYSIS.md` + `CHAIN_RECONSTRUCTION_REPORT.md` 相关章节 + `CODE_REVIEW_NAMING_AND_BINDING.md` Section 1）。
+  3. 新建 `docs/GUI_CLI_AND_AUTOMATION.md`：整合 GUI 任务队列 5 大错误、预览画面分析、scrcpy 常驻通道方案、CLI/GUI 层问题与跨模块调用链（来源：`GUI_TASK_QUEUE_ANALYSIS.md` + `CODE_REVIEW_NAMING_AND_BINDING.md` Section 4）。
+  4. 新建 `docs/LLM_AND_NAVIGATION.md`：整合 LLM 性能调优（KV Cache、显存、上下文）、LLM & Navigation 层问题与修复、导航系统差异（来源：`LLM_PERFORMANCE.md` + `CODE_REVIEW_NAMING_AND_BINDING.md` Section 3）。
+  5. 新建 `docs/RECOGNITION_PIPELINE_AND_TASKS.md`：整合识别后端问题、IEA/MaaEnd Pipeline 差异、任务定义与预设系统（来源：`CODE_REVIEW_NAMING_AND_BINDING.md` Section 2 + `IEA_VS_MaaEnd_COMPARISON.md` 相关章节）。
+  6. 新建 `docs/CODE_QUALITY_AND_CLEANUP.md`：整合死代码清理记录、跨模块调用链汇总、修复优先级、命名 vs 实现对照表（来源：`DEAD_CODE_CLEANUP.md` + `CODE_REVIEW_NAMING_AND_BINDING.md` Section 5/6/7）。
+  7. 删除旧文件：`IEA_VS_MaaEnd_COMPARISON.md`、`CHAIN_RECONSTRUCTION_REPORT.md`、`DELEGATION_CHAIN_ANALYSIS.md`、`CODE_REVIEW_NAMING_AND_BINDING.md`、`GUI_TASK_QUEUE_ANALYSIS.md`、`LLM_PERFORMANCE.md`、`DEAD_CODE_CLEANUP.md`、`docs/design/` 目录。
+  8. 更新 `.agents/skills/read-and-log-docs/SKILL.md` 中的强制读取文件列表，使其与新的文档结构一致。
+- **Files Modified**:
+  - `docs/ARCHITECTURE.md` (new)
+  - `docs/RUNTIME_DEVICE_AND_MAAEND.md` (new)
+  - `docs/GUI_CLI_AND_AUTOMATION.md` (new)
+  - `docs/LLM_AND_NAVIGATION.md` (new)
+  - `docs/RECOGNITION_PIPELINE_AND_TASKS.md` (new)
+  - `docs/CODE_QUALITY_AND_CLEANUP.md` (new)
+  - `.agents/skills/read-and-log-docs/SKILL.md`
+  - 删除：`docs/IEA_VS_MaaEnd_COMPARISON.md`、`docs/CHAIN_RECONSTRUCTION_REPORT.md`、`docs/DELEGATION_CHAIN_ANALYSIS.md`、`docs/CODE_REVIEW_NAMING_AND_BINDING.md`、`docs/GUI_TASK_QUEUE_ANALYSIS.md`、`docs/LLM_PERFORMANCE.md`、`docs/DEAD_CODE_CLEANUP.md`、`docs/design/`
+
+## 2026-07-08 15:34
+
+- **User Request**: 创建合适的agent swarm分析任务无法落实设备的原因。
+- **Outcome**: 使用 dispatching-parallel-agents 创建4个并行探索Agent，覆盖设备连接链路、状态管理、任务交互、配置环境四个维度。核心发现：
+  - **P0 4项**：`_connected` 单向闩锁（`maa_end/runtime.py:230`，设备断开不反写，任务继续下发全部失败）；双MaaEnd副本不一致（`_default_maaend_root()` 硬编码 `3rd-part/maaend/`，`MaaEnd/` 含最新资源但永不被加载）；`_start_agent()` 静默失败（`connect()` 不校验agent就绪即设 `_connected=True`）；`MAAFW_BINARY_PATH` 模块级全局污染（`sitecustomize.py` 与 `runtime.py` 重复设置，Python/Go两端可能加载不同DLL）。
+  - **P1 4项**：`device_address="default"` 回退到非法 `localhost:16512`；`screenshot(serial)` 假接口；`input_methods` 硬编码（Agent-2验证已改为 `AdbShell=1`，但与文档 `RUNTIME_DEVICE_AND_MAAEND.md` 中的 `=3` 矛盾，需确认）；配置加载失败回退空字典。
+  - **P2 3项**：`disconnect()` 进程清理不完整（Windows `terminate` 不杀进程树）；`_ScrcpySession._ensure_device_online()` 传递 `serial=None`；Daemon 单 serial 设计多设备串线风险。
+  - **已排除的旧线索**（4个Agent交叉验证）：`disconnect()` 已调用 `_cleanup_partial()` 正确终止agent进程；Daemon `_dispatch` 已使用 `params.get("serial", self._serial)`；`_ensure_maaend_ready()` 中已无 legacy 代码。
+  - 本次为只读分析，未修改任何源码文件。
+- **Files Modified**: `docs/TASK_LOG.md`（仅追加本记录）
+
+## 2026-07-08 16:05
+
+- **User Request**: 修正"任务无法落实设备"的P0根因。
+- **Outcome**: 基于Agent分析结果，直接修改了 `src/core/service/maa_end/runtime.py` 与 `src/core/service/runtime.py`：
+  1. **`_start_agent()` 进程泄漏修复**：`Popen` 成功但 `AgentClient` 初始化失败时，显式 `terminate`/`kill` 已启动的 `go-service.exe`，避免僵尸进程累积。
+  2. **`connect()` 校验 Agent 就绪**：Agent 完全未启动时不再无条件设 `_connected=True`，而是清理并返回 `False`。
+  3. **`_connected` 单向闩锁修复**：`screenshot()` / `run_pipeline()` / `run_task()` 在执行失败时将 `_connected` 反写为 `False`，避免设备断开后任务继续下发。
+  4. **移除 `device_address="default"` 幻数**：删除 `MaaEndRuntime.__init__` 中的 `"default"` → `"localhost:16512"` 转换；`_resolve_serial()` 不再 fallback 到 `"default"`；`connect()` 在地址仍为 `"default"` 时直接拒绝。
+  5. **移除 `screenshot(serial)` 假接口**：`MaaEndRuntime.screenshot()` 不再接受 `serial` 参数，调用方 `runtime.py:393` 同步移除参数传递。
+  6. **移除模块级 `MAAFW_BINARY_PATH` 全局污染**：删除 `runtime.py` 顶部 `os.environ["MAAFW_BINARY_PATH"]` 设置，统一保留 `sitecustomize.py` 中的单一入口。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`
+  - `src/core/service/runtime.py`
+- **验证**：`pytest` 运行 37 passed（`test_istina_runtime.py` / `test_maaend_control_page.py` / `test_cli_bridge.py` / `test_error_paths.py`）。
+
+## 2026-07-08 16:30
+
+- **User Request**: 分析并修正问题：设备预览逐帧变大。
+- **Outcome**: 定位到 `MainWindow._refresh_preview()` 中 `pixmap.scaled(self._preview_label.size(), ...)` 与 `QLabel.setPixmap()` 之间的正反馈循环：label 尺寸随 pixmap 放大而增大，下一帧缩放基准再次变大，逐帧累积。已在 `main_window.py` 中切断反馈链：
+  1. 给 `_preview_label` 添加 `setMaximumHeight(640)`，限制 label 最大高度。
+  2. 将缩放目标从 `self._preview_label.size()` 改为 `self._preview_label.contentsRect().size()`，排除 border/padding 对 size 的累积干扰。
+- **Files Modified**: `src/gui/pyqt6/main_window.py`
+- **验证**：语法检查通过。
+
+## 2026-07-08 16:50
+
+- **User Request**: GUI 依然反馈 CLI 启动失败；分析并修正 CLI 崩溃计数与重启逻辑。
+- **Outcome**: 基于 `logs/main.log` 中 `CLI 交互进程异常退出 exit_code=62097 exit_status=ExitStatus.CrashExit crash_count=6` 线索，定位到 `src/gui/pyqt6/cli_bridge.py` 中 `_on_finished` 与 `_on_error` 的重复计数问题：
+  1. **`_on_finished` 区分真正的崩溃与业务错误**：只有 `ExitStatus.CrashExit` 才增加 `_crash_count`；交互模式下非零退出码不再被误判为"异常退出"，避免业务错误触发崩溃对话框。
+  2. **`_on_error` 移除重复计数**：Qt 的 `errorOccurred(Crashed)` 与 `finished(CrashExit)` 会先后触发，`_on_error` 只记录日志，崩溃计数统一由 `_on_finished` 处理，避免 `_crash_count` 被重复累加。
+  3. **交互模式重启逻辑修正**：交互模式下只有真正的崩溃才触发重启；业务错误直接通过 `commandError`/`commandFinished` 通知上层，不再插入重启队列。
+- **Files Modified**:
+  - `src/gui/pyqt6/cli_bridge.py`
+  - `tests/test_cli_bridge.py`（同步更新 2 个测试以匹配新行为）
+- **验证**：`pytest` 运行 37 passed（`test_istina_runtime.py` / `test_maaend_control_page.py` / `test_cli_bridge.py` / `test_error_paths.py`）。
+
+## 2026-07-08 17:00
+
+- **User Request**: 设置内可调预览帧率。
+- **Outcome**: 在 `SettingsPage` 新增 `Preview Interval` 配置项（200–10000ms），并实时同步到 `MainWindow._preview_timer`：
+  1. `settings_page.py`：新增 `_preview_interval_spin`，`valueChanged` 时同时触发 `_save_settings`（持久化到 `config/client_config.json`）与 `_apply_preview_interval`（实时更新主窗口定时器）。
+  2. `main_window.py`：新增 `_preview_interval_ms()` 启动时读取配置；初始化定时器时使用配置值而非硬编码 1500ms。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/settings_page.py`
+  - `src/gui/pyqt6/main_window.py`
+- **验证**：语法检查通过。
+
+## 2026-07-08 17:15
+
+- **User Request**: 修正 CLI 交互循环中 `llm status` 报错：`'NoneType' object has no attribute 'ready'`。
+- **Outcome**: 定位到 `src/core/service/runtime.py` 中 `_llm_status()` 直接访问 `self._llm_runtime_instance.ready`，但 `_llm_runtime_instance` 是懒初始化 property，若 `_get_llama_runtime(self._config)` 返回 `None` 或初始化异常，会直接抛出 `AttributeError` 并被 `_interactive_loop` 捕获为 CLI 错误。已在 `_llm_status()` 中增加 try-except，初始化失败时返回结构化 error 结果，避免 CLI 进程崩溃。
+- **Files Modified**:
+  - `src/core/service/runtime.py`
+- **验证**：`pytest` 运行 40 passed（`test_llm_runtime_image.py` / `test_llm_mmproj.py` / `test_istina_runtime.py` / `test_cli_bridge.py` / `test_maaend_control_page.py` / `test_error_paths.py`）。
+
+## 2026-07-08 17:40
+
+- **User Request**: 检查 GUI 反馈的 CLI 启动失败根因。
+- **Outcome**: 检查 `debug/go-service.log` 后发现关键错误：go-service 尝试从项目根目录 `maafw/MaaFramework.dll` 加载 DLL，但该目录为空；实际 DLL 位于 `3rd-part/maaend/agent/maafw/`。根因是 `_resolve_agent_root()` 只检查 `go-service.exe` 是否存在，未检查 `maafw/MaaFramework.dll`，导致返回了不完整的 `MaaEnd/agent/` 路径。修复：`_resolve_agent_root()` 现在同时验证 `maafw/MaaFramework.dll` 存在，否则回退到 `3rd-part/maaend/agent/`。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`
+- **验证**：`pytest` 运行 40 passed。
+
+## 2026-07-08 18:30
+
+- **User Request**: 分析队列未能持久化的原因，给出报告而不修改。
+- **Outcome**: 使用 systematic-debugging 完成根因调查，定位到 4 个根因：
+  1. P0：`MainWindow.closeEvent` 不持久化队列状态，关闭窗口时内存中最后编辑的选项/队列不会写入磁盘。
+  2. P0：`QueueState.persist()` 静默吞掉所有异常，磁盘满/权限不足/文件锁定等环境问题导致写入失败时用户完全无感知。
+  3. P1：`selected_task` / `selected_preset` 仅在 `_save_options` 与 `_apply_preset_to_queue` 时持久化，单纯切换选中态不会更新。
+  4. P2：`_build_option_editor` 与 `_apply_saved_option_values` 之间存在信号竞争边界情况，可能覆盖已保存选项。
+  本次分析同时补充了每个根因的修改方案、影响函数及非期待变化评估，并作为项目必备分析流程写入 `docs/WORKFLOW.md`。
+- **Files Modified**:
+  - `docs/WORKFLOW.md`（新增 Problem Analysis Workflow 必备流程）
+  - `reports/queue_persistence_analysis.md`（新增报告）
