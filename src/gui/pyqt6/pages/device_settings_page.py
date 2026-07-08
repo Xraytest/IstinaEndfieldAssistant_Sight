@@ -96,6 +96,7 @@ class DeviceSettingsPage(QWidget):
         self._auto_reconnect_check = QCheckBox(locale.tr("auto_reconnect", "Auto-reconnect on disconnect"))
         self._auto_reconnect_check.setChecked(True)
         self._auto_reconnect_check.toggled.connect(self._on_auto_reconnect_toggled)
+        self._auto_reconnect_check.toggled.connect(self._save_device_settings)
         status_form.addRow("", self._auto_reconnect_check)
         connection_layout.addLayout(status_form)
         content_root.addWidget(connection_card)
@@ -232,6 +233,16 @@ class DeviceSettingsPage(QWidget):
             if item:
                 self._history_list.addItem(str(item))
 
+        auto_reconnect = bool(device_cfg.get("auto_reconnect", True))
+        self._auto_reconnect_check.blockSignals(True)
+        self._auto_reconnect_check.setChecked(auto_reconnect)
+        self._auto_reconnect_check.blockSignals(False)
+        self._reconnect_enabled = auto_reconnect
+        if auto_reconnect and self._connected:
+            self._reconnect_timer.start()
+        else:
+            self._reconnect_timer.stop()
+
     def _remember_device(self, serial: str) -> None:
         config = self._read_config()
         device_cfg = dict(config.get("device", {}))
@@ -257,3 +268,10 @@ class DeviceSettingsPage(QWidget):
     def _write_config(self, config: Dict[str, Any]) -> None:
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
         self._config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def _save_device_settings(self) -> None:
+        config = self._read_config()
+        device_cfg = dict(config.get("device", {}))
+        device_cfg["auto_reconnect"] = self._auto_reconnect_check.isChecked()
+        config["device"] = device_cfg
+        self._write_config(config)

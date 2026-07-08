@@ -78,6 +78,11 @@ class SettingsPage(QWidget):
         self._port_input.setRange(1, 65535)
         self._threads_input = QSpinBox()
         self._threads_input.setRange(1, 256)
+        self._llm_enabled.toggled.connect(self._save_settings)
+        self._model_path_input.textChanged.connect(self._save_settings)
+        self._mmproj_path_input.textChanged.connect(self._save_settings)
+        self._port_input.valueChanged.connect(self._save_settings)
+        self._threads_input.valueChanged.connect(self._save_settings)
         llm_form.addRow("", self._llm_enabled)
         llm_form.addRow(locale.tr("model_path", "Model Path"), self._model_path_input)
         llm_form.addRow(locale.tr("mmproj_path", "MMProj Path"), self._mmproj_path_input)
@@ -90,11 +95,6 @@ class SettingsPage(QWidget):
         self._reload_btn.setProperty("variant", "secondary")
         self._reload_btn.clicked.connect(self._load_settings)
         action_row.addWidget(self._reload_btn)
-
-        self._save_btn = QPushButton(locale.tr("btn_save", "Save Settings"))
-        self._save_btn.setProperty("variant", "primary")
-        self._save_btn.clicked.connect(self._save_settings)
-        action_row.addWidget(self._save_btn)
         action_row.addStretch()
         content_root.addLayout(action_row)
 
@@ -121,11 +121,21 @@ class SettingsPage(QWidget):
         config = self._read_config()
 
         llm = config.get("llm", {})
+        self._llm_enabled.blockSignals(True)
+        self._model_path_input.blockSignals(True)
+        self._mmproj_path_input.blockSignals(True)
+        self._port_input.blockSignals(True)
+        self._threads_input.blockSignals(True)
         self._llm_enabled.setChecked(bool(llm.get("enabled", True)))
         self._model_path_input.setText(str(llm.get("model_path", "")))
         self._mmproj_path_input.setText(str(llm.get("mmproj_path", "")))
         self._port_input.setValue(int(llm.get("port", 9998)))
         self._threads_input.setValue(int(llm.get("threads", 12)))
+        self._llm_enabled.blockSignals(False)
+        self._model_path_input.blockSignals(False)
+        self._mmproj_path_input.blockSignals(False)
+        self._port_input.blockSignals(False)
+        self._threads_input.blockSignals(False)
 
         self._raw_preview.setPlainText(json.dumps(config, ensure_ascii=False, indent=2))
 
@@ -145,7 +155,6 @@ class SettingsPage(QWidget):
         self._config_path.parent.mkdir(parents=True, exist_ok=True)
         self._config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
         self._raw_preview.setPlainText(json.dumps(config, ensure_ascii=False, indent=2))
-        QMessageBox.information(self, locale.tr("settings_saved", "Saved"), locale.tr("settings_saved_msg", "Configuration written to {path}").format(path=self._config_path))
 
     def _read_config(self) -> Dict[str, Any]:
         if not self._config_path.exists():

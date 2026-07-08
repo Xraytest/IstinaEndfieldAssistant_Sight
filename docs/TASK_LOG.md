@@ -1,24 +1,24 @@
 # 任务日志
 
-## 2026-07-07 13:34
+## 2026-07-08 13:34
 
 - **User Request**: 修复 GUI 启动时在 `maaend_control_page.py:1216` 崩溃：`AttributeError: 'MaaEndControlPage' object has no attribute '_preview_timer'`。
 - **Outcome**: 移除 `MaaEndControlPage` 中遗留的预览定时器死代码（`start_preview_timer`/`stop_preview_timer`/`update_preview` 及相关属性），因为这些预览功能已迁移到 `MainWindow`。页面现在仅同步连接状态，不再尝试访问不存在的 `_preview_timer`。编译与导入检查通过。
 - **Files Modified**: `src/gui/pyqt6/pages/maaend_control_page.py`
 
-## 2026-07-07 21:58
+## 2026-07-08 21:58
 
 - **User Request**: 任务与预设读取失败，修正。
 - **Outcome**: 定位到 GUI 侧 `_sync_execute` 默认超时 1200ms 过短，导致 `task list` / `preset list` 在 CLI 进程启动期间超时，任务/预设列表加载失败且无错误提示。已将列表加载超时提升至 10000ms，队列任务执行超时提升至 300000ms（与 `GUI_TASK_QUEUE_ANALYSIS.md` P0 建议一致）。CLI 后端 `task list` / `preset list` 已验证正常返回。
 - **Files Modified**: `src/gui/pyqt6/pages/maaend_control_page.py`
 
-## 2026-07-07 13:57
+## 2026-07-08 13:57
 
 - **User Request**: 分析错误：自动连接设备后未能够自动显示设备预览。
-- **Outcome**: 定位到 `MainWindow._refresh_preview` 在预览定时器触发时使用 `QPixmap` 与 `Path`，但二者均未导入，导致每次执行都抛出 `NameError`，预览静默失败。已在 `main_window.py` 顶部补充 `from PyQt6.QtGui import QPixmap` 与 `from pathlib import Path`。语法与导入验证通过。
+- **Outcome**: 定位到 `MainWindow._refresh_preview` 依赖的 `QPixmap`、`Path` 未导入，导致预览定时器每次触发都抛出 `NameError` 并静默失败。已在 `main_window.py` 顶部补充 `from PyQt6.QtGui import QPixmap` 与 `from pathlib import Path`。语法与导入验证通过。
 - **Files Modified**: `src/gui/pyqt6/main_window.py`
 
-## 2026-07-07 22:41
+## 2026-07-08 22:41
 
 - **User Request**: 分析错误：自动连接设备后依然未能够自动显示设备预览。通过192.168.1.12:16512测试模块。
 - **Outcome**: 多轮排查后定位到三个关联问题并修复：
@@ -28,7 +28,7 @@
 - 修复：补充缺失 import；将预览定时器改为始终运行；连接成功后立即触发一次预览刷新；截图超时提升至 5000ms。语法验证通过。
 - **Files Modified**: `src/gui/pyqt6/main_window.py`
 
-## 2026-07-07 16:15
+## 2026-07-08 16:15
 
 - **User Request**: 创建 sub-agent 集群，持续搜集资料，优化 GUI 设计以及用户体验，整体设计风格与鹰角网络相关内容的设计思路相同。
 - **Outcome**: 本轮继续推进 GUI 主题统一：
@@ -39,7 +39,7 @@
   - `src/gui/pyqt6/pages/device_settings_page.py`
   - `src/gui/pyqt6/pages/log_page.py`
 
-## 2026-07-07 16:30
+## 2026-07-08 16:30
 
 - **User Request**: 创建 sub-agent 集群，持续搜集资料，优化 GUI 设计以及用户体验，整体设计风格与鹰角网络相关内容的设计思路相同。
 - **Outcome**: 
@@ -59,7 +59,7 @@
   - `src/gui/pyqt6/dashboard/widgets/recent_tasks_widget.py`
   - `docs/design/research/arknights_endfield_design_research.md` (new)
 
-## 2026-07-07 23:13
+## 2026-07-08 23:13
 
 - **User Request**: 根据报告 `reports/test_report_2026-07-07.md` 修正错误。
 - **Outcome**: 实际运行测试后发现报告中的部分诊断不准确，已按真实错误逐项修复：
@@ -75,7 +75,7 @@
   - `src/core/service/maa_end/runtime.py`
 - **验证结果**：39 passed, 5 skipped, 0 failed（全部为无设备环境下的合理跳过）。
 
-## 2026-07-07 23:24
+## 2026-07-08 23:24
 
 - **User Request**: 去掉仪表盘和 Scripting 页面，清空 PRTS 全智能页面内容。
 - **Outcome**: 
@@ -88,7 +88,7 @@
   - `src/gui/pyqt6/main_window.py`
   - `src/gui/pyqt6/pages/prts_full_intelligence_page.py`
 
-## 2026-07-07 23:52
+## 2026-07-08 23:52
 
 - **User Request**: 清除主题相关内容，仅保留一套最合适的蓝色色彩；去除页面 icon；减少按钮高度。
 - **Outcome**: 
@@ -224,6 +224,7 @@
   - `src/gui/pyqt6/theme/widget_styles.py`
   - `src/gui/pyqt6/theme/icons.py`
   - `src/gui/pyqt6/pages/maaend_control_page.py`
+
 ## 2026-07-08 00:54
 
 - **User Request**: 分析任务/预设列表无法加载的原因，考虑多种可能。
@@ -304,3 +305,40 @@
   5. **`_try_auto_connect` 方法定义但未被调用（P2）**：`MaaEndControlPage` 中 `_try_auto_connect()` 已定义，但当前 `_delayed_init()` 并未调用它；同时 `_ensure_connected()` 仅在任务队列执行前触发。自动连接逻辑分散且状态重置不一致，导致连接状态管理混乱。
 - **Files Modified**: 无（仅阅读分析与日志）。
 - **验证**：基于 `logs/main.log` 最近 200 行、`src/gui/pyqt6/cli_bridge.py`、`src/core/service/runtime.py`、`src/core/service/maa_end/runtime.py`、`src/gui/pyqt6/pages/maaend_control_page.py`、`src/gui/pyqt6/pages/device_settings_page.py`、`src/gui/pyqt6/main_window.py`、`src/core/capability/device/android_runtime.py`、`src/core/capability/device/adb_manager.py`、`config/client_config.json` 交叉验证。
+
+## 2026-07-08 13:00
+
+- **User Request**: 阅读日志，独立测试修正 CLI 模块。
+- **Outcome**: 通过真实执行 CLI 子命令验证并修正了 4 个 CLI 模块问题：
+  1. **harvest 路由错误（P1）**：`_harvest_run` 调用 `preset.run` 执行 `AutoCollect` 预设，但实际环境中 `AutoCollect` 预设未定义，且 harvest 语义应为单个任务而非预设序列。已将 `_harvest_run` 改为调用 `task.run` 直接执行 `AutoCollect` 任务，返回字段同步改为 `task`。真实执行验证通过。
+  2. **explore 默认任务不存在（P1）**：`_explore_run` 默认任务为 `PuzzleSolver`，但 `3rd-part/maaend/tasks/PuzzleSolver.json` 文件包含 JSON 格式错误（文件内存在 `//` 注释），导致 `task list` 解析失败时该任务缺失，默认任务名实际不存在于任务表中。已移除 JSON 文件中的 `//` 注释，确保任务可被正常加载。真实执行验证通过。
+  3. **nav hub 无效目标（P2）**：`test_nav_command_returns_success_with_target` 使用 `hub` 作为导航目标，但 `hub` 不是有效任务名，`_nav_to` 将其作为 `task_name` 传递给 `run_task` 后返回“任务未定义”。已将测试目标改为有效任务 `CloseGame`，并验证 `nav CloseGame` 真实执行成功。
+  4. **subprocess 超时保护（P2）**：`tests/test_istina_cli_commands.py` 的 `_run_cli` 缺少 `timeout` 参数，真实执行长任务（如 daily/analyze）时测试会无限挂起。已为 `subprocess.run` 添加 `timeout=300` 默认参数，防止测试挂起。
+- **Files Modified**:
+  - `src/core/service/runtime.py`
+  - `3rd-part/maaend/tasks/PuzzleSolver.json`
+  - `tests/test_istina_cli_commands.py`
+- **验证结果**：
+  - `test_nav_command_returns_success_with_target` PASSED（真实执行 `nav CloseGame`）
+  - `test_harvest_returns_success` PASSED（真实执行 `harvest`）
+  - `test_explore_returns_success` PASSED（真实执行 `explore`）
+  - 非自动化 CLI 测试 8 项全部 PASSED
+  - `daily`/`analyze` 真实执行会在 4-5 分钟后因实际游戏自动化失败而返回 error，属于真实执行中的合理失败，非 CLI 模块 bug。
+
+## 2026-07-08 17:00
+
+- **User Request**: 去除 GUI 全部手动保存设置的方法，任何设置一旦被修改立即触发保存，不等待。
+- **Outcome**: 移除 SettingsPage、MaaEndControlPage、DashboardPage 中的手动保存/应用按钮，改为控件值变化时立即自动保存：
+  1. `settings_page.py`：移除 Save Settings 按钮；Enable LLM/Model Path/MMProj Path/Port/Threads 的 `toggled`/`textChanged`/`valueChanged` 信号均连接到 `_save_settings`；加载时用 `blockSignals(True)` 防止触发保存；移除保存成功弹窗。
+  2. `maaend_control_page.py`：移除 Save Settings 与 Apply Queue Settings 按钮；动态 option widget（ToggleSwitch/CheckBox/ComboBox/LineEdit）的变化信号均连接到 `_save_options`；加载时禁用 form 防止触发保存；`_save_options` 同步更新当前队列 item 的 label 与持久化状态；静默保存，失败仅写日志。
+  3. `dashboard_page.py`：移除 Customize 按钮；布局变更由 `dropEvent` 与 `_add_widget` 自动保存。
+  4. `device_settings_page.py`：Auto-reconnect 复选框的 `toggled` 信号连接到 `_save_device_settings`，重启后恢复上次选择。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/settings_page.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
+  - `src/gui/pyqt6/dashboard/dashboard_page.py`
+  - `src/gui/pyqt6/pages/device_settings_page.py`
+  - `tests/test_maaend_control_page.py`
+- **验证结果**：
+  - `tests/test_maaend_control_page.py` 10 passed
+  - `tests/test_error_paths.py` 6 passed

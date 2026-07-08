@@ -222,7 +222,7 @@ def test_apply_queue_focus_task_settings_saves_to_queue_state():
     page._option_widgets = {}
     page._collect_options = lambda: {"speed": "fast"}  # type: ignore[method-assign]
 
-    page._apply_queue_focus_task_settings()
+    page._save_options()
 
     assert page._queue_state.load_options("TaskA") == {"speed": "fast"}
     assert page._queue_state.queue_items[0]["options"] == {"speed": "fast"}

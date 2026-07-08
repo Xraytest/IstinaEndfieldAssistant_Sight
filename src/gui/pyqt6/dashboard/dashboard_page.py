@@ -79,11 +79,6 @@ class DashboardPage(QWidget):
         header.addWidget(title)
         header.addStretch()
 
-        customize_btn = QPushButton(locale.tr("dashboard_customize", "Customize"))
-        customize_btn.setStyleSheet(BTN_DEFAULT)
-        customize_btn.clicked.connect(self._save_layout)
-        header.addWidget(customize_btn)
-
         add_widget_btn = QPushButton(locale.tr("dashboard_add_widget", "Add Widget"))
         add_widget_btn.setStyleSheet(BTN_ACTIVE)
         add_widget_btn.clicked.connect(self._open_widget_market)
