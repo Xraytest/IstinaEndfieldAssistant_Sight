@@ -99,17 +99,6 @@ def test_cli_reports_invalid_config_file_without_secondary_failure(tmp_path) -> 
     assert "attribute" not in proc.stderr.lower()
 
 
-def test_model_download_rejects_path_traversal(monkeypatch, tmp_path) -> None:
-    from cli import handlers
-
-    monkeypatch.setattr(handlers, "get_project_root", lambda: tmp_path)
-
-    result = handlers._handle_model_download(None, _Args({"name": "..\\escape"}))
-    assert result["status"] == "error"
-    assert result["message"] == "invalid model name"
-    assert not (tmp_path / "escape").exists()
-
-
 class _FakeMaaEndRuntime:
     def __init__(self):
         self._connected = False

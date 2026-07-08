@@ -57,31 +57,31 @@ THEMES: Dict[str, Dict[str, Any]] = {
             "text_disabled": "#262a40",
             "on_surface": "#e4e6f0",
             "on_surface_variant": "#8a8ea4",
-            "primary": "#5c7cfa",
-            "primary_dark": "#4c6ef5",
-            "primary_darker": "#3b5de7",
-            "primary_light": "#82a5ff",
+            "primary": "#19d1ff",
+            "primary_dark": "#0bb8e6",
+            "primary_darker": "#0bb8e6",
+            "primary_light": "#4de6ff",
             "primary_lighter": "#a8c0ff",
-            "primary_hover": "#7b9bff",
-            "primary_container": "#5c7cfa",
-            "primary_light_container": "#5c7cfa",
-            "primary_dark_container": "#3b5de7",
+            "primary_hover": "#4de6ff",
+            "primary_container": "#19d1ff",
+            "primary_light_container": "#19d1ff",
+            "primary_dark_container": "#0bb8e6",
             "on_primary": "#ffffff",
             "on_primary_container": "#d0d8ff",
-            "info": "#5c7cfa",
-            "info_dark": "#4c6ef5",
-            "info_light": "#82a5ff",
-            "info_container": "rgba(92, 124, 250, 0.10)",
+            "info": "#19d1ff",
+            "info_dark": "#0bb8e6",
+            "info_light": "#4de6ff",
+            "info_container": "rgba(25, 209, 255, 0.10)",
             "on_info": "#ffffff",
-            "success": "#5c7cfa",
-            "success_dark": "#4c6ef5",
-            "success_light": "#82a5ff",
-            "success_container": "rgba(92, 124, 250, 0.10)",
+            "success": "#19d1ff",
+            "success_dark": "#0bb8e6",
+            "success_light": "#4de6ff",
+            "success_container": "rgba(25, 209, 255, 0.10)",
             "on_success": "#ffffff",
-            "tertiary": "#5c7cfa",
-            "tertiary_dark": "#4c6ef5",
-            "tertiary_light": "#82a5ff",
-            "tertiary_container": "rgba(92, 124, 250, 0.10)",
+            "tertiary": "#19d1ff",
+            "tertiary_dark": "#0bb8e6",
+            "tertiary_light": "#4de6ff",
+            "tertiary_container": "rgba(25, 209, 255, 0.10)",
             "on_tertiary": "#ffffff",
             "on_tertiary_container": "#d0d8ff",
             "danger": "#e03131",
@@ -98,27 +98,27 @@ THEMES: Dict[str, Dict[str, Any]] = {
             "accent_gold_dark": "#d97706",
             "accent_gold_light": "#f59f00",
             "accent_gold_glow": "rgba(240, 140, 0, 0.15)",
-            "secondary": "#5c7cfa",
-            "secondary_dark": "#4c6ef5",
-            "secondary_light": "#82a5ff",
-            "secondary_container": "rgba(92, 124, 250, 0.10)",
+            "secondary": "#19d1ff",
+            "secondary_dark": "#0bb8e6",
+            "secondary_light": "#4de6ff",
+            "secondary_container": "rgba(25, 209, 255, 0.10)",
             "on_secondary": "#ffffff",
             "on_secondary_container": "#d0d8ff",
             "inverse_surface": "#e4e6f0",
-            "inverse_primary": "#4c6ef5",
+            "inverse_primary": "#0bb8e6",
             "inverse_on_surface": "#0b0d10",
-            "border_color": "rgba(92, 124, 250, 0.18)",
-            "border_light": "rgba(92, 124, 250, 0.10)",
+            "border_color": "rgba(25, 209, 255, 0.18)",
+            "border_light": "rgba(25, 209, 255, 0.10)",
             "border_glow": "rgba(240, 140, 0, 0.06)",
-            "outline": "rgba(92, 124, 250, 0.25)",
-            "outline_variant": "rgba(92, 124, 250, 0.15)",
-            "divider_color": "rgba(92, 124, 250, 0.12)",
-            "hover_bg": "rgba(92, 124, 250, 0.08)",
-            "selection_bg": "rgba(92, 124, 250, 0.10)",
-            "selection_border": "#5c7cfa",
+            "outline": "rgba(25, 209, 255, 0.25)",
+            "outline_variant": "rgba(25, 209, 255, 0.15)",
+            "divider_color": "rgba(25, 209, 255, 0.12)",
+            "hover_bg": "rgba(25, 209, 255, 0.08)",
+            "selection_bg": "rgba(25, 209, 255, 0.10)",
+            "selection_border": "#19d1ff",
             "shadow": "rgba(0, 0, 0, 0.55)",
             "shadow_light": "rgba(0, 0, 0, 0.35)",
-            "shadow_cyan": "rgba(92, 124, 250, 0.05)",
+            "shadow_cyan": "rgba(25, 209, 255, 0.05)",
         },
     },
 }
@@ -126,6 +126,7 @@ THEMES: Dict[str, Dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 # Color palette (legacy - kept for backward compatibility)
 # ---------------------------------------------------------------------------
+_current_theme = "arknight"
 COLORS: Dict[str, str] = THEMES["arknight"]["colors"]
 
 FONTS: Dict[str, str] = {
@@ -217,9 +218,9 @@ QWidget[ui-mode="compact"] QTextEdit,
 QWidget[ui-mode="compact"] QPlainTextEdit { padding: 6px; }
 
 /* Buttons */
-QPushButton { background-color: rgba(13,19,28,0.80); color: #ffffff; border: 2px solid rgba(59,93,231,0.45); border-radius: 2px; padding: 3px 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.8px; min-height: 24px; }
-QPushButton:hover { background-color: rgba(18,27,38,0.90); border-color: rgba(59,93,231,0.70); }
-QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: rgba(59,93,231,0.90); }
+QPushButton { background-color: rgba(13,19,28,0.80); color: #ffffff; border: 2px solid rgba(25, 209, 255, 0.45); border-radius: 2px; padding: 3px 10px; font-size: 12px; font-weight: 600; letter-spacing: 0.8px; min-height: 24px; }
+QPushButton:hover { background-color: rgba(18,27,38,0.90); border-color: rgba(25, 209, 255, 0.70); }
+QPushButton:pressed { background-color: rgba(18,27,38,0.92); border-color: rgba(25, 209, 255, 0.90); }
 QPushButton:disabled { background-color: """ + c["surface_container"] + """; color: """ + c["text_disabled"] + """; border-color: """ + c["border_light"] + """; }
 QPushButton[variant="primary"] { background-color: """ + c["primary_container"] + """; color: #ffffff; border: 2px solid """ + c["primary_dark"] + """80; }
 QPushButton[variant="primary"]:hover { background-color: """ + c["primary_container"] + """aa; border-color: """ + c["primary"] + """aa; }
@@ -299,8 +300,8 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background-co
 QListWidget { background-color: """ + c["surface_container"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; padding: 6px 8px; font-size: 12px; outline: none; }
 QListWidget::item { background-color: transparent; padding: 8px 10px; border-left: 2px solid transparent; border-radius: 0; }
 QListWidget::item:hover { background-color: """ + c["hover_bg"] + """; border-left: 2px solid """ + c["primary"] + """45; }
-QListWidget::item:selected { background-color: rgba(92, 124, 250, 0.10); color: """ + c["primary_light"] + """; border: 1px solid """ + c["primary"] + """30; border-left: 2px solid """ + c["primary"] + """; }
-QListWidget::item:selected:!active { background-color: rgba(92, 124, 250, 0.06); }
+QListWidget::item:selected { background-color: rgba(25, 209, 255, 0.10); color: """ + c["primary_light"] + """; border: 1px solid """ + c["primary"] + """30; border-left: 2px solid """ + c["primary"] + """; }
+QListWidget::item:selected:!active { background-color: rgba(25, 209, 255, 0.06); }
 
 /* Tables */
 QTableWidget, QTableView { background-color: """ + c["bg_primary"] + """; color: """ + c["text_primary"] + """; border: 1px solid """ + c["border_color"] + """; border-radius: 2px; gridline-color: """ + c["border_light"] + """; font-size: 12px; }
@@ -446,12 +447,16 @@ class ThemeManager:
         if theme_name in THEMES:
             COLORS.clear()
             COLORS.update(THEMES[theme_name]["colors"])
+            global _current_theme
+            _current_theme = theme_name
     def get_current_theme(self) -> str:
-        return "arknight"
+        return _current_theme
     def get_stylesheet(self, theme_name: Optional[str] = None) -> str:
-        return get_stylesheet("arknight")
+        if theme_name is None:
+            theme_name = _current_theme
+        return get_stylesheet(theme_name)
     def apply_theme(self, app: QApplication, theme_name: Optional[str] = None) -> None:
-        app.setStyleSheet(self.get_stylesheet())
+        app.setStyleSheet(self.get_stylesheet(theme_name))
 
 
 def _get_qt_app() -> Optional[QApplication]:
@@ -510,4 +515,6 @@ def apply_theme(app: Optional[QApplication] = None, theme_name: Optional[str] = 
         if dpi > 110:
             base_size = max(base_size, int(round(base_size * (dpi / 96.0))))
     app.setFont(QFont(font_family, base_size))
-    app.setStyleSheet(get_stylesheet("arknight"))
+    if theme_name is None:
+        theme_name = _current_theme
+    app.setStyleSheet(get_stylesheet(theme_name))

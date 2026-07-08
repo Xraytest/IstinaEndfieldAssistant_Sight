@@ -292,3 +292,15 @@
   - `src/core/capability/llm/runtime.py`
   - `src/core/service/runtime.py`
 - **验证**：`py_compile` 语法检查通过。
+
+## 2026-07-08 10:30
+
+- **User Request**: 阅读最新日志，分析自动设备连接极度缓慢的原因。
+- **Outcome**: 深入排查 `logs/main.log` 与相关代码后，定位到 5 个导致自动设备连接体验极度缓慢的根因：
+  1. **CLI 进程崩溃/重启循环（P0）**：日志中大量 `CLI 交互进程退出 exit_code=1 exit_status=CrashExit`。`CLIBridge._on_finished` 在进程退出后自动重启并重新执行最后一条命令，导致连接命令被反复提交。每次完整连接约 4-6 秒，重复执行后用户感知为“极度缓慢”。
+  2. **连接全量初始化链过长（P0）**：`IstinaRuntime.connect()` 依次执行 `MaaEndRuntime.connect()`（go-service.exe 启动 ~3s + ADB 连接 ~1s + Tasker 绑定 ~0.5s）→ `load_resource()` → `start_scrcpy()` ~2s，全链路约 4-6 秒且无快速失败/重试优化。
+  3. **配置加载失败回退空字典（P1）**：日志反复出现 `加载配置失败，使用默认值 error=Expecting property name enclosed in double quotes: line 1 column 2 (char 1)`。`_load_config()` 吞掉异常后返回 `{}`，导致运行时无法读取 `device.last_connected`，每次连接回退到 `"default"` → `"localhost:16512"`，增加解析开销并可能在多设备场景下连错设备。
+  4. **预览定时器持续干扰（P1）**：`_refresh_preview` 每 1.5 秒触发一次 `screenshot` 命令。虽然 `_delayed_init` 在初始化期间停止了预览定时器，但连接成功后定时器恢复。若 CLI 进程不稳定，预览截图命令与连接命令会在同一单进程中排队/竞争，放大延迟。
+  5. **`_try_auto_connect` 方法定义但未被调用（P2）**：`MaaEndControlPage` 中 `_try_auto_connect()` 已定义，但当前 `_delayed_init()` 并未调用它；同时 `_ensure_connected()` 仅在任务队列执行前触发。自动连接逻辑分散且状态重置不一致，导致连接状态管理混乱。
+- **Files Modified**: 无（仅阅读分析与日志）。
+- **验证**：基于 `logs/main.log` 最近 200 行、`src/gui/pyqt6/cli_bridge.py`、`src/core/service/runtime.py`、`src/core/service/maa_end/runtime.py`、`src/gui/pyqt6/pages/maaend_control_page.py`、`src/gui/pyqt6/pages/device_settings_page.py`、`src/gui/pyqt6/main_window.py`、`src/core/capability/device/android_runtime.py`、`src/core/capability/device/adb_manager.py`、`config/client_config.json` 交叉验证。

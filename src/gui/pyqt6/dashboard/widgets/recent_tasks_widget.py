@@ -33,7 +33,3 @@ class RecentTasksWidget(DashboardWidget):
         self._list.clear()
         for task in tasks[:10]:
             self._list.addItem(str(task))
-
-    def refresh(self) -> None:
-        """Refresh recent tasks from bridge."""
-        pass

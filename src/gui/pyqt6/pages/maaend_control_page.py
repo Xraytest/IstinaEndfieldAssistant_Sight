@@ -16,6 +16,7 @@ from PyQt6.QtGui import QColor, QBrush, QFont
 
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
+from core.foundation.logger import get_logger, LogCategory
 
 locale = get_locale_manager()
 from gui.pyqt6.queue_state import QueueState
@@ -189,9 +190,9 @@ class ToggleSwitch(QWidget):
         inner_path.addRoundedRect(QRectF(gap + inner_gap, gap + inner_gap, w - (gap + inner_gap) * 2, h - (gap + inner_gap) * 2), corner_radius - gap - inner_gap, corner_radius - gap - inner_gap)
 
         if self._checked:
-            track_color = QColor(24, 209, 255, 45)
+            track_color = QColor(25, 209, 255, 45)
             if self._hover:
-                track_color = QColor(24, 209, 255, 70)
+                track_color = QColor(25, 209, 255, 70)
         else:
             track_color = QColor(255, 255, 255, 10)
             if self._hover:
@@ -209,9 +210,9 @@ class ToggleSwitch(QWidget):
         slider_path.addRoundedRect(slider_rect, slider_radius, slider_radius)
 
         if self._checked:
-            slider_color = QColor(24, 209, 255, 245)
+            slider_color = QColor(25, 209, 255, 245)
             if self._hover:
-                slider_color = QColor(24, 209, 255, 255)
+                slider_color = QColor(25, 209, 255, 255)
         else:
             slider_color = QColor(220, 225, 235, 240)
             if self._hover:
@@ -227,6 +228,7 @@ class MaaEndControlPage(QWidget):
     def __init__(self, bridge: CLIBridge, parent=None):
         super().__init__(parent)
         self._bridge = bridge
+        self._logger = get_logger(__name__)
         self._selected_task: Optional[str] = None
         self._selected_preset: Optional[str] = None
         self._option_widgets: Dict[str, QWidget] = {}
@@ -246,7 +248,7 @@ class MaaEndControlPage(QWidget):
         self._setup_ui()
         font = QFont("Microsoft YaHei UI")
         self.setFont(font)
-        for widget_name in ("_status_label", "_run_preset_btn", "_log_text"):
+        for widget_name in ("_status_label", "_apply_preset_to_queue_btn", "_log_text"):
             widget = getattr(self, widget_name, None)
             if widget is not None:
                 widget.setFont(font)
@@ -362,10 +364,10 @@ class MaaEndControlPage(QWidget):
         task_btn_row = QHBoxLayout()
         task_btn_row.setContentsMargins(0, 0, 0, 0)
         task_btn_row.setSpacing(6)
-        self._run_task_btn = QPushButton(locale.tr("btn_run_task", "Run Task"))
-        self._run_task_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_task_btn.clicked.connect(self._run_task)
-        task_btn_row.addWidget(self._run_task_btn)
+        self._add_task_to_queue_btn = QPushButton(locale.tr("btn_add_task", "Add Task"))
+        self._add_task_to_queue_btn.setStyleSheet(BTN_ACTIVE)
+        self._add_task_to_queue_btn.clicked.connect(self._add_task_to_queue)
+        task_btn_row.addWidget(self._add_task_to_queue_btn)
         self._task_settings_btn = QPushButton(locale.tr("btn_apply_queue", "Apply Queue Settings"))
         self._task_settings_btn.setStyleSheet(BTN_DEFAULT)
         self._task_settings_btn.clicked.connect(self._apply_queue_focus_task_settings)
@@ -435,10 +437,10 @@ class MaaEndControlPage(QWidget):
         preset_btn_row = QHBoxLayout()
         preset_btn_row.setContentsMargins(0, 0, 0, 0)
         preset_btn_row.setSpacing(6)
-        self._run_preset_btn = QPushButton(locale.tr("btn_apply_preset", "Apply Preset"))
-        self._run_preset_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_preset_btn.clicked.connect(self._run_preset)
-        preset_btn_row.addWidget(self._run_preset_btn)
+        self._apply_preset_to_queue_btn = QPushButton(locale.tr("btn_apply_preset", "Apply Preset"))
+        self._apply_preset_to_queue_btn.setStyleSheet(BTN_ACTIVE)
+        self._apply_preset_to_queue_btn.clicked.connect(self._apply_preset_to_queue)
+        preset_btn_row.addWidget(self._apply_preset_to_queue_btn)
         preset_btn_row.addStretch()
         preset_layout.addLayout(preset_btn_row)
         right_vsplitter.addWidget(preset_card)
@@ -564,8 +566,8 @@ class MaaEndControlPage(QWidget):
         for widget in (
             title,
             self._status_label,
-            self._run_preset_btn,
-            self._run_task_btn,
+            self._apply_preset_to_queue_btn,
+            self._add_task_to_queue_btn,
             self._add_queue_btn,
             self._run_queue_btn,
             self._queue_up_btn,
@@ -1262,7 +1264,7 @@ class MaaEndControlPage(QWidget):
         self._append_log("系统", locale.tr("maaend_connected", "MaaEnd runtime connected"))
         return True
 
-    def _run_task(self):
+    def _add_task_to_queue(self):
         if not self._selected_task or self._is_executing:
             return
         name = self._selected_task
@@ -1285,7 +1287,7 @@ class MaaEndControlPage(QWidget):
         result = self._sync_execute(f"task run {clean_name} --options {payload}")
         return bool(result and result.get("status") == "success")
 
-    def _run_preset(self):
+    def _apply_preset_to_queue(self):
         if not self._selected_preset or self._is_executing:
             return
         preset = self._presets_cache.get(self._selected_preset)
@@ -1364,8 +1366,8 @@ class MaaEndControlPage(QWidget):
         self.execution_state_changed.emit(False)
 
     def _update_execution_ui(self):
-        self._run_task_btn.setEnabled(not self._is_executing)
-        self._run_preset_btn.setEnabled(not self._is_executing)
+        self._add_task_to_queue_btn.setEnabled(not self._is_executing)
+        self._apply_preset_to_queue_btn.setEnabled(not self._is_executing)
         self._run_queue_btn.setEnabled(not self._is_executing)
         self._add_queue_btn.setEnabled(not self._is_executing)
         self._queue_up_btn.setEnabled(not self._is_executing)

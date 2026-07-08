@@ -35,7 +35,7 @@ def test_main_window_can_be_instantiated(qapp: QApplication) -> None:
         module.MaaEndControlPage._sync_execute = lambda self, command, timeout_ms=5000: {"status": "success"}
         window = module.MainWindow()
         assert window is not None
-        assert window.windowTitle() == "IstinaEndfieldAssistant Sight"
+        assert window.windowTitle() == "Istina Endfield Assistant"
 
 
 def test_main_window_bridge_returns_cli_bridge(qapp: QApplication) -> None:
@@ -74,7 +74,7 @@ def test_main_window_uses_left_navigation_and_correct_page_mapping(qapp: QApplic
         assert nav is not None
         assert stack is not None
         assert [nav.item(i).text() for i in range(nav.count())] == [
-            "PRTS全智能",
+            "PRTS 全智能",
             "标准推理",
             "设备",
             "设置",
@@ -84,5 +84,5 @@ def test_main_window_uses_left_navigation_and_correct_page_mapping(qapp: QApplic
         assert type(stack.widget(0)).__name__ == "PrtsFullIntelligencePage"
         assert all(nav.item(i).text() != "MaaEnd" for i in range(nav.count()))
         labels = [w.text() for w in stack.widget(0).findChildren(module.QLabel)]
-        assert "PRTS全智能" in labels
-        assert "页面暂为空。" in labels
+        assert "PRTS 全智能" in labels
+        assert "自动化分析与智能决策控制台。" in labels

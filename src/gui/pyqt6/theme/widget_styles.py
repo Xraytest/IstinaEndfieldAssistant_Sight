@@ -85,7 +85,7 @@ CARD_STYLE = f"""
         padding-top: 18px;
     }}
     QGroupBox:hover {{
-        border: 1px solid rgba(92, 124, 250, 0.35);
+        border: 1px solid rgba(25, 209, 255, 0.35);
         background-color: {_BG_CARD};
     }}
     QGroupBox::title {{
@@ -112,7 +112,7 @@ LIST_STYLE = f"""
         color: {_TEXT_PRIMARY}; font-family: '{_FONT}'; font-size: {_SIZE_BASE}px;
     }}
     QListWidget::item {{ padding: 3px 6px; }}
-    QListWidget::item:hover {{ background-color: rgba(92, 124, 250, 0.08); border-left: 2px solid rgba(92, 124, 250, 0.35); }}
+    QListWidget::item:hover {{ background-color: rgba(25, 209, 255, 0.08); border-left: 2px solid rgba(25, 209, 255, 0.35); }}
     QListWidget::item:selected {{ background-color: {_rgba(_PRIMARY, 0.10)}; color: {_PRIMARY}; border-left: 2px solid {_PRIMARY}; }}
 """
 
@@ -154,7 +154,7 @@ COMBO_STYLE = f"""
 TABLE_STYLE = f"""
     QTableWidget {{ background-color: rgba(16, 16, 26, 0.85); border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; gridline-color: {_BORDER_LIGHT}; }}
     QTableWidget::item {{ padding: 6px; }}
-    QTableWidget::item:hover {{ background-color: rgba(92, 124, 250, 0.08); }}
+    QTableWidget::item:hover {{ background-color: rgba(25, 209, 255, 0.08); }}
     QTableWidget::item:selected {{ background-color: {_rgba(_PRIMARY, 0.12)}; color: #000000; border-left: 3px solid {_PRIMARY}; }}
     QHeaderView::section {{ background-color: {_PRIMARY}14; color: {_PRIMARY}; font-size: 11px; font-weight: bold; padding: 6px; border: none; }}
 """
@@ -189,12 +189,12 @@ LOADING_OVERLAY_STYLE = f"""
     }}
 """
 
-SPLITTER_HANDLE_STYLE = "QSplitter::handle { width: 1px; background: rgba(92, 124, 250, 0.12); }"
+SPLITTER_HANDLE_STYLE = "QSplitter::handle { width: 1px; background: rgba(25, 209, 255, 0.12); }"
 SCROLL_AREA_TRANSPARENT_STYLE = "QScrollArea { border: none; background: transparent; }"
 PROGRESS_BAR_STYLE = f"""
     QProgressBar {{
         background-color: rgba(16, 16, 26, 0.85);
-        border: 1px solid rgba(92, 124, 250, 0.15);
+        border: 1px solid rgba(25, 209, 255, 0.15);
         border-radius: 4px;
         height: 16px;
         text-align: center;

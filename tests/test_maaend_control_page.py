@@ -90,7 +90,7 @@ def test_apply_preset_button_replaces_queue():
     page._selected_preset = "TestPreset"
     page._presets_cache = bridge._presets
 
-    page._run_preset_btn.click()
+    page._apply_preset_to_queue_btn.click()
 
     assert [entry["name"] for entry in page._queue_state.queue_items] == ["TaskA", "TaskB"]
     assert page._queue_list.rowCount() == 2
@@ -108,11 +108,11 @@ def test_control_page_uses_cjk_capable_font_for_chinese_ui():
     app.processEvents()
 
     assert page._status_label.text() == "空闲"
-    assert page._run_preset_btn.text() == "应用预设"
-    assert page._run_task_btn.text() == "Run Task"
+    assert page._apply_preset_to_queue_btn.text() == "应用预设"
+    assert page._add_task_to_queue_btn.text() == "添加任务"
     assert page._status_label.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
-    assert page._run_preset_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
-    assert page._run_task_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
+    assert page._apply_preset_to_queue_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
+    assert page._add_task_to_queue_btn.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     assert page._log_text.font().family() in {"Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "SimSun"}
     app.quit()
 
@@ -273,7 +273,7 @@ def test_apply_preset_overrides_queue_and_clears_old_settings():
     page._selected_preset = "TestPreset"
     page._presets_cache = bridge._presets
 
-    page._run_preset()
+    page._apply_preset_to_queue()
 
     assert page._queue_state.load_options("OldTask") == {}
     assert page._queue_state.load_options("TaskA") == {"option_a": "value_a"}

@@ -123,7 +123,7 @@ class PipelineGraph:
     def get_node(self, name: str) -> Optional[PipelineNode]:
         return self.nodes.get(name)
 
-    def get_entry(self, name: str) -> Optional[PipelineNode]:
+    def get_node_or_entry(self, name: str) -> Optional[PipelineNode]:
         node = self.nodes.get(name)
         if node is None and self.entry_points:
             node = self.nodes.get(self.entry_points[0])

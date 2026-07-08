@@ -50,7 +50,7 @@ class PipelineRunner:
         max_steps: int = 100,
     ) -> Dict[str, Any]:
         self._hit_counts.clear()
-        current = graph.get_entry(entry)
+        current = graph.get_node_or_entry(entry)
         if current is None:
             return {"status": "error", "message": f"Entry node '{entry}' not found"}
         step = 0

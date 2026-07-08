@@ -157,10 +157,12 @@ class CLIBridge(QObject):
             self._finalize_current_process()
             return
         if self._interactive:
-            # 交互模式下进程退出视为异常，尝试重启以保持长连接。
-            self._crash_count += 1
-            self._logger.warning(LogCategory.GUI, "CLI 交互进程退出", exit_code=exit_code, exit_status=str(exit_status), crash_count=self._crash_count)
-            self.processCrashed.emit(self._crash_count)
+            if exit_code != 0:
+                self._crash_count += 1
+                self._logger.warning(LogCategory.GUI, "CLI 交互进程异常退出", exit_code=exit_code, exit_status=str(exit_status), crash_count=self._crash_count)
+                self.processCrashed.emit(self._crash_count)
+            else:
+                self._logger.info(LogCategory.GUI, "CLI 交互进程正常退出", exit_code=exit_code)
             if self._crash_count < self._max_crashes and not self._restart_pending:
                 self._restart_pending = True
                 if self._current_command:

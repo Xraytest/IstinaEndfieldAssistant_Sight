@@ -138,8 +138,8 @@ def test_pipeline_graph():
 
     assert graph.get_node("Start") is node1
     assert graph.get_node("End") is node3
-    assert graph.get_entry("Start") is node1
-    assert graph.get_entry("NonExistent") is None
+    assert graph.get_node_or_entry("Start") is node1
+    assert graph.get_node_or_entry("NonExistent") is None
 
 
 def test_pipeline_loader_load_module():

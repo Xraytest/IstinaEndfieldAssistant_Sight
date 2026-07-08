@@ -183,8 +183,6 @@ class CLIDispatch:
             return _handle_model_list(self._runtime, args)
         if args.action == "info":
             return _handle_model_info(self._runtime, args)
-        if args.action == "download":
-            return _handle_model_download(self._runtime, args)
         if args.action == "disk":
             return _handle_model_disk(self._runtime, args)
         return {"status": "error", "message": "unknown model action"}
@@ -510,7 +508,13 @@ def _handle_model_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
 def _handle_model_info(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     root = get_project_root()
     models_dir = Path(root) / "models"
-    target = _resolve_model_path(models_dir, args.name)
+    try:
+        root_resolved = models_dir.resolve()
+        target = (models_dir / args.name).resolve()
+        if not target.is_relative_to(root_resolved):
+            target = None
+    except Exception:
+        target = None
     if target is None or not target.exists():
         return {"status": "error", "message": "model not found", "name": args.name}
     return {
@@ -520,18 +524,6 @@ def _handle_model_info(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
         "size_bytes": target.stat().st_size if target.is_file() else None,
         "is_dir": target.is_dir(),
     }
-
-
-def _handle_model_download(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    root = get_project_root()
-    try:
-        safe_dir = _resolve_model_path(Path(root) / "models", args.name)
-        if safe_dir is None:
-            return {"status": "error", "message": "invalid model name", "name": args.name}
-        safe_dir.mkdir(parents=True, exist_ok=True)
-        return {"status": "success", "name": args.name, "path": str(safe_dir)}
-    except Exception as exc:
-        return {"status": "error", "message": str(exc), "name": args.name}
 
 
 def _handle_model_disk(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
@@ -547,17 +539,6 @@ def _handle_model_disk(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
             except Exception:
                 pass
     return {"status": "success", "path": str(models_dir), "size_bytes": total}
-
-
-def _resolve_model_path(models_dir: Path, name: str) -> Optional[Path]:
-    try:
-        root = models_dir.resolve()
-        target = (models_dir / name).resolve()
-        if not target.is_relative_to(root):
-            return None
-        return target
-    except Exception:
-        return None
 
 
 def _handle_gpu_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:

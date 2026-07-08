@@ -35,7 +35,7 @@ def test_local_scene_geometry_analysis_from_debug_screenshot() -> None:
     assert first["bbox_px"][3] >= result.ground["ground_line_y"] * 0.85
 
 
-def test_scene_analysis_uses_local_geometry_only() -> None:
+def test_scene_analysis_from_debug_screenshot() -> None:
     from core.service.runtime import IstinaRuntime
 
     image_path = Path("cache/screenshot/debug/after_quest.png")

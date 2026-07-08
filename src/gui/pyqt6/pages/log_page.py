@@ -31,7 +31,7 @@ from gui.pyqt6.theme.widget_styles import COMBO_STYLE, INPUT_STYLE
 locale = get_locale_manager()
 
 _LOG_LEVEL_COLORS = {
-    "INFO": "#18d1ff",
+    "INFO": "#19d1ff",
     "WARN": "#ffb84d",
     "ERROR": "#ff4d4d",
     "DEBUG": "#8b919e",

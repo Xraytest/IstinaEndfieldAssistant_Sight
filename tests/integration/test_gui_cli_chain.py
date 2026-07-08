@@ -11,7 +11,7 @@ from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 
 
-def test_cli_bridge_can_be_instantiated_with_mocked_process() -> None:
+def test_cli_bridge_can_be_instantiated() -> None:
     bridge = CLIBridge()
     assert bridge is not None
     assert bridge._crash_count == 0
@@ -48,7 +48,7 @@ def test_cli_bridge_parses_stdout_json_lines(qapp: QApplication) -> None:
     assert results[1][1] == {"status": "done"}
 
 
-def test_maaend_control_page_receives_bridge_and_calls_execute(
+def test_maaend_control_page_receives_bridge_and_propagates_signal(
     qapp: QApplication,
 ) -> None:
     bridge = CLIBridge()

@@ -92,7 +92,7 @@ class TemplateMatcher:
                 return (ref, result)
         return None
 
-    def match_multi_template(
+    def match_all_instances(
         self,
         screen: np.ndarray,
         template_ref: str,

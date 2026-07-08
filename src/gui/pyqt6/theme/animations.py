@@ -72,6 +72,6 @@ class AnimatedButton(QPushButton):
             painter = QPainter(self)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             alpha = int(self._bg_opacity * 40)
-            painter.fillRect(self.rect(), QColor(24, 209, 255, alpha))
+            painter.fillRect(self.rect(), QColor(25, 209, 255, alpha))
             painter.end()
 

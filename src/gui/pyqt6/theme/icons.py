@@ -13,7 +13,7 @@ from PyQt6.QtGui import QIcon, QPainter, QColor, QPainterPath, QPen
 from PyQt6.QtCore import QSize, Qt, QPointF
 
 
-def _pixmap_from_path(path: QPainterPath, size: int = 16, color: str = "#18d1ff", stroke_width: float = 1.5) -> QPixmap:
+def _pixmap_from_path(path: QPainterPath, size: int = 16, color: str = "#19d1ff", stroke_width: float = 1.5) -> QPixmap:
     """Render a QPainterPath into a pixmap for use as an icon."""
     from PyQt6.QtGui import QPixmap
     pixmap = QPixmap(size, size)
@@ -257,22 +257,22 @@ _ACTION_ICONS: Dict[str, callable] = {
 
 # Queue status icon registry
 _STATUS_ICONS: Dict[str, callable] = {
-    "pending": lambda: _icon_dot(4, "#9090a8"),
-    "running": lambda: _icon_dot(4, "#5c7cfa"),
-    "success": lambda: _icon_check(4, "#5c7cfa"),
-    "failed": lambda: _icon_cross_small(4, "#ff3355"),
+    "pending": lambda: _icon_dot(4),
+    "running": lambda: _icon_dot(4),
+    "success": lambda: _icon_check(4),
+    "failed": lambda: _icon_cross_small(4),
 }
 
 _cache: Dict[str, QIcon] = {}
 
 
-def _icon_dot(size: int, color: str) -> QPainterPath:
+def _icon_dot(size: int) -> QPainterPath:
     p = QPainterPath()
     p.addEllipse(2, 2, size - 4, size - 4)
     return p
 
 
-def _icon_check(size: int, color: str) -> QPainterPath:
+def _icon_check(size: int) -> QPainterPath:
     p = QPainterPath()
     p.moveTo(2, size / 2)
     p.lineTo(size / 3, size - 3)
@@ -280,7 +280,7 @@ def _icon_check(size: int, color: str) -> QPainterPath:
     return p
 
 
-def _icon_cross_small(size: int, color: str) -> QPainterPath:
+def _icon_cross_small(size: int) -> QPainterPath:
     p = QPainterPath()
     margin = 3
     p.moveTo(margin, margin)
@@ -298,7 +298,7 @@ def get_nav_icon(label: str, size: int = 18) -> QIcon:
     key = f"nav:{label}:{size}"
     if key not in _cache:
         path = factory()
-        pixmap = _pixmap_from_path(path, size=16, color="#18d1ff", stroke_width=1.8)
+        pixmap = _pixmap_from_path(path, size=16, color="#19d1ff", stroke_width=1.8)
         _cache[key] = QIcon(pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
     return _cache[key]
 
@@ -326,8 +326,8 @@ def get_status_icon(status: str, size: int = 14) -> QIcon:
         path = factory()
         color = {
             "pending": "#9090a8",
-            "running": "#5c7cfa",
-            "success": "#5c7cfa",
+            "running": "#19d1ff",
+            "success": "#19d1ff",
             "failed": "#ff3355",
         }.get(status, "#9090a8")
         pixmap = _pixmap_from_path(path, size=16, color=color, stroke_width=1.6)
