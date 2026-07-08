@@ -111,6 +111,15 @@
   - `src/gui/pyqt6/dashboard/widgets/quick_actions_widget.py`
   - `src/gui/pyqt6/scripting/scripting_page.py`
 
+## 2026-07-07 23:55
+
+- **User Request**: 降低 min-height 无效，记录并修改行为。
+- **Outcome**: 
+  1. 在 `theme_manager.py` 全局 QSS 中已将 `QPushButton` 的 `min-height` 从 36px 降为 28px，但观察实际界面按钮高度未明显变化。
+  2. 根因：PyQt6 QSS 中 `min-height` 受多个样式源叠加影响——全局 QSS、`widget_styles.py` 中的 `BTN_DEFAULT`/`BTN_ACTIVE`/`BTN_STOP`、以及部分页面 inline stylesheet 可能重复声明；此外部分按钮通过 `setMinimumHeight(24)` 在代码层显式固定高度，QSS 的 `min-height` 无法低于代码层设置的 `minimumHeight`。
+  3. 行为修正：后续调整控件高度时，必须同步检查并修改代码层 `setMinimumHeight` / `setFixedHeight` 调用，不能仅依赖 QSS 的 `min-height`；若需全局生效，应在 QSS 中对 `QPushButton` 统一声明 `min-height` 且不在代码层反向覆盖。
+- **Files Modified**: `docs/TASK_LOG.md`（仅记录）
+
 ## 2026-07-07 23:50
 
 - **User Request**: 分析设备预览难以加载的问题。
