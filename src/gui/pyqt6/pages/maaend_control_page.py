@@ -1169,14 +1169,13 @@ class MaaEndControlPage(QWidget):
     # execution
     # ------------------------------------------------------------------
     def _delayed_init(self) -> None:
-        """延迟初始化：启动时自动连接，再刷新列表。"""
+        """延迟初始化：刷新列表。"""
         # 初始化期间停止预览定时器，避免与系统连接的嵌套事件循环冲突
         main_window = self.window()
         preview_timer = getattr(main_window, "_preview_timer", None)
         if preview_timer is not None:
             preview_timer.stop()
 
-        self._try_auto_connect()
         self.refresh()
 
         if preview_timer is not None and self._connected:

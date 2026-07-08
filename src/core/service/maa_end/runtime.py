@@ -77,6 +77,8 @@ class MaaEndRuntime:
         self._tasks: Dict[str, Dict[str, Any]] = {}
         self._presets: Dict[str, Dict[str, Any]] = {}
         self._option_defs: Dict[str, Dict[str, Any]] = {}
+        self._tasks_loaded = False
+        self._presets_loaded = False
         self._connected = False
 
     def _default_maaend_root(self) -> Path:
@@ -127,6 +129,7 @@ class MaaEndRuntime:
         tasks_root = self._resolve_asset_path("tasks")
         self._tasks = {}
         self._option_defs = {}
+        self._tasks_loaded = True
         for json_path in tasks_root.rglob("*.json"):
             if json_path.name == "nodes.json":
                 continue
@@ -152,6 +155,7 @@ class MaaEndRuntime:
     def load_presets(self) -> Dict[str, Dict[str, Any]]:
         preset_root = self._resolve_asset_path("tasks", "preset")
         self._presets = {}
+        self._presets_loaded = True
         if not preset_root.exists():
             return self._presets
         for json_path in preset_root.glob("*.json"):
@@ -512,17 +516,17 @@ class MaaEndRuntime:
         return self._interface or self.load_interface()
 
     def tasks(self) -> Dict[str, Dict[str, Any]]:
-        if not self._tasks:
+        if not self._tasks_loaded:
             self.load_tasks()
         return self._tasks
 
     def task_option_defs(self) -> Dict[str, Dict[str, Any]]:
-        if not self._tasks:
+        if not self._tasks_loaded:
             self.load_tasks()
         return dict(self._option_defs)
 
     def presets(self) -> Dict[str, Dict[str, Any]]:
-        if not self._presets:
+        if not self._presets_loaded:
             self.load_presets()
         return self._presets
 

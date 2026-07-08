@@ -126,6 +126,16 @@
   - `src/gui/pyqt6/dashboard/widgets/quick_actions_widget.py`
   - `src/gui/pyqt6/scripting/scripting_page.py`
 
+## 2026-07-08 00:07
+
+- **User Request**: 整理日志系统，只需要一份日志文件。
+- **Outcome**: 清理 `logs/` 目录下历史遗留的多余日志文件（`main_2026-06-20.log`、`main_2026-06-21.log`、`performance_2026-06-21.log`、`tray_minimal_crash.log`、`theme_dump.qss`），删除根目录下旧架构遗留的 `gui_output.log` 与 `gui_test.log`。代码层面 `init_logger()` 本身已只写入 `logs/main.log`，未创建额外日志文件。`logs/` 目录现仅保留 `main.log` 与 `test/` 子目录。
+- **Files Modified**:
+  - `logs/`（删除历史文件）
+  - `gui_output.log`（删除）
+  - `gui_test.log`（删除）
+  - `docs/TASK_LOG.md`
+
 ## 2026-07-07 23:55
 
 - **User Request**: 降低 min-height 无效，记录并修改行为。
@@ -214,3 +224,34 @@
   - `src/gui/pyqt6/theme/widget_styles.py`
   - `src/gui/pyqt6/theme/icons.py`
   - `src/gui/pyqt6/pages/maaend_control_page.py`
+## 2026-07-08 00:54
+
+- **User Request**: 分析任务/预设列表无法加载的原因，考虑多种可能。
+- **Outcome**: 定位并修复了 3 个直接导致任务/预设列表无法加载的根因：
+  1. **预览定时器冲突（P0）**：`_delayed_init` 中 `_try_auto_connect()` 阻塞 GUI 线程期间，`_preview_timer` 持续触发 `_sync_execute("screenshot")`，大量截图命令堆积在 `CLIBridge` 队列中，导致后续 `task list`/`preset list` 被挤压超时。修复：初始化期间停止预览定时器，刷新完成后再恢复。
+  2. **CLI 非零退出码不触发 `commandFinished`（P0）**：`CLIBridge._on_finished` 在 `exit_code != 0` 时只发 `commandError`，不发 `commandFinished`，导致 `_sync_execute` 嵌套事件循环永远等待而超时。修复：对非零退出码也发射 `commandFinished`，携带 `{"status": "error", "exit_code": exit_code}`。
+  3. **`tasks()`/`presets()` 空字典判空反复重载（P2）**：`if not self._tasks:` 在空 dict `{}` 时为 `True`，每次调用都重新扫描磁盘。修复：新增 `_tasks_loaded`/`_presets_loaded` 标志位，改为按标志位判断。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
+  - `src/gui/pyqt6/cli_bridge.py`
+  - `src/core/service/maa_end/runtime.py`
+- **验证**：`test_cli_bridge.py` 7 passed；`test_istina_runtime.py` 13 passed（1 个预存 screenshot 测试失败，与本次修改无关）；`test_istina_cli_commands.py` 8 passed。
+
+## 2026-07-08 01:11
+
+- **User Request**: 分析当前的 LLM 机制，清除 GUI 启动自动连接的机制。将其分类到全智能模块。
+- **Outcome**: 
+  1. **LLM 机制现状**：`IstinaRuntime` 始终创建 `LlamaServerRuntime` 与 `LlmClient`；GUI 启动时通过 `MainWindow._async_warmup()` 无条件预热 `llama-server`，退出时通过 `closeEvent` 无条件关闭。LLM 全局生命周期与用户是否使用无关。
+  2. **GUI 启动自动连接现状**：
+     - `DeviceSettingsPage` 在 `__init__` 中调用 `_auto_connect_last_device()`，读取 `device.auto_connect_last` 配置后自动发起连接。
+     - `MaaEndControlPage` 在 `__init__` 中通过 `_delayed_init()` → `_try_auto_connect()` 无条件尝试 `system connect`。
+     - 两处同时触发导致启动时双连接请求相互干扰。
+  3. **全智能模块重构**：将 `PrtsFullIntelligencePage` 从空壳重写为 LLM 控制中心，包含启动/停止按钮、状态指示器、对话输入框、图像附件支持、后台 `QThread` 异步对话。
+  4. **清理全局 LLM 生命周期**：移除 `MainWindow._async_warmup()` 与 `closeEvent` 中的 `llm stop`，LLM 生命周期改为由 PRTS 页面按需控制。
+  5. **清除启动自动连接**：移除 `DeviceSettingsPage` 的 `_auto_connect_last_device()` 调用；移除 `MaaEndControlPage._delayed_init()` 中的 `_try_auto_connect()`，保留 `_ensure_connected()` 用于用户手动触发任务时的按需连接。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/prts_full_intelligence_page.py`
+  - `src/gui/pyqt6/main_window.py`
+  - `src/gui/pyqt6/pages/device_settings_page.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
+- **验证**：`py_compile` 语法检查通过。
