@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -11,6 +12,8 @@ from core.foundation.paths import get_cache_subdir
 from .backends.scene_geometry import SceneGeometryAnalyzer
 from .element_info import ElementInfo, PageInfo, SceneAnalysis3D
 from .recognizer import EndfieldElementRecognizer
+
+logger = logging.getLogger(__name__)
 
 
 class SceneUnderstandingService:
@@ -47,9 +50,14 @@ class SceneUnderstandingService:
         if screen is None or screen.size == 0:
             return PageInfo(page_type="unknown", confidence=0.0)
 
-        self._last_screen = screen
-        page = self.recognizer.recognize(screen)
+        page = None
+        try:
+            page = self.recognizer.recognize(screen)
+        except Exception as exc:
+            logger.warning("场景识别异常: %s", exc)
+            return PageInfo(page_type="unknown", confidence=0.0)
 
+        self._last_screen = screen
         self.current_page = page.page_type
         self.current_confidence = page.confidence
 
