@@ -120,6 +120,18 @@
   3. 行为修正：后续调整控件高度时，必须同步检查并修改代码层 `setMinimumHeight` / `setFixedHeight` 调用，不能仅依赖 QSS 的 `min-height`；若需全局生效，应在 QSS 中对 `QPushButton` 统一声明 `min-height` 且不在代码层反向覆盖。
 - **Files Modified**: `docs/TASK_LOG.md`（仅记录）
 
+## 2026-07-07 23:58
+
+- **User Request**: 减少按钮高度。
+- **Outcome**: 
+  1. 清理 `maaend_control_page.py` 中 14 处按钮的 `setMinimumHeight(24)` 代码层约束。
+  2. 统一降低 QSS 按钮高度：全局 `QPushButton` `min-height` 从 28px 降为 24px，`padding` 从 `4px 12px` 降为 `3px 10px`；`BTN_DEFAULT`/`BTN_ACTIVE`/`BTN_STOP` 同步调整；compact 模式 `min-height` 从 26px 降为 22px。
+- **Commit**: `ec8658c`
+- **Files Modified**:
+  - `src/gui/pyqt6/theme/theme_manager.py`
+  - `src/gui/pyqt6/theme/widget_styles.py`
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
+
 ## 2026-07-07 23:50
 
 - **User Request**: 分析设备预览难以加载的问题。
