@@ -73,11 +73,15 @@ def test_main_window_uses_left_navigation_and_correct_page_mapping(qapp: QApplic
 
         assert nav is not None
         assert stack is not None
-        assert [nav.item(i).text() for i in range(nav.count())] == [
-            "标准推理",
-            "设备",
-            "设置",
-            "日志",
+        # 使用 locale 获取当前语言下的导航文本，避免硬编码导致中英文环境断言失败
+        locale = module.locale
+        expected_labels = [
+            locale.tr("prts_title", "PRTS Intelligence"),
+            locale.tr("maaend_title", "Standard Inference"),
+            locale.tr("device_title", "Device"),
+            locale.tr("settings_title", "Settings"),
+            locale.tr("log_title", "Logs"),
         ]
-        assert stack.count() == 4
+        assert [nav.item(i).text() for i in range(nav.count())] == expected_labels
+        assert stack.count() == 5
         assert all(nav.item(i).text() != "MaaEnd" for i in range(nav.count()))

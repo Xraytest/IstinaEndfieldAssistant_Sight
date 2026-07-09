@@ -109,7 +109,7 @@
   "no_log_files": "未发现日志文件",
   "log_file_missing": "日志文件不存在。",
   "read_log_failed": "读取日志失败：{exc}",
-  "prts_subtitle": "自动化分析与智能决策控制台。",
+  "prts_subtitle": "VLM 驱动的全自动游戏 CoPilot — 视觉语言模型自主导航与决策。",
   "device_status": "设备",
   "connection_status": "连接状态",
   "llm_service": "LLM 服务",
@@ -194,5 +194,7 @@
   "log_filter_warning": "警告",
   "log_filter_error": "错误",
   "system_cpu": "CPU: {percent}%",
-  "system_memory": "内存: {percent}%"
+  "system_memory": "内存: {percent}%",
+  "prts_title": "PRTS 全智能（施工中）",
+  "prts_under_construction": "⚠ 此页面正在施工中，功能尚未完全实现。"
 }
