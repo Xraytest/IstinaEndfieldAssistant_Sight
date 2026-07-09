@@ -30,7 +30,6 @@ from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
 from gui.pyqt6.pages.log_page import LogPage
 from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
-from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
 from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, fade_widget, ui_mode_for_size
 from gui.pyqt6.theme.widget_styles import PANEL_STYLE, PREVIEW_STYLE
@@ -192,7 +191,6 @@ class MainWindow(QMainWindow):
         self._maaend_page = MaaEndControlPage(bridge=self._bridge)
         self._device_page = DeviceSettingsPage(bridge=self._bridge)
         pages = [
-            (locale.tr("prts_title", "PRTS Intelligence"), PrtsFullIntelligencePage(bridge=self._bridge)),
             (locale.tr("maaend_title", "Standard Inference"), self._maaend_page),
             (locale.tr("device_title", "Device"), self._device_page),
             (locale.tr("settings_title", "Settings"), SettingsPage()),

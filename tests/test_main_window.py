@@ -32,7 +32,7 @@ def test_main_window_can_be_instantiated(qapp: QApplication) -> None:
         mock_qprocess.return_value = mock_instance
 
         module = _load_main_window_module()
-        module.MaaEndControlPage._sync_execute = lambda self, command, timeout_ms=5000: {"status": "success"}
+        module.MaaEndControlPage._sync_execute = lambda self, command, params=None, timeout_ms=5000: {"status": "success"}
         window = module.MainWindow()
         assert window is not None
         assert window.windowTitle() == "Istina Endfield Assistant"
@@ -48,7 +48,7 @@ def test_main_window_bridge_returns_cli_bridge(qapp: QApplication) -> None:
         mock_qprocess.return_value = mock_instance
 
         module = _load_main_window_module()
-        module.MaaEndControlPage._sync_execute = lambda self, command, timeout_ms=5000: {"status": "success"}
+        module.MaaEndControlPage._sync_execute = lambda self, command, params=None, timeout_ms=5000: {"status": "success"}
         window = module.MainWindow()
         bridge = window.bridge()
         assert bridge is not None
@@ -65,7 +65,7 @@ def test_main_window_uses_left_navigation_and_correct_page_mapping(qapp: QApplic
         mock_qprocess.return_value = mock_instance
 
         module = _load_main_window_module()
-        module.MaaEndControlPage._sync_execute = lambda self, command, timeout_ms=5000: {"status": "success"}
+        module.MaaEndControlPage._sync_execute = lambda self, command, params=None, timeout_ms=5000: {"status": "success"}
         window = module.MainWindow()
 
         nav = window.findChild(QListWidget, "mainNavigation")
@@ -74,15 +74,10 @@ def test_main_window_uses_left_navigation_and_correct_page_mapping(qapp: QApplic
         assert nav is not None
         assert stack is not None
         assert [nav.item(i).text() for i in range(nav.count())] == [
-            "PRTS 全智能",
             "标准推理",
             "设备",
             "设置",
             "日志",
         ]
-        assert stack.count() == 5
-        assert type(stack.widget(0)).__name__ == "PrtsFullIntelligencePage"
+        assert stack.count() == 4
         assert all(nav.item(i).text() != "MaaEnd" for i in range(nav.count()))
-        labels = [w.text() for w in stack.widget(0).findChildren(module.QLabel)]
-        assert "PRTS 全智能" in labels
-        assert "自动化分析与智能决策控制台。" in labels
