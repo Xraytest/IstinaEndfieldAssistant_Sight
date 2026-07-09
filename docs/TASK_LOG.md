@@ -1,5 +1,25 @@
 # 任务日志
 
+## 2026-07-09 09:10
+
+- **User Request**: 设备页点击连接后持续处于请求连接的日志阶段，无法判断是否处于连接中或者失败。
+- **Outcome**: 在 `DeviceSettingsPage` 中新增连接中中间态，明确区分“请求中 / 已连接 / 连接失败 / 未连接”四种状态：
+  1. 点击连接/自动重连时立即将状态置为“正在连接...”，并禁用连接、断开、刷新按钮，避免重复提交。
+  2. 连接/断开命令完成后（`commandFinished`）恢复按钮可用；错误响应（`commandError`）也会恢复按钮并显示“连接失败”。
+  3. 在 `zh_CN.json` 中新增 `connecting` 文案。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/device_settings_page.py`
+  - `src/gui/pyqt6/locales/zh_CN.json`
+- **验证**：`py_compile` 语法检查通过；修改范围仅设备页 UI 状态流转，无业务逻辑变更。
+
+## 2026-07-09 06:10
+
+- **User Request**: 分离GUI启动时的自动重连与列表加载，让它们并行。
+- **Outcome**: 采用 B+C 合并方案重构 `MaaEndControlPage._delayed_init()`：启动时立即用本地缓存渲染任务/预设列表，同时通过 `AutoConnectWorker(QThread)` 与 `MetadataLoadWorker(QThread)` 在后台并行执行自动重连和元数据加载，完成后通过 Qt 信号安全回调主线程更新 UI；新增 `closeEvent` 清理 worker 线程；删除原有串行阻塞的 `_try_auto_connect()`。`pytest` 10 passed。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/maaend_control_page.py`
+  - `docs/superpowers/specs/2026-07-09-gui-parallel-startup-design.md`（new）
+
 ## 2026-07-08 13:34
 
 - **User Request**: 修复 GUI 启动时在 `maaend_control_page.py:1216` 崩溃：`AttributeError: 'MaaEndControlPage' object has no attribute '_preview_timer'`。
@@ -577,3 +597,27 @@
   - `src/core/capability/element_recognition/pipeline/template_registry.py`
   - `src/core/service/navigation/minimap_locator.py`
 - **验证**：`ruff check src/` 全部通过；`pytest` 全量运行 **68 passed, 5 skipped**。
+
+## 2026-07-09 06:19
+
+- **User Request**: 在adb连接到设备超时后尝试杀死adb进程并重试，在设置页可选启动这个功能。
+- **Outcome**: 在 `MaaEndRuntime` 中实现连接超时检测与 adb 重启重试机制，并在设备设置页新增可选开关：
+  1. `MaaEndRuntime.connect()` 新增超时包装：连接/首次截图通过后台线程执行，20 秒超时后自动清理并返回失败。
+  2. 新增 `_connect_once()` 承载原有连接逻辑，`_connect_with_timeout()` 负责线程超时控制，`_kill_adb()` 执行 `adb kill-server` + `taskkill /F /IM adb.exe`。
+  3. 当配置 `device.adb_restart_on_timeout=True` 时，连接失败后会先杀死 adb 进程并等待 1 秒，再重试 1 次；关闭时行为与旧版完全一致。
+  4. `IstinaRuntime.maaend()` 创建 `MaaEndRuntime` 时透传 `adb_restart_on_timeout` 配置。
+  5. `DeviceSettingsPage` 新增 `Kill ADB and retry on connection timeout` 复选框，默认关闭，状态持久化到 `config/client_config.json` 的 `device` 段。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`
+  - `src/core/service/runtime.py`
+  - `src/gui/pyqt6/pages/device_settings_page.py`
+- **验证**：`pytest` 运行 **38 passed, 5 skipped**；`py_compile` 语法检查通过。
+
+## 2026-07-09 06:20
+
+- **User Request**: 将 adb 超时重启功能默认启用。
+- **Outcome**: 将 `MaaEndRuntime` 构造函数参数 `adb_restart_on_timeout` 默认值从 `False` 改为 `True`；`DeviceSettingsPage` 中对应复选框默认状态也从 `False` 改为 `True`。新安装或首次使用时该功能自动开启，用户仍可在设备页手动关闭。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`
+  - `src/gui/pyqt6/pages/device_settings_page.py`
+- **验证**：`py_compile` 语法检查通过。

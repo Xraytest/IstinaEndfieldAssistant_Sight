@@ -16,6 +16,8 @@ Arknights: Endfield（明日方舟：终末地）game automation client. Python 
 
 ## Environment
 
+python: "C:\\Users\\cheng\\Documents\\ArkStudio\\IstinaAI\\IstinaEndfieldAssistant_Sight\\3rd-part\\python\\python.exe"
+
 Bundled Python at `3rd-part/python/python.exe` (3.12.10) — all dependencies pre-installed. Always use this interpreter.
 
 ```bash

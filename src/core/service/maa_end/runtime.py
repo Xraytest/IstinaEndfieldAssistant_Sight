@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -58,11 +59,18 @@ if AgentClient is not None:
 class MaaEndRuntime:
     """Thin wrapper around MaaFramework that behaves like MaaEnd's runner."""
 
-    def __init__(self, maaend_root: Optional[str] = None, device_address: str = "localhost:16512", adb_path: str = "3rd-part/adb/adb.exe"):
+    def __init__(
+        self,
+        maaend_root: Optional[str] = None,
+        device_address: str = "localhost:16512",
+        adb_path: str = "3rd-part/adb/adb.exe",
+        adb_restart_on_timeout: bool = True,
+    ):
         self.logger = get_logger()
         self._maaend_root = Path(maaend_root) if maaend_root else self._default_maaend_root()
         self._device_address = device_address
         self._adb_path = str(get_project_root() / adb_path)
+        self._adb_restart_on_timeout = bool(adb_restart_on_timeout)
         self._resource: Optional[Any] = None
         self._tasker: Optional[Any] = None
         self._controller: Optional[Any] = None
@@ -189,53 +197,105 @@ class MaaEndRuntime:
                     Toolkit.init_option(config_dir)
                 except Exception as exc:
                     self.logger.warning(LogCategory.MAIN, "Toolkit 初始化失败", error=str(exc))
-            self._resource = Resource()
-            input_methods = int(MaaAdbInputMethodEnum.AdbShell if MaaAdbInputMethodEnum else 1)
-            screencap_methods = int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0)
-            self._controller = AdbController(
-                adb_path=Path(self._adb_path),
-                address=self._device_address,
-                screencap_methods=screencap_methods,
-                input_methods=input_methods,
-                config={},
-            )
-            job = self._controller.post_connection()
-            job.wait()
-            if not job.succeeded:
-                self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败", address=self._device_address)
-                self._cleanup_partial()
-                return False
-            screencap_job = self._controller.post_screencap()
-            screencap_job.wait()
-            if not screencap_job.succeeded:
-                self.logger.error(LogCategory.MAIN, "首次截图失败", address=self._device_address)
-                self._cleanup_partial()
-                return False
-            self._tasker = Tasker()
-            if not self._tasker.bind(self._resource, self._controller):
-                self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
-                self._cleanup_partial()
-                return False
-            # Start Agent after Tasker is ready so it can register sinks correctly.
-            self._start_agent()
-            if self._agent_client is None and self._agent_process is None:
-                self.logger.error(LogCategory.MAIN, "Agent 未启动，连接中止")
-                self._cleanup_partial()
-                return False
-            if self._agent_client is not None:
-                try:
-                    self._agent_client.bind(self._resource)
-                    self._agent_client.register_sink(self._resource, self._controller, self._tasker)
-                    self._agent_client.connect()
-                except Exception as e:
-                    self.logger.warning(LogCategory.MAIN, "AgentClient 初始化异常", error=str(e))
-            self._connected = True
-            self.logger.info(LogCategory.MAIN, "MaaEnd runtime 连接成功", address=self._device_address)
-            return True
+            max_attempts = 2 if self._adb_restart_on_timeout else 1
+            for attempt in range(max_attempts):
+                if attempt > 0:
+                    self._kill_adb()
+                    time.sleep(1)
+                if self._connect_with_timeout(timeout=self._CONNECTION_TIMEOUT_S):
+                    return True
+            return False
         except Exception as e:
             self.logger.exception(LogCategory.MAIN, "MaaEnd runtime 连接异常", error=str(e))
             self._cleanup_partial()
             return False
+
+    _CONNECTION_TIMEOUT_S = 20
+    _SCRECAP_TIMEOUT_S = 10
+
+    def _connect_once(self) -> bool:
+        self._resource = Resource()
+        input_methods = int(MaaAdbInputMethodEnum.AdbShell if MaaAdbInputMethodEnum else 1)
+        screencap_methods = int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0)
+        self._controller = AdbController(
+            adb_path=Path(self._adb_path),
+            address=self._device_address,
+            screencap_methods=screencap_methods,
+            input_methods=input_methods,
+            config={},
+        )
+        job = self._controller.post_connection()
+        job.wait()
+        if not job.succeeded:
+            self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败", address=self._device_address)
+            self._cleanup_partial()
+            return False
+        screencap_job = self._controller.post_screencap()
+        screencap_job.wait()
+        if not screencap_job.succeeded:
+            self.logger.error(LogCategory.MAIN, "首次截图失败", address=self._device_address)
+            self._cleanup_partial()
+            return False
+        self._tasker = Tasker()
+        if not self._tasker.bind(self._resource, self._controller):
+            self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
+            self._cleanup_partial()
+            return False
+        # Start Agent after Tasker is ready so it can register sinks correctly.
+        self._start_agent()
+        if self._agent_client is None and self._agent_process is None:
+            self.logger.error(LogCategory.MAIN, "Agent 未启动，连接中止")
+            self._cleanup_partial()
+            return False
+        if self._agent_client is not None:
+            try:
+                self._agent_client.bind(self._resource)
+                self._agent_client.register_sink(self._resource, self._controller, self._tasker)
+                self._agent_client.connect()
+            except Exception as e:
+                self.logger.warning(LogCategory.MAIN, "AgentClient 初始化异常", error=str(e))
+        self._connected = True
+        self.logger.info(LogCategory.MAIN, "MaaEnd runtime 连接成功", address=self._device_address)
+        return True
+
+    def _connect_with_timeout(self, timeout: int) -> bool:
+        result = {"success": False}
+
+        def target() -> None:
+            try:
+                result["success"] = self._connect_once()
+            except Exception as exc:
+                result["success"] = False
+                self.logger.exception(LogCategory.MAIN, "ADB 连接尝试异常", error=str(exc))
+
+        thread = threading.Thread(target=target, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout)
+
+        if thread.is_alive():
+            self.logger.error(LogCategory.MAIN, "ADB 连接超时", address=self._device_address, timeout=timeout)
+            self._cleanup_partial()
+            return False
+
+        return result["success"]
+
+    def _kill_adb(self) -> None:
+        try:
+            subprocess.run(
+                [self._adb_path, "kill-server"],
+                text=True,
+                timeout=10,
+            )
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "adb kill-server 失败", error=str(exc))
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/IM", "adb.exe"],
+                text=True,
+                timeout=10,
+            )
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "taskkill adb.exe 失败", error=str(exc))
 
     def _cleanup_partial(self) -> None:
         """Clean up partially-created resources after a failed connect()."""

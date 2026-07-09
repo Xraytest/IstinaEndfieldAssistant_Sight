@@ -7,7 +7,8 @@
             "description": "$task.AutoEcoFarm.description",
             "controller": [
                 "Win32-Front",
-                "Wlroots"
+                "Wlroots",
+                "ADB"
             ],
             "option": [
                 "SelectFarm",
@@ -107,7 +108,6 @@
                 }
             ]
         },
-
         "GotoEcoFarmSmartMethod": {
             "type": "select",
             "label": "$task.AutoEcoFarm.option.GotoEcoFarmSmartMethod.label",

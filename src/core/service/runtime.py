@@ -175,6 +175,7 @@ class IstinaRuntime:
                 maaend_root=self._config.get("maaend_root"),
                 device_address=resolved,
                 adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
+                adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", False),
             )
             self._maaend_clients[resolved] = runtime
         return runtime

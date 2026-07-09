@@ -58,13 +58,7 @@
                     "name": "SellProduct"
                 },
                 {
-                    "name": "AutoStockpile"
-                },
-                {
                     "name": "AutoStockStaple"
-                },
-                {
-                    "name": "AutoSell"
                 },
                 {
                     "name": "EnvironmentMonitoring"
@@ -78,9 +72,6 @@
                         "DailyClaimDeliveryJobsRewards": "Yes",
                         "DailyProtocolPassRewards": "Yes"
                     }
-                },
-                {
-                    "name": "SeizeDeliveryJobs"
                 },
                 {
                     "name": "AutoCollect",

@@ -97,6 +97,7 @@
   "status_label": "状态",
   "auto_connect_last": "自动连接上次设备: {serial}",
   "connect_request": "请求连接: {serial}",
+  "connecting": "正在连接...",
   "disconnect_request": "请求断开: {serial}",
   "connect_result": "连接结果: {result}",
   "disconnect_result": "断开结果: {result}",
