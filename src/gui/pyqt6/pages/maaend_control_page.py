@@ -1230,30 +1230,54 @@ class MaaEndControlPage(QWidget):
     # execution
     # ------------------------------------------------------------------
     def _delayed_init(self) -> None:
-        """延迟初始化：先尝试自动连接，再刷新列表。"""
+        """延迟初始化：立即渲染缓存列表，后台并行执行重连和元数据加载。"""
         # 初始化期间停止预览定时器，避免与系统连接的嵌套事件循环冲突
         main_window = self.window()
         preview_timer = getattr(main_window, "_preview_timer", None)
         if preview_timer is not None:
             preview_timer.stop()
 
-        self._try_auto_connect()
+        # C: 立即用缓存渲染列表
         self.refresh()
 
+        # B: 启动两个后台 worker
+        self._auto_connect_worker = AutoConnectWorker(
+            self._sync_execute, self._resolve_connect_params()
+        )
+        self._auto_connect_worker.finished.connect(self._on_auto_connect_finished)
+        self._auto_connect_worker.start()
+
+        self._metadata_worker = MetadataLoadWorker(self._sync_execute)
+        self._metadata_worker.finished.connect(self._on_metadata_loaded)
+        self._metadata_worker.start()
+
+    def _on_auto_connect_finished(self, success: bool) -> None:
+        if success:
+            self._connected = True
+            self._auto_connect_attempted = False
+            self._append_log("系统", locale.tr("auto_connect_success", "Auto-connect succeeded at startup"))
+        else:
+            self._auto_connect_attempted = True
+            self._append_log("系统", locale.tr("auto_connect_failed", "Auto-connect failed at startup, will not retry."))
+
+        preview_timer = getattr(self.window(), "_preview_timer", None)
         if preview_timer is not None and self._connected:
             preview_timer.start()
 
-    def _try_auto_connect(self) -> None:
-        """启动时尝试自动连接上次设备，失败后标记不再重试。"""
-        if self._connected or self._auto_connect_attempted:
-            return
-        result = self._sync_execute("system connect", timeout_ms=15000)
-        if not result or result.get("status") != "success":
-            self._auto_connect_attempted = True
-            self._append_log("系统", locale.tr("auto_connect_failed", "Auto-connect failed at startup, will not retry."))
-        else:
-            self._connected = True
-            self._append_log("系统", locale.tr("auto_connect_success", "Auto-connect succeeded at startup"))
+    def _on_metadata_loaded(self, result: dict) -> None:
+        if result and result.get("status") == "success":
+            self._tasks_cache = result.get("tasks") or {}
+            self._task_option_defs = result.get("task_option_defs") or {}
+            self._presets_cache = result.get("presets") or {}
+            self._persist_metadata_cache()
+        self.refresh()
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        for worker in (self._auto_connect_worker, self._metadata_worker):
+            if worker is not None and worker.isRunning():
+                worker.quit()
+                worker.wait(500)
+        super().closeEvent(event)
 
     def set_connected(self, connected: bool) -> None:
         """由 MainWindow 同步设备连接状态。"""
@@ -1459,3 +1483,28 @@ class TaskRunWorker(QThread):
     def stop(self):
         self._stopped = True
         self.terminate()
+
+
+class AutoConnectWorker(QThread):
+    finished = pyqtSignal(bool)
+
+    def __init__(self, sync_execute, params: dict):
+        super().__init__()
+        self._sync_execute = sync_execute
+        self._params = params
+
+    def run(self) -> None:
+        result = self._sync_execute("system connect", self._params, timeout_ms=15000)
+        self.finished.emit(bool(result and result.get("status") == "success"))
+
+
+class MetadataLoadWorker(QThread):
+    finished = pyqtSignal(dict)
+
+    def __init__(self, sync_execute):
+        super().__init__()
+        self._sync_execute = sync_execute
+
+    def run(self) -> None:
+        result = self._sync_execute("metadata list", timeout_ms=10000)
+        self.finished.emit(result or {})
