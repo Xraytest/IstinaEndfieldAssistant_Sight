@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
+from PyQt6.QtCore import QEvent
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -26,6 +27,15 @@ from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.theme.hero import HeroHeader
 
 locale = get_locale_manager()
+
+
+class _SpinBoxWheelFilter:
+    """Block wheel events for spin boxes to prevent accidental value changes."""
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Type.Wheel:
+            return True
+        return False
 
 
 class SettingsPage(QWidget):
@@ -110,6 +120,11 @@ class SettingsPage(QWidget):
         self._raw_preview = QTextEdit()
         self._raw_preview.setReadOnly(True)
         content_root.addWidget(self._raw_preview, 1)
+
+        _wheel_filter = _SpinBoxWheelFilter(self)
+        self._preview_interval_spin.installEventFilter(_wheel_filter)
+        self._port_input.installEventFilter(_wheel_filter)
+        self._threads_input.installEventFilter(_wheel_filter)
 
     def _on_language_changed(self, index: int) -> None:
         new_locale = self._language_combo.currentData()
