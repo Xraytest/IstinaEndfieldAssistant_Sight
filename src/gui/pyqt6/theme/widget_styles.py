@@ -72,6 +72,27 @@ METRIC_VALUE_STYLE = (
 )
 
 # ---------------------------------------------------------------------------
+# Dashboard / widget state helpers
+# ---------------------------------------------------------------------------
+METRIC_CARD_HOVER_STYLE = f"""
+    QFrame#metricCard {{
+        border: 1px solid {_rgba(_PRIMARY, 0.35)};
+        background-color: {_rgba(_PRIMARY, 0.04)};
+    }}
+"""
+
+METRIC_CARD_SELECTED_STYLE = f"""
+    QFrame#metricCard {{
+        border: 1px solid {_rgba(_PRIMARY, 0.50)};
+        background-color: {_rgba(_PRIMARY, 0.08)};
+    }}
+"""
+
+SKELETON_BAR_TITLE = "background-color: rgba(255,255,255,0.06); border-radius: 2px; min-width: 60px; max-width: 100px;"
+SKELETON_BAR_VALUE = "background-color: rgba(255,255,255,0.08); border-radius: 3px; min-width: 80px; max-width: 120px;"
+SKELETON_BAR_STATUS = "background-color: rgba(255,255,255,0.04); border-radius: 2px; min-width: 40px; max-width: 70px;"
+
+# ---------------------------------------------------------------------------
 # Card / container QSS blocks
 # ---------------------------------------------------------------------------
 CARD_STYLE = f"""

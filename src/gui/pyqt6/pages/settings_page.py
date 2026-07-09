@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Optional
 
-from PyQt6.QtCore import QEvent
+from PyQt6.QtCore import QEvent, QObject
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -29,8 +29,11 @@ from gui.pyqt6.theme.hero import HeroHeader
 locale = get_locale_manager()
 
 
-class _SpinBoxWheelFilter:
+class _SpinBoxWheelFilter(QObject):
     """Block wheel events for spin boxes to prevent accidental value changes."""
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent)
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.Wheel:

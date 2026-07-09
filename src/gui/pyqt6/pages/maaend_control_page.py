@@ -597,6 +597,7 @@ class MaaEndControlPage(QWidget):
     # task / preset list helpers
     # ------------------------------------------------------------------
     def _refresh_task_list(self):
+        selected_before = self._selected_task
         if not self._tasks_cache:
             result = self._sync_execute("metadata list", timeout_ms=10000)
             if result and result.get("status") == "success":
@@ -609,12 +610,15 @@ class MaaEndControlPage(QWidget):
             item = QListWidgetItem(_zh(name))
             item.setData(Qt.ItemDataRole.UserRole, name)
             self._task_list.addItem(item)
-        if self._selected_task in self._tasks_cache:
-            matches = self._task_list.findItems(_zh(self._selected_task), Qt.MatchFlag.MatchExactly)
+        if selected_before and selected_before in self._tasks_cache:
+            matches = self._task_list.findItems(_zh(selected_before), Qt.MatchFlag.MatchExactly)
             if matches:
                 self._task_list.setCurrentItem(matches[0])
+        if selected_before and not self._task_list.currentItem():
+            self._selected_task = selected_before
 
     def _refresh_preset_list(self):
+        selected_before = self._selected_preset
         if not self._presets_cache:
             result = self._sync_execute("metadata list", timeout_ms=10000)
             if result and result.get("status") == "success":
@@ -627,10 +631,12 @@ class MaaEndControlPage(QWidget):
             item = QListWidgetItem(_zh(name))
             item.setData(Qt.ItemDataRole.UserRole, name)
             self._preset_list.addItem(item)
-        if self._selected_preset in self._presets_cache:
-            matches = self._preset_list.findItems(_zh(self._selected_preset), Qt.MatchFlag.MatchExactly)
+        if selected_before and selected_before in self._presets_cache:
+            matches = self._preset_list.findItems(_zh(selected_before), Qt.MatchFlag.MatchExactly)
             if matches:
                 self._preset_list.setCurrentItem(matches[0])
+        if selected_before and not self._preset_list.currentItem():
+            self._selected_preset = selected_before
 
     def _on_task_selected(self):
         items = self._task_list.selectedItems()
@@ -1237,7 +1243,7 @@ class MaaEndControlPage(QWidget):
         if preview_timer is not None:
             preview_timer.stop()
 
-        # C: 立即用缓存渲染列表
+        # 立即渲染列表，保证启动时任务/预设列表可见。
         self.refresh()
 
         # B: 启动两个后台 worker
@@ -1266,11 +1272,15 @@ class MaaEndControlPage(QWidget):
 
     def _on_metadata_loaded(self, result: dict) -> None:
         if result and result.get("status") == "success":
-            self._tasks_cache = result.get("tasks") or {}
-            self._task_option_defs = result.get("task_option_defs") or {}
-            self._presets_cache = result.get("presets") or {}
-            self._persist_metadata_cache()
-        self.refresh()
+            new_tasks = result.get("tasks") or {}
+            new_presets = result.get("presets") or {}
+            new_defs = result.get("task_option_defs") or {}
+            if new_tasks != self._tasks_cache or new_presets != self._presets_cache:
+                self._tasks_cache = new_tasks
+                self._presets_cache = new_presets
+                self._task_option_defs = new_defs
+                self._persist_metadata_cache()
+                self.refresh()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         for worker in (self._auto_connect_worker, self._metadata_worker):

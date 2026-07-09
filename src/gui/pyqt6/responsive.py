@@ -174,7 +174,12 @@ class SkeletonCard(QFrame):
         self._setup_ui(title, value, status)
 
     def _setup_ui(self, title: bool, value: bool, status: bool) -> None:
-        from gui.pyqt6.theme.widget_styles import SKELETON_STYLE
+        from gui.pyqt6.theme.widget_styles import (
+            SKELETON_STYLE,
+            SKELETON_BAR_TITLE,
+            SKELETON_BAR_VALUE,
+            SKELETON_BAR_STATUS,
+        )
         self.setStyleSheet(SKELETON_STYLE)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -183,17 +188,17 @@ class SkeletonCard(QFrame):
         if title:
             bar = QFrame()
             bar.setFixedHeight(10)
-            bar.setStyleSheet("background-color: rgba(255,255,255,0.06); border-radius: 2px; min-width: 60px; max-width: 100px;")
+            bar.setStyleSheet(SKELETON_BAR_TITLE)
             layout.addWidget(bar)
 
         if value:
             bar = QFrame()
             bar.setFixedHeight(18)
-            bar.setStyleSheet("background-color: rgba(255,255,255,0.08); border-radius: 3px; min-width: 80px; max-width: 120px;")
+            bar.setStyleSheet(SKELETON_BAR_VALUE)
             layout.addWidget(bar)
 
         if status:
             bar = QFrame()
             bar.setFixedHeight(10)
-            bar.setStyleSheet("background-color: rgba(255,255,255,0.04); border-radius: 2px; min-width: 40px; max-width: 70px;")
+            bar.setStyleSheet(SKELETON_BAR_STATUS)
             layout.addWidget(bar)

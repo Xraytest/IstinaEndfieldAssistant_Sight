@@ -8,7 +8,11 @@ from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.widget_styles import CARD_STYLE
+from gui.pyqt6.theme.widget_styles import (
+    CARD_STYLE,
+    METRIC_CARD_HOVER_STYLE,
+    METRIC_CARD_SELECTED_STYLE,
+)
 
 locale = get_locale_manager()
 
@@ -46,13 +50,7 @@ class DashboardWidget(QFrame):
         self.setAcceptDrops(True)
 
     def enterEvent(self, event):
-        self.setStyleSheet(
-            CARD_STYLE
-            + "\nQFrame#metricCard:hover {"
-            + " border: 1px solid rgba(24, 209, 255, 0.35);"
-            + " background-color: rgba(24, 209, 255, 0.04);"
-            + "}"
-        )
+        self.setStyleSheet(CARD_STYLE + "\n" + METRIC_CARD_HOVER_STYLE)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
@@ -61,13 +59,7 @@ class DashboardWidget(QFrame):
 
     def set_selected(self, selected: bool) -> None:
         if selected:
-            self.setStyleSheet(
-                CARD_STYLE
-                + "\nQFrame#metricCard {"
-                + " border: 1px solid rgba(24, 209, 255, 0.5);"
-                + " background-color: rgba(24, 209, 255, 0.08);"
-                + "}"
-            )
+            self.setStyleSheet(CARD_STYLE + "\n" + METRIC_CARD_SELECTED_STYLE)
         else:
             self.setStyleSheet(CARD_STYLE)
 

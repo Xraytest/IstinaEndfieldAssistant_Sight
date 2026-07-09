@@ -21,11 +21,12 @@ from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.responsive import elide_text
 from gui.pyqt6.theme.hero import HeroHeader
 from gui.pyqt6.theme.widget_styles import COMBO_STYLE, INPUT_STYLE
+from gui.pyqt6.theme.theme_manager import COLORS
 
 locale = get_locale_manager()
 
 _LOG_LEVEL_COLORS = {
-    "INFO": "#19d1ff",
+    "INFO": COLORS["primary"],
     "WARN": "#ffb84d",
     "ERROR": "#ff4d4d",
     "DEBUG": "#8b919e",

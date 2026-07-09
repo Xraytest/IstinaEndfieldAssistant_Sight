@@ -12,8 +12,10 @@ from typing import Dict
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
+from gui.pyqt6.theme.theme_manager import COLORS
 
-def _pixmap_from_path(path: QPainterPath, size: int = 16, color: str = "#19d1ff", stroke_width: float = 1.5) -> QPixmap:
+
+def _pixmap_from_path(path: QPainterPath, size: int = 16, color: str = COLORS["primary"], stroke_width: float = 1.5) -> QPixmap:
     """Render a QPainterPath into a pixmap for use as an icon."""
     pixmap = QPixmap(size, size)
     pixmap.fill(QColor("transparent"))
@@ -295,7 +297,7 @@ def get_nav_icon(label: str, size: int = 18) -> QIcon:
     key = f"nav:{label}:{size}"
     if key not in _cache:
         path = factory()
-        pixmap = _pixmap_from_path(path, size=16, color="#19d1ff", stroke_width=1.8)
+        pixmap = _pixmap_from_path(path, size=16, color=COLORS["primary"], stroke_width=1.8)
         _cache[key] = QIcon(pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
     return _cache[key]
 
@@ -322,11 +324,11 @@ def get_status_icon(status: str, size: int = 14) -> QIcon:
     if key not in _cache:
         path = factory()
         color = {
-            "pending": "#9090a8",
-            "running": "#19d1ff",
-            "success": "#19d1ff",
-            "failed": "#ff3355",
-        }.get(status, "#9090a8")
+            "pending": COLORS["text_secondary"],
+            "running": COLORS["primary"],
+            "success": COLORS["success"],
+            "failed": COLORS["danger"],
+        }.get(status, COLORS["text_secondary"])
         pixmap = _pixmap_from_path(path, size=16, color=color, stroke_width=1.6)
         _cache[key] = QIcon(pixmap.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
     return _cache[key]

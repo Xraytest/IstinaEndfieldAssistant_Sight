@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.theme_manager import ThemeManager, get_theme
+from gui.pyqt6.theme.theme_manager import COLORS, ThemeManager, get_theme
 
 
 class TrayIcon(QObject):
@@ -43,8 +43,8 @@ class TrayIcon(QObject):
         pixmap.fill(QColor("transparent"))
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(QColor("#19d1ff"))
-        painter.setPen(QColor("#19d1ff"))
+        painter.setBrush(QColor(COLORS["primary"]))
+        painter.setPen(QColor(COLORS["primary"]))
         painter.drawEllipse(QRectF(4, 4, 56, 56))
         painter.end()
         self._tray.setIcon(QIcon(pixmap))
