@@ -141,11 +141,12 @@ class CLIBridge(QObject):
                 command = " ".join(self._last_command)
                 self._logger.debug(LogCategory.GUI, "发出 commandFinished 信号", command=command, status=result.get("status") if isinstance(result, dict) else None)
                 self.commandFinished.emit(command, result)
+                if self._interactive:
+                    self._current_command = None
+                    self._send_next_if_idle()
             except json.JSONDecodeError as exc:
-                self._logger.warning(LogCategory.GUI, "CLI stdout JSON 解析失败", error=str(exc), line=line.strip()[:200])
-            if self._interactive:
-                self._current_command = None
-                self._send_next_if_idle()
+                self._logger.debug(LogCategory.GUI, "CLI stdout 非 JSON 行，忽略", error=str(exc), line=line.strip()[:200])
+                # 非 JSON 行（如 C++ 日志）不干扰命令序列，忽略即可
 
     def _on_stderr(self) -> None:
         data = bytes(self._process.readAllStandardError()).decode("utf-8", errors="replace")

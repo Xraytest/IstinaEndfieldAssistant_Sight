@@ -72,7 +72,7 @@ METRIC_VALUE_STYLE = (
 )
 
 # ---------------------------------------------------------------------------
-# Dashboard / widget state helpers
+# Theme constants
 # ---------------------------------------------------------------------------
 METRIC_CARD_HOVER_STYLE = f"""
     QFrame#metricCard {{

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from PyQt6.QtCore import (
     QEasingCurve,
+    QEvent,
     QEventLoop,
     QPropertyAnimation,
     Qt,
@@ -14,7 +15,7 @@ from PyQt6.QtCore import (
     QTimer,
     pyqtSignal,
 )
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor, QFont, QShowEvent
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -308,21 +309,21 @@ class MaaEndControlPage(QWidget):
         self._bridge = bridge
         self.refresh()
 
-    def _sync_execute(self, command: str, params: Optional[Dict[str, Any]] = None, timeout_ms: int = 1200) -> Optional[dict]:
+    def _sync_execute(self, command: str, params: Optional[Dict[str, Any]] = None, timeout_ms: int = 300000) -> Optional[dict]:
         self._logger.debug(LogCategory.GUI, "_sync_execute 开始", command=command, timeout_ms=timeout_ms)
         loop = QEventLoop()
         result = None
-        expected = command
+        expected = command.split()
         timed_out = False
 
         def _on_finished(cmd: str, res: dict):
             nonlocal result
-            if cmd == expected:
+            if cmd.split()[: len(expected)] == expected:
                 result = res
                 loop.quit()
 
         self._bridge.commandFinished.connect(_on_finished)
-        self._bridge.execute(expected, params or {})
+        self._bridge.execute(command, params or {})
         QTimer.singleShot(timeout_ms, loop.quit)
         loop.exec()
         timed_out = result is None
@@ -381,16 +382,11 @@ class MaaEndControlPage(QWidget):
         self._task_list.setStyleSheet(LIST_STYLE)
         self._task_list.setMinimumHeight(80)
         self._task_list.itemSelectionChanged.connect(self._on_task_selected)
+        self._task_list.itemDoubleClicked.connect(lambda item: self._add_to_queue())
+        self._task_list.setDragEnabled(True)
+        self._task_list.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
         task_layout.addWidget(self._task_list, 1)
-        task_btn_row = QHBoxLayout()
-        task_btn_row.setContentsMargins(0, 0, 0, 0)
-        task_btn_row.setSpacing(6)
-        self._add_task_to_queue_btn = QPushButton(locale.tr("btn_add_task", "Add Task"))
-        self._add_task_to_queue_btn.setStyleSheet(BTN_ACTIVE)
-        self._add_task_to_queue_btn.clicked.connect(self._add_task_to_queue)
-        task_btn_row.addWidget(self._add_task_to_queue_btn)
-        task_btn_row.addStretch()
-        task_layout.addLayout(task_btn_row)
+
         tasks_layout.addWidget(task_card)
         tasks_col.setMinimumWidth(220)
 
@@ -472,6 +468,9 @@ class MaaEndControlPage(QWidget):
         self._queue_list.setStyleSheet(TABLE_STYLE)
         self._queue_list.setMinimumHeight(60)
         self._queue_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._queue_list.setAcceptDrops(True)
+        self._queue_list.setDropIndicatorShown(True)
+        self._queue_list.installEventFilter(self)
         self._queue_list.selectionModel().currentChanged.connect(lambda current, previous: self._on_queue_focus_changed(current.row()))
         queue_layout.addWidget(self._queue_list)
         queue_btn_row = QHBoxLayout()
@@ -580,7 +579,6 @@ class MaaEndControlPage(QWidget):
             title,
             self._status_label,
             self._apply_preset_to_queue_btn,
-            self._add_task_to_queue_btn,
             self._add_queue_btn,
             self._run_queue_btn,
             self._queue_up_btn,
@@ -598,6 +596,7 @@ class MaaEndControlPage(QWidget):
     # ------------------------------------------------------------------
     def _refresh_task_list(self):
         selected_before = self._selected_task
+        loaded = False
         if not self._tasks_cache:
             result = self._sync_execute("metadata list", timeout_ms=10000)
             if result and result.get("status") == "success":
@@ -605,20 +604,26 @@ class MaaEndControlPage(QWidget):
                 self._task_option_defs = result.get("task_option_defs") or {}
                 self._presets_cache = result.get("presets") or {}
                 self._persist_metadata_cache()
-        self._task_list.clear()
-        for name in sorted(self._tasks_cache.keys()):
-            item = QListWidgetItem(_zh(name))
-            item.setData(Qt.ItemDataRole.UserRole, name)
-            self._task_list.addItem(item)
-        if selected_before and selected_before in self._tasks_cache:
-            matches = self._task_list.findItems(_zh(selected_before), Qt.MatchFlag.MatchExactly)
-            if matches:
-                self._task_list.setCurrentItem(matches[0])
-        if selected_before and not self._task_list.currentItem():
-            self._selected_task = selected_before
+                loaded = True
+        else:
+            loaded = True
+
+        if loaded:
+            self._task_list.clear()
+            for name in sorted(self._tasks_cache.keys()):
+                item = QListWidgetItem(_zh(name))
+                item.setData(Qt.ItemDataRole.UserRole, name)
+                self._task_list.addItem(item)
+            if selected_before and selected_before in self._tasks_cache:
+                matches = self._task_list.findItems(_zh(selected_before), Qt.MatchFlag.MatchExactly)
+                if matches:
+                    self._task_list.setCurrentItem(matches[0])
+            if selected_before and not self._task_list.currentItem():
+                self._selected_task = selected_before
 
     def _refresh_preset_list(self):
         selected_before = self._selected_preset
+        loaded = False
         if not self._presets_cache:
             result = self._sync_execute("metadata list", timeout_ms=10000)
             if result and result.get("status") == "success":
@@ -626,17 +631,22 @@ class MaaEndControlPage(QWidget):
                 self._task_option_defs = result.get("task_option_defs") or {}
                 self._presets_cache = result.get("presets") or {}
                 self._persist_metadata_cache()
-        self._preset_list.clear()
-        for name in sorted(self._presets_cache.keys()):
-            item = QListWidgetItem(_zh(name))
-            item.setData(Qt.ItemDataRole.UserRole, name)
-            self._preset_list.addItem(item)
-        if selected_before and selected_before in self._presets_cache:
-            matches = self._preset_list.findItems(_zh(selected_before), Qt.MatchFlag.MatchExactly)
-            if matches:
-                self._preset_list.setCurrentItem(matches[0])
-        if selected_before and not self._preset_list.currentItem():
-            self._selected_preset = selected_before
+                loaded = True
+        else:
+            loaded = True
+
+        if loaded:
+            self._preset_list.clear()
+            for name in sorted(self._presets_cache.keys()):
+                item = QListWidgetItem(_zh(name))
+                item.setData(Qt.ItemDataRole.UserRole, name)
+                self._preset_list.addItem(item)
+            if selected_before and selected_before in self._presets_cache:
+                matches = self._preset_list.findItems(_zh(selected_before), Qt.MatchFlag.MatchExactly)
+                if matches:
+                    self._preset_list.setCurrentItem(matches[0])
+            if selected_before and not self._preset_list.currentItem():
+                self._selected_preset = selected_before
 
     def _on_task_selected(self):
         items = self._task_list.selectedItems()
@@ -659,6 +669,7 @@ class MaaEndControlPage(QWidget):
             task_list = preset.get("task", [])
             if not task_list:
                 QMessageBox.information(self, locale.tr("preset_empty", "Preset Is Empty"), locale.tr("preset_empty_msg", "Preset '{preset}' has no tasks.").format(preset=self._selected_preset))
+                return
             # 添加预设到队列 = 覆盖现有队列（清空再填充），不是追加；与 _run_preset 共享同一覆盖语义。
             for entry in list(self._queue_state.queue_items):
                 name = entry.get("name")
@@ -875,6 +886,23 @@ class MaaEndControlPage(QWidget):
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._sync_layout_geometry()
+
+    def eventFilter(self, obj, event):
+        if obj is self._queue_list:
+            if event.type() == QEvent.Type.DragEnter:
+                if event.source() is self._task_list:
+                    event.accept()
+                    return True
+            elif event.type() == QEvent.Type.Drop:
+                if event.source() is self._task_list:
+                    selected = self._task_list.currentItem()
+                    if selected:
+                        self._selected_task = selected.data(Qt.ItemDataRole.UserRole)
+                        if not self._is_executing:
+                            self._add_to_queue()
+                    event.accept()
+                    return True
+        return super().eventFilter(obj, event)
 
     def _sync_layout_geometry(self) -> None:
         splitter = getattr(self, "_splitter", None)
@@ -1236,7 +1264,7 @@ class MaaEndControlPage(QWidget):
     # execution
     # ------------------------------------------------------------------
     def _delayed_init(self) -> None:
-        """延迟初始化：立即渲染缓存列表，后台并行执行重连和元数据加载。"""
+        """延迟初始化：立即渲染缓存列表，主线程顺序执行重连和元数据加载。"""
         # 初始化期间停止预览定时器，避免与系统连接的嵌套事件循环冲突
         main_window = self.window()
         preview_timer = getattr(main_window, "_preview_timer", None)
@@ -1246,16 +1274,14 @@ class MaaEndControlPage(QWidget):
         # 立即渲染列表，保证启动时任务/预设列表可见。
         self.refresh()
 
-        # B: 启动两个后台 worker
-        self._auto_connect_worker = AutoConnectWorker(
-            self._sync_execute, self._resolve_connect_params()
-        )
-        self._auto_connect_worker.finished.connect(self._on_auto_connect_finished)
-        self._auto_connect_worker.start()
+        # 主线程延迟执行，避免在 __init__ 中启动嵌套 QEventLoop
+        QTimer.singleShot(50, self._do_auto_connect)
 
-        self._metadata_worker = MetadataLoadWorker(self._sync_execute)
-        self._metadata_worker.finished.connect(self._on_metadata_loaded)
-        self._metadata_worker.start()
+    def _do_auto_connect(self) -> None:
+        params = self._resolve_connect_params()
+        result = self._sync_execute("system connect", params, timeout_ms=15000)
+        self._on_auto_connect_finished(bool(result and result.get("status") == "success"))
+        QTimer.singleShot(0, self._do_metadata_load)
 
     def _on_auto_connect_finished(self, success: bool) -> None:
         if success:
@@ -1270,6 +1296,10 @@ class MaaEndControlPage(QWidget):
         if preview_timer is not None and self._connected:
             preview_timer.start()
 
+    def _do_metadata_load(self) -> None:
+        result = self._sync_execute("metadata list", timeout_ms=10000)
+        self._on_metadata_loaded(result or {})
+
     def _on_metadata_loaded(self, result: dict) -> None:
         if result and result.get("status") == "success":
             new_tasks = result.get("tasks") or {}
@@ -1281,12 +1311,18 @@ class MaaEndControlPage(QWidget):
                 self._task_option_defs = new_defs
                 self._persist_metadata_cache()
                 self.refresh()
+        # 即使加载失败或结果未变化，只要缓存仍为空就尝试刷新，
+        # 防止列表因之前的失败 _sync_execute 被 clear() 后永远空白。
+        if not self._tasks_cache or not self._presets_cache:
+            self.refresh()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        # 页面切回时，若任一缓存为空则触发刷新，避免列表因切换操作丢失内容
+        if not self._tasks_cache or not self._presets_cache:
+            QTimer.singleShot(50, self.refresh)
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        for worker in (self._auto_connect_worker, self._metadata_worker):
-            if worker is not None and worker.isRunning():
-                worker.quit()
-                worker.wait(500)
         super().closeEvent(event)
 
     def set_connected(self, connected: bool) -> None:
@@ -1418,7 +1454,6 @@ class MaaEndControlPage(QWidget):
         self.execution_state_changed.emit(False)
 
     def _update_execution_ui(self):
-        self._add_task_to_queue_btn.setEnabled(not self._is_executing)
         self._apply_preset_to_queue_btn.setEnabled(not self._is_executing)
         self._run_queue_btn.setEnabled(not self._is_executing)
         self._add_queue_btn.setEnabled(not self._is_executing)
@@ -1493,28 +1528,3 @@ class TaskRunWorker(QThread):
     def stop(self):
         self._stopped = True
         self.terminate()
-
-
-class AutoConnectWorker(QThread):
-    finished = pyqtSignal(bool)
-
-    def __init__(self, sync_execute, params: dict):
-        super().__init__()
-        self._sync_execute = sync_execute
-        self._params = params
-
-    def run(self) -> None:
-        result = self._sync_execute("system connect", self._params, timeout_ms=15000)
-        self.finished.emit(bool(result and result.get("status") == "success"))
-
-
-class MetadataLoadWorker(QThread):
-    finished = pyqtSignal(dict)
-
-    def __init__(self, sync_execute):
-        super().__init__()
-        self._sync_execute = sync_execute
-
-    def run(self) -> None:
-        result = self._sync_execute("metadata list", timeout_ms=10000)
-        self.finished.emit(result or {})

@@ -140,7 +140,7 @@ class Recorder(QObject):
 
     def _record_click(self, widget: QObject, event: QEvent) -> None:
         """Record a mouse press event."""
-        if not isinstance(event, QEvent.Type.MouseButtonPress):
+        if event.type() != QEvent.Type.MouseButtonPress:
             return
         if event.button() != Qt.MouseButton.LeftButton:
             return
@@ -153,7 +153,7 @@ class Recorder(QObject):
                 widget_type=widget_type,
                 object_name=obj_name,
                 action_type="click",
-                value={"x": pos.x(), "y": pos.y(), "button": int(event.button())},
+                value={"x": pos.x(), "y": pos.y(), "button": int(event.button().value)},
             )
             self._script.actions.append(action)
             logger.debug("Recorded click on %s (%s) at (%.0f, %.0f)", obj_name, widget_type, pos.x(), pos.y())
