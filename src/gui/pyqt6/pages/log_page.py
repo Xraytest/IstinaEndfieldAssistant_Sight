@@ -108,6 +108,7 @@ class LogPage(QWidget):
         try:
             text = log_path.read_text(encoding="utf-8", errors="replace")
             self._log_view.setHtml(self._highlight_log(text))
+            self._log_view.moveCursor(self._log_view.textCursor().MoveOperation.End)
         except OSError as exc:
             self._log_view.setPlainText(locale.tr("read_log_failed", "Failed to read log: {exc}").format(exc=exc))
 

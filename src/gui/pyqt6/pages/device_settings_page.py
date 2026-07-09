@@ -97,6 +97,11 @@ class DeviceSettingsPage(QWidget):
         self._auto_reconnect_check.toggled.connect(self._on_auto_reconnect_toggled)
         self._auto_reconnect_check.toggled.connect(self._save_device_settings)
         status_form.addRow("", self._auto_reconnect_check)
+
+        self._auto_kill_adb_check = QCheckBox(locale.tr("auto_kill_adb_on_timeout", "Kill ADB and retry on connection timeout"))
+        self._auto_kill_adb_check.setChecked(True)
+        self._auto_kill_adb_check.toggled.connect(self._save_device_settings)
+        status_form.addRow("", self._auto_kill_adb_check)
         connection_layout.addLayout(status_form)
         content_root.addWidget(connection_card)
 
@@ -141,14 +146,22 @@ class DeviceSettingsPage(QWidget):
         serial = self._address_input.text().strip()
         if not serial:
             return
+        self._set_connecting_state()
         self._append_log(locale.tr("auto_reconnect_attempt", "Auto-reconnect attempt: {serial}").format(serial=serial))
         self._bridge.execute("system connect", {"serial": serial})
+
+    def _set_connecting_state(self) -> None:
+        self._connection_status.setText(locale.tr("connecting", "Connecting..."))
+        self._connect_btn.setEnabled(False)
+        self._disconnect_btn.setEnabled(False)
+        self._refresh_btn.setEnabled(False)
 
     def _connect(self) -> None:
         serial = self._address_input.text().strip()
         if not serial:
             self._append_log(locale.tr("address_required", "Device address not filled, cannot connect."))
             return
+        self._set_connecting_state()
         self._append_log(locale.tr("connect_request", "Request connect: {serial}").format(serial=serial))
         self._bridge.execute("system connect", {"serial": serial})
 
@@ -171,6 +184,9 @@ class DeviceSettingsPage(QWidget):
             self._connection_status.setText(locale.tr("connection_ok" if ok else "connection_failed", "Connected" if ok else "Connection Failed"))
             self._selected_device.setText(serial or "-")
             self._append_log(locale.tr("connect_result", "Connect result: {result}").format(result=result))
+            self._connect_btn.setEnabled(True)
+            self._disconnect_btn.setEnabled(True)
+            self._refresh_btn.setEnabled(True)
             if ok and serial:
                 self._remember_device(serial)
                 if self._reconnect_enabled:
@@ -182,6 +198,9 @@ class DeviceSettingsPage(QWidget):
             self._connected = False
             self._connection_status.setText(locale.tr("connection_disconnected", "Disconnected"))
             self._append_log(locale.tr("disconnect_result", "Disconnect result: {result}").format(result=result))
+            self._connect_btn.setEnabled(True)
+            self._disconnect_btn.setEnabled(True)
+            self._refresh_btn.setEnabled(True)
             if self._reconnect_enabled:
                 self._reconnect_timer.start()
 
@@ -196,6 +215,11 @@ class DeviceSettingsPage(QWidget):
 
     def _on_command_error(self, command: str, message: str) -> None:
         self._append_log(locale.tr("command_failed", "Command failed: {command}").format(command=command) + f" {message}")
+        if command.startswith("system connect") or command.startswith("system disconnect"):
+            self._connect_btn.setEnabled(True)
+            self._disconnect_btn.setEnabled(True)
+            self._refresh_btn.setEnabled(True)
+            self._connection_status.setText(locale.tr("connection_failed", "Connection Failed"))
 
     def _update_device_info(self, result: dict) -> None:
         self._device_list.clear()
@@ -218,6 +242,9 @@ class DeviceSettingsPage(QWidget):
 
     def _append_log(self, message: str) -> None:
         self._log_text.append(message)
+        cursor = self._log_text.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        self._log_text.setTextCursor(cursor)
 
     def _load_device_preferences(self) -> None:
         config = self._read_config()
@@ -241,6 +268,11 @@ class DeviceSettingsPage(QWidget):
             self._reconnect_timer.start()
         else:
             self._reconnect_timer.stop()
+
+        auto_kill_adb = bool(device_cfg.get("adb_restart_on_timeout", False))
+        self._auto_kill_adb_check.blockSignals(True)
+        self._auto_kill_adb_check.setChecked(auto_kill_adb)
+        self._auto_kill_adb_check.blockSignals(False)
 
     def _remember_device(self, serial: str) -> None:
         config = self._read_config()
@@ -272,5 +304,6 @@ class DeviceSettingsPage(QWidget):
         config = self._read_config()
         device_cfg = dict(config.get("device", {}))
         device_cfg["auto_reconnect"] = self._auto_reconnect_check.isChecked()
+        device_cfg["adb_restart_on_timeout"] = self._auto_kill_adb_check.isChecked()
         config["device"] = device_cfg
         self._write_config(config)
