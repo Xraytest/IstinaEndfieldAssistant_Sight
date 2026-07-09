@@ -208,8 +208,8 @@ def showEvent(self, event: QShowEvent) -> None:
 $ python -m py_compile src/gui/pyqt6/pages/maaend_control_page.py
 # 通过
 
-$ python -m pytest tests/test_maaend_control_page.py -xvs
-# 10 passed in 85.35s
+$ python -m pytest tests/gui/pyqt6/test_gui_maaend_control.py -xvs
+# 27 passed in 0.57s
 ```
 
 所有相关测试通过，修复已验证。

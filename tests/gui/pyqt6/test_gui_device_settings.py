@@ -18,6 +18,7 @@ def _create_device_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bridge=
 
     monkeypatch.setattr(_mod, "get_project_root", lambda: tmp_path)
     monkeypatch.setattr(get_locale_manager(), "tr", lambda key, default="": default)
+    monkeypatch.setattr(_mod.DeviceSettingsPage, "_refresh_devices", lambda self: None)
 
     if bridge is None:
         bridge = CLIBridge()
@@ -46,7 +47,8 @@ class TestDeviceSettingsPageControls:
         assert hasattr(page, "_log_text")
 
     def test_load_device_preferences(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
-        config_path = tmp_path / "client_config.json"
+        config_path = tmp_path / "config" / "client_config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(
             json.dumps({
                 "device": {
@@ -70,7 +72,8 @@ class TestDeviceSettingsPageConfigIO:
     """Test _remember_device writes config and _load_device_preferences reads it."""
 
     def test_remember_device_updates_history(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
-        config_path = tmp_path / "client_config.json"
+        config_path = tmp_path / "config" / "client_config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(json.dumps({"device": {}}, ensure_ascii=False), encoding="utf-8")
         page = _create_device_page(tmp_path, monkeypatch)
         page._address_input.setText("localhost:9999")
@@ -142,4 +145,5 @@ class TestDeviceSettingsPageCommandHandling:
     def test_update_device_info_no_devices(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_device_page(tmp_path, monkeypatch)
         page._update_device_info({"status": "success", "devices": []})
-        assert page._device_list.count() == 0
+        assert page._device_list.count() == 1
+        assert "No devices found" in page._device_list.item(0).text()

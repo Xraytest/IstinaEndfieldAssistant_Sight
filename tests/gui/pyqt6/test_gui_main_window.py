@@ -89,7 +89,8 @@ class TestMainWindow:
         from gui.pyqt6.i18n import get_locale_manager
         from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 
-        config_path = tmp_path / "client_config.json"
+        config_path = tmp_path / "config" / "client_config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(json.dumps({"preview_interval_ms": 3333}, ensure_ascii=False), encoding="utf-8")
         monkeypatch.setattr(_mw, "get_project_root", lambda: tmp_path)
         monkeypatch.setattr(_mw, "check_gpu", lambda: type("R", (), {"is_nvidia": True, "warning": None})())

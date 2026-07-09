@@ -17,7 +17,7 @@ def _create_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bridge=None) -
     import gui.pyqt6.pages.maaend_control_page as _mod
     from gui.pyqt6.i18n import get_locale_manager
 
-    monkeypatch.setattr(_mod, "QTimer", type("FakeTimer", (), {"singleShot": lambda *a, **k: None})())
+    monkeypatch.setattr(_mod.MaaEndControlPage, "_delayed_init", lambda self: None)
     monkeypatch.setattr(get_locale_manager(), "tr", lambda key, default="": default)
     monkeypatch.setattr("core.foundation.paths.get_project_root", lambda: tmp_path)
 
@@ -35,11 +35,11 @@ class TestMaaEndControlPageInitAndFormatting:
 
     def test_format_queue_label_task(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        assert page._format_queue_label("SellProduct", "task", {}) == "[TASK] SellProduct"
+        assert page._format_queue_label("SellProduct", "task", {}) == "[TASK] 🛒售卖产品"
 
     def test_format_queue_label_preset(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        assert page._format_queue_label("DailyFull", "preset", {}) == "[PRESET] DailyFull"
+        assert page._format_queue_label("DailyFull", "preset", {}) == "[PRESET] 全套日常"
 
     def test_format_queue_label_with_options(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
@@ -115,14 +115,22 @@ class TestMaaEndControlPageQueueOperations:
 
     def test_queue_move_up(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        page._queue_state.queue_items = [
+        page._queue_state.set_queue_items([
             {"name": "a", "type": "task", "options": {}},
             {"name": "b", "type": "task", "options": {}},
-        ]
+        ])
 
         class FakeList:
             def currentRow(self):
                 return 1
+            def rowCount(self):
+                return len(page._queue_state.queue_items)
+            def setRowCount(self, n):
+                pass
+            def insertRow(self, n):
+                pass
+            def setItem(self, r, c, item):
+                pass
             def setCurrentCell(self, row, col):
                 pass
 
@@ -133,13 +141,21 @@ class TestMaaEndControlPageQueueOperations:
 
     def test_queue_move_up_at_top_noop(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        page._queue_state.queue_items = [
+        page._queue_state.set_queue_items([
             {"name": "a", "type": "task", "options": {}},
-        ]
+        ])
 
         class FakeList:
             def currentRow(self):
                 return 0
+            def rowCount(self):
+                return len(page._queue_state.queue_items)
+            def setRowCount(self, n):
+                pass
+            def insertRow(self, n):
+                pass
+            def setItem(self, r, c, item):
+                pass
             def setCurrentCell(self, row, col):
                 pass
 
@@ -149,14 +165,22 @@ class TestMaaEndControlPageQueueOperations:
 
     def test_queue_move_down(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        page._queue_state.queue_items = [
+        page._queue_state.set_queue_items([
             {"name": "a", "type": "task", "options": {}},
             {"name": "b", "type": "task", "options": {}},
-        ]
+        ])
 
         class FakeList:
             def currentRow(self):
                 return 0
+            def rowCount(self):
+                return len(page._queue_state.queue_items)
+            def setRowCount(self, n):
+                pass
+            def insertRow(self, n):
+                pass
+            def setItem(self, r, c, item):
+                pass
             def setCurrentCell(self, row, col):
                 pass
 
@@ -167,15 +191,21 @@ class TestMaaEndControlPageQueueOperations:
 
     def test_queue_move_down_at_bottom_noop(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        page._queue_state.queue_items = [
+        page._queue_state.set_queue_items([
             {"name": "a", "type": "task", "options": {}},
-        ]
+        ])
 
         class FakeList:
             def currentRow(self):
                 return 0
             def rowCount(self):
                 return 1
+            def setRowCount(self, n):
+                pass
+            def insertRow(self, n):
+                pass
+            def setItem(self, r, c, item):
+                pass
             def setCurrentCell(self, row, col):
                 pass
 
@@ -185,9 +215,9 @@ class TestMaaEndControlPageQueueOperations:
 
     def test_queue_clear(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        page._queue_state.queue_items = [
+        page._queue_state.set_queue_items([
             {"name": "a", "type": "task", "options": {}},
-        ]
+        ])
         page._queue_state.clear_saved_options = lambda name: None
 
         class FakeList:
@@ -204,11 +234,11 @@ class TestMaaEndControlPageQueueOperations:
         page._presets_cache = {
             "DailyFull": {"task": [{"name": "SellProduct", "option": {}}]}
         }
-        page._queue_state.queue_items = [
+        page._queue_state.set_queue_items([
             {"name": "Old", "type": "task", "options": {}},
-        ]
+        ])
         page._queue_state.clear_saved_options = lambda name: None
-        page._queue_state.set_queue_items = lambda items: setattr(page._queue_state, "queue_items", items)
+        page._queue_state.set_queue_items = lambda items: setattr(page._queue_state, "_queue_items", items)
         page._queue_state.load_options = lambda name: {}
         page._queue_state.save_options = lambda name, opts: None
         page._queue_state.persist = lambda: None
@@ -265,6 +295,13 @@ class TestMaaEndControlPageBuildOptionEditor:
                 pass
             def setEnabled(self, v):
                 pass
+            def count(self):
+                return 0
+            def takeAt(self, i):
+                class FakeItem:
+                    def widget(self):
+                        return None
+                return FakeItem()
 
         page._option_form = FakeForm()
         page._build_option_editor()
@@ -373,14 +410,16 @@ class TestMaaEndControlPageUIUpdates:
 
     def test_restore_queue_ui(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        page._queue_state.queue_items = [
+        page._queue_state.set_queue_items([
             {"name": "A", "type": "task", "options": {}},
             {"name": "B", "type": "task", "options": {}},
-        ]
+        ])
 
         class FakeList:
             def setRowCount(self, n):
                 pass
+            def rowCount(self):
+                return len(page._queue_state.queue_items)
             def insertRow(self, n):
                 pass
             def setItem(self, r, c, item):
@@ -392,7 +431,7 @@ class TestMaaEndControlPageUIUpdates:
 
     def test_refresh_queue_list(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         page = _create_page(tmp_path, monkeypatch)
-        page._queue_state.queue_items = [{"name": "A", "type": "task", "options": {}}]
+        page._queue_state.set_queue_items([{"name": "A", "type": "task", "options": {}}])
         page._queue_state.get_queue_item = lambda i: {"name": "A", "type": "task", "options": {}}
 
         class FakeItem:

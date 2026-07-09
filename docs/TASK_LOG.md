@@ -101,3 +101,30 @@
   - `src/gui/pyqt6/pages/maaend_control_page.py`
   - `reports/task_preset_list_display_fix_report.md`（新增）
 - **验证**：`pytest` 10 passed, 1 warning；语法检查通过；CLI 返回成功。
+
+## 2026-07-09 12:10
+
+- **User Request**: 从断点继续，构建 agent swarm 并行执行 GUI 测试。
+- **Outcome**: 完成断点诊断，停止无限修复循环。实际完成：
+  1. 清理遗留重复测试文件（`tests/test_gui_*.py`、`tests/test_maaend_control_page.py`、`tests/test_main_window.py`），消除集合冲突。
+  2. 修复部分测试与实现细节耦合问题（`QueueState` 属性只读、`FakeForm.count()` 缺失、`_delayed_init` 未禁用导致超时、设备页 `_refresh_devices` 副作用、配置路径缺少 `config/` 子目录等）。
+  3. 识别出系统性阻塞：测试套件在 `pytest` collect/执行阶段持续超时（~180s），且每修复一个失败测试就暴露下一个失败，呈无限循环。
+  4. 输出诊断报告 `reports/gui_test_module_split_breakpoint_diagnosis.md`，建议停止逐点修复，转向两条路径：
+     - **路径 A**：精简可验证测试集，保留已通过的 ~99 个测试，将剩余失败标记为 `xfail`。
+     - **路径 B**：先完成 `CLIBridgeBackend` 抽象重构，再重新编写与实现解耦的测试。
+  5. 识别出 `src/gui/pyqt6/dashboard/` 模块缺失，Dashboard 测试组无法落地，需用户确认该模块是否废弃或补建。
+- **Files Modified**:
+  - `tests/gui/pyqt6/test_gui_device_settings.py`（修复配置路径、禁用 `_refresh_devices`）
+  - `tests/gui/pyqt6/test_gui_maaend_control.py`（修复 `QueueState` 只读属性、`FakeForm` 接口、禁用 `_delayed_init`）
+  - `tests/gui/pyqt6/test_gui_main_window.py`（修复配置路径为 `tmp_path / "config" / "client_config.json"`）
+  - `src/gui/pyqt6/scripting/player.py`（修复 `_find_widget` 使用 `QWidget` 而非 `type(None)`）
+  - `reports/gui_test_module_split_breakpoint_diagnosis.md`（新增）
+- **验证**：诊断报告确认当前通过测试约 99 个；全量 `pytest` 仍因超时无法完成，停止无限循环。
+
+## 2026-07-09 12:15
+
+- **User Request**: 完全废弃 dashboard 模块并清理。
+- **Outcome**: 确认 `src/gui/pyqt6/dashboard/` 无任何业务代码（仅 `__init__.py`），且全项目无引用。已删除该目录及其 `__pycache__`。
+- **Files Modified**:
+  - `src/gui/pyqt6/dashboard/`（删除）
+- **验证**：`grep` 全项目确认无 `dashboard` 引用；目录已不存在。

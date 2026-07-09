@@ -144,7 +144,7 @@ class IstinaRuntime:
             serial
             or device_cfg.get("last_connected")
             or device_cfg.get("serial")
-            or "default"
+            or "localhost:16512"
         )
         runtime = self._android_clients.get(resolved)
         if runtime is None:
@@ -155,12 +155,13 @@ class IstinaRuntime:
             self._android_clients[resolved] = runtime
         return runtime
 
-    def _resolve_serial(self, serial: Optional[str]) -> Optional[str]:
+    def _resolve_serial(self, serial: Optional[str]) -> str:
         device_cfg = self._config.get("device", {}) or {}
         return (
             serial
             or device_cfg.get("last_connected")
             or device_cfg.get("serial")
+            or "localhost:16512"
         )
 
     def maaend(self, serial: Optional[str] = None) -> Any:

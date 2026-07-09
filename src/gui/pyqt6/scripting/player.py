@@ -137,7 +137,7 @@ class Player(QObject):
             return None
         # Search all top-level widgets recursively
         for widget in app.topLevelWidgets():
-            found = widget.findChild(type(None), action.object_name)
+            found = widget.findChild(QWidget, action.object_name)
             if found is not None:
                 return found
         return None
