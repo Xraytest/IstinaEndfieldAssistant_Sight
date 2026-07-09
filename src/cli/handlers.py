@@ -178,6 +178,8 @@ class CLIDispatch:
             return _handle_config_get(self._runtime, args)
         if args.action == "set":
             return _handle_config_set(self._runtime, args)
+        if args.action == "reload":
+            return _handle_config_reload(self._runtime, args)
         return {"status": "error", "message": "unknown config action"}
 
     def _handle_auth(self, args: argparse.Namespace) -> Dict[str, Any]:
@@ -466,6 +468,11 @@ def _handle_config_set(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
     runtime.config[args.key] = args.value
     runtime.save_config()
     return {"status": "success", "key": args.key, "value": args.value}
+
+
+def _handle_config_reload(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    runtime.reload_config()
+    return {"status": "success", "message": "config reloaded"}
 
 
 def _handle_auth_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:

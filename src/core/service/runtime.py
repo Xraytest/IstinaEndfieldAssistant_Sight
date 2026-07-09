@@ -415,6 +415,13 @@ class IstinaRuntime:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(self._config, f, ensure_ascii=False, indent=2)
 
+    def reload_config(self) -> None:
+        self._config = self._load_config()
+        device_cfg = self._config.get("device", {}) or {}
+        adb_restart_on_timeout = bool(device_cfg.get("adb_restart_on_timeout", False))
+        for runtime in self._maaend_clients.values():
+            runtime._adb_restart_on_timeout = adb_restart_on_timeout
+
     def _daily_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}
         preset_name = options.get("preset", "DailyFull")

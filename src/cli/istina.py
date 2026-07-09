@@ -150,6 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_config_set = p_config_sub.add_parser("set", help="set config value")
     p_config_set.add_argument("key", help="config key")
     p_config_set.add_argument("value", help="config value")
+    p_config_sub.add_parser("reload", help="reload config")
 
     p_auth = sub.add_parser("auth", help="auth commands")
     p_auth_sub = p_auth.add_subparsers(dest="action")

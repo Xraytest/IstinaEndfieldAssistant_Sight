@@ -37,6 +37,7 @@ class DeviceSettingsPage(QWidget):
         self._connected = False
         self._bridge.commandFinished.connect(self._on_command_finished)
         self._bridge.commandError.connect(self._on_command_error)
+        self._bridge.logMessage.connect(self._on_log_message)
         self._reconnect_timer = QTimer(self)
         self._reconnect_timer.setInterval(5000)
         self._reconnect_timer.timeout.connect(self._attempt_reconnect)
@@ -246,6 +247,11 @@ class DeviceSettingsPage(QWidget):
         cursor.movePosition(cursor.MoveOperation.End)
         self._log_text.setTextCursor(cursor)
 
+    def _on_log_message(self, source: str, message: str) -> None:
+        self._append_log(f"[{source}] {message}")
+        if "杀死ADB" in message or "killing ADB" in message.lower():
+            self._connection_status.setText(locale.tr("killing_adb_retrying", "Killing ADB and retrying..."))
+
     def _load_device_preferences(self) -> None:
         config = self._read_config()
         device_cfg = config.get("device", {})
@@ -307,3 +313,4 @@ class DeviceSettingsPage(QWidget):
         device_cfg["adb_restart_on_timeout"] = self._auto_kill_adb_check.isChecked()
         config["device"] = device_cfg
         self._write_config(config)
+        self._bridge.execute("config reload")
