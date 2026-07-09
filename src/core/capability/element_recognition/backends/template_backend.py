@@ -310,7 +310,7 @@ class TemplateBackend:
         best_contour = None
         best_area = 0
         for c in contours:
-            if cv2.pointPolygonTest(c, (tpl_cx, tpl_cy), False) >= 0:
+            if cv2.pointPolygonTest(c, np.array([tpl_cx, tpl_cy], dtype=np.float32), False) >= 0:
                 area = cv2.contourArea(c)
                 if area > best_area:
                     best_area = area
