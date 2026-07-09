@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from PyQt6.QtCore import QProcess, QObject
 from PyQt6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -32,10 +33,54 @@ def qapp() -> QApplication:
     return app
 
 
+from PyQt6.QtCore import pyqtSignal
+
+
 class _FakeProcess:
+    readyReadStandardOutput = pyqtSignal()
+    readyReadStandardError = pyqtSignal()
+    finished = pyqtSignal(int, int)
+    errorOccurred = pyqtSignal(int)
+    started = pyqtSignal()
+
     def __init__(self) -> None:
-        self.state = lambda: None
-        self.waitForStarted = lambda *args, **kwargs: True
+        self._state = None
+
+    def state(self) -> "QProcess.ProcessState":
+        return self._state if self._state is not None else QProcess.ProcessState.NotRunning
+
+    def waitForStarted(self, *args, **kwargs) -> bool:
+        return True
+
+    def start(self, *args, **kwargs) -> None:
+        pass
+
+    def write(self, *args, **kwargs) -> None:
+        pass
+
+    def readAllStandardOutput(self) -> bytes:
+        return b""
+
+    def readAllStandardError(self) -> bytes:
+        return b""
+
+    def deleteLater(self) -> None:
+        pass
+
+
+class _FakeQProcess:
+    ProcessState = QProcess.ProcessState
+    ExitStatus = QProcess.ExitStatus
+    ProcessError = QProcess.ProcessError
+
+    def __init__(self, *args, **kwargs):
+        self._instance = _FakeProcess()
+
+    def __call__(self, *args, **kwargs):
+        return self._instance
+
+    def __getattr__(self, name):
+        return getattr(QProcess, name)
 
 
 @pytest.fixture()
@@ -44,7 +89,7 @@ def mock_bridge(monkeypatch, qapp):
 
     bridge = CLIBridge()
     bridge._process = _FakeProcess()
-    monkeypatch.setattr("gui.pyqt6.cli_bridge.QProcess", lambda *args, **kwargs: bridge._process)
+    monkeypatch.setattr("gui.pyqt6.cli_bridge.QProcess", _FakeQProcess())
     return bridge
 
 
