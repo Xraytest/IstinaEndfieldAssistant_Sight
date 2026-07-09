@@ -492,10 +492,14 @@ class MaaEndRuntime:
                 return True
             self._connected = False
             self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
+            if self._try_recover(task_name):
+                return self._retry_task(task_name, options, entry)
             return False
         except Exception as e:
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "任务执行异常", task=task_name, error=str(e))
+            if self._try_recover(task_name):
+                return self._retry_task(task_name, options, entry)
             return False
 
     def run_preset(self, preset_name: str) -> bool:
@@ -533,6 +537,62 @@ class MaaEndRuntime:
             except Exception:
                 return base, {"_inline": payload}
         return base, {"_inline": payload}
+
+    def _try_recover(self, task_name: str) -> bool:
+        """尝试恢复连接/设备状态，失败则重启应用。"""
+        try:
+            if self._controller is not None:
+                job = self._controller.post_screencap()
+                job.wait()
+                if job.succeeded:
+                    self._connected = True
+                    self.logger.info(LogCategory.MAIN, "恢复连接成功", task=task_name)
+                    return True
+        except Exception:
+            pass
+        try:
+            from core.capability.device.recovery import AndroidAppRestartPolicy
+            restart_policy = AndroidAppRestartPolicy(
+                adb_path=self._adb_path,
+                package="com.hypergryph.endfield",
+            )
+            ok = restart_policy.restart(serial=self._device_address)
+            if ok:
+                self._reconnect()
+                return True
+        except Exception as exc:
+            self.logger.error(LogCategory.MAIN, "恢复失败", task=task_name, error=str(exc))
+        return False
+
+    def _retry_task(self, task_name: str, options: Dict[str, Any], entry: str) -> bool:
+        """恢复后重试当前任务一次。"""
+        if not self._connected or self._tasker is None:
+            return False
+        self.logger.info(LogCategory.MAIN, "重试任务", task=task_name)
+        try:
+            job = self._tasker.post_task(entry, self.build_pipeline_override(task_name, options) or {})
+            job.wait()
+            if job.succeeded:
+                self.logger.info(LogCategory.MAIN, "重试成功", task=task_name)
+                return True
+            self._connected = False
+        except Exception as exc:
+            self._connected = False
+            self.logger.exception(LogCategory.MAIN, "重试异常", task=task_name, error=str(exc))
+        return False
+
+    def _reconnect(self) -> bool:
+        """重新初始化 tasker/resource 绑定。"""
+        try:
+            if self._resource is not None:
+                self._tasker = Tasker()
+                if self._tasker.bind(self._resource, self._controller):
+                    self._connected = True
+                    self._start_agent()
+                    return True
+        except Exception as exc:
+            self.logger.error(LogCategory.MAIN, "重连失败", error=str(exc))
+        return False
 
     def interface(self) -> Dict[str, Any]:
         return self._interface or self.load_interface()
