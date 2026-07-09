@@ -290,13 +290,8 @@ class PipelineRunner:
         for sub_name in sub_names:
             sub_node = graph.get_node(sub_name) if graph is not None else None
             if sub_node is None:
-                sub_node = PipelineNode(
-                    name=sub_name,
-                    recognition=RecognitionType.DirectHit,
-                    template=None,
-                    roi=None,
-                    threshold=node.threshold,
-                )
+                logger.warning(f"Missing sub-node '{sub_name}' for AND evaluation, treating as non-match")
+                return None
             result = self._evaluate(screen, sub_node, graph)
             if not result:
                 return None
@@ -310,13 +305,8 @@ class PipelineRunner:
         for sub_name in sub_names:
             sub_node = graph.get_node(sub_name) if graph is not None else None
             if sub_node is None:
-                sub_node = PipelineNode(
-                    name=sub_name,
-                    recognition=RecognitionType.DirectHit,
-                    template=None,
-                    roi=None,
-                    threshold=node.threshold,
-                )
+                logger.warning(f"Missing sub-node '{sub_name}' for OR evaluation, treating as non-match")
+                continue
             result = self._evaluate(screen, sub_node, graph)
             if result:
                 return result
