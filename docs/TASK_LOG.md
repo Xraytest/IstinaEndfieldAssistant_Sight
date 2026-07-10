@@ -745,3 +745,21 @@
   - `reports/auto/20260711_0343.md`（更新·外部修改版，11 项回归 + 3 项审计纠正 + 2 项机理深化）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有论断经当前源码逐行核对；D2 缓解状态经 `android_runtime.py:613-620` 确认；A1 反斜杠绕过论断经黑名单匹配逻辑推导确认；O1 三重静默经 daemon → keyevent() → _vlm_keyevent → _execute_action 调用链交叉核对确认。
+
+## 2026-07-11（第二十一批次·跨批次综合合成审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。对 20+ 轮批次审计产出的 97+ 项发现做跨批次综合合成分析，识别系统性架构反模式（root cause patterns），梳理因果链，提出分组修复路线图，并对全部既往报告的审计纠正做终汇总。
+- **Outcome**: 完成元分析，识别 6 个系统性架构反模式，每个反模式列出引发的具体问题（共 97+ 项）。关键结论：
+  1. **反模式 1：结构性静默失败**（Silent Failure by Design）— 函数执行失败时不抛异常、不记录日志、不返回错误码，导致 W1 (Critical) 的"三重静默"级联失效。
+  2. **反模式 2：守护进程验证不对称**（Daemon Validation Asymmetry）— 安全校验在 daemon 层实现但 CLI 入口未执行前置校验，D2 (High) 和 C1 (Medium) 的根源。
+  3. **反模式 3：惰性初始化盲目属性访问**（Lazy Init Blind Access）— 2345-C10 (High) 的根因，`_nav3_walk` 读 `self._llm_client` 而非 `self._llm_client_instance`。
+  4. **反模式 4：原生资源隐式管理**（Native Resource Opacity）— C7/N10/N6/S2-S3 的根源，依赖 `__del__` 而非显式 `close()`。
+  5. **反模式 5：配置管道无校验**（Unvalidated Configuration Pipeline）— CFG-09~12/SEC-01/CFG-15 的根源，bare except 吞掉所有配置错误。
+  6. **反模式 6：单例并发无锁**（Singleton Concurrency Blindness）— N-7/N-8/N-9/LLM-06/LLM-08/D10/REC-7/PN-3/N11/PL-3 的根源，11 项并发安全问题。
+  7. **因果链深度分析**：W1 三重静默（守护进程吞 error → keyevent() 返空串 → _vlm_keyevent 不记日志 → _execute_action 不查返回值）；C10 初始化顺序陷阱（路径 A 先 chat 回填 _llm_client，路径 B 直接 walk 读 None）；配置静默失败链（JSON 错误被吞 → 默认值 → 不匹配运行时行为）。
+  8. **分组修复路线图**：按架构层排序（基础设施 → 门面/API → 可观测性 → 功能修复 → 技术债），替代传统 P0/P1/P2 优先级列表。
+  9. **审计纠正终汇总**：CR-1~CR-6 一览表，含撤销/降级/机制修正详情。
+- **Files Modified**:
+  - `reports/auto/20260711_SYNTHESIS.md`（新增·跨批次综合合成审计报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：元分析，未修改业务代码；所有结论均经既往报告中引用的源码行号与当前 `main` 分支代码交叉核对。报告已提交推送（`4a83467`）。
