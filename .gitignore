@@ -43,6 +43,12 @@ pytest_output_settings.txt
 .tmp/
 temp_*
 temp_*.json
+.tmp_adr_diff.txt
+
+# --- AI assistant auto-generated artifacts (not user source) ---
+.codebuddy/plans/
+.codebuddy/automations/
+.codebuddy/commands/
 *.png
 *.jpg
 *.jpeg
