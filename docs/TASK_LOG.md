@@ -885,3 +885,19 @@
   - `reports/auto/20260711_073517.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 96+ 条发现全部经二次验证确认准确，零新增纠正。
+
+## 2026-07-11（第三十批次·增量代码审计·触控/恢复/模板/任务）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次27/29未覆盖区域（core/capability/device/touch_manager.py、recovery.py、element_recognition/pipeline/template_registry.py、element_recognition/tasks/task_runner.py、gui/pyqt6/queue_state.py），识别 7 项新发现（1 Medium / 6 Low）。历史报告 97+ 条发现全部经二次验证确认准确，零修正。
+  1. **[F01 Medium]** `touch_manager.py:53` `back()` 无 try/except 异常处理，是唯一无错误处理的触控方法，返回键操作失败时静默崩溃或吞错。
+  2. **[F02 Low]** `recovery.py:81` `_clear_canvas` 三个 try/except pass 全部吞错，画布清理/唤醒/Home键失败无感知。
+  3. **[F03 Low]** `template_registry.py:22` 单例 `__new__` 非线程安全，与 ThemeManager 同类问题（批次29 SECPEN N-7/N-8/N-9），第三处实例。
+  4. **[F04 Low]** `template_registry.py:114` `resolve()` 模糊匹配误匹配，后缀匹配导致返回错误模板。
+  5. **[F05 Low]** `task_runner.py:55` `execute_preset` 首个任务 error 即 break，后续步骤被跳过。
+  6. **[F06 Low]** `task_runner.py:87` `_build_option_override` 仅处理 switch 类型，其他选项类型被忽略。
+  7. **[F07 Low]** `log_page.py:151` 损坏配置无备份机制（D05 扩展第三处，三处 settings/log 页面均存在）。
+- **Files Modified**:
+  - `reports/auto/20260711_074404.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 97+ 条发现全部经二次验证确认准确，零新增纠正。
