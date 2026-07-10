@@ -619,6 +619,21 @@
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；跨 14 份历史报告交叉核对确认无重复发现。
 
+## 2026-07-11 01:33 (AutoCodeReview 第十五批次·跨模块调用链契约一致性 + 既往报告复核)
+
+- **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给修改建议；完成后审计既往报告，避免重复提交历史问题。
+- **Outcome**: 依 `memory.md` 建议转向跨模块调用链契约一致性审计（导航子系统 ↔ 门面 ↔ CLI ↔ 识别层），识别出 4 项新发现（XC-1~XC-4，均历史未覆盖），并复核 4 项既往论断。关键结论：
+  1. **[XC-2 Medium]** `navigator.py:162-199` `list_entities` 在传入 `name_filter` 时 `if name_filter:` 短路，静默丢弃 `map_name`/`category`，导致"按名+按地图"筛选退化为"全地图按名"（CLI `nav2 list_entities --name --map_name` 返回跨地图同名实体）。
+  2. **[XC-3 Medium/Low]** `minimap_locator.py:160-161` 可输出 `map_id="dung01"`，但 `map_data_loader.py:58-62` `_ZONE_MAP` 无 `dung01` 条目，`get_zone_id("dung01")` 回退 `"dung01_Base"`，若 MaaEnd 无该 zone 则导航静默失败且无明确提示（分类器词表 ↔ zone 映射契约缺口）。
+  3. **[XC-4 Low]** `runtime.py:203-209` `navigator()` 单例在首次构造时把 `self.android().screenshot` 绑定为旧设备 client 的 bound method；同生命周期内切换活动设备后，缓存的 Navigator 仍向旧设备取帧，导航基于错误画面。建议改为每次调用重新解析的 thunk。
+  4. **[XC-1 Low/Design]** `runtime.py:349` `execute()` 未知命令返回裸 `None`（另有 `screenshot` 返回 bytes），下游 handler 直接 `return runtime.execute(...)` 透传，CLI 退出码 1 但无错误文案，掩盖"未知命令"。建议 execute 顶层归一化为 status dict。
+  5. **审计修正（memory.md NAV-05 子论断不准确）**：`from_raw` 中"dict 类型 raw_location 走默认分支不崩"有误——键**缺失**才走默认；键**存在且为 dict** 时 `float(rl[0])` 抛 `TypeError`，str/非数字 list 抛 `ValueError`；且 `from_raw` 调用位于 `load()` 的 `try` 之外，异常未被捕获，会中断 `Navigator` 构造。原"崩溃未被吞"结论正确，但机制描述需精确化。
+  6. **复核确认**：0200_nav 的 NAV-01/02/03/04 诊断在当前代码中仍准确（未修复）；2320-W1/0020-W1（VLM 行走失效）与 2345-C10（`_nav3_walk` 传 `None` LLM client，根因在门面读 `_llm_client` 原始属性而非 `_llm_client_instance` 属性）均仍有效且未修复；场景识别 cross-module 数据契约（ElementInfo/PageInfo）一致无破损。
+- **Files Modified**:
+  - `reports/auto/20260711_0133.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；新发现经 `navigator.py`/`entity_db.py`/`map_data_loader.py`/`minimap_locator.py`/`runtime.py`/`element_info.py` 逐行核对；审计结论经 `from_raw` 调用上下文（load 的 try 作用域）与 `vlm_walk_navigator._execute_action` 调用链交叉验证。
+
 ## 2026-07-11（第十五批次·全覆盖确认 + 既往报告终审·最终批次）
 
 - **User Request**: 对全仓库版本控制 .py 源码做最终全覆盖确认，审计 14 份既往报告中的错误或不必要建议，确认无遗漏无重复后出具终审报告。
