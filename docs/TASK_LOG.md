@@ -838,3 +838,19 @@
   - `reports/auto/20260711_FINAL.md`（更新·最终综合审计报告，新增批次 #26 发现 + 历史报告审计验证）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 25+ 条发现全部经二次验证确认准确，零新增纠正。
+
+## 2026-07-11（第二十七批次·增量代码审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题。
+- **Outcome**: 完成增量代码审计，识别 7 项新发现（N01-N07），其中 1 项高危，3 项中危，3 项低危。对 FINAL.md 报告中全部 84+ 条历史发现进行逐条源码验证，**结论：历史报告零新增纠正，全部经二次验证确认准确**。关键结论：
+  1. **[N01 High]** `runtime.py:697` `_nav3_walk` 直接使用 `self._llm_client`（可能为None）而非 `self._llm_client_instance`，VLM导航静默失败。
+  2. **[N02 Medium]** `llm/runtime.py:140-155` `health_check` 在HTTP检查失败但进程运行时误设 `_ready=False`，导致LLM服务被认为不可用。
+  3. **[N03 Medium]** `pipeline_node.py:126-130` `get_node_or_entry` 在节点未找到时返回 entry_points 第一个节点，可能导致执行错误的pipeline流程。
+  4. **[N04 Medium]** `pipeline_node.py:135-137` `merge` 直接追加 entry_points 导致重复。
+  5. **[N05 Low]** `matcher.py:33-39` ROI负数坐标回绕处理（`w_img + rx`）可能导致意外裁剪区域。
+  6. **[N06 Low]** `element_info.py:67-68` `action` 验证不完整，合法NodeAction值（如"Click"）被强制转为"unknown"。
+  7. **[N07 Low]** `cli_bridge.py:89-99` `_build_args` 使用 `command.split()` 简单分割，无法正确处理带空格的参数。
+- **Files Modified**:
+  - `reports/auto/20260711_065744.md`（新增·增量代码审计报告，7项新发现 + 历史报告审计验证）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 84+ 条发现全部经二次验证确认准确，零新增纠正。
