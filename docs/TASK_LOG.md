@@ -1,5 +1,20 @@
 # 任务日志
 
+## 2026-07-11 00:30 (AutoCodeReview 未覆盖模块审查·i18n/annotation/matcher)
+
+- **User Request**: 完整阅读文档明析需求与边界；寻找代码漏洞与错误并给修改建议；完成后审计既往报告，避免重复提交历史问题。
+- **Outcome**: 聚焦历史从未深入审查的 3 个源码文件（i18n/__init__.py、annotation.py、matcher.py），识别出 5 项新发现（4 Low / 1 Info），并审计 0200_nav 的 NAV-05。关键结论：
+  1. **[I18N-1 Low]** `install_qt_translator` 中 `QTranslator` 为局部变量，方法返回后被 GC；且全仓库零调用（死代码）。应用实际 i18n 走手动 `tr()` 字典路径，该方法未被接线。
+  2. **[M1 Low]** `matcher.match` 固定 5px 网格去重与 `match_all_instances` 的 IoU-NMS 口径不一致，小模板密集图标漏检。
+  3. **[M2 Low]** `matcher` ROI 负坐标越界后静默回绕取错区域，无边界校验。
+  4. **[M3 Low]** `matcher` 4 通道输入 `cvtColor(COLOR_BGR2GRAY)` 抛 `cv2.error`。
+  5. **[A1 Info]** `Annotation.points` 与 `AnnotationShape.pts` 字段命名不一致。
+  6. **审计 NAV-05（修正）**：原报告称 dict 类型 `raw_location` 触发 TypeError 被吞——经源码核对，dict 走默认分支不崩；真实崩溃来自字符串/非数字列表的 `ValueError`，且该异常未被 `load()` 的 try 捕获，会中断 `Navigator` 构造（比原描述更严重）。修复建议仍成立。
+- **Files Modified**:
+  - `reports/auto/20260711_0030.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；i18n 路径经 `src/gui/pyqt6/locales/` 目录与 grep `install_qt_translator`（0 命中）交叉核对；NAV-05 经 `entity_db.py:27-34/78-99` 与 `navigator.py:41` 调用链核对。
+
 ## 2026-07-11 02:00 (AutoCodeReview 导航子系统审查·第八批次)
 
 - **User Request**: 对 `src/core/service/navigation/entity_db.py`、`map_data_loader.py`、`navigator.py` 进行彻底静态代码审查。W6 在 2320.md 已部分覆盖（`to_coords_vlm` 回退 navmesh 用陈旧 level），其余部分及另两文件从未深入审查。
@@ -541,3 +556,18 @@
   - `reports/auto/20260711_0026_pipeline.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读静态审查，未修改业务代码；交叉核对 5 份历史报告（2315、2320、2345、234853、235000）确认 12 项均为新发现。
+
+## 2026-07-11 最终（全量整合报告）
+
+- **User Request**: 综合全部批次审查结果，生成最终整合报告。所有核心模块已覆盖完毕（11 轮批次，15 份子报告），进行去重整合、审计纠正汇总与统计。
+- **Outcome**: 生成 `reports/auto/20260711_FINAL.md` 全量整合报告。综合 11 个批次（2210、2320、2345、2400、2350_recognition、2350_llm、001631_config、001647、0026_pipeline、0200_nav、0030）共 **76+ 项发现**，按 8 个子系统分类整理。关键数据：
+  - **Critical**: 1（W1 VLM 行走完全失效）
+  - **High**: 6（H1 scrcpy 超时、D1 _force_stop、D2 shell 注入、CFG-07 任务名不一致、N-1 路径错误）
+  - **Medium**: 22+
+  - **Low**: 40+
+  - **Info**: 7
+  - **审计纠正**: 5 项（C4 撤销、C8 降级、Facade C-1/C-3 撤销、Facade C-2 降级、NAV-05 机制修正）
+- **Files Modified**:
+  - `reports/auto/20260711_FINAL.md`（新增·最终整合报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：汇总覆盖 src/core/ 全部子系统 + src/cli/ + src/gui/pyqt6/ + config/ 资产；所有子报告已完成源文件交叉验证。
