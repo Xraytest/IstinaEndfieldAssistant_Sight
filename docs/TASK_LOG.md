@@ -870,3 +870,18 @@
   - `reports/auto/20260711_065744.md`（新增·增量代码审计报告，7项新发现 + 历史报告审计验证）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 84+ 条发现全部经二次验证确认准确，零新增纠正。
+
+## 2026-07-11（第二十九批次·增量代码审计·GUI深层/CLI/LLM）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次27/28未覆盖区域（cli/handlers.py 新增区域、gui/pyqt6/pages/prts_full_intelligence_page.py、device_settings_page.py、scripting_page.py、theme_manager.py、tray_icon.py），识别 5 项新发现（1 Medium / 4 Low）。历史报告 96+ 条发现全部经二次验证确认准确，零修正。
+  1. **[E01 Medium]** `handlers.py:388` `_handle_device_status` 未验证 `android.default_client` 为 None，无设备连接时调用 `.version()` 触发 AttributeError。
+  2. **[E02 Low]** `handlers.py:292` `_handle_device_screenshot` 中 `_logger` 未定义，导致 `istina screenshot` 命令每次触发 NameError 而完全不可用。
+  3. **[E03 Low]** `device_settings_page.py:306` 损坏配置无备份机制（与批次28 D05 相同问题，两个 settings 页面均存在）。
+  4. **[E04 Low]** `prts_page.py:185` `_stop_llm` 异步发送停止命令后立即查询状态，LLM 进程可能尚未停止导致 UI 显示矛盾状态。
+  5. **[E05 Low]** `prts_page.py:209` `_on_command_finished` 未校验 llm 命令来源，其他页面或并发实例的 llm 查询结果可能错误更新 PRTS 页面状态。
+  6. **N01扩展**: `_vlm_keyevent` 接收字母键但 `_is_valid_keyevent` 拒绝——批次7/23 W1 问题未修复，即使 N01 修复后 VLM 导航仍完全失效。
+- **Files Modified**:
+  - `reports/auto/20260711_073517.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 96+ 条发现全部经二次验证确认准确，零新增纠正。
