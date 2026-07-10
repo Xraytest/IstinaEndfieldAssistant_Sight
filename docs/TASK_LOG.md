@@ -1,5 +1,20 @@
 # 任务日志
 
+## 2026-07-10 22:58
+
+- **User Request**: 清除临时预设 `DailyFullSkippingVisitFriends`，并将注意事项写入文档。
+- **Outcome**: 彻底移除该临时预设及其残留引用，并在文档中记录注意事项：
+  1. 删除预设定义文件 `assets/tasks/preset/DailyFullSkippingVisitFriends.json`（该文件仅包含此预设，且未被其他位置引用）。
+  2. 修正运行时状态文件 `config/maaend_task_state.json` 中残留的 `selected_preset` 引用，由已删除的 `DailyFullSkippingVisitFriends` 改回有效的 `DailyFull`（含 `VisitFriends` 任务）。
+- **注意事项**:
+  - `DailyFullSkippingVisitFriends` 为临时预设，原用于规避 `VisitFriends` 模板匹配异常；该异常现已解决，故不再保留该跳过版本，统一使用 `DailyFull`。
+  - `config/maaend_task_state.json` 的 `selected_preset` 必须指向 `assets/tasks/preset/` 下真实存在的预设文件（`DailyFull` / `QuickDaily` / `RealtimeAssist`），否则加载时预设列表将无法正确还原选中态。
+  - 新增/删除预设后，需同步检查 `config/maaend_task_state.json` 等状态文件中是否仍有对已移除预设的引用，避免悬空引用导致状态异常。
+- **Files Modified**:
+  - `assets/tasks/preset/DailyFullSkippingVisitFriends.json`（删除）
+  - `config/maaend_task_state.json`
+  - `docs/TASK_LOG.md`
+
 ## 2026-07-10 07:49
 
 - **User Request**: 从断点处继续修复 P0/P1 漏洞与 UX 问题，并新增测试用安卓设备 `192.168.1.12:16512`。
