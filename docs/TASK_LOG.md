@@ -705,6 +705,21 @@
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；S1/S2 经当前源码逐行验证；A1 经 `entity_db.py:32` 运算符优先级推导确认；A2 经 `handlers.py:91` 调用链核对确认；A3 经 `entity_db.py` `load()` 幂等性分析确认。
 
+## 2026-07-11（第二十批次·回归验证 + 历史报告审计）
+
+- **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给修改建议；完成后审计既往报告，避免重复提交历史问题。
+- **Outcome**: 因全仓已覆盖完毕，本批次转向回归验证 + 历史报告审计（非新模块全扫）。抽验 11 项历史高/中优先级发现当前状态，并审计 3 处既往报告错误论断。关键结论：
+  1. **仍存活（未修复）**：W1（VLM 行走字母键被拒，三重静默失败）、2345-C10（`runtime.py:697` 传 None LLM client，条件性）、XC-2（`navigator.py:164-166` name_filter 短路）、XC-4（`runtime.py:203-209` 绑定旧设备 bound method）、NAV-02（`navigator.py:82` 对 unknown 强制传送）、NAV-03（`navigator.py:41` 忽略 load 返回值）、N4(maa_end)（`runtime.py:821/830` 截图失败翻转 _connected）、K1/L1（`runtime.py:520-525` 链式替换）、`_wait_for_freeze` no-op（`pipeline_runner.py:348-351`）。
+  2. **审计纠正 A1**：批次 2350 `N4`「反斜杠绕过 shell 黑名单」不成立——`dumpsys meminfo\$(id)` 字面量仍含 `$`，`_is_allowed_shell_cmd`(`android_runtime.py:87-97`) 字符级拦截仍命中，无法绕过；仅保留 K2（合法 `$PID` 误杀）。
+  3. **审计纠正 A2**：批次 0020 `D2`(High) 设备端命令注入已缓解——守护进程 `shell` 分支(`android_runtime.py:613-619`) 已强制 `_is_allowed_shell_cmd`，用户态 `istina shell` 注入被阻断，应降级为已缓解。
+  4. **审计纠正 A3**：批次 234853/2350 `_evaluate_or`「误导日志」论断已过时——核对 `pipeline_runner.py:301-313` 当前版本无任何日志语句，原论断基于过时行号/版本，应从待办移除。
+  5. **已缓解/已修复**：D2(命令注入) 已缓解；DOC-04 Bug2（预览干扰）代码已修复（`_is_executing` 守卫），文档待同步；S2(handlers.py:677 运算符优先级) 复核仍存活但属 0240.md 已记录，不重复计数。
+  6. **机理深化 O1/O2**：W1 失败经"守护进程吞 error→keyevent 返空串不抛→_vlm_keyevent 不记日志→_execute_action 不查返回值"三重静默；C10 触发条件为"先 walk 未 chat"，修复成本极低（一行改 `_llm_client`→`_llm_client_instance`）。
+- **Files Modified**:
+  - `reports/auto/20260711_0343.md`（新增·回归验证 + 审计批次）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读静态审查，未修改业务代码；11 项存活/缓解状态与 3 项审计纠正均经当前 `main` 分支源文件逐行核对（runtime.py / navigator.py / vlm_walk_navigator.py / android_runtime.py / maa_end/runtime.py / pipeline_runner.py / handlers.py）。
+
 ## 2026-07-11（第二十批次·Critical/High 修复状态回归验证）
 
 - **User Request**: 完整阅读文档，明析项目需求与边界。对 19 批次中标记为 Critical/High 级的 8 项核心发现做回归验证，逐条核对当前代码中的修复状态。
@@ -721,3 +736,12 @@
   - `reports/auto/20260711_0343.md`（新增·回归验证报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；8 项问题经当前源码逐行核对；既往 4 份批次报告（17-19）审计确认无误。
+
+## 2026-07-11（第二十批次·回归验证 + 历史报告审计·最终版本）
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。对 19 批次中标记为 Critical/High 级的 11 项核心发现做回归验证，对既往报告中 3 处不准确论断做审计纠正，对 W1/C10 做调用链机理深化。
+- **Outcome**: 11 项回归验证中 0 项完全修复、1 项已缓解（D2 shell 白名单已在 daemon 层执行）、1 项代码已修复但文档未同步（DOC-04）。3 项审计纠正：A1 N4 反斜杠绕过论断不成立（`$` 黑名单作用于字面量，反斜杠无法移除 `$`）；A2 D2 严重度下调（白名单已在 daemon 层统一执行）；A3 _evaluate_or 误导日志论断已过时（当前代码无该日志语句）。2 项机理深化：O1 W1 三重静默失败链（daemon 丢弃 error → keyevent() 返回空串 → _vlm_keyevent 不捕获 → _execute_action 不检查返回值）；O2 C10 触发条件澄清（`_llm_client_instance` 回填机制，仅"先 walk 未 chat"顺序触发）。
+- **Files Modified**:
+  - `reports/auto/20260711_0343.md`（更新·外部修改版，11 项回归 + 3 项审计纠正 + 2 项机理深化）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有论断经当前源码逐行核对；D2 缓解状态经 `android_runtime.py:613-620` 确认；A1 反斜杠绕过论断经黑名单匹配逻辑推导确认；O1 三重静默经 daemon → keyevent() → _vlm_keyevent → _execute_action 调用链交叉核对确认。
