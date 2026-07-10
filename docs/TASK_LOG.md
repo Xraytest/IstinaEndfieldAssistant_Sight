@@ -341,6 +341,24 @@
 - **Files Modified**: 无（只读审查，未修改业务代码）
 - **验证**：只读审查，未修改业务代码；通过逐行阅读与调用链交叉验证确认。
 
+## 2026-07-10 23:50
+
+- **User Request**: 对 `src/gui/pyqt6/pages/` 范围内的 16 个页面文件（含 `device_settings_page.py`、`log_page.py`、`maaend_control_page.py`、`prts_full_intelligence_page.py`、`settings_page.py` 及 `main_window.py`、`cli_bridge.py`、`queue_state.py`）进行彻底静态代码审查。以 `reports/auto/20260710_234853.md`、`20260710_2320.md`、`20260710_2400.md` 为基线，仅报告新发现。
+- **Outcome**: 完成 8 文件逐行审查。范围中列出的 16 个页面文件在仓库中均**不存在**（结构性缺失）。对现存相关文件（`device_settings_page.py`、`log_page.py`、`maaend_control_page.py`、`prts_full_intelligence_page.py`、`settings_page.py`、`main_window.py`、`cli_bridge.py`、`queue_state.py`）识别出 9 项新发现（G1-G9）。关键结论：
+  1. **G1** `maaend_control_page.py:1396` `_bridge_task_run` 为从未调用的孤立方法（死代码）。
+  2. **G2** `maaend_control_page.py:886-890` `_build_option_editor` 在 `_apply_saved_option_values` 异常时使选项面板永久禁用（缺 try/finally）。
+  3. **G3** `device_settings_page.py:205-206` 手动断开设备后自动重连定时器仍启动，用户意图被违背。
+  4. **G4** `device_settings_page.py:302-311` `_read_config`/`_write_config` 未处理 IO 异常（PermissionError、UnicodeDecodeError、OSError）。
+  5. **G5** `log_page.py:30-36` `_LOG_LEVEL_COLORS` 在模块导入时固化，主题切换后日志级别颜色不更新。
+  6. **G6** `log_page.py:94` `_refresh_file_list` 在 `iterdir()` 与 `stat()` 之间存在 TOCTOU 竞态，文件被删除时崩溃。
+  7. **G7** `settings_page.py:166` 非数字配置值导致 `int()` ValueError，设置页空白。
+  8. **G8** `settings_page.py:197` 配置写入未使用原子写（无 .tmp + os.replace），中断后文件损坏。
+  9. **G9** `settings_page.py:211` `_read_config` 未捕获 `UnicodeDecodeError`。
+- **Files Modified**:
+  - `reports/auto/20260710_235000.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 6 份历史 auto 报告（2210、2315、2320、2345、234853、2400）确认 G1-G9 均为新发现；审计结论中修正了 2210.md L1 的误读——经源码验证行 294 确为不可达死代码（行 1086 覆盖），2210 报告结论正确。
+
 ## 2026-07-11 00:00
 
 - **User Request**: 对 `src/cli/istina.py`、`src/cli/handlers.py`、`src/gui/pyqt6/main.py`、`src/gui/pyqt6/theme/`（4 文件）、`src/gui/pyqt6/responsive.py`、`src/gui/pyqt6/tray_icon.py`、`src/gui/pyqt6/scripting/`（4 文件）及 `src/infra/` 进行彻底静态代码审查，要求仅报告新发现。
@@ -358,6 +376,23 @@
   - `reports/auto/20260710_2400.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 5 份历史报告（2210、2315、2320、2345、0100）确认 31 项均为新发现。
+
+## 2026-07-11 00:03 (AutoCodeReview 第六批次·合并)
+
+- **User Request**：合并三路并行 agent（GUI Pages、LLM、Recognition）的第三轮审查发现，写入统一报告；审计前次报告错误/不必要建议；避免重复之前已记录问题。
+- **Outcome**：合并为 `reports/auto/20260710_235000.md`，共 49 项新发现（0 Critical / 16 Medium / 29 Low / 4 Info）。关键结论：
+  1. **REC-1 (Medium)** OCR Route 1 结果阻止 Route 2/3 回退，低置信度时 OCR 完全失效。
+  2. **LLM-01 (Medium)** `_try_start` 丢弃 stderr/stdout，启动失败完全不可诊断。
+  3. **LLM-02 (Medium)** `_cuda_failed` 持久化，首次 CPU fallback 后永久禁用 GPU。
+  4. **G3 (Medium)** 手动断开设备后自动重连定时器仍启动，用户意图被违背。
+  5. **G5 (Medium)** `_LOG_LEVEL_COLORS` 在模块导入时固化，主题切换后日志级别颜色不更新。
+  6. **G8 (Medium)** 配置写入未使用原子写，中断后文件损坏。
+  7. **范围发现**：`src/gui/pyqt6/pages/` 下 16 个预期页面文件（screenshot_page、daily_page、task_page 等）在仓库中均不存在，CLI 子命令在 GUI 中无对应页面。
+  8. **审计修正**：2320-N4 修复建议（仅扩白名单）不足以修复 W1（病根在键位映射）；2210-M1 修复为空修；2345-N5 选项1（移除 `$`）为危险建议。
+- **Files Modified**:
+  - `reports/auto/20260710_235000.md`（新增·合并报告，覆盖 235000/2350_llm/2350_recognition 三份原始报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读静态审查；关键发现经源文件交叉核对。
 
 ## 2026-07-11 01:30
 
@@ -384,3 +419,30 @@
   - `reports/auto/20260710_2315.md`（追加 R1-R16 发现）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 5 份历史报告（2210、2315、2320、2345、176-agent swarm、code_quality_baseline）确认 R1-R16 均为新发现。
+
+## 2026-07-11 01:45
+
+- **User Request**: 对 `src/core/capability/llm/` 目录（`__init__.py`、`client.py`、`runtime.py`）进行彻底静态代码审查。重点：连接管理、错误处理、线程安全、资源泄漏、输入验证、配置处理。以历史报告为基线，仅报告新发现。
+- **Outcome**: 完成 3 文件逐行审查，识别出 11 项新发现（LLM-01 至 LLM-11）。关键结论：
+  1. **[LLM-01 Medium]** `_try_start` 将 llama-server 的 stderr/stdout 重定向到 `DEVNULL`（runtime.py:320），启动失败（DLL 缺失、模型损坏、CUDA 不兼容等）的诊断信息全部丢失，用户只能通过 60 秒超时得知失败。
+  2. **[LLM-02 Medium]** `_cuda_failed` 标志在首次 GPU 启动失败后设为 True 且永不重置（runtime.py:130-133）。CPU fallback 成功后，后续所有 `start()` 调用强制 CPU 路径，即使 GPU 已修复或更换了模型。用户必须重启进程才能恢复 GPU 推理。
+  3. **[LLM-04 Medium]** `_try_start` 最后的 bare `except Exception: return False`（runtime.py:335-336）吞掉所有异常且不记录日志，与 LLM-01 叠加后 Python 侧和子进程侧的错误信息全部丢失。
+  4. **[LLM-06 Medium]** `_owned_pids` 集合的 `add`/`discard` 操作无锁保护（runtime.py:42, 325, 186）。并发 `start()`/`stop()` 可能导致 PID 状态不一致或 `RuntimeError`。
+  5. **[LLM-03/05/07/08/09/10/11 Low]** 分别为：60 秒等待无进度日志、`temperature`/`max_tokens` 无边界校验、`get_instance` 静默覆盖配置、`_atexit_cleanup` 无锁遍历、`_kill_tracked_process` 第二次 `wait` 未处理 `ValueError`、`image` 参数未验证 base64 格式、`_build_args` 不校验数值型配置参数合法性。
+- **Files Modified**:
+  - `reports/auto/20260710_2350_llm.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 4 份历史报告（234853、2400、2320、2345）确认 11 项均为新发现。
+
+## 2026-07-10 23:50 (AutoCodeReview 识别后端批次)
+
+- **User Request**: 对识别后端子系统（backends/template_backend.py、ocr_backend.py、color_backend.py、yolo_backend.py、scene_geometry.py、recognizer.py、scene_service.py）及关联 pipeline 模块进行彻底静态代码审查。重点：图像处理正确性、内存管理、错误处理、性能、线程安全、资源泄漏。以历史报告为基线，仅报告新发现。
+- **Outcome**: 完成 8 文件/模块逐行审查 + 3 个关联 pipeline 文件交叉引用，识别出 10 项新发现（REC-1 至 REC-10）。关键结论：
+  1. **[REC-1 Medium]** OCR Route 1（maafw）返回结果后阻止 Route 2/3 回退，若结果被置信度过滤则 OCR 完全失效
+  2. **[REC-2 Medium]** `_adjust_tap_center` 亮度阈值 120 硬编码，暗/亮屏下中心点校准偏移
+  3. **[REC-3 Medium]** YOLO `_is_available` 惰性加载无锁，并发时重复加载模型实例
+  4. **[REC-4 ~ REC-10 Low]** 游戏场景检测无条件执行浪费计算、页面分类重复颜色匹配、子串去重假阳性、TemplateRegistry 单例无锁、YOLO 加载失败仅 debug 日志、OCR box 格式未校验、scene_geometry 内存分配过多
+- **Files Modified**:
+  - `reports/auto/20260710_2350_recognition.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 6 份历史报告（2210、2315、2320、2330、2345、234853）确认 10 项均为新发现，无重复。
