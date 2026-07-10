@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +22,34 @@ from gui.pyqt6.i18n import get_locale_manager
 ensure_src_path(__file__)
 
 locale = get_locale_manager()
+
+# stderr 行分类：把 CLI 子进程的混合输出（MaaFW/MES 框架日志、ADB 输出、Qt 噪声）
+# 路由到正确的 GUI 日志区域，避免同一份日志跨区重复刷屏。
+_ADB_RE = re.compile(
+    r"(?i)\badb\b|android debug bridge|daemon started|daemon not running|"
+    r"\* daemon|device unauthorized|device offline|error: device|"
+    r"more than one device|adb\.exe|adb kill-server|adb start-server"
+)
+_QT_RE = re.compile(r"(?i)\bqt\b|qpa|qt\.|qfont|qcairo|qopengl|qt\.qpa")
+
+
+def _classify_stderr_line(line: str) -> Optional[str]:
+    """将一行 CLI stderr 归类到目标日志区域。
+
+    Returns:
+        "ADB"  -> 设备连接页（ADB 诊断）
+        "MES"  -> 标准推理页（MaaFW/MES 框架与通用 CLI 输出）
+        None   -> 丢弃（Qt 框架噪声已由 qt_log_filter 写入 qt.log）
+    """
+    if not line:
+        return None
+    # Qt 噪声：GUI 进程的 Qt 日志已被 qt_log_filter 重定向到 qt.log；
+    # 子进程若带 Qt 标签也一并丢弃，避免污染两个 GUI 日志面板。
+    if _QT_RE.search(line):
+        return None
+    if _ADB_RE.search(line):
+        return "ADB"
+    return "MES"
 
 
 class CLIBridge(QObject):
@@ -157,7 +186,15 @@ class CLIBridge(QObject):
 
     def _on_stderr(self) -> None:
         data = bytes(self._process.readAllStandardError()).decode("utf-8", errors="replace")
-        self.logMessage.emit("CLI", data.strip())
+        for raw in data.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            category = _classify_stderr_line(line)
+            if category is None:
+                # Qt 噪声：已写入 qt.log，不进任何 GUI 日志面板
+                continue
+            self.logMessage.emit(category, line)
 
     def _on_finished(self, exit_code: int, exit_status: QProcess.ExitStatus) -> None:
         if self._restart_pending:

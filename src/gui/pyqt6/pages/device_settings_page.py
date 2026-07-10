@@ -248,6 +248,9 @@ class DeviceSettingsPage(QWidget):
         self._log_text.setTextCursor(cursor)
 
     def _on_log_message(self, source: str, message: str) -> None:
+        # 仅展示 ADB 诊断类日志；MaaFW/MES 框架日志归属标准推理页，避免跨区刷屏
+        if source != "ADB":
+            return
         self._append_log(f"[{source}] {message}")
         if "杀死ADB" in message or "killing ADB" in message.lower():
             self._connection_status.setText(locale.tr("killing_adb_retrying", "Killing ADB and retrying..."))

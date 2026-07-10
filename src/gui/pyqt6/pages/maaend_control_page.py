@@ -1528,6 +1528,9 @@ class MaaEndControlPage(QWidget):
         self._progress_bar.setFormat(fmt)
 
     def _append_log(self, source: str, text: str):
+        # ADB 诊断类日志归属设备连接页，不在执行页刷屏
+        if source == "ADB":
+            return
         color = BLUE_STYLE if source == "系统" else VAL_STYLE
         self._log_text.append(f"<span style='{color}'>[{source}] {text}</span>")
         # Auto-scroll to bottom for real-time log streaming
