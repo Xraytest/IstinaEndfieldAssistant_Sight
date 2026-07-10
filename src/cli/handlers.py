@@ -62,6 +62,8 @@ class CLIDispatch:
             return self._handle_task(args)
         if args.command == "preset":
             return self._handle_preset(args)
+        if args.command == "queue":
+            return self._handle_queue(args)
         if args.command == "metadata":
             return self._handle_metadata(args)
         if args.command == "device":
@@ -115,9 +117,20 @@ class CLIDispatch:
     def _handle_preset(self, args: argparse.Namespace) -> Dict[str, Any]:
         if args.action == "run":
             return _handle_preset_run(self._runtime, args)
+        if args.action == "apply":
+            return _handle_preset_apply(self._runtime, args)
         if args.action == "list":
             return _handle_preset_list(self._runtime, args)
         return {"status": "error", "message": "unknown preset action"}
+
+    def _handle_queue(self, args: argparse.Namespace) -> Dict[str, Any]:
+        if args.action == "run":
+            return _handle_queue_run(self._runtime, args)
+        if args.action == "list":
+            return _handle_queue_list(self._runtime, args)
+        if args.action == "clear":
+            return _handle_queue_clear(self._runtime, args)
+        return {"status": "error", "message": "unknown queue action"}
 
     def _handle_metadata(self, args: argparse.Namespace) -> Dict[str, Any]:
         if args.action == "list":
@@ -312,8 +325,35 @@ def _handle_task_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[
 
 
 def _handle_preset_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    ok = runtime.execute("preset.run", {"name": args.name, "serial": getattr(args, "serial", None)})
+    params = {"name": args.name, "serial": getattr(args, "serial", None)}
+    if hasattr(args, "timeout") and args.timeout is not None:
+        params["timeout"] = args.timeout
+    ok = runtime.execute("preset.run", params)
     return {"status": "success" if ok else "error", "preset": args.name}
+
+
+def _handle_preset_apply(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    ok = runtime.execute("preset.apply", {"name": args.name, "serial": getattr(args, "serial", None)})
+    return {"status": "success" if ok else "error", "preset": args.name}
+
+
+def _handle_queue_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    params: Dict[str, Any] = {"serial": getattr(args, "serial", None)}
+    if hasattr(args, "timeout") and args.timeout is not None:
+        params["timeout"] = args.timeout
+    ok = runtime.execute("queue.run", params)
+    return {"status": "success" if ok else "error", "command": "queue.run"}
+
+
+def _handle_queue_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    result = runtime.execute("queue.list", {"serial": getattr(args, "serial", None)})
+    if not isinstance(result, dict):
+        result = {}
+    return {"status": "success", "queue": result.get("queue", [])}
+
+
+def _handle_queue_clear(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    return runtime.execute("queue.clear", {"serial": getattr(args, "serial", None)})
 
 
 def _handle_preset_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:

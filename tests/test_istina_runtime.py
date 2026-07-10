@@ -221,13 +221,13 @@ class _FakeMaaEndRuntime:
     def disconnect(self) -> None:
         self._connected = False
 
-    def run_task(self, name: str, options: dict) -> bool:
+    def run_task(self, name: str, options: dict, timeout=None) -> bool:
         return self._run_task_result
 
     def run_pipeline(self, entry: str, pipeline_override: dict) -> bool:
         return self._run_pipeline_result
 
-    def run_preset(self, name: str) -> bool:
+    def run_preset(self, name: str, timeout=None) -> bool:
         return self._run_preset_result
 
 

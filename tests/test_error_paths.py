@@ -119,7 +119,7 @@ class _FakeMaaEndRuntime:
     def run_task(self, name: str, options: dict) -> bool:
         return False
 
-    def run_preset(self, name: str) -> bool:
+    def run_preset(self, name: str, timeout=None) -> bool:
         return False
 
     def screenshot(self):

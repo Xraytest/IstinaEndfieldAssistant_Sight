@@ -286,8 +286,16 @@ class IstinaRuntime:
             return self._list_tasks(params)
         if domain == "preset" and action == "run":
             return self._run_preset(params)
+        if domain == "preset" and action == "apply":
+            return self._apply_preset(params)
         if domain == "preset" and action == "list":
             return self._list_presets(params)
+        if domain == "queue" and action == "run":
+            return self._run_queue(params)
+        if domain == "queue" and action == "list":
+            return self._list_queue(params)
+        if domain == "queue" and action == "clear":
+            return self._clear_queue(params)
         if domain == "metadata" and action == "list":
             return self._list_metadata(params)
         if domain == "screenshot":
@@ -380,10 +388,38 @@ class IstinaRuntime:
     def _run_preset(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")
         serial = params.get("serial")
+        timeout = params.get("timeout")
         runtime = self.maaend(serial)
         if not self._ensure_maaend_ready(runtime):
             return False
-        return bool(runtime.run_preset(name))
+        return bool(runtime.run_preset(name, timeout))
+
+    def _apply_preset(self, params: Dict[str, Any]) -> bool:
+        name = params.get("name")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return False
+        return bool(runtime.apply_preset(name))
+
+    def _run_queue(self, params: Dict[str, Any]) -> bool:
+        serial = params.get("serial")
+        timeout = params.get("timeout")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return False
+        return bool(runtime.run_queue(timeout))
+
+    def _list_queue(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        return {"queue": runtime.queue()}
+
+    def _clear_queue(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        runtime.clear_queue()
+        return {"status": "success"}
 
     def _screenshot(self, params: Dict[str, Any]) -> Optional[bytes]:
         serial = params.get("serial")

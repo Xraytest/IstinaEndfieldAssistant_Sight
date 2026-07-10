@@ -681,7 +681,7 @@ class MaaEndControlPage(QWidget):
             if not task_list:
                 QMessageBox.information(self, locale.tr("preset_empty", "Preset Is Empty"), locale.tr("preset_empty_msg", "Preset '{preset}' has no tasks.").format(preset=self._selected_preset))
                 return
-            # 添加预设到队列 = 覆盖现有队列（清空再填充），不是追加；与 _run_preset 共享同一覆盖语义。
+            # 添加预设到队列 = 覆盖现有队列（清空再填充），不是追加；与 runtime.apply_preset 共享同一覆盖语义。
             for entry in list(self._queue_state.queue_items):
                 name = entry.get("name")
                 if name:

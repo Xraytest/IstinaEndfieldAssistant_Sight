@@ -83,6 +83,8 @@ class MaaEndRuntime:
         self._tasks_loaded = False
         self._presets_loaded = False
         self._connected = False
+        # 队列：唯一可执行单元。预设只是任务列表，应用预设 = 用其任务覆盖队列。
+        self._queue: List[Dict[str, Any]] = []
 
     def _default_maaend_root(self) -> Path:
         return get_project_root() / "3rd-part" / "maaend"
@@ -609,7 +611,14 @@ class MaaEndRuntime:
         self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
         return False
 
-    def run_preset(self, preset_name: str, timeout: Optional[float] = None) -> bool:
+    # ------------------------------------------------------------------
+    # 队列（唯一可执行单元）
+    # ------------------------------------------------------------------
+    def apply_preset(self, preset_name: str) -> bool:
+        """应用预设：用预设包含的任务及其设置覆盖队列（清空旧队列再填充）。
+
+        预设只是一个任务列表，本身不可直接执行；可被执行的只有队列。
+        """
         if not self._presets:
             self.load_presets()
         preset = self._presets.get(preset_name)
@@ -617,23 +626,77 @@ class MaaEndRuntime:
             self.logger.error(LogCategory.MAIN, "预设未定义", preset=preset_name)
             return False
         task_list = preset.get("task", [])
-        self.logger.info(LogCategory.MAIN, "开始执行预设", preset=preset_name, tasks=len(task_list))
-        failures: List[str] = []
+        if not isinstance(task_list, list):
+            self.logger.error(LogCategory.MAIN, "预设任务列表非法", preset=preset_name)
+            return False
+        items: List[Dict[str, Any]] = []
         for task_entry in task_list:
-            name = task_entry.get("name")
-            options = task_entry.get("option") or {}
+            if not isinstance(task_entry, dict):
+                continue
+            name = str(task_entry.get("name") or "").strip()
+            if not name:
+                continue
+            options = task_entry.get("option")
+            if not isinstance(options, dict):
+                options = {}
+            items.append({"name": name, "options": dict(options)})
+        self._queue = items
+        self.logger.info(LogCategory.MAIN, "已应用预设到队列", preset=preset_name, queue_size=len(items))
+        return True
+
+    def add_task(self, task_name: str, options: Optional[Dict[str, Any]] = None) -> None:
+        """向队列追加一个任务（含其设置）。"""
+        self._queue.append({"name": str(task_name), "options": dict(options or {})})
+
+    def clear_queue(self) -> None:
+        """清空队列。"""
+        self._queue = []
+
+    def queue(self) -> List[Dict[str, Any]]:
+        """返回当前队列的副本。"""
+        return [dict(item) for item in self._queue]
+
+    def run_queue(self, timeout: Optional[float] = None) -> bool:
+        """执行队列（唯一的可执行单元）。
+
+        单个任务识别未命中等「正常失败」不影响后续任务；仅当连接真正断开时
+        才中止剩余任务。返回 True 表示全部成功，False 表示存在失败或中断。
+        """
+        if not self._queue:
+            self.logger.warning(LogCategory.MAIN, "队列为空，无可执行任务")
+            return False
+        self.logger.info(LogCategory.MAIN, "开始执行队列", queue_size=len(self._queue))
+        failures: List[str] = []
+        for item in self._queue:
+            name = str(item.get("name") or "").strip()
+            options = item.get("options") or {}
+            if not name:
+                continue
             if not self.run_task(name, options, timeout):
                 failures.append(name)
-                self.logger.warning(LogCategory.MAIN, "预设任务失败，继续后续任务", preset=preset_name, failed_task=name)
+                self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name)
                 # 若连接已真正断开，继续也无意义，及时中止剩余任务
                 if not self._connected:
-                    self.logger.error(LogCategory.MAIN, "预设执行中连接断开，中止", preset=preset_name)
+                    self.logger.error(LogCategory.MAIN, "队列执行中连接断开，中止")
                     break
         if failures:
-            self.logger.warning(LogCategory.MAIN, "预设执行完成但存在失败任务", preset=preset_name, failed=failures)
+            self.logger.warning(LogCategory.MAIN, "队列执行完成但存在失败任务", failed=failures)
             return False
-        self.logger.info(LogCategory.MAIN, "预设执行完成", preset=preset_name)
+        self.logger.info(LogCategory.MAIN, "队列执行完成")
         return True
+
+    def run_preset(self, preset_name: str, timeout: Optional[float] = None) -> bool:
+        """应用预设到队列并执行队列（便捷封装）。
+
+        预设本身不可直接执行，故等价于 apply_preset + run_queue。
+        """
+        if not self.apply_preset(preset_name):
+            return False
+        if not self._queue:
+            # 空预设：无可执行任务，视为成功（与旧行为一致）
+            self.logger.info(LogCategory.MAIN, "预设任务列表为空，无需执行", preset=preset_name)
+            return True
+        return self.run_queue(timeout)
 
     def _normalize_task_name(self, task_name: str) -> tuple[str, Dict[str, Any]]:
         name = str(task_name or "").strip()
