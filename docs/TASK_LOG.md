@@ -763,3 +763,18 @@
   - `reports/auto/20260711_SYNTHESIS.md`（新增·跨批次综合合成审计报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：元分析，未修改业务代码；所有结论均经既往报告中引用的源码行号与当前 `main` 分支代码交叉核对。报告已提交推送（`4a83467`）。
+
+## 2026-07-11（第二十二批次·P0 修复影响域分析）
+
+- **User Request**: 完整阅读文档明析需求与边界。对 P0 级发现的修复做影响域分析（fix blast-radius analysis），精确量化每项修复的修改量、调用链影响、风险评估和实施顺序建议。
+- **Outcome**: 完成 3 项 P0 发现的修复影响域分析。关键结论：
+  1. **C10**（`_llm_client` vs `_llm_client_instance`）：精确修改 2 行（`runtime.py:697/706`），0 个调用方受影响，0 个下游组件需修改。property 保证 LlmClient 只创建一次。风险极低，收益确定性最高。
+  2. **W1-可见化**（`keyevent()` error 传播）：精确修改 2 行（`android_runtime.py:784-786` 新增 if+raise），`_vlm_keyevent` 的 try/except 自然捕获。grep 确认 `android.keyevent()` 仅有 2 个调用点（均在 `_vlm_keyevent` 内），`_handle_device_keyevent` 使用 `android.shell()` 而非 `keyevent()`，不受影响。
+  3. **D1**（`_force_stop` 参数拆分）：精确修改 1 行（`recovery.py:72` 将 `"am force-stop"` 拆分为 `"am"` + `"force-stop"`），零调用方受影响。
+  4. **三修复合计仅 5 行代码**，blast radius 均为 0 个下游组件。
+  5. 推荐实施顺序：C10 → W1-可见化 → D1（按修改量递增、风险递增排序）。
+  6. 每项修复均对应合成审计报告的架构反模式：C10→反模式3（惰性初始化盲目访问）、W1-可见化→反模式1（结构性静默失败）、D1→反模式2（守护进程验证不对称）。
+- **Files Modified**:
+  - `reports/auto/20260711_FIXABILITY.md`（新增·P0 修复影响域分析报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。
