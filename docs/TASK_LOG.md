@@ -67,6 +67,22 @@
   2. **W2/W4 (Medium)** `_vlm_keyevent` 忽略错误返回；VLM `duration` 未钳制、`step_timeout_s` 为死配置。
   3. **W3/W5/W6 (Low)** `max_steps=0` NameError；`minimap_locator` level_id 抽取错误嵌套进 Tier 分支；回退 navmesh 用陈旧 level。
   4. **审计**：2315-N4 修复建议（放行所有 KEYCODE_*）不足以修复 W1（病根在 navigator 键位映射）；2315-N5 选项1（移除 `$`）为危险建议（重开 `$(...)` 注入）；2315-N11 属非问题；2315-N1 附无法运行的伪代码；2210-M1 修复为空修。
+
+## 2026-07-11 07:17 (AutoCodeReview 批次28·增量审查·maa_end/token/vlm/settings)
+
+- **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给出修改建议；完成后审计既往报告，指出错误或不必要的建议；以代码逻辑分析为主（不执行测试），报告存放 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次27未覆盖区域（maa_end/runtime.py token替换、navigation/vlm_walk_navigator.py、settings_page.py、runtime.py 命令路由），识别 5 项新发现（2 Medium / 3 Low）。
+  1. **[D01 Medium]** `_resolve_input_tokens` 使用 `json.loads(json.dumps(payload))` 做深拷贝，非JSON可序列化类型（tuple/set/bytes/自定义对象）静默丢失。
+  2. **[D02 Medium]** `VlmWalkNavigator._is_stuck` 使用硬编码绝对阈值 `spread < 2.0`，与 `target_radius`（12.0）尺度不一致，缓慢接近目标时误判卡住。
+  3. **[D03 Low]** `execute()` 超2个点号命令静默标记为"unknown"且无日志。
+  4. **[D04 Low]** `_try_recover` 不验证 `_reconnect()` 结果即返回True。
+  5. **[D05 Low]** `SettingsPage._read_config` 损坏配置无备份机制。
+  6. **N01扩展**：`_nav3_to_entity` 同样使用 `self._llm_client` 而非 `self._llm_client_instance`。
+  7. **历史报告**：91+条发现全部经二次验证确认准确，零修正（0659.md 已纠正的 D1/C01/A2 除外）。
+- **Files Modified**:
+  - `reports/auto/20260711_071742.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 27 份历史报告确认 5 项均为新发现，无重复。
 - **Files Modified**:
   - `reports/auto/20260710_2320.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
