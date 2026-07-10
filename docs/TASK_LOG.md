@@ -704,3 +704,20 @@
   - `reports/auto/20260711_0240.md`（补录·此前未提交的报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；S1/S2 经当前源码逐行验证；A1 经 `entity_db.py:32` 运算符优先级推导确认；A2 经 `handlers.py:91` 调用链核对确认；A3 经 `entity_db.py` `load()` 幂等性分析确认。
+
+## 2026-07-11（第二十批次·Critical/High 修复状态回归验证）
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。对 19 批次中标记为 Critical/High 级的 8 项核心发现做回归验证，逐条核对当前代码中的修复状态。
+- **Outcome**: 8 项 Critical/High 级问题中，0 项完全修复，1 项部分修复，7 项完全未修复。关键结论：
+  1. **W1 (Critical) 仍存在**：`_is_valid_keyevent` 白名单仍仅接受数字/KEYCODE_*，"w/a/s/d" 字母键仍被拒绝，VLM 行走导航完全失效。
+  2. **D1 (High) 仍存在**：`recovery.py:72` `_force_stop` 仍将 `"am force-stop"` 作为单个参数传递。
+  3. **D2 (High) 仍存在**：`_is_allowed_shell_cmd` 白名单已实现（line 87-97）但**未在 CLI 入口接线**，`_handle_shell` 仍直接传递 `args.cmd`。
+  4. **CFG-07 (High) 仍存在**：`task_index.json` 与 `task_list.json` 仍有 9/36 任务名不一致（25%）。
+  5. **N-1 (High) 仍存在**：`ensure_src_path` 仍使用 4 层 parent 上溯。
+  6. **N-3 (High) 部分修复**：`llm stop/start` 不再触发 warmup（line 263），但所有非 llm 命令仍触发 `warmup_llm()` 副作用。
+  7. **H1 (High) 仍存在**：scrcpy 8s 超时无恢复机制。
+  8. **N-8 (High) 仍存在**：ThemeManager 单例 `__new__` 仍无 `threading.Lock`。
+- **Files Modified**:
+  - `reports/auto/20260711_0343.md`（新增·回归验证报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；8 项问题经当前源码逐行核对；既往 4 份批次报告（17-19）审计确认无误。
