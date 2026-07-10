@@ -676,3 +676,17 @@
   - `reports/auto/20260711_0215.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；文档路径经 `ls` 逐一验证，代码修复状态经 `grep` 和逐行源码核对确认。
+
+## 2026-07-11（第十八批次·配置安全 + 依赖分析）
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。对 config/ 文件安全、配置加载链、requirements.txt 依赖声明、以及 .plan/ 和 task_list.json 等 git-tracked 数据文件进行审计。
+- **Outcome**: 识别出 5 项新发现（2 Medium / 2 Low / 1 Info）。关键结论：
+  1. **[SEC-01 Medium]** `handlers.py:30-38` `_write_or_base64` 的 `--out` 路径未验证，可写入任意文件系统位置；`_handle_config_set` 通过 `--config` 路径可将修改后的配置写回任意文件。`_load_config` 的 bare except 吞掉所有错误静默返回 `{}`。
+  2. **[CFG-15 Medium]** `runtime.py:447-455` `_load_config` 使用 bare `except Exception` 捕获所有错误类型（含 PermissionError、MemoryError），返回 `{}` 使配置失败原因不可诊断。
+  3. **[CFG-16 Low]** 无 `client_config.example.json` 模板文件，新用户需自行摸索配置格式。本地 `client_config.json` 含硬编码设备 IP 和 Unix 风格模型路径。
+  4. **[CFG-17 Low]** `requirements.txt` 含 `ultralytics>=8.4` 与独立 `torch>=2.12` + `torchvision>=0.27`，存在版本冲突风险；且项目实际通过 onnxruntime 使用 YOLO，可能未使用 ultralytics。
+  5. **[CFG-18 Info]** `.plan/execution_plan.md`（698KB）引用过时代码行号（如 pipeline_runner.py L281-L315），当前代码行号已偏移。
+- **Files Modified**:
+  - `reports/auto/20260711_0235.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；配置加载链经 `runtime.py`/`handlers.py`/`istina.py` 逐行核对；requirements.txt 与 src/ 中 ultralytics 引用情况交叉验证；task_list.json 结构经 bundled Python 解析确认。
