@@ -34,6 +34,10 @@ logs/
 src/logs/
 cache/
 explore_logs/
+output/
+
+# --- Local test/run output settings ---
+pytest_output_settings.txt
 
 # --- Temporary / generated files ---
 .tmp/
