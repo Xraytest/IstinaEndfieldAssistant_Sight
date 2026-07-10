@@ -583,3 +583,18 @@
   - `reports/auto/20260711_0999.md`（修正重写）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；经 grep 和逐行源码验证确认 batch 12 agent 的 TST-01 文件位置与影响范围误报。
+
+## 2026-07-11（第十三批次·脚本/测试剩余文件）
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。对之前未覆盖的根级别 utility 脚本（scripts/check_llm_cuda.py、verify_llm.py、verify_llm_simple.py、verify_ocr_integration.py）及剩余测试文件逻辑（test_main_window.py、test_cli_bridge.py、test_istina_cli_commands.py、test_llm_*.py、test_template_pipeline.py）进行审计。
+- **Outcome**: 识别出 6 项新发现（全部 Low）。关键结论：
+  1. **[SCR-02 Low]** `verify_llm.py:19` MODEL_PATH 硬编码 Windows 反斜杠路径，非 Windows 环境不可用。
+  2. **[SCR-03 Low]** `verify_llm_simple.py:122-123` 端口 9999~10003 与 LlamaServerRuntime 默认端口 9998 重叠，应用运行时脚本必定失败。
+  3. **[SCR-04 Low]** `check_llm_cuda.py:34-37` n_gpu_layers=999 重复传递两次（-ngl 和 --n-gpu-layers），CFG-11 下游症状。
+  4. **[TST-03 Low]** `test_main_window.py:12-48` 使用 importlib 隔离加载模块，QProcess mock 为死代码——不验证实际初始化行为。
+  5. **[TST-04 Low]** `test_template_pipeline.py` 8 处调用 `TemplateRegistry.clear()`，单例全局状态跨测试文件泄漏。
+  6. **[TST-05 Low]** `test_template_pipeline.py:4-5` 顶层 import cv2/numpy，依赖缺失时整个测试套件 collection 阶段崩溃。
+- **Files Modified**:
+  - `reports/auto/20260711_1213.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有发现经逐行源码验证。
