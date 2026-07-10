@@ -491,3 +491,24 @@
   - `reports/auto/20260711_001631_config.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读静态审查，未修改业务代码；关键发现经源文件交叉核对（runtime.py、task_loader.py、llm/runtime.py、task_index.json、preset/*.json）。
+
+## 2026-07-11 00:26 (AutoCodeReview Pipeline Node + Loader 批次)
+
+- **User Request**: 对 `pipeline_node.py` 和 `pipeline_loader.py` 进行彻底静态代码审查，只报告既往报告未覆盖的新发现。
+- **Outcome**: 完成两文件逐行审查，识别出 12 项新发现（5 Medium / 4 Low / 3 Info）。关键结论：
+  1. **[PN-1 Medium]** `from_dict` 对 action 字符串分支冗余（if/else 赋值相同值），且 dict 格式 action 缺 type 键时静默回退 DoNothing。
+  2. **[PL-1 Medium]** `_load_file` 的 `open(path, "r", encoding="utf-8")` 不支持 UTF-8 BOM，Windows 记事本编辑的 JSON 解析失败后整批节点静默丢失。
+  3. **[PL-2 Medium]** `load_all` 的 `glob("*.json")` 不递归，子目录 pipeline JSON 被忽略。
+  4. **[PN-3 Medium]** `PipelineGraph.merge` 的 dict.update + list.extend 非原子操作，并发合并可能崩溃或状态不一致。
+  5. **[PN-5 Medium]** `to_dict()` 返回 self.metadata 内部引用，外部修改直接污染节点状态。
+  6. **[PL-4 Low]** 文件加载失败时 _loaded_modules.add 仍执行，模块标记为已加载但图为空，后续重复尝试浪费 I/O。
+  7. **[PL-3 Low]** _loaded_modules 集合无锁（当前无害但模式脆弱）。
+  8. **[PN-2 Low]** recognition 解析嵌套三元表达式可读性差。
+  9. **[PN-4 Info]** metadata=data 存储原始 dict 副本，内存翻倍。
+  10. **[PL-5 Low]** 硬编码两个 pipeline 根目录，不支持自定义路径。
+  11. **[PN-6 Info]** get_node_or_entry fallback 语义过于宽松，节点缺失时回退到入口。
+  12. **[PL-6 Info]** extract_module_nodes 使用 startswith，可能误匹配模块名子串。
+- **Files Modified**:
+  - `reports/auto/20260711_0026_pipeline.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读静态审查，未修改业务代码；交叉核对 5 份历史报告（2315、2320、2345、234853、235000）确认 12 项均为新发现。
