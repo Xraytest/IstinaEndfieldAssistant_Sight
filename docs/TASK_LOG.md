@@ -792,3 +792,17 @@
   - `reports/auto/20260711_DATAFLOW.md`（新增·数据流完整性审计报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。grep 确认 `runtime.execute()` 有 37 个调用点，全部在 `handlers.py` 中（硬编码有效命令），仅边界路径（_interactive_loop、_on_bridge_command_finished、_sync_execute）受 DF-1 影响。
+
+## 2026-07-11（第二十四批次·状态机生命周期审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。从状态机生命周期角度审计 IstinaRuntime 的连接/断开/重连状态转换，识别跨批次遗漏的状态不一致问题。
+- **Outcome**: 完成状态机生命周期追踪，识别 3 项状态机生命周期问题（SM-1/2/3），均为新发现。关键结论：
+  1. **[SM-1 Medium]** `disconnect()`（`runtime.py:245-273`）从 `_maaend_clients` 移除 MaaEndRuntime 但不清理 `_android_clients`，僵尸 AndroidRuntimeProxy 在断开-重连循环中累积，导致内存泄漏、端口泄漏、线程泄漏。
+  2. **[SM-2 Medium]** `connect()`（`runtime.py:211-231`）在 scrcpy 启动失败时仍返回 True，状态 invariant 破损（True 应意味着所有子系统就绪，但实际仅 MaaEnd 就绪）。
+  3. **[SM-3 Medium]** `_ensure_maaend_ready`（`runtime.py:233-242`）调用 MaaEndRuntime.connect() 而非 IstinaRuntime.connect()，自动重连后 MaaEnd 已连接但 scrcpy 未启动，系统处于"部分连接"状态。
+  4. 完整状态机生命周期图：connect → (MaaEnd+scrcpy) → disconnect → (cleanup partial) → reconnect → (zombie accumulation)。
+  5. 修复建议：disconnect 同时清理 `_android_clients`（1 行）；`connect()` 区分完整连接与部分连接返回值；`_ensure_maaend_ready` 在重连后启动 scrcpy。
+- **Files Modified**:
+  - `reports/auto/20260711_STATEMACHINE.md`（新增·状态机生命周期审计报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。状态转换序列经 runtime.py/android_runtime.py 调用链交叉核对确认。
