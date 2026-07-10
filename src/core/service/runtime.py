@@ -371,10 +371,11 @@ class IstinaRuntime:
         name = params.get("name")
         options = params.get("options") or {}
         serial = params.get("serial")
+        timeout = params.get("timeout")
         runtime = self.maaend(serial)
         if not self._ensure_maaend_ready(runtime):
             return False
-        return bool(runtime.run_task(name, options))
+        return bool(runtime.run_task(name, options, timeout))
 
     def _run_preset(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")

@@ -177,6 +177,9 @@ class MaaEndRuntime:
         return self._presets
 
     def connect(self) -> bool:
+        # 先清理可能残留的旧连接，避免 agent 进程 / Tasker 资源泄漏
+        self._cleanup_partial()
+        self._connected = False
         if self._device_address == "default":
             self.logger.error(LogCategory.MAIN, "设备地址为默认占位值，请先配置 device.serial 或连接设备")
             return False
@@ -526,26 +529,51 @@ class MaaEndRuntime:
                 merged[key] = value
         return merged
 
-    def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any]) -> bool:
+    def _wait_job(self, job: Any, timeout: Optional[float]) -> bool:
+        """等待任务完成，支持超时（秒）。
+
+        timeout 为 None 或 <=0 时使用框架默认（无限等待）；否则在后台线程中
+        job.wait() 并 join timeout 秒，超时返回 False，避免整个 CLI 子进程卡死。
+        """
+        if timeout is None or timeout <= 0:
+            return job.wait()
+        result: Dict[str, Any] = {}
+
+        def _target() -> None:
+            try:
+                result["ok"] = job.wait()
+            except Exception:
+                result["ok"] = False
+
+        worker = threading.Thread(target=_target, daemon=True)
+        worker.start()
+        worker.join(float(timeout))
+        if worker.is_alive():
+            self.logger.warning(LogCategory.MAIN, "任务执行超时", timeout=timeout)
+            return False
+        return result.get("ok", False)
+
+    def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any], timeout: Optional[float] = None) -> bool:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行管道")
             return False
         self.logger.info(LogCategory.MAIN, "开始执行自定义管道", entry=entry)
         try:
             job = self._tasker.post_task(entry, pipeline_override if pipeline_override else {})
-            job.wait()
-            if job.succeeded:
-                self.logger.info(LogCategory.MAIN, "自定义管道执行成功", entry=entry)
-                return True
-            self._connected = False
-            self.logger.warning(LogCategory.MAIN, "自定义管道执行失败", entry=entry)
-            return False
+            succeeded = self._wait_job(job, timeout)
         except Exception as e:
+            # 仅真正的执行异常才视为连接断开
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "自定义管道执行异常", entry=entry, error=str(e))
             return False
+        if succeeded:
+            self.logger.info(LogCategory.MAIN, "自定义管道执行成功", entry=entry)
+            return True
+        # 识别未命中等「正常失败」不得污染连接态，也不触发恢复/重连
+        self.logger.warning(LogCategory.MAIN, "自定义管道执行失败", entry=entry)
+        return False
 
-    def run_task(self, task_name: str, options: Optional[Dict[str, Any]] = None) -> bool:
+    def run_task(self, task_name: str, options: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> bool:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行任务", task=task_name)
             return False
@@ -566,23 +594,22 @@ class MaaEndRuntime:
         self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
         try:
             job = self._tasker.post_task(entry, override if override else {})
-            job.wait()
-            if job.succeeded:
-                self.logger.info(LogCategory.MAIN, "任务执行成功", task=task_name)
-                return True
-            self._connected = False
-            self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
-            if self._try_recover(task_name):
-                return self._retry_task(task_name, options, entry)
-            return False
+            succeeded = self._wait_job(job, timeout)
         except Exception as e:
+            # 仅真正的执行异常才视为连接断开并尝试恢复
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "任务执行异常", task=task_name, error=str(e))
             if self._try_recover(task_name):
-                return self._retry_task(task_name, options, entry)
+                return self._retry_task(task_name, options, entry, timeout)
             return False
+        if succeeded:
+            self.logger.info(LogCategory.MAIN, "任务执行成功", task=task_name)
+            return True
+        # 识别未命中等「正常失败」：仅上报失败，不污染连接态、不重启应用
+        self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
+        return False
 
-    def run_preset(self, preset_name: str) -> bool:
+    def run_preset(self, preset_name: str, timeout: Optional[float] = None) -> bool:
         if not self._presets:
             self.load_presets()
         preset = self._presets.get(preset_name)
@@ -591,12 +618,20 @@ class MaaEndRuntime:
             return False
         task_list = preset.get("task", [])
         self.logger.info(LogCategory.MAIN, "开始执行预设", preset=preset_name, tasks=len(task_list))
+        failures: List[str] = []
         for task_entry in task_list:
             name = task_entry.get("name")
             options = task_entry.get("option") or {}
-            if not self.run_task(name, options):
-                self.logger.warning(LogCategory.MAIN, "预设执行中断", preset=preset_name, failed_task=name)
-                return False
+            if not self.run_task(name, options, timeout):
+                failures.append(name)
+                self.logger.warning(LogCategory.MAIN, "预设任务失败，继续后续任务", preset=preset_name, failed_task=name)
+                # 若连接已真正断开，继续也无意义，及时中止剩余任务
+                if not self._connected:
+                    self.logger.error(LogCategory.MAIN, "预设执行中连接断开，中止", preset=preset_name)
+                    break
+        if failures:
+            self.logger.warning(LogCategory.MAIN, "预设执行完成但存在失败任务", preset=preset_name, failed=failures)
+            return False
         self.logger.info(LogCategory.MAIN, "预设执行完成", preset=preset_name)
         return True
 
@@ -644,35 +679,37 @@ class MaaEndRuntime:
             self.logger.error(LogCategory.MAIN, "恢复失败", task=task_name, error=str(exc))
         return False
 
-    def _retry_task(self, task_name: str, options: Dict[str, Any], entry: str) -> bool:
+    def _retry_task(self, task_name: str, options: Dict[str, Any], entry: str, timeout: Optional[float] = None) -> bool:
         """恢复后重试当前任务一次。"""
         if not self._connected or self._tasker is None:
             return False
         self.logger.info(LogCategory.MAIN, "重试任务", task=task_name)
         try:
             job = self._tasker.post_task(entry, self.build_pipeline_override(task_name, options) or {})
-            job.wait()
-            if job.succeeded:
-                self.logger.info(LogCategory.MAIN, "重试成功", task=task_name)
-                return True
-            self._connected = False
+            succeeded = self._wait_job(job, timeout)
         except Exception as exc:
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "重试异常", task=task_name, error=str(exc))
+            return False
+        if succeeded:
+            self.logger.info(LogCategory.MAIN, "重试成功", task=task_name)
+            return True
+        self.logger.warning(LogCategory.MAIN, "重试失败", task=task_name)
         return False
 
     def _reconnect(self) -> bool:
-        """重新初始化 tasker/resource 绑定。"""
+        """重新建立连接（用于在任务异常恢复时重建 runtime）。
+
+        旧实现依赖 self._resource is not None，但真正断连后 _resource 已被
+        _cleanup_partial 置空，导致该分支永远返回 False、恢复路径失效。
+        现直接走完整 connect()，由 connect() 负责清理旧资源并重建。
+        """
+        self.logger.info(LogCategory.MAIN, "尝试重连 MaaEnd runtime")
         try:
-            if self._resource is not None:
-                self._tasker = Tasker()
-                if self._tasker.bind(self._resource, self._controller):
-                    self._connected = True
-                    self._start_agent()
-                    return True
+            return self.connect()
         except Exception as exc:
             self.logger.error(LogCategory.MAIN, "重连失败", error=str(exc))
-        return False
+            return False
 
     def interface(self) -> Dict[str, Any]:
         return self._interface or self.load_interface()
