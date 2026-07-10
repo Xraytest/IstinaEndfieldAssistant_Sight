@@ -571,3 +571,15 @@
   - `reports/auto/20260711_FINAL.md`（新增·最终整合报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：汇总覆盖 src/core/ 全部子系统 + src/cli/ + src/gui/pyqt6/ + config/ 资产；所有子报告已完成源文件交叉验证。
+
+## 2026-07-11（第十二批次·测试/配置/资产/脚本/构建）
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。对之前未覆盖的 tests/、scripts/、__init__.py、pyproject.toml、config/ JSON、assets/tasks/ JSON 进行审计，完成后审计 batch 12 agent 输出中的错误。
+- **Outcome**: 经源码验证，batch 12 agent 的 TST-01 存在文件位置错误（conftest.py vs test_istina_runtime.py/test_error_paths.py）和严重性高估（模块级 autouse 非全局），TST-02/SCR-01 正确，CFG-14 已覆盖。修正后报告 3 项有效发现：
+  1. **[TST-02 Medium]** `tests/test_queue_state.py` 与 `tests/gui/pyqt6/test_queue_state.py` 测试同一 QueueState 类，覆盖率重叠 ~80%，pytest 执行翻倍。
+  2. **[TST-01 Medium]** `test_istina_runtime.py` 和 `test_error_paths.py` 的 autouse fixture 在文件内 monkeypatch `logging.Logger`，该文件内 future caplog 测试将静默失效。（batch 12 agent 误标为 High/全局/conftest.py）
+  3. **[SCR-01 Low]** `scripts/debug/` 46 个脚本含硬编码开发者路径与乱码 docstring，已被 .gitignore 排除。
+- **Files Modified**:
+  - `reports/auto/20260711_0999.md`（修正重写）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；经 grep 和逐行源码验证确认 batch 12 agent 的 TST-01 文件位置与影响范围误报。
