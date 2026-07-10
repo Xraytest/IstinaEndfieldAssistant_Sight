@@ -15,9 +15,13 @@ from PyQt6.QtWidgets import QApplication  # noqa: E402
 from core.foundation.paths import ensure_src_path  # noqa: E402
 from gui.pyqt6.i18n import get_locale_manager  # noqa: E402
 from gui.pyqt6.main_window import MainWindow  # noqa: E402
+from gui.pyqt6.qt_log_filter import install_qt_message_filter  # noqa: E402
 from gui.pyqt6.theme.theme_manager import apply_theme  # noqa: E402
 
 ensure_src_path(__file__)
+
+# 必须在 QApplication() 之前接管 Qt 日志，否则最早的字体探测噪声已打印到 stderr
+install_qt_message_filter()
 
 
 def run_application() -> None:

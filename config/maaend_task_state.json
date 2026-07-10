@@ -1,6 +1,6 @@
 {
   "selected_task": "TaskA",
-  "selected_preset": "DailyFull",
+  "selected_preset": "DailyFullSkippingVisitFriends",
   "queue_items": [],
   "task_options": {
     "VisitFriends": {

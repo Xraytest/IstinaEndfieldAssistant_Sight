@@ -60,7 +60,7 @@
 
 | 调用链 | 状态 | 备注 |
 |--------|------|------|
-| `CLIDispatch.dispatch()` → `runtime.execute()` | ✅ | 19 个分支全部映射 |
+| `CLIDispatch.dispatch()` → `runtime.execute()` | ✅ | 21 个分支全部映射 |
 | `MaaEndControlPage._sync_execute()` → `CLIBridge.execute()` | ✅ | 存在死代码 |
 | GUI 选项序列化 → Runtime options | ⚠️ | 合并顺序错误 |
 
@@ -94,8 +94,8 @@
 
 | 函数/类 | 命名暗示 | 实际实现 | 结论 |
 |---------|----------|----------|------|
-| `AndroidRuntimeProxy.adb_manager` | 返回 ADBDeviceManager | 返回 AndroidRuntime | ❌ 不匹配 |
-| `AndroidRuntimeProxy` | 透明代理 | 手动转发每个方法 | ⚠️ 适配器而非代理 |
+| `AndroidRuntimeProxy.default_client` | 返回 ADBDeviceManager | `__getattr__` 委托 `AndroidRuntime` 单例，`default_client` 返回当前 serial 的 client | ✅ 已收敛为 Adapter |
+| `AndroidRuntimeProxy` | 透明代理 | `__getattr__` 自动委托 `AndroidRuntime` 单例 | ✅ 适配器 |
 | `IstinaRuntime` | 单一运行时 | 多运行时门面/调度器 | ⚠️ 命名过宽 |
 | `MaaEndRuntime` | 镜像 MaaEnd 进程 | 本地资源加载 + Tasker bridge | ⚠️ docstring 需更新 |
 | `PipelineRunner` | 纯图执行器 | 嵌入 MaaFW SDK + 颜色匹配 | ❌ 违反 SRP |
