@@ -286,6 +286,9 @@ class MaaEndRuntime:
         return result["success"]
 
     def _kill_adb(self) -> None:
+        # 该 warning 级日志会写入 stderr，被 GUI 的 _ADB_RE 归类为 "ADB" 源，
+        # 用于驱动连接页显示「正在杀死ADB并重试...」状态（device_settings_page._on_log_message）。
+        self.logger.warning(LogCategory.MAIN, "adb 重启中(kill-server)：连接超时，正在重试")
         try:
             subprocess.run(
                 [self._adb_path, "kill-server"],

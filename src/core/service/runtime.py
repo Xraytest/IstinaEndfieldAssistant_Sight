@@ -188,7 +188,7 @@ class IstinaRuntime:
                         maaend_root=self._config.get("maaend_root"),
                         device_address=resolved,
                         adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
-                        adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", False),
+                        adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", True),
                     )
                     self._maaend_clients[resolved] = runtime
         return runtime
@@ -468,7 +468,7 @@ class IstinaRuntime:
     def reload_config(self) -> None:
         self._config = self._load_config()
         device_cfg = self._config.get("device", {}) or {}
-        adb_restart_on_timeout = bool(device_cfg.get("adb_restart_on_timeout", False))
+        adb_restart_on_timeout = bool(device_cfg.get("adb_restart_on_timeout", True))
         for runtime in self._maaend_clients.values():
             runtime._adb_restart_on_timeout = adb_restart_on_timeout
 

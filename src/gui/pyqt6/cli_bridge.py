@@ -213,6 +213,10 @@ class CLIBridge(QObject):
                         self._pending_commands.insert(0, list(self._current_command))
                     QTimer.singleShot(1000, self._restart_last_command)
                 else:
+                    self.commandError.emit(
+                        " ".join(self._last_command),
+                        locale.tr("crash_dialog_msg", "CLI subprocess crashed {count} times consecutively.").format(count=self._crash_count),
+                    )
                     self._show_crash_dialog()
             else:
                 self._logger.info(LogCategory.GUI, "CLI 交互进程正常退出", exit_code=exit_code)
@@ -225,6 +229,10 @@ class CLIBridge(QObject):
                     self._pending_commands.insert(0, list(self._current_command))
                 QTimer.singleShot(1000, self._restart_last_command)
             else:
+                self.commandError.emit(
+                    " ".join(self._last_command),
+                    locale.tr("crash_dialog_msg", "CLI subprocess crashed {count} times consecutively.").format(count=self._crash_count),
+                )
                 self._show_crash_dialog()
         elif exit_code != 0:
             self._logger.debug(LogCategory.GUI, "CLI 业务错误", exit_code=exit_code, command=" ".join(self._last_command))

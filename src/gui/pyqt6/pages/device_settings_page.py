@@ -252,7 +252,8 @@ class DeviceSettingsPage(QWidget):
         if source != "ADB":
             return
         self._append_log(f"[{source}] {message}")
-        if "杀死ADB" in message or "killing ADB" in message.lower():
+        lowered = message.lower()
+        if any(tok in lowered for tok in ("杀死adb", "killing adb", "重启 adb", "kill-server", "restarting adb")):
             self._connection_status.setText(locale.tr("killing_adb_retrying", "Killing ADB and retrying..."))
 
     def _load_device_preferences(self) -> None:
@@ -278,7 +279,7 @@ class DeviceSettingsPage(QWidget):
         else:
             self._reconnect_timer.stop()
 
-        auto_kill_adb = bool(device_cfg.get("adb_restart_on_timeout", False))
+        auto_kill_adb = bool(device_cfg.get("adb_restart_on_timeout", True))
         self._auto_kill_adb_check.blockSignals(True)
         self._auto_kill_adb_check.setChecked(auto_kill_adb)
         self._auto_kill_adb_check.blockSignals(False)
