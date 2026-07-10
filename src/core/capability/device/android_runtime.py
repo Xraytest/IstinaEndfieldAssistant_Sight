@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import mmap
+import multiprocessing.connection as mp_connection
 import os
 import secrets
 import socket
@@ -422,7 +423,11 @@ class _ScrcpySession:
 
 
 class _Daemon:
-    """最小 JSON-RPC 守护进程，单 serial 单实例。"""
+    """最小 JSON-RPC 守护进程，单 serial 单实例。
+
+    进程内通信使用命名管道（Windows）/ Unix domain socket（POSIX），
+    不占用任何 TCP 网络端口。
+    """
 
     def __init__(self, serial: str, socket_path: str, mmap_path: str, adb_path: str):
         self._serial = serial
@@ -432,32 +437,53 @@ class _Daemon:
         self._adb_manager = ADBDeviceManager(adb_path=adb_path)
         self._touch = TouchManager(adb_path=adb_path, device_address=serial)
         self._lock = threading.Lock()
-        self._server: Optional[socket.socket] = None
+        self._listener: Any = None
         self._running = False
-        self._tcp_port: Optional[int] = None
+        self._ipc_address: Optional[str] = None
         self._auth_token = secrets.token_hex(16)
+        self._pipe_token = secrets.token_hex(8)  # 命名管道唯一后缀，避免 FILE_FLAG_FIRST_PIPE_INSTANCE 碰撞
         self._scrcpy_session: Optional[_ScrcpySession] = None
         self._scrcpy_jar_path = str(get_project_root() / "3rd-part" / "scrcpy" / "scrcpy-server.jar")
+
+    @staticmethod
+    def _ipc_family() -> Optional[str]:
+        """选择不占用网络端口的 IPC 传输层：Windows 用命名管道，POSIX 用 Unix domain socket。"""
+        if os.name == "nt":
+            return "AF_PIPE"
+        return "AF_UNIX"
+
+    def _resolve_ipc_address(self) -> str:
+        if os.name == "nt":
+            safe = self._serial.replace(":", "_").replace("/", "_").replace("\\", "_")
+            return r"\\.\pipe\istina-android-" + safe + "-" + self._pipe_token
+        return self._socket_path
 
     def start(self) -> None:
         if self._running:
             return
-        self._running = True
+        family = self._ipc_family()
+        address = self._resolve_ipc_address()
+        # POSIX 下清理可能残留的 socket 文件，避免 bind 失败
+        if family == "AF_UNIX" and os.path.exists(address):
+            try:
+                os.unlink(address)
+            except OSError:
+                pass
         try:
-            self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._server.bind(("127.0.0.1", 0))
-            self._tcp_port = self._server.getsockname()[1]
-            self._server.listen(5)
+            self._listener = mp_connection.Listener(address, family=family)
+            self._ipc_address = self._listener.address
+            self._running = True
             threading.Thread(target=self._accept_loop, daemon=True).start()
         except Exception:
             self._running = False
-            if self._server is not None:
+            self._logger.exception("守护进程 Listener 创建失败", address=address, family=family)
+            if self._listener is not None:
                 try:
-                    self._server.close()
+                    self._listener.close()
                 except Exception:
                     pass
-            self._server = None
+            self._listener = None
+            self._ipc_address = None
             raise
 
     def stop(self) -> None:
@@ -468,29 +494,38 @@ class _Daemon:
             except Exception:
                 pass
             self._scrcpy_session = None
-        if self._server:
+        if self._listener is not None:
             try:
-                self._server.close()
+                self._listener.close()
             except Exception:
+                pass
+            self._listener = None
+        # POSIX 下删除残留的 socket 文件
+        if self._ipc_family() == "AF_UNIX" and self._ipc_address and os.path.exists(self._ipc_address):
+            try:
+                os.unlink(self._ipc_address)
+            except OSError:
                 pass
 
     def _accept_loop(self) -> None:
-        while self._running:
+        while self._running and self._listener is not None:
             try:
-                conn, _ = self._server.accept()
+                conn = self._listener.accept()
             except Exception:
                 break
             threading.Thread(target=self._handle_client, args=(conn,), daemon=True).start()
 
-    def _handle_client(self, conn: socket.socket) -> None:
+    def _handle_client(self, conn: Any) -> None:
         try:
-            conn.settimeout(5)
             while True:
-                try:
-                    raw = self._recv(conn)
-                except (socket.timeout, ConnectionError):
+                # 使用带超时的轮询，避免对端异常断开时永久阻塞守护线程
+                if not conn.poll(30):
                     break
-                if raw is None:
+                try:
+                    raw = conn.recv_bytes()
+                except EOFError:
+                    break
+                except Exception:
                     break
                 try:
                     request = json.loads(raw.decode("utf-8"))
@@ -498,7 +533,7 @@ class _Daemon:
                     continue
                 response = self._dispatch(request)
                 try:
-                    conn.sendall(json.dumps(response, ensure_ascii=False).encode("utf-8") + b"\n")
+                    conn.send_bytes(json.dumps(response, ensure_ascii=False).encode("utf-8"))
                 except Exception:
                     break
         finally:
@@ -506,15 +541,6 @@ class _Daemon:
                 conn.close()
             except Exception:
                 pass
-
-    def _recv(self, conn: socket.socket) -> Optional[bytes]:
-        buf = b""
-        while b"\n" not in buf:
-            chunk = conn.recv(4096)
-            if not chunk:
-                return None
-            buf += chunk
-        return buf.split(b"\n", 1)[0]
 
     def _dispatch(self, request: Dict[str, Any]) -> Dict[str, Any]:
         if request.get("auth") != self._auth_token:
@@ -654,44 +680,36 @@ class AndroidRuntime:
 
     def _call(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         params = params or {}
-        request = json.dumps(
-            {"method": method, "params": params, "auth": self._get_daemon()._auth_token},
-            ensure_ascii=False,
-        ).encode("utf-8") + b"\n"
-        sock = None
+        daemon: Optional[_Daemon] = None
+        conn: Any = None
         try:
             daemon = self._get_daemon()
-            port = daemon._tcp_port
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(30.0)  # 防止 recv 永久阻塞导致 GUI/自动化线程挂起
-            sock.connect(("127.0.0.1", port))
+            request = json.dumps(
+                {"method": method, "params": params, "auth": daemon._auth_token},
+                ensure_ascii=False,
+            ).encode("utf-8")
+            conn = mp_connection.Client(daemon._ipc_address, family=daemon._ipc_family())
+            conn.send_bytes(request)
+            if not conn.poll(30):  # 防止 recv 永久阻塞导致 GUI/自动化线程挂起
+                self._logger.warning("daemon _call 超时", method=method)
+                return {"error": "timeout"}
+            try:
+                raw = conn.recv_bytes()
+            except EOFError:
+                return {"error": "empty response"}
+            if not raw:
+                return {"error": "empty response"}
+            return json.loads(raw.decode("utf-8"))
         except Exception:
-            if sock is not None:
+            addr = getattr(daemon, "_ipc_address", None)
+            self._logger.exception("daemon _call 连接失败", method=method, address=addr)
+            return {"error": "connection failed"}
+        finally:
+            if conn is not None:
                 try:
-                    sock.close()
+                    conn.close()
                 except Exception:
                     pass
-            return {"error": "connection failed"}
-
-        try:
-            sock.sendall(request)
-            buf = b""
-            while b"\n" not in buf:
-                chunk = sock.recv(4096)
-                if not chunk:
-                    break
-                buf += chunk
-            if not buf:
-                return {"error": "empty response"}
-            return json.loads(buf.split(b"\n", 1)[0].decode("utf-8"))
-        except socket.timeout:
-            self._logger.warning("daemon _call 超时", method=method)
-            return {"error": "timeout"}
-        finally:
-            try:
-                sock.close()
-            except Exception:
-                pass
 
     def get_devices(self) -> List[ADBDeviceInfo]:
         response = self._call("getDevices")
