@@ -642,3 +642,22 @@
   - `reports/auto/20260711_FINAL_CONFIRM.md`（新增·终审确认报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；全仓库 .py 文件清单与 14 份报告交叉比对确认全覆盖。
+
+## 2026-07-11（第十六批次·.agents 目录）
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。对 .agents/ 目录下 git-tracked 但此前从未审计的文件进行审查。
+- **Outcome**: 识别出 9 项新发现（2 Medium / 5 Low / 2 Info）。关键结论：
+  1. **[AGT-01 Medium]** `orchestrator.py:90-94` `_next_pending` 对依赖循环无检测，循环任务永远卡 pending 且静默返回"无待处理任务"。
+  2. **[AGT-02 Medium]** `orchestrator.py:40-46` `_parse_queue` 正则对描述含冒号的任务截断描述（第一个冒号到 [priority= 而非 task_id 后冒号）。
+  3. **[AGT-03 Low]** `orchestrator.py:61` task_id 含连字符时 `split("-",1)[0]` 解析 type 错误。
+  4. **[AGT-04 Low]** `orchestrator.py:71-78` `_write_queue` 覆盖写入丢失文件注释和手动编辑内容。
+  5. **[AGT-05 Low]** `orchestrator.py:30-78` 无锁并发读写，并发时任务丢失。
+  6. **[AGT-06 Low]** `orchestrator.py:120-122` 子 agent prompt 硬编码 `git add -A && git commit && git push`，范围过大。
+  7. **[AGT-07 Low]** `SKILL.md:15-21` 8 个必读文件中 5 个不存在（ARCHITECTURE.md, RUNTIME_DEVICE_AND_MAAEND.md, GUI_CLI_AND_AUTOMATION.md, LLM_AND_NAVIGATION.md, RECOGNITION_PIPELINE_AND_TASKS.md, WORKFLOW.md）。
+  8. **[AGT-08 Info]** 4 个 role 定义文件重复维护"用户明确排除"约束列表。
+  9. **[AGT-09 Info]** 队列所有任务 pending，无 completed 记录。
+- **补充说明**：批次 15 终审报告（FINAL_CONFIRM.md）声称"全仓库版本控制 .py 源码全覆盖"，但遗漏了 `.agents/` 目录下 1 个 .py 文件（orchestrator.py）和 7 个 .md 文件——这些文件 git-tracked 且未被 gitignore。本批次补全覆盖。
+- **Files Modified**:
+  - `reports/auto/20260711_0204.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；`git ls-files .agents/` 确认 8 个 tracked 文件均属首次审查。
