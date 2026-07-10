@@ -690,3 +690,17 @@
   - `reports/auto/20260711_0235.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；配置加载链经 `runtime.py`/`handlers.py`/`istina.py` 逐行核对；requirements.txt 与 src/ 中 ultralytics 引用情况交叉验证；task_list.json 结构经 bundled Python 解析确认。
+
+## 2026-07-11（第十九批次·脚本度量 + 审计纠错·补录 0240 报告）
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。对 scripts/ 和 handlers.py 边界代码做增量审查，并对既往报告做审计纠错。
+- **Outcome**: 发现此前会话生成的 `reports/auto/20260711_0240.md` 未提交，现验证并收录。识别出 2 项新发现（S1/S2，均为 Low）和 3 项审计纠正（A1/A2/A3）。关键结论：
+  1. **[S1 Low]** `scripts/verify_llm.py:96-99` `measure` 函数用 `len(output)` 统计字符数而非 token 数，却被命名为/判定为 TPS；`tps > 100` 择优判据对中文回复恒真，退出码恒为 0 掩盖真实吞吐不足。
+  2. **[S2 Low]** `src/cli/handlers.py:677` `_handle_gpu_recommend` 中 `mem >= 4GB or mem >= 2GB` 因 `and` > `or` 优先级使 4GB 分支为死代码（恒被子集覆盖）。
+  3. **[A1 纠正]** 0200_nav NAV-05 标注异常类型为 `TypeError`，实际 `float(rl[0])` 对 dict 取键名字符串后转 float 抛 `ValueError`，非 `TypeError`。
+  4. **[A2 降级]** XC-1（execute 返回 None）影响被高估——CLI `CLIDispatch.dispatch` 在 line 91 已拦截未知命令返回 dict 错误体，`None` 路径仅经内部直调/测试可达，不应列为终端用户问题。
+  5. **[A3 剔除]** NAV-11 建议删除 `list_entities` 中的 `load()` 调用，但该调用幂等（开销仅布尔判断），删除无收益且削弱健壮性，属"可维护性洁癖"型不必要建议。
+- **Files Modified**:
+  - `reports/auto/20260711_0240.md`（补录·此前未提交的报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；S1/S2 经当前源码逐行验证；A1 经 `entity_db.py:32` 运算符优先级推导确认；A2 经 `handlers.py:91` 调用链核对确认；A3 经 `entity_db.py` `load()` 幂等性分析确认。
