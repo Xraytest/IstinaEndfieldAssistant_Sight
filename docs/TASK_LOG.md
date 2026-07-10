@@ -1,5 +1,18 @@
 # 任务日志
 
+## 2026-07-11 00:16 (AutoCodeReview 设备层深度审查·第七批次)
+
+- **User Request**: 对 `adb_manager.py`、`touch_manager.py`、`recovery.py` 三文件进行彻底静态代码审查，要求只报告既往报告未覆盖的新发现。
+- **Outcome**: 完成三文件逐行审查，识别出 12 项新发现（2 High / 1 Medium / 9 Low）。关键结论：
+  1. **[D1 High]** `recovery.py:72` `_force_stop` 将 `"am force-stop"` 作为单个参数传递，mksh 将其解释为单个命令名而非 `am` + `force-stop`，导致强制停止从未生效，旧进程不被终止。
+  2. **[D2 High]** `handlers.py:470` `_handle_shell` 直接传递用户输入 `args.cmd` 到 `android.shell()`，绕过 `android_runtime.py` 的白名单检查，CLI `istina shell <cmd>` 存在设备端命令注入。
+  3. **[D3 Medium]** `adb_manager.py:47-55` `get_devices()` 裸 `except Exception: pass` 吞掉 `ImportError` 等，诊断失败原因被隐藏。
+  4. 其他发现涵盖：screencap 不验证 PNG 数据、多设备选择非确定性、CRLF 修复可能损坏 PNG、`back()` 无错误日志、触控操作无重试、`device_address` 未使用、单例永不重置、`_clear_canvas` 吞异常、`_launch` 异常掩盖等。
+- **Files Modified**:
+  - `reports/auto/20260711_001647.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 6 份历史报告（2315、2320、2345、234853、235000、2400）确认 12 项均为新发现。
+
 ## 2026-07-10 23:48 (AutoCodeReview 合并批次)
 
 - **User Request**：合并四路并行 agent（导航/VLM、CLI/Infra、Foundation/Recognition、Facade）的第二轮审查发现，写入统一报告；审计前次报告错误/不必要建议；避免重复第一轮已记录问题。
@@ -394,6 +407,21 @@
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读静态审查；关键发现经源文件交叉核对。
 
+## 2026-07-11 00:20 (AutoCodeReview 第七批次·合并)
+
+- **User Request**：合并两路并行 agent（Device Layer、Config/Assets）的审查发现，写入统一报告；审计前次报告错误/不必要建议；避免重复之前已记录问题。
+- **Outcome**：合并为 `reports/auto/20260711_0020.md`，共 56 项新发现（1 Critical / 9 High / 22 Medium / 18 Low / 6 Info）。关键结论：
+  1. **W1 (Critical)** 整条 VLM 行走导航完全失效——`_execute_action` 发字母键被 keyevent 校验/ADB 全部丢弃，且 `_vlm_keyevent` 不检查返回值导致完全静默。
+  2. **D1 (High)** `recovery.py:72` `_force_stop` 将 `"am force-stop"` 作为单个参数传递，mksh 将其解释为单个命令名，强制停止从未生效。
+  3. **D2 (High)** `handlers.py:470` `_handle_shell` 直接传递用户输入到 `android.shell()`，绕过 `android_runtime.py` 白名单，CLI `istina shell <cmd>` 存在设备端命令注入。
+  4. **CFG-07 (High)** `CreditShopping.json` 和 `Weapon.json` 的内部任务名与文件名不一致，`TaskLoader.load_task()` 按名查找返回 `None`，GUI 任务详情面板失效。
+  5. **CFG-09 (Medium)** `IstinaRuntime` 接受任意 `--config` 路径，存在路径遍历风险。
+  6. **范围发现**：`config/` 目录下 3 个文档中描述的文件（`client_config.example.json`、`standard_flows/flows_config.json`、`logging_config.json`）均不存在；`assets/tasks/task_index.json` 为孤立文件；`assets/element_recognition/` 目录缺失。
+- **Files Modified**:
+  - `reports/auto/20260711_0020.md`（新增·合并报告，覆盖 001647/001631_config 两份原始报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读静态审查；关键发现经源文件交叉核对（recovery.py、adb_manager.py、handlers.py、runtime.py、llm/runtime.py、task_loader.py）。
+
 ## 2026-07-11 01:30
 
 - **User Request**: 对 `src/core/foundation/`（paths.py, logger.py, gpu_check.py）、`src/core/capability/element_recognition/`（recognizer.py, backends/*, element_info.py, tasks/*, scene_service.py）、`src/core/capability/device/recovery.py` 共 14 文件进行彻底静态代码审查。重点：路径遍历、日志注入、GPU 检测逻辑、识别后端错误、资源泄漏、线程安全、错误处理缺口、安全问题。要求只报告既往报告未覆盖的新发现。
@@ -446,3 +474,20 @@
   - `reports/auto/20260710_2350_recognition.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 6 份历史报告（2210、2315、2320、2330、2345、234853）确认 10 项均为新发现，无重复。
+
+## 2026-07-11 00:16
+
+- **User Request**: 对项目配置与资产文件进行静态审计。范围：`config/` 目录（`client_config.json`、缺失的 example/flows/logging 文件）、`assets/tasks/`、`assets/tasks/preset/`、`assets/element_recognition/`。重点：路径遍历、schema 缺失、硬编码 secrets、不安全的默认值、配置解析错误处理、资产引用完整性。与 4 份基线报告（234853、235000、2400、2345）交叉比对，仅报告未覆盖的新发现。
+- **Outcome**: 完成配置与资产文件审计，识别出 14 项发现（1 High / 8 Medium / 4 Low / 1 Info）。关键结论：
+  1. **[CFG-07 High]** `CreditShopping.json` 内部任务名为 `CreditShoppingN2`，`Weapon.json` 内部任务名为 `WeaponUpgrade`，与文件名不一致。`MaaEndRuntime.load_tasks()` 通过目录扫描能索引到它们，但 `TaskLoader.load_task()` 按文件名查找会返回 `None`，导致 GUI 任务详情/选项编辑器对这些任务失效。
+  2. **[CFG-08 Medium]** 预设 `DailyFull` / `QuickDaily` 引用 `CreditShoppingN2`，但 `task_index.json`（孤立文件）中任务名为 `CreditShopping`。若未来重新启用该索引，预设会断裂。
+  3. **[CFG-09 Medium]** `IstinaRuntime.__init__` 接受任意 `config_path` 并通过 `Path.resolve()` 规范化，但未约束必须在项目 `config/` 目录内。CLI `--config` 参数暴露此能力，可导致路径遍历读取/写入项目外部文件。
+  4. **[CFG-10 Medium]** `LlamaServerRuntime._resolve_model_path()` 对绝对路径直接返回，不校验是否在允许目录内。`client_config.json` 中 `model_path: "/models/test.gguf"` 在 Windows 上解析为盘符根目录路径。
+  5. **[CFG-01~03 Medium]** 文档中声明的 `client_config.example.json`、`standard_flows/flows_config.json`、`logging_config.json` 均不存在，导致配置 onboarding 失败。
+  6. **[CFG-11 Medium]** `client_config.json` 含不安全默认值：`model_path` 指向不存在的 Unix 路径、`n_gpu_layers=999` 易导致 OOM、`llm.enabled=true` 配合无效路径导致启动必失败。
+  7. **[CFG-12 Medium]** 所有配置加载点（`_load_config`、`load_tasks`、`load_presets`）均使用 bare `except Exception` 吞掉 JSON 解析错误，静默回退空字典，用户编辑错误配置时无明确告警。
+  8. **[CFG-05 Low]** `assets/tasks/task_index.json` 是孤立文件，全仓库无源码引用，但维护者可能误以为它是权威索引。
+- **Files Modified**:
+  - `reports/auto/20260711_001631_config.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读静态审查，未修改业务代码；关键发现经源文件交叉核对（runtime.py、task_loader.py、llm/runtime.py、task_index.json、preset/*.json）。
