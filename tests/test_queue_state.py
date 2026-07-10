@@ -183,3 +183,46 @@ class TestQueueStateMutations:
         assert state.queue_items[0] is not source[0]
         source[0]["options"]["x"] = 999
         assert state.queue_items[0]["options"]["x"] == 999
+
+
+class TestQueueStatePerInstance:
+    """同一任务在队列中多次出现时，各条目的 options 必须相互独立、互不串味。"""
+
+    def test_duplicate_tasks_options_isolated(self, tmp_path: Path) -> None:
+        state = QueueState(state_path=tmp_path / "dup.json")
+        state.set_queue_items([
+            {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"x": 1}},
+            {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"x": 2}},
+        ])
+        # 仅更新第一个实例
+        state.update_queue_item_options(0, {"x": 10})
+        items = state.queue_items
+        assert items[0]["options"] == {"x": 10}
+        assert items[1]["options"] == {"x": 2}  # 第二个实例不受影响
+
+    def test_duplicate_tasks_survive_round_trip(self, tmp_path: Path) -> None:
+        state_file = tmp_path / "dup_rt.json"
+        original = QueueState(state_path=state_file)
+        original.set_queue_items([
+            {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"mode": "a"}},
+            {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"mode": "b"}},
+        ])
+        original.persist()
+
+        restored = QueueState(state_path=state_file)
+        restored.load()
+        items = restored.queue_items
+        assert [item["options"] for item in items] == [{"mode": "a"}, {"mode": "b"}]
+
+    def test_shared_snapshot_does_not_leak_into_queue_item(self, tmp_path: Path) -> None:
+        state = QueueState(state_path=tmp_path / "leak.json")
+        state.set_queue_items([
+            {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"x": 1}},
+            {"name": "TaskA", "display_name": "TaskA", "type": "task", "options": {"x": 2}},
+        ])
+        # 写共享快照不应污染任何队列实例的 options
+        state.save_options("TaskA", {"x": 999, "y": 3})
+        items = state.queue_items
+        assert items[0]["options"] == {"x": 1}
+        assert items[1]["options"] == {"x": 2}
+        assert state.load_options("TaskA") == {"x": 999, "y": 3}

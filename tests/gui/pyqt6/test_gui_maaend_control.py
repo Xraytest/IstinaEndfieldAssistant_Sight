@@ -270,6 +270,8 @@ class TestMaaEndControlPageBuildOptionEditor:
                 pass
             def setEnabled(self, v):
                 pass
+            def blockSignals(self, v):
+                pass
             def count(self):
                 return len(self.widgets)
             def takeAt(self, i):
@@ -294,6 +296,8 @@ class TestMaaEndControlPageBuildOptionEditor:
             def addStretch(self):
                 pass
             def setEnabled(self, v):
+                pass
+            def blockSignals(self, v):
                 pass
             def count(self):
                 return 0
@@ -458,3 +462,92 @@ class TestMaaEndControlPageUIUpdates:
         page._selected_task = "TaskX"
         page._selected_preset = "DailyFull"
         page._persist_state()
+
+
+class TestMaaEndControlPagePerInstance:
+    """队列任务特有（per-instance）设置隔离与泄漏回归。"""
+
+    def test_save_options_focused_queue_item_does_not_pollute_shared(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
+        page = _create_page(tmp_path, monkeypatch)
+        page._queue_state.set_queue_items([
+            {"name": "TaskA", "type": "task", "options": {"x": 1}},
+            {"name": "TaskA", "type": "task", "options": {"x": 2}},
+        ])
+        page._selected_task = "TaskA"
+        page._focused_queue_index = 0
+        # 模拟用户把第一个实例的 x 改成 99
+        page._option_widgets = {"x": type("W", (), {"value": lambda self: "99"})()}
+        page._tasks_cache = {"TaskA": {"option": ["x"]}}
+        page._task_option_defs = {"x": {"type": "switch"}}
+
+        class FakeItem:
+            def setText(self, t):
+                pass
+
+        class FakeList:
+            def rowCount(self):
+                return 2
+
+            def item(self, r, c):
+                return FakeItem()
+
+        page._queue_list = FakeList()
+
+        page._save_options()
+
+        # 仅第一个实例的 options 被更新，第二个实例与共享快照均未被污染
+        assert page._queue_state.queue_items[0]["options"] == {"x": "99"}
+        assert page._queue_state.queue_items[1]["options"] == {"x": 2}
+        assert "TaskA" not in page._queue_state.saved_task_options
+
+    def test_runtime_uses_instance_options_not_shared(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
+        page = _create_page(tmp_path, monkeypatch)
+        page._queue_state.set_queue_items([
+            {"name": "TaskA", "type": "task", "options": {"x": 1}},
+            {"name": "TaskA", "type": "task", "options": {"x": 2}},
+        ])
+        # 故意写入一个会被"旧合并逻辑"泄漏到执行的共享快照
+        page._queue_state.save_options("TaskA", {"x": 999, "leak": "should_not_appear"})
+
+        captured = []
+
+        def fake_sync(cmd, params=None, timeout_ms=300000):
+            captured.append((cmd, params))
+            return {"status": "success"}
+
+        page._sync_execute = fake_sync
+
+        page._runtime_queue_runner()
+
+        # 每个队列条目执行时只使用自身实例 options，不混入共享快照
+        assert len(captured) == 2
+        assert captured[0][1]["options"] == {"x": 1}
+        assert captured[1][1]["options"] == {"x": 2}
+        for _, params in captured:
+            assert "leak" not in params["options"]
+
+    def test_save_options_persists_when_ui_item_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
+        """回归：队列 UI 行与 state 不同步（item 为 None）时，_save_options 仍须更新实例并落盘，不得抛异常中断持久化。"""
+        page = _create_page(tmp_path, monkeypatch)
+        page._queue_state.set_queue_items([
+            {"name": "TaskA", "type": "task", "options": {"x": 1}},
+        ])
+        page._selected_task = "TaskA"
+        page._focused_queue_index = 0
+        page._option_widgets = {"x": type("W", (), {"value": lambda self: "99"})()}
+        page._tasks_cache = {"TaskA": {"option": ["x"]}}
+        page._task_option_defs = {"x": {"type": "switch"}}
+
+        class FakeList:
+            def rowCount(self):
+                return 1
+
+            def item(self, r, c):
+                return None  # 模拟 UI/state 不同步：列表项缺失
+
+        page._queue_list = FakeList()
+
+        # 不应抛异常；实例 options 必须更新，且状态必须写盘
+        page._save_options()
+        assert page._queue_state.queue_items[0]["options"] == {"x": "99"}
+        assert page._state_path.exists()  # 持久化已发生

@@ -1,5 +1,15 @@
 # 运行时、设备与 MaaEnd 集成
 
+## 0. 核心约定（MaaEnd 双目录与第三方内容）
+
+> **两条铁律：**
+> 1. **根目录 `MaaEnd/` 仅作参考**——它是上游 MaaEnd 源码镜像（github.com/MaaEnd/MaaEnd，分支 `v2`），不含构建产物，**不被 IEA 实际调用**。阅读/比对上游实现时用它，但不要指望它能被运行。
+> 2. **`3rd-part/` 才是被调用的运行时**——IEA 实际加载并运行的是 `3rd-part/maaend/`（MaaEnd.exe + `agent/` + `maafw/` + `tasks/` + `locales/` + `resource*/` + `interface.json`）。`MaaEndRuntime`（`src/core/service/maa_end/runtime.py`）默认从该目录读取。
+> 3. **第三方内容一律不上传**——`MaaEnd/` 与整个 `3rd-part/` 都被根目录 `.gitignore` **整体忽略**（`MaaEnd/` 第 3 行、`3rd-part/` 第 2/25 行，`git ls-files` 跟踪数为 0）。两者均为本机本地副本：
+>    - `3rd-part/maaend` 由开发者从 [MaaEnd GitHub Release](https://github.com/MaaEnd/MaaEnd/releases) 下载解压同步（见 4.1.1）；
+>    - `MaaEnd/` 由 `git pull` 上游源码更新。
+>    **任何情况下都不要 `git add` 这两个目录**，也不要把它们的内容提交到仓库——它们不属于版本控制范围，靠各自来源的同步机制维护。
+
 ## 1. 委托链完整路径
 
 ```
@@ -169,6 +179,27 @@
 - 反之，如果 `3rd-part/maaend/` 未同步更新，会加载过时的任务定义
 
 **影响**：任务执行时 pipeline override 与实际资源不匹配，导致识别失败、操作错误。
+
+### 4.1.1 同步 `3rd-part/maaend` 运行时的维护流程（SOP）
+
+> 关键事实：`3rd-part/maaend/` 被根目录 `.gitignore` **整体忽略**，不随 IEA 主仓库提交，也不会因 `git pull` 上游 `MaaEnd/` 源码而自动更新。它是 IEA 实际加载并运行的 MaaEnd 二进制/资源副本（扁平布局：`MaaEnd.exe` + `agent/` + `maafw/` + `tasks/` + `locales/` + `resource*/` + `interface.json`）。而根目录 `MaaEnd/` 只是上游源码镜像（分支 `v2`，含 `assets/` 子目录，无构建产物）。因此**上游发布新版本后，`3rd-part/maaend` 必须手动同步**，否则 IEA 仍加载旧任务/资源。
+
+同步步骤（Windows，本机架构 x86_64）：
+
+1. 下载对应平台的 Release 包：前往 [MaaEnd Releases](https://github.com/MaaEnd/MaaEnd/releases)，取与机器架构匹配的包（本机为 `MaaEnd-win-x86_64-vX.Y.Z.zip`；不要误用 `aarch64` 包）。版本对应关系：`MaaEnd/` 源码 `v2` 分支最新 commit ≈ 最新的 `v2.x.x`（含 `rc`/`beta` 预发布）tag。
+2. 校验完整性：比对 GitHub 页面给出的 `sha256` 与本地 `Get-FileHash -Algorithm SHA256` 结果。
+3. 解压。
+4. 合并覆盖到 `3rd-part/maaend/`：将解压内容整体复制进去，**覆盖同名文件，但不删除目标中多余文件**。Release 包不含 `cache/ config/ debug/ data/`，这些用户数据目录会被自然保留；程序与资源（`MaaEnd.exe`、`agent/`、`maafw/`、`tasks/`、`locales/`、`resource*/`、`interface.json`）得到更新。
+   - PowerShell 示例：`Copy-Item -Path "<解压目录>\*" -Destination "<项目>\3rd-part\maaend" -Recurse -Force`
+5. 若 `agent/go-service.exe` 复制时提示"正由另一进程使用"，说明有残留 agent 进程，先结束 `go-service` 进程（如 `Get-Process -Name go-service | Stop-Process -Force`）后重试。
+
+验证：
+
+- `3rd-part/maaend/interface.json` 的 `"version"` 字段为目标版本（如 `v2.19.0-rc.1`）。
+- 新 `import` 引用文件全部存在：检查 `interface.json` 的 `import` 列表在目录中均存在、无缺失。
+- 回归测试无破坏：`python -m pytest tests/test_queue_state.py tests/gui/pyqt6/test_gui_maaend_control.py -q`。
+
+注意：IEA 对 MaaEnd 选项/任务是**动态**从 `interface.json` + `tasks/*.json` + `locales` 读取的（无硬编码键），只要 `interface.json` 的 `import` 链完整、任务 JSON 可被 `rglob` 发现，重命名/新增任务不会破坏 IEA 代码。
 
 ### 4.2 `MAAFW_BINARY_PATH` 环境变量冲突
 

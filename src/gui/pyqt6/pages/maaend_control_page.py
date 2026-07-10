@@ -256,6 +256,7 @@ class MaaEndControlPage(QWidget):
         self._logger = get_logger(__name__)
         self._selected_task: Optional[str] = None
         self._selected_preset: Optional[str] = None
+        self._focused_queue_index: Optional[int] = None
         self._option_widgets: Dict[str, QWidget] = {}
         self._is_executing = False
         self._worker: Optional[TaskRunWorker] = None
@@ -301,6 +302,7 @@ class MaaEndControlPage(QWidget):
             item.setText(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
 
     def _restore_queue_ui(self) -> None:
+        self._focused_queue_index = None
         self._queue_list.setRowCount(0)
         for entry in self._queue_state.queue_items:
             row = self._queue_list.rowCount()
@@ -656,11 +658,15 @@ class MaaEndControlPage(QWidget):
     def _on_task_selected(self):
         items = self._task_list.selectedItems()
         self._selected_task = items[0].data(Qt.ItemDataRole.UserRole) if items else None
+        self._focused_queue_index = None
         self._build_option_editor()
+        self._persist_state()
 
     def _on_preset_selected(self):
         items = self._preset_list.selectedItems()
         self._selected_preset = items[0].data(Qt.ItemDataRole.UserRole) if items else None
+        self._focused_queue_index = None
+        self._persist_state()
 
     # ------------------------------------------------------------------
     # queue helpers
@@ -700,11 +706,8 @@ class MaaEndControlPage(QWidget):
         elif self._selected_task:
             name = self._selected_task
             item_type = "task"
-            current_options = self._collect_options()
-            saved = self._queue_state.load_options(name)
-            options = dict(saved) if saved else {}
-            options.update(current_options)
-            self._queue_state.save_options(name, options)
+            # 以当前编辑器值为准生成新实例，不再继承/合并被污染的共享 task_options 快照
+            options = self._collect_options()
             entry = {"name": name, "display_name": name, "type": item_type, "options": dict(options)}
             items = self._queue_state.queue_items + [entry]
             self._queue_state.set_queue_items(items)
@@ -809,14 +812,10 @@ class MaaEndControlPage(QWidget):
             self.queue_item_status_changed.emit(idx, "running")
             self.progress_changed.emit(int((idx) / total * 100), locale.tr("task_progress", "Running {idx}/{total}").format(idx=idx + 1, total=total))
             name, inline_options = self._normalize_runtime_entry(entry)
-            options = entry.get("options") or {}
+            # 仅使用该队列条目的实例 options（权威），不再合并共享 task_options 快照，避免其他实例选项泄漏
+            options = dict(entry.get("options") or {})
             if inline_options:
-                options = {**dict(options), **inline_options}
-            saved = self._queue_state.load_options(name)
-            if saved:
-                current_options = dict(options)
-                options = dict(saved)
-                options.update(current_options)
+                options = {**options, **inline_options}
             self.log_message.emit("队列", locale.tr("executing_task", "Executing {name} ({idx}/{total})").format(name=_zh(name), idx=idx + 1, total=total))
             clean_name, inline_options = self._parse_inline_task_name(name)
             merged_options = dict(inline_options)
@@ -841,7 +840,7 @@ class MaaEndControlPage(QWidget):
     # ------------------------------------------------------------------
     # option editor
     # ------------------------------------------------------------------
-    def _build_option_editor(self):
+    def _build_option_editor(self, queue_index: Optional[int] = None) -> None:
         while self._option_form.count():
             item = self._option_form.takeAt(0)
             widget = item.widget()
@@ -885,7 +884,9 @@ class MaaEndControlPage(QWidget):
             self._option_form.addWidget(container)
         self._option_form.addStretch()
         self._option_form.setEnabled(False)
-        self._apply_saved_option_values(self._selected_task)
+        # 信号防护由 _apply_saved_option_values 内部对每个 widget 调用 blockSignals 实现；
+        # 布局对象本身不发射信号，外层 _option_form.blockSignals 无效，故移除。
+        self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
         self._option_form.setEnabled(True)
 
     def resizeEvent(self, event) -> None:
@@ -1054,18 +1055,33 @@ class MaaEndControlPage(QWidget):
         if not self._selected_task:
             return
         options = self._collect_options()
-        self._queue_state.save_options(self._selected_task, options)
-        row = self._queue_list.currentRow()
-        if row >= 0 and row < len(self._queue_state.queue_items):
+        row = self._focused_queue_index
+        if row is not None and 0 <= row < len(self._queue_state.queue_items):
             entry = self._queue_state.queue_items[row]
             if entry.get("name") == self._selected_task:
-                entry["options"] = dict(options)
-                self._queue_list.item(row, 0).setText(self._format_queue_label(self._selected_task, entry.get("type", "task"), options))
+                # 聚焦队列条目时，仅写入该条目的实例 options，不污染共享 task_options 快照
+                self._queue_state.update_queue_item_options(row, options)
+            else:
+                # 行名不匹配（极端竞态），回退为写入共享默认
+                self._queue_state.save_options(self._selected_task, options)
+        else:
+            # 仅任务列表选中、未聚焦任何队列条目：写入共享默认（任务默认/新建种子）
+            self._queue_state.save_options(self._selected_task, options)
+        # 持久化优先且独立：即便后续 UI 刷新异常（如 item 为空），也必须保证本次编辑已落盘
         try:
             self._persist_state()
-            self._refresh_queue_list()
         except Exception as e:
             self.log_message.emit(locale.tr("persist", "Persist"), f"{locale.tr('save_failed', 'Save Failed')}: {e}")
+        # UI 刷新独立于持久化，避免 UI 异常（如 item(row,0) 为 None）吞掉写盘
+        try:
+            if row is not None and 0 <= row < len(self._queue_state.queue_items):
+                item = self._queue_list.item(row, 0)
+                if item is not None:
+                    entry = self._queue_state.queue_items[row]
+                    item.setText(self._format_queue_label(self._selected_task, entry.get("type", "task"), options))
+            self._refresh_queue_list()
+        except Exception:
+            pass
 
     def _refresh_queue_list(self) -> None:
         for row in range(self._queue_list.rowCount()):
@@ -1083,17 +1099,16 @@ class MaaEndControlPage(QWidget):
     def _clear_saved_options(self, task_name: str) -> None:
         self._queue_state.clear_saved_options(task_name)
 
-    def _apply_saved_option_values(self, task_name: str) -> None:
-        saved = self._load_options(task_name)
-        queue_options = None
-        for entry in self._queue_state.queue_items:
-            if entry.get("name") == task_name:
-                queue_options = entry.get("options")
-                break
-        if queue_options:
-            saved = dict(queue_options)
-        elif not saved:
-            return
+    def _apply_saved_option_values(self, task_name: str, queue_index: Optional[int] = None) -> None:
+        if queue_index is not None and 0 <= queue_index < len(self._queue_state.queue_items):
+            # 队列实例权威：只读取该条目的实例 options，不回退共享快照（避免被其他实例污染）
+            entry = self._queue_state.queue_items[queue_index]
+            saved = dict(entry.get("options") or {})
+        else:
+            # 非队列聚焦（任务列表选中）：读取共享默认
+            saved = self._load_options(task_name)
+            if not saved:
+                return
         task = self._tasks_cache.get(task_name)
         if not task:
             return
@@ -1217,12 +1232,19 @@ class MaaEndControlPage(QWidget):
     def _on_queue_focus_changed(self, row: int) -> None:
         if row < 0 or row >= len(self._queue_state.queue_items):
             return
+        # 切换前：把编辑器里仍是旧条目的已编辑值 flush 到旧实例（仅聚焦队列条目时）
+        if self._focused_queue_index is not None and self._selected_task and 0 <= self._focused_queue_index < len(self._queue_state.queue_items):
+            old_row = self._focused_queue_index
+            old_entry = self._queue_state.queue_items[old_row]
+            if old_entry.get("name") == self._selected_task:
+                self._queue_state.update_queue_item_options(old_row, self._collect_options())
         entry = self._queue_state.queue_items[row]
         name = entry.get("name")
         if not name:
             return
         self._selected_task = name
-        self._build_option_editor()
+        self._focused_queue_index = row
+        self._build_option_editor(queue_index=row)
 
     def _normalize_task_entry(self, task_entry: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
         name = str(task_entry.get("name") or "").strip()
