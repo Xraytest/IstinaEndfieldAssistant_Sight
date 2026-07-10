@@ -661,3 +661,18 @@
   - `reports/auto/20260711_0204.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；`git ls-files .agents/` 确认 8 个 tracked 文件均属首次审查。
+
+## 2026-07-11（第十七批次·文档-代码一致性 + 已知问题跟踪）
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。对 docs/ 目录下架构文档与代码的引用一致性进行审计，并验证 docs/README.md 记录的已知问题在当前代码中的实际修复状态。
+- **Outcome**: 识别出 5 项新发现（2 Medium / 2 Low / 1 Info）。关键结论：
+  1. **[DOC-02 Medium]** `docs/ARCHITECTURE.md` 含 6 处错误文件路径（`src/core/runtime/istina_runtime.py`、`src/infra/logging/`、`src/core/capability/llm/llama_server.py`、`src/core/capability/navigation/navigator.py`、`src/core/capability/recognition/recognizer.py`、`src/core/service/pipeline/runner.py`），正确路径分别为 `src/core/service/runtime.py`、`src/core/foundation/logger.py`、`src/core/capability/llm/runtime.py`、`src/core/service/navigation/navigator.py`、`src/core/capability/element_recognition/recognizer.py`、`src/core/capability/element_recognition/pipeline/pipeline_runner.py`。根因：文档从 6 个源文档合并时路径引用未同步更新。
+  2. **[DOC-03 Medium]** `docs/ARCHITECTURE.md:26-34` 目录结构图包含不存在的 `infra/` 和 `runtime/` 目录，缺少 `element_recognition/`、`maa_end/` 子目录层级。
+  3. **[DOC-04 Low]** `docs/README.md:252` 记录 Bug 2（预览定时器干扰任务执行）"仍需修复"，但当前 `main_window.py:327-329` 已通过 `_is_executing` 守卫修复——预览定时器触发时检查执行状态直接返回。文档状态未同步。
+  4. **[DOC-05 Low]** `docs/README.md:111-137` 记录 Bug 3（预设类型硬编码为 "task"）仍有效——`maaend_control_page.py:701/1389/1432` 三处硬编码 `"type": "task"`，`_runtime_queue_runner` 中无 `preset run` 分支。修复建议应包含正确的 `type` 传递和 runner 分支。
+  5. **[DOC-06 Info]** `docs/ARCHITECTURE.md:122` 描述 `3rd-part/maaend/agent/` 含 Python agent，实际为空目录。
+- **审计修正**：批次 16 AGT-07 数量描述正确（5 个不存在），但列举的缺失名称列表有误——CLAUDE.md 存在（项目根目录），docs/ARCHITECTURE.md 和 docs/WORKFLOW.md 存在；实际不存在的 5 个为 RUNTIME_DEVICE_AND_MAAEND.md、GUI_CLI_AND_AUTOMATION.md、LLM_AND_NAVIGATION.md、RECOGNITION_PIPELINE_AND_TASKS.md、CODE_QUALITY_AND_CLEANUP.md。
+- **Files Modified**:
+  - `reports/auto/20260711_0215.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；文档路径经 `ls` 逐一验证，代码修复状态经 `grep` 和逐行源码核对确认。
