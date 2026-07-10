@@ -778,3 +778,17 @@
   - `reports/auto/20260711_FIXABILITY.md`（新增·P0 修复影响域分析报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。
+
+## 2026-07-11（第二十三批次·数据流完整性审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。对 CLI → Runtime → Device 的完整数据流进行端到端追踪审计，识别数据契约破损（调用方期望的返回值类型与实际返回值不一致）。不重复提交历史已记录的独立 bug。
+- **Outcome**: 完成端到端数据流追踪，识别 3 项数据契约破损（DF-1/DF-2/DF-3），均为新发现。关键结论：
+  1. **[DF-1 Medium]** `execute()`（`runtime.py:348-349`）对未知命令返回 `None` 而非错误 dict，违反调用方期望的 `Dict[str, Any]` 契约。llm 域有兜底（`return {"status": "error", ...}`），但 nav3/nav2/scene/task 等域无兜底。
+  2. **[DF-2 Medium]** `_on_bridge_command_finished`（`main_window.py:279-287`）直接调用 `result.get("status")` 不检查 None，Qt signal/slot 捕获异常但 GUI 状态更新中断。CLIBridge._on_stdout 有 isinstance 保护，但 main_window 无。
+  3. **[DF-3 Medium]** `_interactive_loop`（`istina.py:355-362`）对 None 结果捕获 AttributeError 后返回 `str(exc)`，用户看到内部错误消息（如 "VLM keyevent 'w' failed"）而非业务语义（"未知命令"）。
+  4. **额外发现**：`_sync_execute`（`maaend_control_page.py:336`）将 `result is None` 判定为超时，将"命令错误"误判为"超时"，可能触发错误的恢复逻辑。
+  5. 与 XC-1 关联但扩展：XC-1 被降级为"非终端用户问题"，但本次发现其影响延伸至 GUI 桥接链路（main_window.py）和 `_sync_execute` 超时误判。
+- **Files Modified**:
+  - `reports/auto/20260711_DATAFLOW.md`（新增·数据流完整性审计报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。grep 确认 `runtime.execute()` 有 37 个调用点，全部在 `handlers.py` 中（硬编码有效命令），仅边界路径（_interactive_loop、_on_bridge_command_finished、_sync_execute）受 DF-1 影响。
