@@ -821,3 +821,20 @@
   - `reports/auto/20260711_SECPEN.md`（新增·安全渗透审计报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。攻击面覆盖 13 个用户输入向量 × 5 层防护体系。
+
+## 2026-07-11（第二十六批次·最终综合审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。综合全部 62+ 源文件进行最终代码审计，覆盖此前未深度审查的 scripting_page.py、recognizer.py、llm/runtime.py、recovery.py、cli_bridge.py 等文件，并对全部 25+ 历史报告进行二次审计验证。
+- **Outcome**: 完成最终综合审计，识别 8 项新发现（C01-C08），其中 2 项紧急漏洞，3 项高危问题，3 项中低危优化。对全部历史报告 25+ 条发现进行逐条源码验证，**结论：历史报告零新增纠正，全部经二次验证确认准确**。关键结论：
+  1. **[C01 Critical]** `recovery.py:70-72` `_force_stop` 将 `"am force-stop"` 作为单个字符串参数传递且 `self._package` 未过滤，存在命令注入风险。
+  2. **[C02 Critical]** `maa_end/runtime.py:520-525` `_replace_tokens` 顺序替换导致链式替换：若 `values={"A":"{B}","B":"Z"}`，`{A}` 最终变成 `Z` 而非 `{B}`。
+  3. **[C03 High]** `maa_end/runtime.py:814-832` `screenshot()` 一次失败即翻转 `_connected=False`，临时故障导致误重连。
+  4. **[C04 High]** `prts_full_intelligence_page.py:209-224` `_on_command_finished` 未防护 `None`，上游返回 None 时触发 `AttributeError`。
+  5. **[C05 High]** `settings_page.py:181-205` LLM 路径保存时无存在性检查，启动时崩溃。
+  6. **[C06 Medium]** `adb_manager.py` ADB 路径硬编码，工作目录变化时失效。
+  7. **[C07 Medium]** `theme_manager.py` + `touch_manager.py` 单例 `__new__` 无锁保护。
+  8. **[C08 Low]** `main_window.py:314-317` `_set_taskbar_progress` 空方法占位符。
+- **Files Modified**:
+  - `reports/auto/20260711_FINAL.md`（更新·最终综合审计报告，新增批次 #26 发现 + 历史报告审计验证）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 25+ 条发现全部经二次验证确认准确，零新增纠正。
