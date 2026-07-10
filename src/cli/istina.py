@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
 import sys
 from pathlib import Path
 from typing import Any, Optional
@@ -267,58 +268,103 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
     runtime = IstinaRuntime()
     buffer = ""
     self_logger = get_logger(__name__)
-    while True:
-        chunk = None
-        try:
-            chunk = sys.stdin.read(1)
-        except Exception as exc:
-            self_logger.error("CLI 交互循环: stdin 读取异常", error=str(exc))
-            break
-        if not chunk:
-            self_logger.info("CLI 交互循环: stdin EOF")
-            break
-        if isinstance(chunk, bytes):
+
+    # Redirect stdout fd → stderr fd so that C++ library output (MaaFramework
+    # logs, print statements, etc.) cannot corrupt the JSON results we write
+    # to the original stdout.  JSON results are written via os.write() to the
+    # saved original fd.
+    _orig_stdout_fd: Optional[int] = None
+    try:
+        sys.stdout.flush()
+        _orig_stdout_fd = os.dup(sys.stdout.fileno())
+        os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
+    except Exception:
+        _orig_stdout_fd = None
+
+    def _write_result(result: Any) -> None:
+        payload = (_json_dumps(result) + "\n").encode("utf-8", errors="replace")
+        if _orig_stdout_fd is not None:
             try:
-                chunk = chunk.decode("utf-8", errors="replace")
-            except Exception:
-                chunk = ""
-        if not chunk:
-            continue
-        try:
-            buffer += chunk
-        except Exception as exc:
-            self_logger.error("CLI 交互循环: buffer 追加异常", error=str(exc))
-            break
-        if chunk == "\n":
-            line = buffer.strip()
-            buffer = ""
-            if not line:
-                continue
-            self_logger.info("CLI 交互循环: 收到命令", command=line)
-            result = None
-            try:
-                args = parser.parse_args(line.split())
-                self_logger.info("CLI 交互循环: 解析成功", command=getattr(args, 'command', None), action=getattr(args, 'action', None))
-                result = CLIDispatch(runtime).dispatch(args)
-                self_logger.info("CLI 交互循环: 执行完成", status=result.get("status") if isinstance(result, dict) else None)
-            except SystemExit:
-                result = {"status": "error", "message": "invalid command"}
-                self_logger.warning("CLI 交互循环: 参数解析失败", command=line)
-            except Exception as exc:
-                result = {"status": "error", "message": str(exc)}
-                self_logger.error("CLI 交互循环: 执行异常", command=line, error=str(exc))
-            try:
-                payload = (_json_dumps(result) + "\n").encode("utf-8", errors="replace")
-                sys.stdout.buffer.write(payload)
-                sys.stdout.buffer.flush()
+                # Write the full payload; os.write() may perform a short write
+                # on pipes, so loop until the entire payload is flushed. Without
+                # this loop, large results (e.g. an ~830 KB `metadata list`
+                # response) can be truncated, which silently breaks the GUI's
+                # JSON parsing and leaves task/preset lists empty.
+                view = memoryview(payload)
+                while view:
+                    n = os.write(_orig_stdout_fd, view)
+                    if n <= 0:
+                        raise OSError("os.write returned non-positive byte count")
+                    view = view[n:]
             except Exception as exc:
                 self_logger.error("CLI 交互循环: stdout 写入异常", error=str(exc))
+        else:
+            try:
+                sys.stderr.buffer.write(payload)
+                sys.stderr.buffer.flush()
+            except Exception as exc:
+                self_logger.error("CLI 交互循环: stderr 写入异常", error=str(exc))
+
+    try:
+        while True:
+            chunk = None
+            try:
+                chunk = sys.stdin.read(1)
+            except Exception as exc:
+                self_logger.error("CLI 交互循环: stdin 读取异常", error=str(exc))
+                break
+            if not chunk:
+                self_logger.info("CLI 交互循环: stdin EOF")
+                break
+            if isinstance(chunk, bytes):
+                try:
+                    chunk = chunk.decode("utf-8", errors="replace")
+                except Exception:
+                    chunk = ""
+            if not chunk:
+                continue
+            try:
+                buffer += chunk
+            except Exception as exc:
+                self_logger.error("CLI 交互循环: buffer 追加异常", error=str(exc))
+                break
+            if chunk == "\n":
+                line = buffer.strip()
+                buffer = ""
+                if not line:
+                    continue
+                self_logger.info("CLI 交互循环: 收到命令", command=line)
+                result = None
+                try:
+                    args = parser.parse_args(shlex.split(line))
+                    self_logger.info("CLI 交互循环: 解析成功", command=getattr(args, 'command', None), action=getattr(args, 'action', None))
+                    result = CLIDispatch(runtime).dispatch(args)
+                    self_logger.info("CLI 交互循环: 执行完成", status=result.get("status") if isinstance(result, dict) else None)
+                except SystemExit:
+                    result = {"status": "error", "message": "invalid command"}
+                    self_logger.warning("CLI 交互循环: 参数解析失败", command=line)
+                except Exception as exc:
+                    result = {"status": "error", "message": str(exc)}
+                    self_logger.error("CLI 交互循环: 执行异常", command=line, error=str(exc))
+                _write_result(result)
+    finally:
+        if _orig_stdout_fd is not None:
+            try:
+                os.close(_orig_stdout_fd)
+            except Exception:
+                pass
     self_logger.info("CLI 交互循环: 退出")
     return 0
 
 
 def _auto_warmup(runtime: IstinaRuntime, args: argparse.Namespace) -> None:
-    if args.command == "llm":
+    # Only actually start the model server for commands that need inference.
+    # `llm status` is a pure read-only query and must NOT trigger warmup_llm(),
+    # which synchronously starts llama-server (blocking up to ~60s). The CLI
+    # processes interactive commands serially on one thread, so a blocking
+    # warmup on `llm status` would starve every later command (e.g.
+    # `metadata list`), leaving task/preset lists permanently empty.
+    if args.command == "llm" and getattr(args, "action", None) not in ("status",):
         runtime.warmup_llm()
 
 

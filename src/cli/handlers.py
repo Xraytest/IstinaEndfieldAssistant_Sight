@@ -398,9 +398,15 @@ def _handle_device_swipe(runtime: IstinaRuntime, args: argparse.Namespace) -> Di
 
 def _handle_device_keyevent(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     android = runtime.android()
+    key = str(getattr(args, "key", "")).strip()
+    # 校验 keyevent 参数：必须为纯数字或 KEYCODE_ 前缀常量名
+    if not key:
+        return {"status": "error", "message": "empty keyevent"}
+    if not (key.isdigit() or key.startswith("KEYCODE_")):
+        return {"status": "error", "message": f"invalid keyevent: {key!r} (must be digits or KEYCODE_* constant)"}
     try:
-        android.shell(f"input keyevent {args.key}")
-        return {"status": "success", "key": args.key}
+        android.shell(f"input keyevent {key}")
+        return {"status": "success", "key": key}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 

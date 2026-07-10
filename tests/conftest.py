@@ -3,8 +3,8 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import QProcess, QObject
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import QProcess, QObject, pyqtSignal
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 workspace_tmp = Path(__file__).resolve().parent.parent / ".tmp" / "pytest-qt-temp"
@@ -33,7 +33,16 @@ def qapp() -> QApplication:
     return app
 
 
-from PyQt6.QtCore import pyqtSignal
+@pytest.fixture(autouse=True)
+def _disable_modal_message_boxes(monkeypatch):
+    """Suppress modal QMessageBox dialogs in tests so timeouts can fire correctly."""
+    monkeypatch.setattr(QMessageBox, "critical", lambda *args, **kwargs: None)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args, **kwargs: None)
+    monkeypatch.setattr(QMessageBox, "information", lambda *args, **kwargs: None)
+    monkeypatch.setattr(QMessageBox, "about", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Yes
+    )
 
 
 class _FakeProcess:

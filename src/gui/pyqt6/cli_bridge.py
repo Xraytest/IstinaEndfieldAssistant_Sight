@@ -60,8 +60,13 @@ class CLIBridge(QObject):
     def _build_args(command: str, params: Dict[str, Any]) -> List[str]:
         args = command.split()
         for key, value in params.items():
+            if value is None:
+                continue
             args.append(f"--{key}")
-            args.append(str(value))
+            if isinstance(value, (dict, list)):
+                args.append(json.dumps(value, ensure_ascii=False))
+            else:
+                args.append(str(value))
         return args
 
     def _send_next_if_idle(self) -> None:
@@ -115,7 +120,9 @@ class CLIBridge(QObject):
             return
         if self._process.state() == QProcess.ProcessState.NotRunning:
             return
-        line = " ".join(self._current_command) + "\n"
+        import shlex
+
+        line = shlex.join(self._current_command) + "\n"
         self._logger.debug(LogCategory.GUI, "写入 CLI 命令", command=line.strip())
         try:
             self._process.write(line.encode("utf-8"))

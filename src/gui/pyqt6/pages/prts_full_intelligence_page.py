@@ -207,10 +207,13 @@ class PrtsFullIntelligencePage(QWidget):
         self._status_label.setStyleSheet(BLUE_STYLE if ready else RED_STYLE)
 
     def _on_command_finished(self, command: str, result: dict) -> None:
-        if command == "llm status":
+        # command 可能带参数（如 "llm status" 或 "llm chat --text ... --image ..."），
+        # 用前缀匹配避免精确字符串比较导致的信号丢失。
+        cmd_parts = command.split()
+        if len(cmd_parts) >= 2 and cmd_parts[0] == "llm" and cmd_parts[1] == "status":
             ready = bool(result.get("ready"))
             self._finalize_startup_status(ready)
-        elif command == "llm chat":
+        elif len(cmd_parts) >= 2 and cmd_parts[0] == "llm" and cmd_parts[1] == "chat":
             if result.get("status") == "success":
                 output = result.get("output", "")
                 self._append_chat("LLM", output)
@@ -241,7 +244,8 @@ class PrtsFullIntelligencePage(QWidget):
         self._image_path_label.setText(locale.tr("no_image", "No image attached"))
 
         self._worker = LlmChatWorker(self._bridge, text, image_b64, self)
-        self._worker.finished.connect(self._on_command_finished)
+        # worker 仅用于在独立线程触发 execute（避免阻塞 UI）；
+        # 实际结果由 bridge.commandFinished 信号回传，_on_command_finished 处理。
         self._worker.start()
 
     def _attach_image(self) -> None:

@@ -35,8 +35,9 @@ class TestSettingsPageControls:
         import gui.pyqt6.pages.settings_page as _mod
         from gui.pyqt6.i18n import get_locale_manager
 
-        config_path = tmp_path / "client_config.json"
-        config_path.write_text(
+        config_path = tmp_path / "config"
+        config_path.mkdir(parents=True, exist_ok=True)
+        (config_path / "client_config.json").write_text(
             json.dumps({
                 "llm": {"enabled": False, "model_path": "/models/model.bin", "port": 8888, "threads": 8},
                 "preview_interval_ms": 2500,

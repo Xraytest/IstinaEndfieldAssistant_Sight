@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional
+
 
 import cv2
 import numpy as np
@@ -109,6 +112,7 @@ class IstinaRuntime:
         self._config = self._load_config()
         self._android_clients: Dict[str, AndroidRuntimeProxy] = {}
         self._maaend_clients: Dict[str, Any] = {}
+        self._clients_lock = threading.Lock()  # 保护客户端字典的并发创建
         self._maaend: Optional[Any] = None
         self._llm_runtime: Optional[Any] = None
         self._llm_client: Optional[Any] = None
@@ -148,11 +152,15 @@ class IstinaRuntime:
         )
         runtime = self._android_clients.get(resolved)
         if runtime is None:
-            runtime = AndroidRuntimeProxy(
-                adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
-                device_address=resolved,
-            )
-            self._android_clients[resolved] = runtime
+            with self._clients_lock:
+                # 双重检查，避免锁内重复创建
+                runtime = self._android_clients.get(resolved)
+                if runtime is None:
+                    runtime = AndroidRuntimeProxy(
+                        adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
+                        device_address=resolved,
+                    )
+                    self._android_clients[resolved] = runtime
         return runtime
 
     def _resolve_serial(self, serial: Optional[str]) -> str:
@@ -171,14 +179,18 @@ class IstinaRuntime:
         resolved = self._resolve_serial(serial)
         runtime = self._maaend_clients.get(resolved)
         if runtime is None:
-            from core.service.maa_end.runtime import MaaEndRuntime
-            runtime = MaaEndRuntime(
-                maaend_root=self._config.get("maaend_root"),
-                device_address=resolved,
-                adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
-                adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", False),
-            )
-            self._maaend_clients[resolved] = runtime
+            with self._clients_lock:
+                # 双重检查，避免锁内重复创建
+                runtime = self._maaend_clients.get(resolved)
+                if runtime is None:
+                    from core.service.maa_end.runtime import MaaEndRuntime
+                    runtime = MaaEndRuntime(
+                        maaend_root=self._config.get("maaend_root"),
+                        device_address=resolved,
+                        adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
+                        adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", False),
+                    )
+                    self._maaend_clients[resolved] = runtime
         return runtime
 
     def scene(self) -> Any:
@@ -426,6 +438,7 @@ class IstinaRuntime:
     def _daily_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}
         preset_name = options.get("preset", "DailyFull")
+        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
         if not self._ensure_maaend_ready(runtime):
@@ -437,6 +450,17 @@ class IstinaRuntime:
                 "options": options,
                 "maaend_connected": False,
             }
+        # 在运行每日预设前，确保游戏已启动并进入大世界。
+        if not self._ensure_game_in_world(runtime, serial, client_version):
+            return {
+                "status": "error",
+                "command": "daily.run",
+                "flow": "daily_quest",
+                "preset": preset_name,
+                "options": options,
+                "maaend_connected": self.connected,
+                "message": "启动游戏或等待进入大世界失败",
+            }
         ok = self.execute("preset.run", {"name": preset_name, "serial": serial})
         return {
             "status": "success" if ok else "error",
@@ -446,6 +470,41 @@ class IstinaRuntime:
             "options": options,
             "maaend_connected": self.connected,
         }
+
+    def _ensure_game_in_world(self, runtime: Any, serial: Optional[str], client_version: str) -> bool:
+        """启动游戏并等待进入大世界。"""
+        try:
+            android = self.android(serial)
+            pid = android.shell("pidof com.hypergryph.endfield").strip()
+            if pid:
+                self._logger.info(LogCategory.MAIN, "游戏进程已在运行", pid=pid)
+            else:
+                self._logger.info(LogCategory.MAIN, "游戏未运行，准备启动")
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "检查游戏进程失败", error=str(exc))
+
+        # AndroidOpenGame 任务会启动游戏并等待进入大世界
+        if not runtime.run_task("AndroidOpenGame", {"ClientVersion": client_version}):
+            self._logger.error(LogCategory.MAIN, "AndroidOpenGame 执行失败")
+            return False
+
+        # 额外等待大世界稳定，防止部分加载界面导致后续任务误判
+        return self._wait_for_in_world(runtime, timeout=120, interval=2)
+
+    def _wait_for_in_world(self, runtime: Any, timeout: int = 120, interval: int = 2) -> bool:
+        """循环检测是否已进入大世界，最多等待 timeout 秒。"""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                if runtime.run_pipeline("EnterGame", {}):
+                    self._logger.info(LogCategory.MAIN, "已进入大世界")
+                    return True
+            except Exception as exc:
+                self._logger.warning(LogCategory.MAIN, "进入大世界检测异常", error=str(exc))
+            time.sleep(interval)
+        self._logger.warning(LogCategory.MAIN, "等待进入大世界超时")
+        return False
+
 
     def _harvest_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}

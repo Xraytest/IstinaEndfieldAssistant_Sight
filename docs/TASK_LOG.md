@@ -1,5 +1,30 @@
 # 任务日志
 
+## 2026-07-10 07:49
+
+- **User Request**: 从断点处继续修复 P0/P1 漏洞与 UX 问题，并新增测试用安卓设备 `192.168.1.12:16512`。
+- **Outcome**: 完成第二波修复，新增测试设备已写入 `config/client_config.json`；修复范围涵盖 GUI 信号匹配、HTML 转义、ADB 注入、进程/资源清理与线程安全：
+  1. `src/gui/pyqt6/pages/prts_full_intelligence_page.py`：修复聊天命令精确匹配导致功能完全失效的问题；将 `command == "llm chat"` 改为按空格拆分后的前缀匹配；移除错误的 `worker.finished` 信号连接，结果统一由 `bridge.commandFinished` 回传。
+  2. `src/gui/pyqt6/pages/log_page.py`：修复 `_highlight_log` 中 HTML 转义 no-op（`line.replace("&", "&")` 无效），改为 `html.escape(line, quote=False)`，防止恶意日志内容被 Qt 渲染执行。
+  3. `src/core/capability/device/android_runtime.py`：新增 `_is_valid_keyevent` 与 `_is_allowed_shell_cmd` 校验器，仅允许白名单前缀的 shell 命令和数字/KEYCODE_ 形式的 keyevent；`_decode_loop` 增加 `try/finally` 关闭 `fileobj` 与 `sock`；`_call` 增加 `sock.settimeout(30.0)` 与 `socket.timeout` 异常处理。
+  4. `src/cli/handlers.py`：`_handle_device_keyevent` 增加参数校验，空值、非数字且非 `KEYCODE_` 前缀直接返回错误。
+  5. `src/core/service/maa_end/runtime.py`：`_cleanup_partial` 在 `kill()` 后追加 `wait(timeout=3)`；`_start_agent` 增加就绪轮询，确保 `go-service.exe` 未立即退出；将 `_tasks_loaded`/`_presets_loaded` 移至加载循环完成后设置，避免空列表被错误标记为已加载。
+  6. `src/gui/pyqt6/main_window.py`：`_refresh_preview` 增加 `_preview_fail_count` 计数器，连续 5 次截图失败后调用 `set_connected(False)` 并提示连接丢失。
+  7. `src/core/service/runtime.py`：新增 `_clients_lock = threading.Lock()`，对 `android()` 与 `maaend()` 使用双检锁，避免并发创建多实例。
+  8. `tests/gui/pyqt6/test_gui_log_viewer.py`：更新 `test_html_escaping` 并新增 `test_html_escaping_with_highlight`，断言正确的 `&lt;`、`&gt;`、`&amp;` 实体与 `<span` 高亮标签。
+  9. `config/client_config.json`：将默认/历史/最近连接设备更新为 `192.168.1.12:16512`。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/prts_full_intelligence_page.py`
+  - `src/gui/pyqt6/pages/log_page.py`
+  - `src/core/capability/device/android_runtime.py`
+  - `src/cli/handlers.py`
+  - `src/core/service/maa_end/runtime.py`
+  - `src/gui/pyqt6/main_window.py`
+  - `src/core/service/runtime.py`
+  - `tests/gui/pyqt6/test_gui_log_viewer.py`
+  - `config/client_config.json`
+- **验证**：`pytest tests/gui/pyqt6/test_gui_log_viewer.py` 通过；`py_compile` 语法检查通过；除一个已存在的 `test_gui_scripting.py::TestPlayer::test_stop_stops_timer` 超时失败外，其余测试通过。
+
 ## 2026-07-09 09:42
 
 - **User Request**: 清理GUI残留的界面主题相关内容。
@@ -128,3 +153,11 @@
 - **Files Modified**:
   - `src/gui/pyqt6/dashboard/`（删除）
 - **验证**：`grep` 全项目确认无 `dashboard` 引用；目录已不存在。
+
+## 2026-07-09 22:09
+
+- **User Request**: 依据模块划分创建至少100个agent的agent swarm分模块审计代码，分析漏洞与用户不友好的设计，给出报告，严禁更改文件。
+- **Outcome**: 完成 176 个 Agent Swarm 子代理分模块并行审计，覆盖 IEA Python 全栈（foundation/device/recognition/LLM/nav/service/GUI/CLI/tests）、MaaEnd Go common/business 包、MaaEnd C++ algo 模块，生成报告 `reports/comprehensive_audit_agent_swarm_176.md`。关键数据：176 个子代理、548 处发现提及、179 项去重后问题（P0: 22, P1: 36, P2: 56, P3: 65）。新增发现包括：Go Service 全局状态并发安全、C++ 符号链接递归遍历、Python 日志无轮转、Go stderr 平台差异等。
+- **Files Modified**:
+  - `reports/comprehensive_audit_agent_swarm_176.md`（新增）
+- **验证**：只读审计，未修改任何业务代码；176 个 agent 全部 completed。

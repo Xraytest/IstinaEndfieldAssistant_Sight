@@ -332,25 +332,37 @@ class MainWindow(QMainWindow):
         self._logger.debug(LogCategory.GUI, "screenshot 命令完成", result_type=type(result).__name__, result_status=result.get("status") if isinstance(result, dict) else None)
         if not result or result.get("status") != "success":
             self._logger.debug(LogCategory.GUI, "预览刷新失败", result=result)
+            # 连续截图失败时反写连接状态，避免 GUI 显示"已连接"但预览空白且无提示
+            self._preview_fail_count = getattr(self, "_preview_fail_count", 0) + 1
+            if self._preview_fail_count >= 5:
+                self._logger.warning(LogCategory.GUI, "连续截图失败达到阈值，标记连接为断开", fail_count=self._preview_fail_count)
+                self._maaend_page.set_connected(False)
+                self._maaend_page._append_log("系统", locale.tr("preview_lost_connection", "Preview unavailable: device connection may be lost."))
+                self._preview_fail_count = 0
             return
+        # 截图成功，重置失败计数
+        self._preview_fail_count = 0
         data = result.get("base64")
-        if not data:
+        image_data: Optional[bytes] = None
+        if data:
+            try:
+                import base64
+
+                image_data = base64.b64decode(data)
+            except Exception as exc:
+                self._logger.warning(LogCategory.GUI, "base64 解码失败", error=str(exc))
+                return
+        else:
             path = result.get("path")
             if path:
                 try:
-                    data = Path(path).read_bytes()
+                    image_data = Path(path).read_bytes()
                 except Exception as exc:
                     self._logger.warning(LogCategory.GUI, "读取预览图片文件失败", path=path, error=str(exc))
                     return
             else:
                 self._logger.debug(LogCategory.GUI, "预览退出: 无 base64 且无 path")
                 return
-        try:
-            import base64
-            image_data = base64.b64decode(data)
-        except Exception as exc:
-            self._logger.warning(LogCategory.GUI, "base64 解码失败", error=str(exc))
-            return
         pixmap = QPixmap()
         loaded = pixmap.loadFromData(image_data)
         self._logger.debug(LogCategory.GUI, "QPixmap 加载", loaded=loaded, image_size=len(image_data))

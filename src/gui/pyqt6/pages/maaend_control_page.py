@@ -247,6 +247,8 @@ class ToggleSwitch(QWidget):
 class MaaEndControlPage(QWidget):
     execution_state_changed = pyqtSignal(bool)
     log_message = pyqtSignal(str, str)
+    queue_item_status_changed = pyqtSignal(int, str)
+    progress_changed = pyqtSignal(int, str)
 
     def __init__(self, bridge: CLIBridge, parent=None):
         super().__init__(parent)
@@ -284,6 +286,9 @@ class MaaEndControlPage(QWidget):
         self._restore_queue_ui()
         self.log_message.connect(self._append_log)
         self._bridge.logMessage.connect(self._append_log)
+        self.queue_item_status_changed.connect(self._on_queue_item_status_changed)
+        self.progress_changed.connect(self._on_progress_changed)
+
 
     def _refresh_queue_list(self) -> None:
         for row in range(self._queue_list.rowCount()):
@@ -799,10 +804,10 @@ class MaaEndControlPage(QWidget):
             if self._worker and getattr(self._worker, '_stopped', False):
                 break
             entry = items[idx]
-            entry["status"] = "running"
-            self._refresh_queue_list()
-            self._progress_bar.setValue(int((idx) / total * 100))
-            self._progress_bar.setFormat(locale.tr("task_progress", "Running {idx}/{total}").format(idx=idx + 1, total=total))
+            # 通过 QueueState 加锁更新状态，再通过信号让主线程刷新 UI
+            self._queue_state.update_queue_item_status(idx, "running")
+            self.queue_item_status_changed.emit(idx, "running")
+            self.progress_changed.emit(int((idx) / total * 100), locale.tr("task_progress", "Running {idx}/{total}").format(idx=idx + 1, total=total))
             name, inline_options = self._normalize_runtime_entry(entry)
             options = entry.get("options") or {}
             if inline_options:
@@ -812,26 +817,26 @@ class MaaEndControlPage(QWidget):
                 current_options = dict(options)
                 options = dict(saved)
                 options.update(current_options)
-            self._append_log("队列", locale.tr("executing_task", "Executing {name} ({idx}/{total})").format(name=_zh(name), idx=idx + 1, total=total))
+            self.log_message.emit("队列", locale.tr("executing_task", "Executing {name} ({idx}/{total})").format(name=_zh(name), idx=idx + 1, total=total))
             clean_name, inline_options = self._parse_inline_task_name(name)
             merged_options = dict(inline_options)
             merged_options.update(options)
-            payload = json.dumps({"name": clean_name, "options": merged_options}, ensure_ascii=False)
-            result = self._sync_execute(f"task run {clean_name} --options {payload}", timeout_ms=300000)
+            # name 是 argparse 位置参数，嵌入命令字符串；options 通过 params 传递
+            result = self._sync_execute(f"task run {clean_name}", {"options": merged_options}, timeout_ms=300000)
+
             ok = bool(result and result.get("status") == "success")
-            entry["status"] = "success" if ok else "failed"
-            self._refresh_queue_list()
-            self._append_log("队列", f"{_zh(name)} -> {locale.tr('queue_success' if ok else 'queue_failed', 'Success' if ok else 'Failed')} ({idx + 1}/{total})")
+            self._queue_state.update_queue_item_status(idx, "success" if ok else "failed")
+            self.queue_item_status_changed.emit(idx, "success" if ok else "failed")
+            self.log_message.emit("队列", f"{_zh(name)} -> {locale.tr('queue_success' if ok else 'queue_failed', 'Success' if ok else 'Failed')} ({idx + 1}/{total})")
             if not ok:
                 failed.append(idx)
         self._failed_indices = failed
         if failed:
-            self._progress_bar.setValue(100)
-            self._progress_bar.setFormat(locale.tr("execution_failed", "Failed"))
+            self.progress_changed.emit(100, locale.tr("execution_failed", "Failed"))
             return False
-        self._progress_bar.setValue(100)
-        self._progress_bar.setFormat(locale.tr("execution_completed", "Completed"))
+        self.progress_changed.emit(100, locale.tr("execution_completed", "Completed"))
         return True
+
 
     # ------------------------------------------------------------------
     # option editor
@@ -1370,8 +1375,8 @@ class MaaEndControlPage(QWidget):
         clean_name, inline_options = self._parse_inline_task_name(name)
         merged_options = dict(inline_options)
         merged_options.update(options)
-        payload = json.dumps({"name": clean_name, "options": merged_options}, ensure_ascii=False)
-        result = self._sync_execute(f"task run {clean_name} --options {payload}")
+        # name 是 argparse 位置参数，嵌入命令字符串；options 通过 params 传递
+        result = self._sync_execute(f"task run {clean_name}", {"options": merged_options})
         return bool(result and result.get("status") == "success")
 
     def _apply_preset_to_queue(self):
@@ -1484,6 +1489,22 @@ class MaaEndControlPage(QWidget):
         # Store reference to prevent garbage collection
         self._status_pulse_animation = animation
 
+    def _on_queue_item_status_changed(self, row: int, status: str) -> None:
+        """主线程槽：更新队列列表中指定行的状态显示。"""
+        self._queue_state.update_queue_item_status(row, status)
+        item = self._queue_list.item(row, 0)
+        if item is None:
+            return
+        entry = self._queue_state.get_queue_item(row)
+        if entry is None:
+            return
+        item.setText(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
+
+    def _on_progress_changed(self, value: int, fmt: str) -> None:
+        """主线程槽：更新进度条。"""
+        self._progress_bar.setValue(value)
+        self._progress_bar.setFormat(fmt)
+
     def _append_log(self, source: str, text: str):
         color = BLUE_STYLE if source == "系统" else VAL_STYLE
         self._log_text.append(f"<span style='{color}'>[{source}] {text}</span>")
@@ -1491,6 +1512,7 @@ class MaaEndControlPage(QWidget):
         cursor = self._log_text.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
         self._log_text.setTextCursor(cursor)
+
 
     def _apply_log_filter(self, index: int) -> None:
         # Simple filter: hide/show log lines by checking source tags
@@ -1527,4 +1549,6 @@ class TaskRunWorker(QThread):
 
     def stop(self):
         self._stopped = True
-        self.terminate()
+        # 不再调用 QThread.terminate()，避免在子线程持有资源时强制终止导致崩溃或数据损坏。
+        # 目标方法会通过定期检查 _stopped 标志安全退出。
+

@@ -132,7 +132,6 @@ class MaaEndRuntime:
         tasks_root = self._resolve_asset_path("tasks")
         self._tasks = {}
         self._option_defs = {}
-        self._tasks_loaded = True
         for json_path in tasks_root.rglob("*.json"):
             if json_path.name == "nodes.json":
                 continue
@@ -153,13 +152,14 @@ class MaaEndRuntime:
                         self._tasks[name] = task_copy
             except Exception as e:  # pragma: no cover
                 self.logger.debug(LogCategory.MAIN, "加载任务定义失败", path=str(json_path), error=str(e))
+        self._tasks_loaded = True  # 标志位移到循环结束后，避免空列表固化
         return self._tasks
 
     def load_presets(self) -> Dict[str, Dict[str, Any]]:
         preset_root = self._resolve_asset_path("tasks", "preset")
         self._presets = {}
-        self._presets_loaded = True
         if not preset_root.exists():
+            self._presets_loaded = True
             return self._presets
         for json_path in preset_root.glob("*.json"):
             try:
@@ -173,6 +173,7 @@ class MaaEndRuntime:
                         self._presets[name]["_source"] = str(json_path.relative_to(self._maaend_root))
             except Exception as e:  # pragma: no cover
                 self.logger.debug(LogCategory.MAIN, "加载预设失败", path=str(json_path), error=str(e))
+        self._presets_loaded = True  # 标志位移到循环结束后
         return self._presets
 
     def connect(self) -> bool:
@@ -321,8 +322,12 @@ class MaaEndRuntime:
                         try:
                             self._agent_process.wait(timeout=3)
                         except Exception as exc:
-                            self.logger.warning(LogCategory.MAIN, "终止 agent_process 失败", error=str(exc))
+                            self.logger.warning(LogCategory.MAIN, "terminate 超时，改用 kill", error=str(exc))
                             self._agent_process.kill()
+                            try:
+                                self._agent_process.wait(timeout=3)
+                            except Exception:
+                                pass  # 最终兜底，避免 wait 自身阻塞
                 except Exception as exc:
                     self.logger.warning(LogCategory.MAIN, "清理 agent_process 失败", error=str(exc))
                 self._agent_process = None
@@ -368,6 +373,21 @@ class MaaEndRuntime:
                 stderr=subprocess.DEVNULL,
                 env=agent_env,
             )
+            # 等待 go-service 进程就绪：轮询确认进程未立即退出
+            ready = False
+            for _ in range(10):  # 最多等待 5 秒（10 次 × 0.5s）
+                if process.poll() is not None:
+                    # 进程已退出
+                    break
+                time.sleep(0.5)
+                if process.poll() is None:
+                    ready = True
+                    break
+            if not ready:
+                self.logger.error(LogCategory.MAIN, "go-service 进程启动后立即退出", agent_id=agent_id)
+                self._agent_client = None
+                self._agent_process = None
+                return
             self._agent_process = process
             self._agent_client = AgentClient(agent_id)
             self.logger.info(LogCategory.MAIN, "Agent 启动成功", port=agent_id)

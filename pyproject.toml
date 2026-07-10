@@ -2,6 +2,9 @@
 testpaths = ["tests"]
 norecursedirs = ["3rd-part", "cache", "logs", "venv", ".git", ".claude", ".qwen"]
 cache_dir = ".tmp/pytest_cache"
+timeout = 60
+timeout_method = "thread"
+timeout_func_only = "true"
 
 [tool.ruff]
 line-length = 100

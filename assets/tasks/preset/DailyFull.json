@@ -6,6 +6,12 @@
             "description": "$preset.DailyFull.description",
             "task": [
                 {
+                    "name": "AndroidOpenGame",
+                    "option": {
+                        "ClientVersion": "CN"
+                    }
+                },
+                {
                     "name": "VisitFriends",
                     "option": {
                         "ProductionAssistControl": [

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import mmap
 import os
+import secrets
 import socket
 import subprocess
 import threading
@@ -27,6 +28,72 @@ from core.foundation.paths import get_cache_subdir, get_project_root
 
 class AndroidRuntimeError(Exception):
     """AndroidRuntime 基础异常"""
+
+
+# ---------------------------------------------------------------------------
+# 安全校验：防止 ADB shell 命令注入和 keyevent 注入
+# ---------------------------------------------------------------------------
+
+# 允许的 shell 命令前缀白名单（用于设备诊断与常规操作）
+_ALLOWED_SHELL_PREFIXES: tuple[str, ...] = (
+    "input ",
+    "getprop ",
+    "settings ",
+    "dumpsys ",
+    "pm list ",
+    "am start ",
+    "am force-stop ",
+    "wm ",
+    "svc ",
+)
+
+# Android KeyEvent 常量名（部分常用），其余要求纯数字
+_KNOWN_KEYEVENT_NAMES: frozenset[str] = frozenset(
+    {
+        "KEYCODE_BACK",
+        "KEYCODE_HOME",
+        "KEYCODE_MENU",
+        "KEYCODE_POWER",
+        "KEYCODE_VOLUME_UP",
+        "KEYCODE_VOLUME_DOWN",
+        "KEYCODE_VOLUME_MUTE",
+        "KEYCODE_APP_SWITCH",
+        "KEYCODE_ENTER",
+        "KEYCODE_DEL",
+        "KEYCODE_TAB",
+        "KEYCODE_ESCAPE",
+        "KEYCODE_DPAD_UP",
+        "KEYCODE_DPAD_DOWN",
+        "KEYCODE_DPAD_LEFT",
+        "KEYCODE_DPAD_RIGHT",
+        "KEYCODE_DPAD_CENTER",
+    }
+)
+
+
+def _is_valid_keyevent(key: Any) -> bool:
+    """校验 keyevent 参数：必须为纯数字或已知 KEYCODE 常量名。"""
+    if key is None:
+        return False
+    s = str(key).strip()
+    if not s:
+        return False
+    if s.isdigit():
+        return True
+    return s in _KNOWN_KEYEVENT_NAMES
+
+
+def _is_allowed_shell_cmd(cmd: str) -> bool:
+    """校验 shell 命令是否在允许的前缀白名单内。"""
+    if not cmd or not isinstance(cmd, str):
+        return False
+    stripped = cmd.strip()
+    if not stripped:
+        return False
+    # 拒绝明显的注入尝试
+    if any(ch in stripped for ch in (";", "|", "&", "`", "$", "(", ")", "{", "}", "<", ">", "\n", "\r")):
+        return False
+    return any(stripped.startswith(prefix) for prefix in _ALLOWED_SHELL_PREFIXES)
 
 
 class _ScrcpySession:
@@ -81,6 +148,7 @@ class _ScrcpySession:
         if self._thread is not None and self._thread.is_alive():
             self._thread.join(timeout=5)
         self._thread = None
+        self._close_codec()
         self._cleanup()
 
     def get_latest_frame(self) -> Optional[np.ndarray]:
@@ -102,7 +170,7 @@ class _ScrcpySession:
         except Exception:
             self._logger.exception("scrcpy 会话异常")
         finally:
-            self._codec = None
+            self._close_codec()
             self._cleanup()
 
     def _check_jar_cached(self) -> bool:
@@ -112,7 +180,8 @@ class _ScrcpySession:
                 serial=self._serial or "",
             )
             return "scrcpy-server" in str(output)
-        except Exception:
+        except Exception as exc:
+            self._logger.warning("scrcpy jar 缓存检查失败", serial=self._serial, error=str(exc))
             return False
 
     def _host_shell(self, cmd: str) -> str:
@@ -126,11 +195,12 @@ class _ScrcpySession:
             pass
         local = Path(jar_path)
         if not local.exists():
-            return
-        try:
-            self._adb_manager.run_adb(["push", str(local.resolve()), remote_path], serial=self._serial or "")
-        except Exception:
-            pass
+            raise AndroidRuntimeError(f"scrcpy-server.jar 不存在: {jar_path}")
+        self._adb_manager.run_adb(
+            ["push", str(local.resolve()), remote_path],
+            serial=self._serial or "",
+        )
+        self._logger.info("scrcpy jar 推送完成", serial=self._serial, jar=jar_path)
 
     def _wait_for_socket(self, timeout: float = 8.0, interval: float = 0.1) -> bool:
         import re
@@ -252,48 +322,68 @@ class _ScrcpySession:
             self._codec.flags |= 1 << 19
             self._codec.open()
 
-            while not self._stop_event.is_set():
-                header = fileobj.read(12)
-                if len(header) < 12:
-                    break
+            try:
+                while not self._stop_event.is_set():
+                    header = fileobj.read(12)
+                    if len(header) < 12:
+                        break
 
-                pts_flags = struct.unpack(">Q", header[:8])[0]
-                pkt_size = struct.unpack(">I", header[8:12])[0]
+                    pts_flags = struct.unpack(">Q", header[:8])[0]
+                    pkt_size = struct.unpack(">I", header[8:12])[0]
 
-                if pkt_size == 0 or pkt_size > 2 * 1024 * 1024:
-                    continue
+                    if pkt_size == 0 or pkt_size > 2 * 1024 * 1024:
+                        continue
 
-                data = fileobj.read(pkt_size)
-                if len(data) < pkt_size:
-                    break
+                    data = fileobj.read(pkt_size)
+                    if len(data) < pkt_size:
+                        break
 
-                is_config = bool(pts_flags & (1 << 63))
-                is_keyframe = bool(pts_flags & (1 << 62))
+                    is_config = bool(pts_flags & (1 << 63))
+                    is_keyframe = bool(pts_flags & (1 << 62))
 
-                if is_config:
+                    if is_config:
+                        try:
+                            self._codec.decode(av.Packet(data))
+                        except Exception:
+                            pass
+                        continue
+
                     try:
-                        self._codec.decode(av.Packet(data))
+                        pkt = av.Packet(data)
+                        if is_keyframe:
+                            pkt.is_keyframe = True
+                        pkt.pts = pts_flags & ((1 << 62) - 1)
+                        for frame in self._codec.decode(pkt):
+                            img = frame.to_ndarray(format="bgr24")
+                            with self._lock:
+                                self._latest_frame = img
                     except Exception:
                         pass
-                    continue
-
+            finally:
+                # 确保正常退出或异常时释放 socket 和 fileobj，避免文件描述符泄漏
                 try:
-                    pkt = av.Packet(data)
-                    if is_keyframe:
-                        pkt.is_keyframe = True
-                    pkt.pts = pts_flags & ((1 << 62) - 1)
-                    for frame in self._codec.decode(pkt):
-                        img = frame.to_ndarray(format="bgr24")
-                        with self._lock:
-                            self._latest_frame = img
+                    fileobj.close()
                 except Exception:
                     pass
-
+                try:
+                    sock.close()
+                except Exception:
+                    pass
             return
 
         self._logger.error("scrcpy 连接握手超时")
 
+    def _close_codec(self) -> None:
+        if self._codec is None:
+            return
+        try:
+            self._codec.close()
+        except Exception:
+            pass
+        self._codec = None
+
     def _cleanup(self) -> None:
+        self._close_codec()
         try:
             if self._local_port:
                 self._adb_manager.run_adb(
@@ -344,6 +434,8 @@ class _Daemon:
         self._lock = threading.Lock()
         self._server: Optional[socket.socket] = None
         self._running = False
+        self._tcp_port: Optional[int] = None
+        self._auth_token = secrets.token_hex(16)
         self._scrcpy_session: Optional[_ScrcpySession] = None
         self._scrcpy_jar_path = str(get_project_root() / "3rd-part" / "scrcpy" / "scrcpy-server.jar")
 
@@ -425,6 +517,9 @@ class _Daemon:
         return buf.split(b"\n", 1)[0]
 
     def _dispatch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        if request.get("auth") != self._auth_token:
+            self._logger.warning("守护进程收到未认证请求，已拒绝")
+            return {"error": "unauthorized"}
         method = request.get("method")
         params = request.get("params", {})
         with self._lock:
@@ -483,10 +578,19 @@ class _Daemon:
                     )
                     return {"result": True}
                 if method == "keyevent":
-                    output = self._adb_manager.shell(f"input keyevent {params.get('key')}", serial=params.get("serial", self._serial))
+                    key = params.get("key")
+                    # keyevent 必须为纯数字或已知常量名，防止 shell 注入
+                    if not _is_valid_keyevent(key):
+                        return {"error": f"invalid keyevent: {key!r}"}
+                    output = self._adb_manager.shell(f"input keyevent {key}", serial=params.get("serial", self._serial))
                     return {"result": output}
                 if method == "shell":
-                    output = self._adb_manager.shell(params.get("cmd", ""), serial=params.get("serial", self._serial))
+                    cmd = params.get("cmd", "")
+                    # 限制允许的 shell 命令前缀，防止任意命令执行
+                    if not _is_allowed_shell_cmd(cmd):
+                        self._logger.warning("守护进程拒绝 shell 命令", cmd=cmd[:80])
+                        return {"error": "shell command not allowed"}
+                    output = self._adb_manager.shell(cmd, serial=params.get("serial", self._serial))
                     return {"result": output}
                 return {"error": f"unknown method: {method}"}
             except Exception as exc:
@@ -550,12 +654,16 @@ class AndroidRuntime:
 
     def _call(self, method: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         params = params or {}
-        request = json.dumps({"method": method, "params": params}, ensure_ascii=False).encode("utf-8") + b"\n"
+        request = json.dumps(
+            {"method": method, "params": params, "auth": self._get_daemon()._auth_token},
+            ensure_ascii=False,
+        ).encode("utf-8") + b"\n"
         sock = None
         try:
             daemon = self._get_daemon()
             port = daemon._tcp_port
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(30.0)  # 防止 recv 永久阻塞导致 GUI/自动化线程挂起
             sock.connect(("127.0.0.1", port))
         except Exception:
             if sock is not None:
@@ -576,6 +684,9 @@ class AndroidRuntime:
             if not buf:
                 return {"error": "empty response"}
             return json.loads(buf.split(b"\n", 1)[0].decode("utf-8"))
+        except socket.timeout:
+            self._logger.warning("daemon _call 超时", method=method)
+            return {"error": "timeout"}
         finally:
             try:
                 sock.close()
@@ -640,13 +751,17 @@ class AndroidRuntime:
         return self._call("stopScrcpy", {"serial": serial or self._serial})
 
     def tap(self, x: int, y: int, serial: Optional[str] = None) -> None:
-        self._call("tap", {"x": x, "y": y, "serial": serial or self._serial})
+        response = self._call("tap", {"x": x, "y": y, "serial": serial or self._serial})
+        if response.get("error"):
+            raise AndroidRuntimeError(f"tap 失败: {response['error']}")
 
     def swipe(self, x1: int, y1: int, x2: int, y2: int, duration_ms: int = 300, serial: Optional[str] = None) -> None:
-        self._call("swipe", {
+        response = self._call("swipe", {
             "x1": x1, "y1": y1, "x2": x2, "y2": y2,
             "durationMs": duration_ms, "serial": serial or self._serial,
         })
+        if response.get("error"):
+            raise AndroidRuntimeError(f"swipe 失败: {response['error']}")
 
     def keyevent(self, key: str, serial: Optional[str] = None) -> str:
         response = self._call("keyevent", {"key": key, "serial": serial or self._serial})

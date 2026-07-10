@@ -121,12 +121,17 @@ def test_execute_routes_daily_run() -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
-    runtime._maaend = _FakeMaaEndRuntime(run_preset_result=True)
+    runtime._maaend = _FakeMaaEndRuntime(
+        run_task_result=True,
+        run_pipeline_result=True,
+        run_preset_result=True,
+    )
     result = runtime.execute("daily.run", {"options": {"a": 1}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"
     assert result.get("command") == "daily.run"
     assert result.get("flow") == "daily_quest"
+
 
 
 def test_execute_routes_harvest_run() -> None:
@@ -190,14 +195,17 @@ class _FakeMaaEndRuntime:
         load_resource_result: bool = False,
         run_task_result: bool = False,
         run_preset_result: bool = False,
+        run_pipeline_result: bool = False,
         screenshot_result=None,
     ) -> None:
         self._connect_result = connect_result
         self._load_resource_result = load_resource_result
         self._run_task_result = run_task_result
         self._run_preset_result = run_preset_result
+        self._run_pipeline_result = run_pipeline_result
         self._screenshot_result = screenshot_result
         self._connected = True
+
 
     @property
     def connected(self) -> bool:
@@ -216,8 +224,12 @@ class _FakeMaaEndRuntime:
     def run_task(self, name: str, options: dict) -> bool:
         return self._run_task_result
 
+    def run_pipeline(self, entry: str, pipeline_override: dict) -> bool:
+        return self._run_pipeline_result
+
     def run_preset(self, name: str) -> bool:
         return self._run_preset_result
+
 
     def screenshot(self):
         return self._screenshot_result

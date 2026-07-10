@@ -7,7 +7,7 @@ from typing import Optional
 
 from PyQt6.QtCore import QObject, QPoint, Qt, QTimer, pyqtSignal
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QComboBox, QLineEdit
+from PyQt6.QtWidgets import QApplication, QComboBox, QLineEdit, QWidget
 
 from gui.pyqt6.scripting.models import ActionRecord, Script
 

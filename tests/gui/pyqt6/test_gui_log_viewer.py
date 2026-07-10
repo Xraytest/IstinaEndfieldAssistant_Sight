@@ -126,9 +126,17 @@ class TestLogPageHighlighting:
     def test_html_escaping(self, tmp_path: Path, qapp: QApplication) -> None:
         page = LogPage()
         html = page._highlight_log("5 < 10 && 3 > 1")
-        # Source has replace("<", "<") which is a no-op on <
-        assert "<" in html
-        assert ">" in html
+        # html.escape() 应将 < > & 转义为 HTML 实体，防止 Qt 渲染执行恶意内容
+        assert "&lt;" in html
+        assert "&gt;" in html
+        assert "&amp;" in html
+
+    def test_html_escaping_with_highlight(self, tmp_path: Path, qapp: QApplication) -> None:
+        page = LogPage()
+        # 含时间戳和日志级别的行应同时有转义和高亮 span
+        html = page._highlight_log("2026-07-09 10:00:00 INFO 5 < 10")
+        assert "&lt;" in html
+        assert "<span" in html
 
     def test_show_event_triggers_refresh(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, qapp: QApplication) -> None:
         import gui.pyqt6.pages.log_page as _mod

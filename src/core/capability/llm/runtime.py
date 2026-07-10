@@ -26,7 +26,11 @@ class LlamaServerRuntime:
 
     _instances: Dict[int, LlamaServerRuntime] = {}
     _atexit_registered = False
-    _lock = threading.Lock()
+    # RLock (not Lock): get_instance() holds this lock while constructing the
+    # instance, and __init__ -> _register_atexit() re-enters it. A plain
+    # (non-reentrant) Lock would deadlock here, permanently blocking the CLI
+    # process and starving every later command (e.g. `metadata list`).
+    _lock = threading.RLock()
 
     def __init__(self, config: Dict[str, Any]):
         self._config = config

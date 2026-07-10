@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import html
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -114,11 +116,11 @@ class LogPage(QWidget):
             self._log_view.setPlainText(locale.tr("read_log_failed", "Failed to read log: {exc}").format(exc=exc))
 
     def _highlight_log(self, text: str) -> str:
-        import re
         lines = text.splitlines()
         html_lines = []
         for line in lines:
-            escaped = line.replace("&", "&").replace("<", "<").replace(">", ">")
+            # 先正确转义 HTML 特殊字符，防止日志中的 HTML 标签被 Qt 渲染执行
+            escaped = html.escape(line, quote=False)
             # Highlight timestamp pattern like 2026-07-07 16:09:23
             escaped = re.sub(
                 r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})",

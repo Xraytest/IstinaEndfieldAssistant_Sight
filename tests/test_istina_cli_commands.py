@@ -12,6 +12,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ISTINA_SCRIPT = PROJECT_ROOT / "src" / "cli" / "istina.py"
 CLI = [sys.executable, str(ISTINA_SCRIPT)]
 
+pytestmark = pytest.mark.timeout(300)
+
+
 
 def _can_execute_tasks() -> bool:
     try:

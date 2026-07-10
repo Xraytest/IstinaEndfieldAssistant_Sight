@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any, Dict, Optional
 
-from PyQt6.QtCore import QEvent, QObject
+from PyQt6.QtCore import QEvent, QObject, QTimer
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -45,6 +46,9 @@ class SettingsPage(QWidget):
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
         self._config_path = get_project_root() / "config" / "client_config.json"
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.timeout.connect(self._save_settings)
         self._setup_ui()
         self._load_settings()
 
@@ -86,7 +90,7 @@ class SettingsPage(QWidget):
         self._preview_interval_spin.setRange(200, 10000)
         self._preview_interval_spin.setSuffix(" ms")
         self._preview_interval_spin.setToolTip(locale.tr("preview_interval_tooltip", "Interval between preview frames"))
-        self._preview_interval_spin.valueChanged.connect(self._save_settings)
+        self._preview_interval_spin.valueChanged.connect(self._on_settings_changed)
         self._preview_interval_spin.valueChanged.connect(self._apply_preview_interval)
         preview_form.addRow(locale.tr("preview_interval", "Preview Interval"), self._preview_interval_spin)
         content_root.addWidget(preview_card)
@@ -100,11 +104,11 @@ class SettingsPage(QWidget):
         self._port_input.setRange(1, 65535)
         self._threads_input = QSpinBox()
         self._threads_input.setRange(1, 256)
-        self._llm_enabled.toggled.connect(self._save_settings)
-        self._model_path_input.textChanged.connect(self._save_settings)
-        self._mmproj_path_input.textChanged.connect(self._save_settings)
-        self._port_input.valueChanged.connect(self._save_settings)
-        self._threads_input.valueChanged.connect(self._save_settings)
+        self._llm_enabled.toggled.connect(self._on_settings_changed)
+        self._model_path_input.textChanged.connect(self._on_settings_changed)
+        self._mmproj_path_input.textChanged.connect(self._on_settings_changed)
+        self._port_input.valueChanged.connect(self._on_settings_changed)
+        self._threads_input.valueChanged.connect(self._on_settings_changed)
         llm_form.addRow("", self._llm_enabled)
         llm_form.addRow(locale.tr("model_path", "Model Path"), self._model_path_input)
         llm_form.addRow(locale.tr("mmproj_path", "MMProj Path"), self._mmproj_path_input)
@@ -169,23 +173,36 @@ class SettingsPage(QWidget):
 
         self._raw_preview.setPlainText(json.dumps(config, ensure_ascii=False, indent=2))
 
+    def _on_settings_changed(self) -> None:
+        # 防抖：按键/值变化频繁时合并为一次实际写入，避免每次按键都完整读写 JSON
+        self._save_timer.stop()
+        self._save_timer.start(400)
+
     def _save_settings(self) -> None:
-        config = self._read_config()
+        try:
+            config = self._read_config()
 
-        config["llm"] = {
-            **dict(config.get("llm", {})),
-            "enabled": self._llm_enabled.isChecked(),
-            "model_path": self._model_path_input.text().strip(),
-            "mmproj_path": self._mmproj_path_input.text().strip(),
-            "port": self._port_input.value(),
-            "threads": self._threads_input.value(),
-        }
-        config["preview_interval_ms"] = self._preview_interval_spin.value()
-        config.pop("cache", None)
+            config["llm"] = {
+                **dict(config.get("llm", {})),
+                "enabled": self._llm_enabled.isChecked(),
+                "model_path": self._model_path_input.text().strip(),
+                "mmproj_path": self._mmproj_path_input.text().strip(),
+                "port": self._port_input.value(),
+                "threads": self._threads_input.value(),
+            }
+            config["preview_interval_ms"] = self._preview_interval_spin.value()
+            config.pop("cache", None)
 
-        self._config_path.parent.mkdir(parents=True, exist_ok=True)
-        self._config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
-        self._raw_preview.setPlainText(json.dumps(config, ensure_ascii=False, indent=2))
+            self._config_path.parent.mkdir(parents=True, exist_ok=True)
+            self._config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._raw_preview.setPlainText(json.dumps(config, ensure_ascii=False, indent=2))
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Settings save failed: %s", exc)
+            QMessageBox.warning(
+                self,
+                locale.tr("settings_save_failed", "Save Failed"),
+                locale.tr("settings_save_failed_msg", "Failed to save settings: {exc}").format(exc=exc),
+            )
 
     def _read_config(self) -> Dict[str, Any]:
         if not self._config_path.exists():

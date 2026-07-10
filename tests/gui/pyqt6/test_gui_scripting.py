@@ -58,6 +58,7 @@ class TestPlayer:
         player.play()
         assert "No script to play" in caplog.text
 
+    @pytest.mark.timeout(10)
     def test_stop_stops_timer(self, qapp: QApplication) -> None:
         player = Player(default_delay_ms=50)
         script = Script(name="s", actions=[
