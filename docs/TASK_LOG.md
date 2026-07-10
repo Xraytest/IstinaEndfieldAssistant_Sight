@@ -1,5 +1,19 @@
 # 任务日志
 
+## 2026-07-11 02:00 (AutoCodeReview 导航子系统审查·第八批次)
+
+- **User Request**: 对 `src/core/service/navigation/entity_db.py`、`map_data_loader.py`、`navigator.py` 进行彻底静态代码审查。W6 在 2320.md 已部分覆盖（`to_coords_vlm` 回退 navmesh 用陈旧 level），其余部分及另两文件从未深入审查。
+- **Outcome**: 完成三文件逐行审查，识别出 11 项新发现（4 Medium / 6 Low / 1 Info）。关键结论：
+  1. **[NAV-02 Medium]** `navigator.py:82` `to_coords` 对 `map_id="unknown"` 强制传送，与 `to_coords_vlm`（line 243）显式排除 `"unknown"` 的行为不一致，定位失败时可能错误传送。
+  2. **[NAV-03 Medium]** `navigator.py:41` `__init__` 忽略 `EntityDatabase.load()` 返回值，静默接受空数据库，后续所有实体查询返回空结果且无法区分"无实体"与"加载失败"。
+  3. **[NAV-04 Medium]** `entity_db.py:85-99` `load()` 对 JSON 顶层结构无 schema 校验，若文件为 dict 而非 list 导致 AttributeError。
+  4. **[NAV-01 Medium]** `entity_db.py:129-133` `find_by_name("")` 正则空串匹配全部实体，意外批量操作。
+  5. 其他发现涵盖：`from_raw` 无类型校验、`load()` 并发重复加载、`load_layout` 无数值类型校验、`load_grid_tiers` 浅拷贝污染缓存、`load_all_layouts` 静默忽略失败、裸 `except Exception` 吞 `MemoryError`、`list_entities` 冗余 `load()` 调用。
+- **Files Modified**:
+  - `reports/auto/20260711_0200_nav.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 8 份历史报告（2210、2315、2320、2345、234853、235000、2400、0020）确认 11 项均为新发现，无重复。
+
 ## 2026-07-11 00:16 (AutoCodeReview 设备层深度审查·第七批次)
 
 - **User Request**: 对 `adb_manager.py`、`touch_manager.py`、`recovery.py` 三文件进行彻底静态代码审查，要求只报告既往报告未覆盖的新发现。
@@ -404,6 +418,21 @@
   8. **审计修正**：2320-N4 修复建议（仅扩白名单）不足以修复 W1（病根在键位映射）；2210-M1 修复为空修；2345-N5 选项1（移除 `$`）为危险建议。
 - **Files Modified**:
   - `reports/auto/20260710_235000.md`（新增·合并报告，覆盖 235000/2350_llm/2350_recognition 三份原始报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读静态审查；关键发现经源文件交叉核对。
+
+## 2026-07-11 02:10 (AutoCodeReview 第八批次·合并)
+
+- **User Request**：合并两路并行 agent（Navigation 剩余文件、Pipeline 剩余文件）的审查发现，写入统一报告；审计前次报告错误/不必要建议；避免重复之前已记录问题。
+- **Outcome**：合并为 `reports/auto/20260711_0210.md`，共 23 项新发现（0 Critical / 9 Medium / 10 Low / 4 Info）。关键结论：
+  1. **[NAV-02 Medium]** `navigator.py:82` `to_coords` 对 `map_id="unknown"` 强制传送，与 `to_coords_vlm` 行为不一致。
+  2. **[NAV-03 Medium]** `navigator.py:41` `__init__` 忽略 `EntityDatabase.load()` 返回值，静默接受空数据库。
+  3. **[PN-1 Medium]** `pipeline_node.py:67-72` action dict 缺 `type` 键静默回退 DoNothing，自动化跳过动作。
+  4. **[PL-1 Medium]** `pipeline_loader.py:72` UTF-8 BOM 导致 JSON 解析失败，整批节点静默丢失。
+  5. **[PL-2 Medium]** `pipeline_loader.py:45` glob 不递归，子目录 pipeline 被忽略。
+  6. **范围**：`maa_end/` 目录仅 `runtime.py` 一个文件，已深度覆盖；navigation/ 和 pipeline/ 为本批次新增覆盖。
+- **Files Modified**:
+  - `reports/auto/20260711_0210.md`（新增·合并报告，覆盖 0200_nav/0026_pipeline 两份原始报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读静态审查；关键发现经源文件交叉核对。
 
