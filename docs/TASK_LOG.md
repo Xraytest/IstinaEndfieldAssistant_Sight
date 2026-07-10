@@ -806,3 +806,18 @@
   - `reports/auto/20260711_STATEMACHINE.md`（新增·状态机生命周期审计报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。状态转换序列经 runtime.py/android_runtime.py 调用链交叉核对确认。
+
+## 2026-07-11（第二十五批次·安全渗透审计·资源耗尽向量）
+
+- **User Request**: 完整阅读文档明析需求与边界。从安全渗透测试角度系统化审计所有用户可控输入从 CLI 入口到设备执行的完整路径，识别注入点和资源耗尽面。
+- **Outcome**: 完成攻击面映射，识别 6 项安全问题（SEC-02 至 SEC-06 + 2 项历史关联），其中 2 项为全新发现（资源耗尽向量）。关键结论：
+  1. **[SEC-02 Medium]** 交互式 CLI 循环（`istina.py:_interactive_loop`）的 `buffer` 无最大长度限制，攻击者可通过管道发送无换行数据导致内存无限增长。
+  2. **[SEC-03 Medium]** CLIBridge stdout 解析器（`cli_bridge.py:_on_stdout`）的 `_stdout_buffer` 无长度上限，异常子进程输出大量无换行数据可耗尽 GUI 进程内存。
+  3. **[SEC-04 Low]** `device tap`/`swipe` 坐标仅做 `int()` 转换无范围检查，超大坐标值传递到触摸注入层可能导致异常行为。
+  4. **[SEC-05 Low]** `nav3 walk` 的 `map_name` 未验证是否为已知地图，`x`/`y` 为 float 无范围约束，无效坐标可能导致 VLM 路径规划异常。
+  5. **[SEC-06 Low]** 脚本回放 `Player._do_text` 强制发射 `editingFinished.emit()`，可绕过正常 UI 验证流程触发槽函数。
+  6. **攻击面总结**：shell/keyevent 注入由 daemon 黑名单/白名单有效防护；tap/swipe 坐标仅类型转换无范围检查；--out/--config 路径遍历已知；配置值无 schema 校验已知。
+- **Files Modified**:
+  - `reports/auto/20260711_SECPEN.md`（新增·安全渗透审计报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。攻击面覆盖 13 个用户输入向量 × 5 层防护体系。
