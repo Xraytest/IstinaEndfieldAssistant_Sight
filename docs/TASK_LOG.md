@@ -598,3 +598,23 @@
   - `reports/auto/20260711_1213.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有发现经逐行源码验证。
+
+## 2026-07-11（第十四批次·根级别文件/配置/嵌套项目·最终批次）
+
+- **User Request**: 对之前未覆盖的根级别文件（sitecustomize.py、extract_anomalies.py、start_gui.bat、README.md、.gitignore）及 MaaEnd/ 嵌套目录进行最终审计，完成后审计既往报告错误/不必要建议，避免重复历史问题。
+- **Outcome**: 识别出 7 项新发现（1 Medium / 5 Low / 1 Info）。关键结论：
+  1. **[SITE-01 Medium]** `sitecustomize.py` 作为 Python 自动导入钩子，在每次解释器启动时修改全局 TMPDIR/TEMP/TMP 和 MAAFW_BINARY_PATH 环境变量，影响所有使用同一 Python 环境的进程（pytest、mypy、其他项目）。
+  2. **[SITE-02 Low]** `sitecustomize.py:13-15` MAAFW_BINARY_PATH 指向可能不存在的空目录（3rd-part/maaend/agent/maafw 目录存在但无 Python 文件）。
+  3. **[SCR-05 Low]** `extract_anomalies.py:4` 硬编码绝对路径到本地 Kimi Code 会话目录，仅当前开发者机器有效。
+  4. **[BAT-01 Low]** `start_gui.bat:26-30` 未处理负数退出码截断（Windows ERRORLEVEL 信号终止时为负）。
+  5. **[DOC-01 Low]** `README.md` 仅 4 行中文描述，缺失 Windows-only 限制、bundled Python 路径、快速启动方法、配置要求等 onboarding 信息。
+  6. **[MAAEND-01 Low]** `MaaEnd/` 包含完整嵌套项目结构（AGENTS.md、.github/、agent/ 等），与 `3rd-part/maaend/` 功能不同但目录名相似，易混淆。
+  7. **[GIT-01 Info]** `.gitignore:2-3, 25-26` 中 `3rd-part/` 和 `MaaEnd/` 各重复列出两次，降低可维护性。
+- **审计既往报告**：
+  - 第十三批次（1213.md）SCR-02/03/04、TST-03/04/05 均经源码验证确认有效。
+  - 第十二批次（0999.md）TST-01 文件位置错误已修正、TST-02/SCR-01 正确、CFG-14 已覆盖。
+  - 全项目 14 轮批次审查完毕，69 个 .py 源码文件 + config/assets/tests/scripts/根级别文件全覆盖。
+- **Files Modified**:
+  - `reports/auto/20260711_1410.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；跨 14 份历史报告交叉核对确认无重复发现。
