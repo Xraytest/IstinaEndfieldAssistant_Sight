@@ -1106,3 +1106,21 @@
   - `reports/auto/20260711_092407.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 debug 脚本源码 + handlers.py/istina.py 逐行核对。历史报告 150+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第四十一批次·测试层/文档层审计 + 批次40报告审计修正）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 `tests/` 目录（17个测试文件 + conftest.py）和 `docs/` 目录（ARCHITECTURE.md, WORKFLOW.md, README.md），识别 9 项新发现（1 Critical / 3 Medium / 1 Low / 4 Info），批次40报告修正 2 处。
+  1. **[T01 Critical]** `test_error_paths.py` 与 `test_istina_runtime.py` 重复定义 `_FakeMaaEndRuntime`——简化版覆盖完整版，test_istina_runtime 测试验证不完整。
+  2. **[T02 Medium]** `tests/conftest.py:17-19` 全局禁用项目日志系统——所有测试静默丢失日志，无法诊断失败。
+  3. **[T03 Medium]** `test_istina_cli_commands.py:19-48` 模块级 `_can_execute_tasks()` 在导入时执行 `subprocess.run`（`device info` + `system connect`）——阻塞 20+ 秒，可能连接真实设备。
+  4. **[T04 Medium]** `test_error_paths.py:76-83` `test_runtime_execute_with_none_params_does_not_crash` 将 bug 行为固化为预期——应验证返回 error dict 而非 bool。
+  5. **[T05 Low]** `test_template_pipeline.py` 单例 `TemplateRegistry` 状态在测试间泄漏——`clear()` 影响后续测试。
+  6. **[T06-T08 Info]** importlib 绕过导入、FakeProcess 重复定义、直接设置私有属性。
+  7. **[T09 Info]** `docs/ARCHITECTURE.md:33` 引用不存在的 `src/infra/` 目录。
+  8. **[批次40 修正1] D01/D02 数量重复计算**：7+8=15 有重复，实际 8 个独立脚本（5 个同时受 D01+D02）。
+  9. **[批次40 修正2] D03 遗漏关键证据**：硬编码路径中的项目名 `IstinaEndfieldAssistant`（无 `_Sight` 后缀）与当前项目不同，表明脚本来自不同代码库。
+- **Files Modified**:
+  - `reports/auto/20260711_093351.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经测试文件源码 + docs/ARCHITECTURE.md 逐行核对。历史报告 160+ 条发现全部经二次验证确认准确，新增 2 处修正。
