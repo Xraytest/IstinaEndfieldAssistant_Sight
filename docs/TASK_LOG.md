@@ -2075,3 +2075,15 @@
 **新增发现**: NAV-DRAIN — _drain_pipe/_accept_loop/_handle_client 守护线程未 join，清理时泄漏文件描述符；SCRCPY-SILENT — connect() 无条件返回 True 即使 scrcpy 预览通道启动失败；AUTO-PARAMS — _resolve_connect_params 裸 except 吞掉配置读取错误；PLAYER-SILENT — 脚本回放动作失败后静默继续
 **批次 93 审计**: 全部 3 项新发现经逐项源码复核确认准确，无需修正；补充观察已纳入 SYS-01 修复范围
 **风险**: 2 项中（NAV-DRAIN, SCRCPY-SILENT），2 项低（AUTO-PARAMS, PLAYER-SILENT），无高风险
+
+## 2026-07-12 00:16
+
+- **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
+- **Outcome**: 批次 96 审计完成，新增 2 项发现：LLM-CUDA-FLAG（_cuda_failed 标记在 CPU 回退成功后仍为 True，后续启动跳过 GPU 尝试）/ PRTS-CHAT-ERROR（PRTS 页面仅连接 commandFinished，无 commandError 处理器，聊天错误时 UI 冻结）。批次 95 审计确认全部 8 项发现准确无需修正，补充观察为 DUP-I 模式。
+- **Files Modified**: reports/auto/20260712_0016_batch96.md
+
+## 2026-07-12 00:25
+
+- **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
+- **Outcome**: 批次 97 审计完成，新增 1 项发现：BACKEND-SILENT — template_backend.py/color_backend.py 非主识别路由 bare except: pass 静默吞掉异常，调试时无任何诊断信息。批次 96 审计确认全部 2 项新发现准确无需修正。
+- **Files Modified**: reports/auto/20260712_0025_batch97.md
