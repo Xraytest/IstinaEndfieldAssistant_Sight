@@ -1070,3 +1070,21 @@
   - `reports/auto/20260711_090739.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有 `__init__.py` 文件经 Glob 枚举 + 逐文件核对。历史报告 130+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第三十九批次·配置层安全边界/CLI参数校验审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计配置层（CLI handlers 安全边界、JSON 数据完整性、GPU 推荐逻辑），识别6项新发现（2 Medium / 2 Low / 2 Info），批次38报告修正3处。
+  1. **[P01 Medium]** `handlers.py:677` `_handle_gpu_recommend` 运算符优先级错误——`mem >= 4GB or mem >= 2GB` 因 `and` 优先于 `or` 导致逻辑冗余，2GB 显存即推荐 GPU。
+  2. **[P02 Medium]** `handlers.py:513-516` `_handle_config_set` 无键名校验，可注入任意配置项（adb_path, maaend_root 等）。
+  3. **[P03 Low]** `handlers.py:467-473` `_handle_shell` CLI 层无校验，安全完全依赖 daemon 白名单。
+  4. **[P04 Low]** `handlers.py:541` `_handle_model_list` 列出隐藏文件，泄露项目目录结构。
+  5. **[P05 Info]** `istina.py:230` + `runtime.py:698` `max_steps` 默认值两处硬编码，无单一 truth source。
+  6. **[P06 Info]** `istina.py:250-320` stdout fd 重定向在 `main()` 和 `_interactive_loop()` 中重复。
+  7. **[批次38 修正1] N01 分析不准确**：`capability/__init__.py` 文件不存在（非"空文件"）。
+  8. **[批次38 修正2] N02/N03 分类冗余**：相同类型问题应归并。
+  9. **[批次38 修正3] N04 分析过度**：QTranslator GC 风险实际不可能触发。
+- **Files Modified**:
+  - `reports/auto/20260711_091448.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 handlers.py/istina.py/runtime.py/android_runtime.py 当前源文件逐行核对。历史报告 140+ 条发现全部经二次验证确认准确。
