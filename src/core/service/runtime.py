@@ -694,7 +694,7 @@ class IstinaRuntime:
             y=float(params.get("y", 0)),
             level_id=params.get("level_id"),
             zone_override=params.get("zone"),
-            llm_client=self._llm_client,
+            llm_client=self._llm_client_instance,
             max_steps=int(params.get("max_steps", 40)),
             keyevent_fn=self._vlm_keyevent,
         )
@@ -703,7 +703,7 @@ class IstinaRuntime:
         nav = self.navigator()
         return nav.to_entity_vlm(
             entity_name=params.get("name", ""),
-            llm_client=self._llm_client,
+            llm_client=self._llm_client_instance,
             max_steps=int(params.get("max_steps", 40)),
             keyevent_fn=self._vlm_keyevent,
             limit=int(params.get("limit", 10)),
@@ -722,7 +722,6 @@ class IstinaRuntime:
                 repeats = max(1, int(duration / 0.15))
                 for _ in range(repeats):
                     android.keyevent(key)
-                    import time
                     time.sleep(0.12)
             else:
                 android.keyevent(key)

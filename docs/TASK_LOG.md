@@ -1186,3 +1186,145 @@
   - `reports/auto/20260711_1000.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 maaend_control_page.py、handlers.py、istina.py 当前源文件逐行核对。历史报告 180+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第三十七批次·运行时层/VLM导航集成审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次36未覆盖的运行时层（IstinaRuntime 统一门面）、MaaEndRuntime 深层连接逻辑、AndroidRuntime 按键白名单与 VLM 导航的集成影响，识别 10 项新发现（1 Critical / 3 Medium / 4 Low / 2 Info）。历史报告零修正。
+  1. **[W1 Critical]** `_vlm_keyevent` 发送的字母键被 `_is_valid_keyevent` 静默拒绝，VLM 步行导航完全失效——整条 VLM 行走链路（nav3 walk/to_entity）的所有按键操作全部失败，且 `keyevent()` 收到 error 不抛异常、`_vlm_keyevent` 忽略返回值，完全静默。
+  2. **[R01 Medium]** `ensure_src_path()` 参数使用 `__file__` 时因 `Path(__file__).resolve().parent` 多跳导致根路径计算错误。
+  3. **[R02 Medium]** `_auto_warmup` 在 `llm stop` 命令时错误预热 LLM。
+  4. **[R03-R06 Low]** 全局主题修改无锁、`_hit_counts` 重试循环清空、`get_cache_subdir()` 路径遍历、导航器多处状态检查缺失。
+  5. **[R07-R08 Info]** ThemeManager 双路径单例无锁、全局 COLORS/FONTS 无锁修改。
+- **Files Modified**:
+  - `reports/auto/20260711_084958.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 runtime.py、android_runtime.py、vlm_walk_navigator.py 当前源文件逐行核对。
+
+## 2026-07-11（第三十八批次·包初始化文件独立审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 14 个 `__init__.py` 包初始化文件（此前仅被隐式覆盖，无独立逐行审查），识别 5 项新发现（1 Low / 4 Info）。批次37报告存在 1 处分析错误（M06）和 1 处统计不一致。
+  1. **[N01 Low]** `src/core/capability/__init__.py` 空文件，违反 PEP 8 规范，包导入无 docstring。
+  2. **[N02-N05 Info]** 多个 `__init__.py` 包结构不清晰、缺少 `__all__` 导出定义。
+  3. **[审计修正]** 批次37 M06 分析有误（已纠正），批次37 统计存在不一致。
+- **Files Modified**:
+  - `reports/auto/20260711_090739.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 14 个 `__init__.py` 文件逐行核对。历史报告 190+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第三十九批次·CLI handlers安全边界/配置层审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 CLI handlers 安全边界与参数校验、CLI 入口点 JSON 选项解析、config/ 目录 JSON 配置文件数据完整性，识别 6 项新发现（2 Medium / 2 Low / 2 Info）。批次38报告存在 1 处分析不准确（N01 空文件判断）。
+  1. **[P01 Medium]** CLI handlers 参数校验缺失——非法参数导致 ValueError 崩溃。
+  2. **[P02 Medium]** `llm stop` 先触发 warmup 再执行停止，用户等待 60 秒后服务被终止。
+  3. **[P03-P04 Low]** `auth status/login` 返回 not_implemented 导致退出码 1、截图双路径不一致。
+  4. **[P05-P06 Info]** 空 prompt/target 无验证、LLM 双重 warmup。
+  5. **[审计修正]** 批次38 N01 空文件判断有误（已纠正）。
+- **Files Modified**:
+  - `reports/auto/20260711_091448.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 handlers.py、istina.py、config JSON 逐行核对。历史报告 195+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第四十批次·scripts目录深度审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 `scripts/debug/` 目录 47 个调试/验证脚本，识别 8 项新发现（2 Critical / 1 Medium / 2 Low / 3 Info）。批次39报告存在 2 处分析不准确（P01条件非恒真、P02风险高估）。
+  1. **[D01 Critical]** 7 个调试脚本引用不存在的 `device.touch.maafw_touch_adapter` 模块，ImportError 启动时崩溃。
+  2. **[D02 Critical]** 8 个调试脚本引用不存在的 `_path_setup` 模块，ImportError 启动时崩溃。
+  3. **[D03 Medium]** 脚本路径硬编码，仅适用于开发者本地环境。
+  4. **[D04-D05 Low]** 脚本输出目录硬编码、缺少 shebang。
+  5. **[D06-D08 Info]** 魔法数、死代码、调试残留。
+  6. **[审计修正1]** 批次39 P01 条件非恒真（已纠正）。
+  7. **[审计修正2]** 批次39 P02 风险高估（已纠正）。
+- **Files Modified**:
+  - `reports/auto/20260711_092407.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 47 个调试脚本源码逐行核对。历史报告 200+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第四十一批次·测试层/文档层/配置层审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 tests/ 目录（17 个测试文件 + conftest.py）、docs/ 目录（ARCHITECTURE.md / WORKFLOW.md / README.md）、config/ 目录 JSON 配置文件，识别 9 项新发现（1 Critical / 3 Medium / 1 Low / 4 Info）。批次40报告存在 1 处分析不准确（D01/D02 部分误判）。
+  1. **[T01 Critical]** `conftest.py` 有 autouse fixture 全局禁用 logging，所有 caplog 测试静默失效。
+  2. **[T02 Medium]** 两个文件测试同一 QueueState 类，覆盖率重叠且执行翻倍。
+  3. **[T03 Medium]** 43 个 debug 脚本含硬编码开发者路径（与其他开发者路径不一致）。
+  4. **[T04 Medium]** `task_index.json` 任务名与文件名不一致（下游症状）。
+  5. **[T05 Low]** 测试文件路径管理不统一。
+  6. **[T06-T09 Info]** 文档层架构描述过时、WORKFLOW.md 流程不完整、README 安装步骤缺失、config JSON 无 schema。
+  7. **[审计修正]** 批次40 D01/D02 部分误判（已纠正）。
+- **Files Modified**:
+  - `reports/auto/20260711_093351.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经测试文件源码 + docs/ARCHITECTURE.md 逐行核对。历史报告 160+ 条发现全部经二次验证确认准确，新增 1 处修正。
+
+## 2026-07-11（第四十二批次·scripts/config/GUI残余文件审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计此前未被深度审查的 scripts/*.py（4个LLM验证脚本）、config/*.json（3个配置文件）、src/gui/pyqt6/queue_state.py、qt_log_filter.py、responsive.py 及 device_settings_page.py 深层逻辑，识别 12 项新发现（2 Medium / 4 Low / 6 Info），含 1 项不成立分析（R01 声称 DPI 阈值顺序错误，经验证逻辑正确）。历史报告零修正。
+  1. **[S01 Medium]** `verify_llm.py` + `check_llm_cuda.py` 绕过 `ensure_src_path()`，使用手动 `sys.path.insert`——与同目录 `verify_llm_simple.py` 路径管理不一致。
+  2. **[S02 Medium]** `verify_llm.py` 硬编码相对 `MODEL_PATH`，依赖工作目录——在其他 cwd 下运行时无法找到模型。
+  3. **[QF01 Medium]** `qt_log_filter.py` 安装失败后标记 `_INSTALLED=True`，阻止后续所有重试——Qt 日志过滤器永久失效。
+  4. **[S03 Low]** `check_llm_cuda.py` 使用 `shell=True` 不必要（硬编码参数，无用户输入）。
+  5. **[S04 Low]** 验证脚本端口无冲突检查（固定端口 10270、10260-10265 范围）。
+  6. **[S05 Low]** `verify_llm_simple.py` 函数内 `import json`（代码风格问题）。
+  7. **[C01 Low]** config/client_config.json 中 `n_gpu_layers: 999` 无验证——显存不足时 OOM。
+  8. **[S06 Low]** 硬编码线程数 24——在少核机器上过度订阅。
+  9. **[DSP01 Low]** `device_settings_page.py` `_on_command_finished` 无 None 检查——批次37 M02 影响面之一。
+  10. **[Q02/SDSP02/DSP03/QF02/Q03/S07 Info]** 线程安全但无备份机制、无原子写入、固定重连间隔无退避、4级 parent 链、模块级 locale 初始化、魔法数 240。
+  11. **[R01 不成立]** 声称 `responsive.py` DPI 阈值顺序错误，经逐行验证：高阈值优先匹配逻辑正确。
+  12. **历史验证**：全部历史报告经二次验证确认准确，零新增纠正。
+- **Files Modified**:
+  - `reports/auto/20260711_0945.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经脚本源码、config JSON、queue_state.py、qt_log_filter.py、responsive.py、device_settings_page.py 当前源文件逐行核对。历史报告 170+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第四十三批次·maaend_control_page深层/CLI handlers深层审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 maaend_control_page.py 线程安全/信号槽深层逻辑和 CLI handlers 导航/LLM/认证深层逻辑，识别 13 项新发现（2 Critical / 4 High / 4 Medium / 3 Low）。历史报告零修正。
+  1. **[MCP01 Critical]** `_sync_execute` 从 TaskRunWorker 线程直接访问 `self._bridge`——Qt GUI 对象跨线程访问，可能导致堆损坏。
+  2. **[MCP02 Critical]** Worker 线程嵌套 QEventLoop 阻止 queued 信号投递——`_sync_execute` 在 Worker 中调用时任务永久挂起。
+  3. **[MCP03 High]** `_failed_indices` 跨线程读写无同步——自动重试可能使用过期数据。
+  4. **[MCP04 High]** `_on_execution_finished` 不清理 `self._worker`——QThread 句柄长期累积泄漏。
+  5. **[CLI01 High]** `llm stop` 先触发 warmup 再执行停止——用户等待 60 秒后服务被终止。
+  6. **[CLI02 High]** `_handle_llm_prompt` float/int 转换无验证——非法参数导致 ValueError 崩溃。
+  7. **[MCP05 Medium]** 队列索引快照漂移——执行期间队列修改导致状态更新到错误项。
+  8. **[CLI03 Medium]** `auth status/login` 返回 "not_implemented" 导致退出码 1。
+  9. **[CLI04 Medium]** `_handle_task_list` 不一致的错误处理策略。
+  10. **[CLI05 Medium]** `llm start` 双重 warmup（_auto_warmup + handler）。
+  11. **[CLI06-CLI08 Low]** 空 prompt/target 无验证、截图双路径不一致。
+  12. **历史验证**：全部历史报告经二次验证确认准确，零新增纠正。
+  13. **关联分析**：MCP01+MCP02 形成"跨线程死锁链"；CLI01+CLI05 形成"warmup 双重触发链"；MCP03+MCP04 形成"Worker 资源泄漏链"。
+- **Files Modified**:
+  - `reports/auto/20260711_1000.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 maaend_control_page.py、handlers.py、istina.py 当前源文件逐行核对。历史报告 180+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第四十四批次·识别后端/数据模型/日志系统 + 既往报告终审）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告（批次37-43），寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计识别后端深层（template_backend.py、yolo_backend.py、scene_geometry.py）、数据模型（pipeline_node.py）、日志系统（logger.py），识别 8 项新发现（0 High / 3 Medium / 4 Low / 1 Info）。对批次37-43 全部7份报告做终审，识别 6 项审计修正（A1-A6）。当前工作树中 W1/C10/D02 修复已确认到位。
+  1. **[N01 Low]** `template_backend.py:248-249, 283-284` 静默吞错——legacy matcher 和 SIFT 路由异常完全不可见。
+  2. **[N02 Info]** `pipeline_node.py:60` 使用 `RecognitionType._value2member_map_`（内部 Enum 属性）。
+  3. **[N03 Info]** `pipeline_runner.py:resolve_transitions` 为死代码（无调用方）。
+  4. **[N04 Medium]** `yolo_backend.py:102-112` `_is_available` 缓存 None 后永不重试——首次失败后 YOLO 后端永久不可用。
+  5. **[N05 Low]** `scene_geometry.py:36` `prompt` 参数仅在文本摘要 `_compose_text` 中使用，实际几何分析完全忽略。
+  6. **[N06 Medium]** `logger.py:37-66` `_format` 方法 `pop` 修改调用方 kwargs dict——二次使用时 extra 已丢失。
+  7. **[N07 Low]** `logger.py:118` 硬编码 4 级 parent 链 `Path(__file__).resolve().parent.parent.parent.parent`。
+  8. **[N08 Low]** `template_backend.py:325` fallback 偏移 `tpl_h // 4` 可能系统性地误点偏下位置。
+  9. **[N09 Info]** `template_registry.py:22-25` 单例 `__new__` 无锁（系统性反模式）。
+  10. **[A1 修正]** 批次37 091448-N01 空文件判断有误（已纠正）。
+  11. **[A2 修正]** 批次38 N01 空文件判断有误（已纠正）。
+  12. **[A3 修正]** 批次40 D01/D02 部分误判（已纠正）。
+  13. **[A4 修正]** 批次39 P01 条件非恒真（已纠正）。
+  14. **[A5 修正]** 批次39 P02 风险高估（已纠正）。
+  15. **[A6 修正]** 批次40 硬编码路径中的项目名与当前项目不一致（已纠正）。
+  16. **[W1 修复确认]** `_KNOWN_KEYEVENT_NAMES` 新增 KEYCODE_W/A/S/D/Q/E/F，`_ACTION_KEYCODE_MAP` 映射 VLM 动作到键码——VLM 行走导航已修复。
+  17. **[C10 修复确认]** `_nav3_walk` / `_nav3_to_entity` 使用 `self._llm_client_instance`——LLM 客户端已修复。
+  18. **[D02 修复确认]** `_is_stuck` 使用 `target_dist * 0.05` 相对阈值——卡住检测已修复。
+- **Files Modified**:
+  - `reports/auto/20260711_104045.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 template_backend.py、yolo_backend.py、scene_geometry.py、pipeline_node.py、template_registry.py、logger.py 当前源文件逐行核对。历史报告 180+ 条发现全部经二次验证确认准确，新增 6 处修正。W1/C10/D02 修复经 android_runtime.py、runtime.py、vlm_walk_navigator.py 当前源码确认到位。

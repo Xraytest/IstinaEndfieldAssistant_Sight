@@ -144,6 +144,9 @@ class VlmWalkNavigator:
         self._last_positions.clear()
         history: List[Dict[str, Any]] = []
 
+        # Watchdog: abort the whole loop if cumulative real time overshoots.
+        loop_deadline = time.monotonic() + (self._config.step_timeout_s * max(steps, 1))
+
         # Wait for a fresh frame before starting
         frame = self._grab_frame()
         if frame is None:
@@ -152,6 +155,12 @@ class VlmWalkNavigator:
         current_pos = self._locator.locate(frame)
 
         for step_idx in range(steps):
+            # Per-step watchdog: bail out if a single step runs too long.
+            step_start = time.monotonic()
+            if step_start > loop_deadline:
+                self._logger.warning("walk_to exceeded total budget, aborting at step %d", step_idx)
+                break
+
             # Grab latest screenshot and locate
             frame = self._grab_frame()
             if frame is None:
@@ -183,7 +192,7 @@ class VlmWalkNavigator:
                 break
 
             # Check for stuck condition (position not changing)
-            if self._is_stuck(current_context.center_x, current_context.center_y):
+            if self._is_stuck(current_context.center_x, current_context.center_y, dist):
                 self._logger.warning("stuck detected at step %d, initiating fallback", step_idx)
                 if self._config.fallback_to_navmesh:
                     history.append({"step": step_idx, "action": "stuck_fallback_navmesh"})
@@ -236,6 +245,14 @@ class VlmWalkNavigator:
             # Brief settle delay for the game to update minimap
             time.sleep(0.3)
 
+            # Step-timing warning (soft watchdog — informs rather than aborts).
+            step_elapsed = time.monotonic() - step_start
+            if step_elapsed > self._config.step_timeout_s:
+                self._logger.warning(
+                    "step %d took %.1fs (> step_timeout_s %.1fs)",
+                    step_idx, step_elapsed, self._config.step_timeout_s,
+                )
+
         final_pos = self._grab_frame()
         final_dist = float('inf')
         if final_pos is not None:
@@ -261,25 +278,40 @@ class VlmWalkNavigator:
     # Action execution
     # ------------------------------------------------------------------
 
+# Semantic VLM action -> Android keycode name.
+# The AndroidRuntime daemon only accepts digit keycodes or known KEYCODE_*
+# constant names (see android_runtime._KNOWN_KEYEVENT_NAMES); raw letters
+# like "w" were previously rejected silently, breaking the whole walk loop.
+_ACTION_KEYCODE_MAP: Dict[str, str] = {
+    "forward": "KEYCODE_W",
+    "backward": "KEYCODE_S",
+    "left": "KEYCODE_A",
+    "right": "KEYCODE_D",
+    "turn_left": "KEYCODE_Q",
+    "turn_right": "KEYCODE_E",
+    "interact": "KEYCODE_F",
+}
+
     def _execute_action(self, action: Dict[str, Any]) -> None:
         act = action["action"]
+        keycode = _ACTION_KEYCODE_MAP.get(act)
+        if keycode is None:
+            # "stop"/"arrived" (and any unknown action) => just settle
+            if act == "stop":
+                time.sleep(0.5)
+            return
+
+        # Clamp duration: the VLM may emit tens of seconds which would block the
+        # loop; cap to a sane range. None => short tap (no hold).
         duration = action.get("duration")
-        if act == "forward":
-            self._input_fn("w", duration)
-        elif act == "backward":
-            self._input_fn("s", duration)
-        elif act == "left":
-            self._input_fn("a", duration)
-        elif act == "right":
-            self._input_fn("d", duration)
-        elif act == "turn_left":
-            self._input_fn("q", None)           # q for camera-left quick tap
-        elif act == "turn_right":
-            self._input_fn("e", None)           # e for camera-right quick tap
-        elif act == "interact":
-            self._input_fn("f", None)
-        elif act == "stop":
-            time.sleep(0.5)
+        if duration is not None:
+            try:
+                duration = max(0.5, min(float(duration), 5.0))
+            except (TypeError, ValueError):
+                self._logger.warning("invalid duration %r for action %s, using tap", duration, act)
+                duration = None
+
+        self._input_fn(keycode, duration)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -300,7 +332,7 @@ class VlmWalkNavigator:
         _, buf = cv2.imencode(".png", frame)
         return base64.b64encode(buf).decode("ascii")
 
-    def _is_stuck(self, cx: float, cy: float) -> bool:
+    def _is_stuck(self, cx: float, cy: float, target_dist: float = 0.0) -> bool:
         self._last_positions.append((cx, cy))
         if len(self._last_positions) < self._config.stuck_threshold:
             return False
@@ -308,7 +340,10 @@ class VlmWalkNavigator:
         xs = [p[0] for p in self._last_positions]
         ys = [p[1] for p in self._last_positions]
         spread = (max(xs) - min(xs)) + (max(ys) - min(ys))
-        return spread < 2.0
+        # Relative threshold: scale with distance-to-target so coarse minimap
+        # scales (far targets) are not falsely flagged as stuck.
+        threshold = max(2.0, target_dist * 0.05)
+        return spread < threshold
 
     def _parse_action(self, reply: str) -> Optional[Dict[str, Any]]:
         """Parse JSON action from VLM reply."""
