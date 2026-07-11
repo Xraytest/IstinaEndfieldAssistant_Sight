@@ -17,6 +17,7 @@ from typing import Any, Dict, Optional
 
 from core.foundation.logger import get_logger
 from core.foundation.paths import get_project_root
+from core.foundation.shell_security import is_allowed_shell_cmd
 from core.service.runtime import IstinaRuntime
 
 
@@ -313,7 +314,11 @@ def _handle_task_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
 
 
 def _handle_task_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    tasks = runtime.execute("task.list", {"serial": getattr(args, "serial", None)})
+    # CLI04: task.list 调用同样包 try/except，与 task_option_defs 统一策略
+    try:
+        tasks = runtime.execute("task.list", {"serial": getattr(args, "serial", None)})
+    except Exception:
+        tasks = {}
     if not isinstance(tasks, dict):
         tasks = {}
     task_option_defs = {}
@@ -386,6 +391,9 @@ def _handle_device_info(runtime: IstinaRuntime, args: argparse.Namespace) -> Dic
 
 def _handle_device_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     android = runtime.android()
+    # E01: 无已连接设备时返回明确错误，避免后续属性访问崩溃
+    if android.default_client is None:
+        return {"status": "error", "message": "no device connected"}
     try:
         client = android.default_client
         server_version = client.version()
@@ -465,6 +473,9 @@ def _handle_device_monitor(runtime: IstinaRuntime, args: argparse.Namespace) -> 
 
 
 def _handle_shell(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    # CLI 层白名单校验（P03）：拒绝不在允许前缀内的命令，避免任意命令执行。
+    if not is_allowed_shell_cmd(args.cmd):
+        return {"status": "error", "message": f"shell 命令不在允许的白名单内: {args.cmd[:80]!r}"}
     android = runtime.android()
     try:
         output = android.shell(args.cmd)
@@ -474,12 +485,16 @@ def _handle_shell(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str,
 
 
 def _handle_scene_capture(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    data = runtime.android().screenshot()
+    # CLI08: 与 _handle_screenshot 统一底层方法
+    data = runtime.execute("screenshot", {})
     return _write_or_base64(data, getattr(args, "out", None))
 
 
 def _handle_scene_nav(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     target = getattr(args, "target", None)
+    # CLI08: 空 target 直接报错
+    if not target:
+        return {"status": "error", "message": "empty target"}
     return runtime.execute("nav.to", {"target": target})
 
 
@@ -510,10 +525,43 @@ def _handle_config_get(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
     return {"status": "success", "key": args.key, "value": value}
 
 
+# 允许通过 CLI 设置的配置键白名单（P02：防止任意键注入配置）
+_ALLOWED_CONFIG_KEYS = frozenset({
+    "device.serial", "device.last_connected", "device.auto_connect_last",
+    "device.auto_reconnect", "device.adb_restart_on_timeout",
+    "llm.enabled", "llm.model_path", "llm.mmproj_path", "llm.port",
+    "llm.n_gpu_layers", "llm.context_size", "llm.threads", "llm.temperature",
+    "llm.flash_attention", "llm.kv_cache_type", "llm.batch_size",
+    "llm.ubatch_size", "llm.parallel", "llm.no_repack", "llm.no_cont_batching",
+    "logging.level", "logging.file",
+    "system.minimize_to_tray", "preview_interval_ms",
+})
+
+
+def _coerce_config_value(key: str, value: str) -> Any:
+    """尽力把 CLI 传入的字符串值转成与目标类型匹配的类型。"""
+    lowered = value.strip().lower()
+    if lowered in ("true", "false"):
+        return lowered == "true"
+    try:
+        if "." in value:
+            return float(value)
+        return int(value)
+    except ValueError:
+        return value
+
+
 def _handle_config_set(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    runtime.config[args.key] = args.value
+    key = args.key
+    # 键必须为合法的点分标识符，且落在白名单内（P02）
+    import re
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*", key or ""):
+        return {"status": "error", "message": f"非法 config key: {key!r}"}
+    if key not in _ALLOWED_CONFIG_KEYS:
+        return {"status": "error", "message": f"config key 不在允许的白名单内: {key!r}"}
+    runtime.config[key] = _coerce_config_value(key, args.value)
     runtime.save_config()
-    return {"status": "success", "key": args.key, "value": args.value}
+    return {"status": "success", "key": key, "value": args.value}
 
 
 def _handle_config_reload(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
@@ -522,11 +570,13 @@ def _handle_config_reload(runtime: IstinaRuntime, args: argparse.Namespace) -> D
 
 
 def _handle_auth_status(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    return {"status": "not_implemented", "auth": "no active session"}
+    # CLI03: 未实现的功能返回 ok 并退出码 0，而非 error
+    return {"status": "ok", "message": "not implemented"}
 
 
 def _handle_auth_login(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    return {"status": "not_implemented"}
+    # CLI03: 未实现的功能返回 ok 并退出码 0，而非 error
+    return {"status": "ok", "message": "not implemented"}
 
 
 def _handle_auth_logout(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
@@ -539,12 +589,16 @@ def _handle_model_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
     files = []
     if models_dir.is_dir():
         for path in sorted(models_dir.rglob("*")):
-            if path.is_file():
-                files.append({
-                    "name": str(path.relative_to(models_dir)),
-                    "path": str(path),
-                    "size_bytes": path.stat().st_size,
-                })
+            if not path.is_file():
+                continue
+            # P04: 跳过以 "." 开头的隐藏文件/目录（泄露项目结构）
+            if any(part.startswith(".") for part in path.relative_to(models_dir).parts):
+                continue
+            files.append({
+                "name": str(path.relative_to(models_dir)),
+                "path": str(path),
+                "size_bytes": path.stat().st_size,
+            })
     return {"status": "success", "models": files}
 
 
@@ -674,8 +728,14 @@ def _handle_gpu_recommend(runtime: IstinaRuntime, args: argparse.Namespace) -> D
     recommendation = "CPU"
     if gpus:
         mem = gpus[0].get("free_memory_bytes", 0)
-        if mem and mem >= 4 * 1024 * 1024 * 1024 or mem and mem >= 2 * 1024 * 1024 * 1024:
-            recommendation = "GPU"
+        GB = 1024 * 1024 * 1024
+        # P01: 分级推荐，避免运算符优先级歧义（>=4GB / >=2GB / CPU）
+        if mem >= 4 * GB:
+            recommendation = "GPU (>=4GB)"
+        elif mem >= 2 * GB:
+            recommendation = "GPU (>=2GB)"
+        else:
+            recommendation = "CPU"
     return {
         "status": "success",
         "gpu_count": len(gpus),
@@ -787,6 +847,9 @@ def _handle_scene_context(runtime: IstinaRuntime, args: argparse.Namespace) -> D
 
 
 def _handle_nav(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    # CLI07: 空 target 直接报错
+    if not getattr(args, "target", None):
+        return {"status": "error", "message": "empty target"}
     return runtime.execute("nav.to", {"target": args.target})
 
 
@@ -843,6 +906,9 @@ def _handle_nav3(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, 
 
 
 def _handle_llm_prompt(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    # CLI06: 空 prompt 直接报错，避免无意义推理调用
+    if not getattr(args, "text", None):
+        return {"status": "error", "message": "empty prompt"}
     params: Dict[str, Any] = {"prompt": args.text}
     system = getattr(args, "system", None)
     temperature = getattr(args, "temperature", None)
@@ -850,10 +916,17 @@ def _handle_llm_prompt(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
     image = getattr(args, "image", None)
     if system:
         params["system"] = system
+    # H-11: float()/int() 校验，非法参数返回 error 而非抛异常
     if temperature is not None:
-        params["temperature"] = float(temperature)
+        try:
+            params["temperature"] = float(temperature)
+        except (ValueError, TypeError):
+            return {"status": "error", "message": "invalid parameter: temperature"}
     if max_tokens is not None:
-        params["max_tokens"] = int(max_tokens)
+        try:
+            params["max_tokens"] = int(max_tokens)
+        except (ValueError, TypeError):
+            return {"status": "error", "message": "invalid parameter: max_tokens"}
     if image is not None:
         params["image"] = image
     return runtime.execute("llm.chat", params)

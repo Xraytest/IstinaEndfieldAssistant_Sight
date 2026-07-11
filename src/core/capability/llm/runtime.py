@@ -40,6 +40,8 @@ class LlamaServerRuntime:
         self._logger = get_logger(__name__)
         self._default_port = int(config.get("port", 9998))
         self._owned_pids: Set[int] = set()
+        # LLM-06: 保护 _owned_pids 的并发访问
+        self._owned_pids_lock = threading.Lock()
         self._register_atexit()
 
     def _register_atexit(self) -> None:
@@ -59,11 +61,18 @@ class LlamaServerRuntime:
 
     def _shutdown_owned(self) -> None:
         """仅关闭由当前实例启动的进程，避免误杀其他实例的服务。"""
-        if not self._owned_pids:
-            return
+        with self._owned_pids_lock:
+            if not self._owned_pids:
+                return
         self._http_shutdown()
         self._kill_tracked_process()
-        self._owned_pids.clear()
+        with self._owned_pids_lock:
+            self._owned_pids.clear()
+
+    def reset_cuda_state(self) -> None:
+        """LLM-02: 重置 CUDA 失败标记，允许环境变化后重新尝试 GPU 启动。"""
+        self._cuda_failed = False
+        self._logger.info("llama-server CUDA 失败标记已重置 (port=%s)", self._default_port)
 
     @classmethod
     def get_instance(cls, config: Dict[str, Any]) -> LlamaServerRuntime:
@@ -147,8 +156,12 @@ class LlamaServerRuntime:
                 if "ready" in data.lower() or '"status"' in data.lower():
                     self._ready = True
                     return True
-        except Exception:
-            pass
+        except Exception as exc:
+            # N02: 进程在运行但 HTTP 检查失败属瞬时抖动，仅记录 warning 不翻转 _ready
+            if self._process is not None and self._process.poll() is None:
+                self._logger.warning("llama-server health HTTP check failed (process running): %s", exc)
+            else:
+                self._logger.debug("llama-server health HTTP check failed: %s", exc)
         if self._process is not None and self._process.poll() is None:
             return False
         self._ready = False
@@ -183,7 +196,8 @@ class LlamaServerRuntime:
         except Exception as exc:
             self._logger.warning("failed to stop llama-server PID %s: %s", pid, exc)
         finally:
-            self._owned_pids.discard(pid)
+            with self._owned_pids_lock:
+                self._owned_pids.discard(pid)
 
     def _kill_processes_on_port(self) -> None:
         pids = self._find_pids_on_port(self._default_port)
@@ -238,13 +252,22 @@ class LlamaServerRuntime:
         return None
 
     def _resolve_model_path(self, model_path: str) -> str:
+        root = get_project_root().resolve()
         p = Path(model_path)
-        if p.exists():
-            return str(p)
-        candidate = get_project_root() / model_path
-        if candidate.exists():
-            return str(candidate)
-        return model_path
+        # 绝对路径约束在项目目录内，防止路径遍历逃逸（CFG-10）
+        if p.is_absolute():
+            resolved = p.resolve()
+            if root not in resolved.parents and resolved != root:
+                self._logger.warning("model_path 绝对路径越界，已忽略: %s", model_path)
+                p = Path(p.name)  # 退化为仅文件名，强制相对解析
+        # 相对路径：项目内优先，其次 models/ 子目录
+        in_root = (root / str(p)).resolve()
+        if in_root.exists():
+            return str(in_root)
+        under_models = (root / "models" / str(p)).resolve()
+        if under_models.exists():
+            return str(under_models)
+        return str(p)
 
     def _build_args(self, exe: Path, model_path: str, llm_cfg: Dict[str, Any], force_cpu: bool) -> list[str]:
         args = [str(exe), "-m", model_path]
@@ -317,21 +340,40 @@ class LlamaServerRuntime:
                 args[idx] = str(Path(model_path).resolve())
                 break
         try:
-            self._process = subprocess.Popen(args, cwd=str(get_project_root()), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # LLM-01: 捕获子进程输出，启动失败时便于诊断
+            self._process = subprocess.Popen(
+                args, cwd=str(get_project_root()),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
         except Exception as exc:
             self._logger.error("failed to start llama-server: %s", exc)
             return False
 
-        self._owned_pids.add(self._process.pid)
+        with self._owned_pids_lock:
+            self._owned_pids.add(self._process.pid)
         try:
             for _ in range(60):
                 if self._process.poll() is not None:
+                    # LLM-01: 启动失败，记录子进程输出
+                    out, err = b"", b""
+                    try:
+                        out, err = self._process.communicate(timeout=2)
+                    except Exception:
+                        pass
+                    self._logger.error(
+                        "llama-server exited early (code=%s): stdout=%r stderr=%r",
+                        self._process.returncode,
+                        out.decode("utf-8", errors="replace")[:2000] if out else "",
+                        err.decode("utf-8", errors="replace")[:2000] if err else "",
+                    )
                     return False
                 if self.health_check():
                     self._ready = True
                     return True
                 time.sleep(1)
             return False
-        except Exception:
+        # LLM-04: 裸 except 改为记录后返回，避免吞掉异常信息
+        except Exception as exc:
+            self._logger.error("llama-server startup error: %s", exc)
             return False
 

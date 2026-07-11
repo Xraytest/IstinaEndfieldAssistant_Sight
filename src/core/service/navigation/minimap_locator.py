@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import re
+
 import cv2
 import numpy as np
 
@@ -177,10 +179,7 @@ class MinimapLocator:
                             break
                     if grid_cell:
                         break
-                if tile_class.startswith(("Map01Lv", "Map02Lv")):
-                    level_id = tile_class[5:11].lower()
         elif "Base" in tile_class and "__r" in tile_class:
-            import re
             m = re.search(r"__r(\d+)_c(\d+)", tile_class)
             if m:
                 row, col = int(m.group(1)), int(m.group(2))
@@ -188,6 +187,12 @@ class MinimapLocator:
                 if layout:
                     cx = col * layout.tile_w + layout.tile_w / 2
                     cy = row * layout.tile_h + layout.tile_h / 2
+
+        # W5/L02: 提取 level_id（如 "Map01Lv001" -> "lv001"），移出 Tier 分支，
+        # 使无 Tier 的瓦片也能获取 level_id；用正则替代固定宽度切片 tile_class[5:11]
+        lv_match = re.search(r"Map\d+Lv(\d+)", tile_class)
+        if lv_match:
+            level_id = f"lv{lv_match.group(1)}"
 
         return MapPosition(
             map_id=map_id,

@@ -52,8 +52,9 @@ class TaskRunner:
             options = task_entry.get("option") or {}
             result = self.execute_task(screen, name, options)
             results.append(result)
+            # F05: 收集所有失败而非在首个错误处终止，便于上层汇总
             if result.get("status") == "error":
-                break
+                logger.warning("预设任务 '%s' 执行失败，继续后续任务", name)
         return results
 
     def _build_task_graph(
@@ -81,6 +82,7 @@ class TaskRunner:
     def _build_option_override(
         self, opt_def: Dict[str, Any], value: Any
     ) -> Dict[str, Any]:
+        # F06: 处理所有 option 类型（switch/checkbox/select/input），与 MaaEnd 侧一致。
         result: Dict[str, Any] = {}
         opt_type = opt_def.get("type", "switch")
         cases = opt_def.get("cases", [])
@@ -96,4 +98,21 @@ class TaskRunner:
                     if case.get("name") == default_case:
                         result.update(case.get("pipeline_override") or {})
                         return result
+        elif opt_type == "checkbox":
+            selected = value if isinstance(value, list) else ([value] if value else [])
+            default_case = opt_def.get("default_case") or []
+            active_cases = selected if selected else default_case
+            for case in cases:
+                if case.get("name") in active_cases:
+                    result.update(case.get("pipeline_override") or {})
+        elif opt_type == "select":
+            case_name = str(value)
+            default_case = str(opt_def.get("default_case")) if opt_def.get("default_case") is not None else None
+            active_case = case_name if case_name else default_case
+            for case in cases:
+                if case.get("name") == active_case:
+                    result.update(case.get("pipeline_override") or {})
+                    break
+        elif opt_type == "input":
+            result.update(opt_def.get("pipeline_override") or {})
         return result

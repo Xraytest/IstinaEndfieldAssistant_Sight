@@ -249,8 +249,10 @@ class MaaEndRuntime:
             return False
         # Start Agent after Tasker is ready so it can register sinks correctly.
         self._start_agent()
-        if self._agent_client is None and self._agent_process is None:
-            self.logger.error(LogCategory.MAIN, "Agent 未启动，连接中止")
+        if self._agent_client is None or self._agent_process is None:
+            # H-13: Agent 部分启动（client 或 process 任一缺失）即视为未就绪，中止连接，
+            # 避免带着半初始化的 Agent 继续，导致后续 bind/connect 失败且难以定位。
+            self.logger.error(LogCategory.MAIN, "Agent 未启动（client 或 process 缺失），连接中止")
             self._cleanup_partial()
             return False
         if self._agent_client is not None:
@@ -818,7 +820,9 @@ class MaaEndRuntime:
             job = self._controller.post_screencap()
             job.wait()
             if not job.succeeded:
-                self._connected = False
+                # H-02: 单次截图失败（瞬时抖动）不应翻转连接态，避免触发重连风暴；
+                # 真正的连接断开由上层重试/恢复机制判定。
+                self.logger.warning(LogCategory.MAIN, "截图失败（screencap 未成功），但保持连接态")
                 return None
             cached = self._controller.cached_image
             if cached is None:
@@ -827,6 +831,6 @@ class MaaEndRuntime:
             success, buf = cv2.imencode(".png", cached)
             return buf.tobytes() if success else None
         except Exception as e:
-            self._connected = False
-            self.logger.exception(LogCategory.MAIN, "截图失败", error=str(e))
+            # H-02: 异常同样只记录，不翻转连接态
+            self.logger.warning(LogCategory.MAIN, "截图异常，保持连接态", error=str(e))
             return None

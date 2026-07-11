@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -19,9 +20,14 @@ class TemplateRegistry:
     _loaded_modules: Set[str] = set()
     _module_counts: Dict[str, int] = {}
 
+    _lock = threading.Lock()
+
     def __new__(cls) -> TemplateRegistry:
+        # F03: 双重检查锁，避免多线程下重复创建实例
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
         return cls._instance
 
     def __init__(self) -> None:
@@ -111,10 +117,12 @@ class TemplateRegistry:
         img = self._templates.get(key)
         if img is not None:
             return img
+        # F04: 严格后缀/文件名匹配，避免子串误匹配返回错误的模板。
         for tpl_key, tpl_img in self._templates.items():
-            if tpl_key.endswith((key, key.replace("/", "_"))):
+            if tpl_key == key or tpl_key.endswith("/" + key):
                 return tpl_img
-            if key.endswith(tpl_key.split("/")[-1]):
+        for tpl_key, tpl_img in self._templates.items():
+            if tpl_key.split("/")[-1] == key:
                 return tpl_img
         return None
 

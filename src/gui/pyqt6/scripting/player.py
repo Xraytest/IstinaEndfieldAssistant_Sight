@@ -78,8 +78,10 @@ class Player(QObject):
         """Stop playback immediately."""
         self._stopped = True
         self._paused = False
-        if self._action_timer and self._action_timer.isActive():
+        if self._action_timer is not None:
             self._action_timer.stop()
+            self._action_timer.deleteLater()
+            self._action_timer = None
         logger.info("Playback stopped")
         if self.playback_stopped:
             self.playback_stopped.emit()
@@ -97,6 +99,11 @@ class Player(QObject):
         if self._current_index >= len(self._script.actions):
             self._on_finished()
             return
+
+        if self._action_timer is not None:
+            self._action_timer.stop()
+            self._action_timer.deleteLater()
+            self._action_timer = None
 
         self._action_timer = QTimer(self)
         self._action_timer.setSingleShot(True)

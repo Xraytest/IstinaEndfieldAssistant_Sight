@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import threading
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
@@ -65,10 +67,7 @@ class PipelineNode:
         custom_action = None
         custom_action_param = None
         if isinstance(action_raw, str):
-            if action_raw in ("StopTask", "DoNothing"):
-                action = action_raw
-            else:
-                action = action_raw
+            action = action_raw
             if action_raw == "Custom":
                 custom_action = data.get("custom_action")
                 custom_action_param = data.get("custom_action_param")
@@ -109,13 +108,15 @@ class PipelineNode:
         )
 
     def to_dict(self) -> Dict[str, Any]:
-        return self.metadata
+        # PN-5: 返回 metadata 的深拷贝，避免调用方修改返回字典时污染节点原始数据。
+        return copy.deepcopy(self.metadata)
 
 
 @dataclass
 class PipelineGraph:
     nodes: Dict[str, PipelineNode] = field(default_factory=dict)
     entry_points: List[str] = field(default_factory=list)
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def add_node(self, node: PipelineNode) -> None:
         self.nodes[node.name] = node
@@ -133,5 +134,9 @@ class PipelineGraph:
         return [self.nodes.get(n) for n in node.next if n in self.nodes]
 
     def merge(self, other: PipelineGraph) -> None:
-        self.nodes.update(other.nodes)
-        self.entry_points.extend(other.entry_points)
+        # PN-3: 合并加锁保护，并对 entry_points 去重，避免多线程合并时竞争或重复。
+        with self._lock:
+            self.nodes.update(other.nodes)
+            for ep in other.entry_points:
+                if ep not in self.entry_points:
+                    self.entry_points.append(ep)

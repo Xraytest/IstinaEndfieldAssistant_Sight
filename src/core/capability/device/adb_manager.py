@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from core.foundation.logger import LogCategory, get_logger
+from core.foundation.shell_security import is_allowed_shell_cmd
 
 
 class ADBDeviceInfo:
@@ -51,8 +52,9 @@ class ADBDeviceManager:
             for device in adb.devices():
                 devices.append(ADBDeviceInfo(serial=device.serial, state=device.state))
             return devices
-        except Exception:
-            pass
+        except Exception as e:
+            # D3: 不要静默吞掉异常，记录后回退到 subprocess 实现
+            self._logger.warning(LogCategory.ADB, "adbutils 获取设备列表失败，回退 subprocess", error=str(e))
         try:
             output = subprocess.check_output(
                 [self._resolve_adb_path(), "devices"],
@@ -69,7 +71,13 @@ class ADBDeviceManager:
             return devices
 
     def shell(self, cmd: str, serial: Optional[str] = None) -> str:
-        """执行 ADB shell 命令"""
+        """执行 ADB shell 命令
+
+        安全收敛（C-02b）：任何外部传入的 cmd 必须先通过前缀白名单 +
+        注入字符校验，否则拒绝执行，避免 `istina shell` 等路径绕过守护进程
+        白名单在设备端执行任意命令。
+        """
+        _validate_shell_cmd(cmd)
         try:
             import adbutils
 
@@ -102,6 +110,8 @@ class ADBDeviceManager:
         return None
 
     def _shell_via_subprocess(self, cmd: str, serial: Optional[str] = None) -> str:
+        # 防御性校验：理论上调用方已校验，此处再拦截一次避免绕过
+        _validate_shell_cmd(cmd)
         adb = self._resolve_adb_path()
         args = [adb]
         if serial:
@@ -124,11 +134,20 @@ class ADBDeviceManager:
             args += ["-s", serial]
         args += ["shell", "screencap", "-p"]
         data = subprocess.check_output(args, timeout=self._timeout)
-        # ADB on Windows may translate LF to CRLF in screencap output.
-        if data[:4] == b"\x89PNG" and b"\x0d\x0a" in data:
-            data = data.replace(b"\x0d\x0a", b"\x0a")
+        # B1/D4: 仅剥离 ADB 在 Windows 下可能插入的「前导 CRLF」；绝不对二进制 PNG
+        # 数据做全局 CRLF 替换，否则会破坏 PNG 内部字节导致解码失败。同时校验 PNG 幻数。
+        if data[:2] == b"\r\n" and data[2:6] == b"\x89PNG":
+            data = data[2:]
+        if data[:4] != b"\x89PNG":
+            self._logger.warning(LogCategory.ADB, "screencap 返回数据不是合法 PNG", size=len(data))
         return data
 
     def version(self) -> str:
         output = subprocess.check_output([self._resolve_adb_path(), "version"], text=True, timeout=self._timeout)
         return output.strip()
+
+
+def _validate_shell_cmd(cmd: str) -> None:
+    """校验 shell 命令合法性，非法则抛 ValueError。"""
+    if not is_allowed_shell_cmd(cmd):
+        raise ValueError(f"shell 命令不在允许的白名单内，已拒绝: {cmd[:80]!r}")

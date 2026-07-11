@@ -6,7 +6,7 @@ buttons and interactive elements, aligned with Hypergryph's polished UI.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, Qt
+from PyQt6.QtCore import QEasingCurve, QPropertyAnimation, Qt, pyqtProperty, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter
 from PyQt6.QtWidgets import QPushButton
 
@@ -18,22 +18,25 @@ class AnimatedButton(QPushButton):
     between normal, hover, and pressed states over 120-200ms.
     """
 
+    _bg_opacity_changed = pyqtSignal()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._bg_opacity = 0.0
+        self.__bg_opacity = 0.0
         self._target_opacity = 0.0
         self._animation = QPropertyAnimation(self, b"_bg_opacity", self)
         self._animation.setDuration(150)
         self._animation.setEasingCurve(QEasingCurve.Type.OutCubic)
 
-    def _get_bg_opacity(self):
-        return self._bg_opacity
+    @pyqtProperty(float, notify=_bg_opacity_changed)
+    def _bg_opacity(self):
+        return self.__bg_opacity
 
-    def _set_bg_opacity(self, value):
-        self._bg_opacity = value
+    @_bg_opacity.setter
+    def _bg_opacity(self, value):
+        self.__bg_opacity = value
+        self._bg_opacity_changed.emit()
         self.update()
-
-    _bg_opacity = property(_get_bg_opacity, _set_bg_opacity)
 
     def enterEvent(self, event):
         self._target_opacity = 1.0

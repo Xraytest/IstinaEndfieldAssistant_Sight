@@ -194,8 +194,22 @@ class SettingsPage(QWidget):
             config.pop("cache", None)
 
             self._config_path.parent.mkdir(parents=True, exist_ok=True)
-            self._config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
-            self._raw_preview.setPlainText(json.dumps(config, ensure_ascii=False, indent=2))
+            # G8: 原子写入，避免中断导致配置文件损坏
+            import tempfile
+            import os
+            data = json.dumps(config, ensure_ascii=False, indent=2)
+            fd, tmp_path = tempfile.mkstemp(dir=str(self._config_path.parent), suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(data)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, self._config_path)
+            except Exception:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
+            self._raw_preview.setPlainText(data)
         except Exception as exc:
             logging.getLogger(__name__).warning("Settings save failed: %s", exc)
             QMessageBox.warning(

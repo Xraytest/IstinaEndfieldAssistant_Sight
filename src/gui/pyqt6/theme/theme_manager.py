@@ -6,6 +6,7 @@ Single arknight theme:低调暗黑 + 低调蓝灰高对比。
 from __future__ import annotations
 
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -135,6 +136,9 @@ FONTS: Dict[str, str] = {
     "family_fallback": "Segoe UI",
     "family_mono": "Consolas",
 }
+
+# 保护单例构造与全局主题变量（COLORS/FONTS/ANIMATION_CONFIG 等）的并发写入
+_theme_lock = threading.Lock()
 
 FONT_SIZES: Dict[str, int] = {
     "size_base": 12, "size_small": 11, "size_large": 13, "size_xlarge": 15,
@@ -392,13 +396,17 @@ class ThemeManager:
 
     def __new__(cls) -> "ThemeManager":
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
+            with _theme_lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
         return cls._instance
 
     @classmethod
     def get_instance(cls) -> "ThemeManager":
         if cls._instance is None:
-            cls._instance = cls()
+            with _theme_lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     @property
@@ -437,18 +445,20 @@ class ThemeManager:
     def is_animation_enabled(self) -> bool:
         return bool(ANIMATION_CONFIG.get("enabled", True))
     def set_animation_enabled(self, enabled: bool) -> None:
-        ANIMATION_CONFIG["enabled"] = enabled
+        with _theme_lock:
+            ANIMATION_CONFIG["enabled"] = enabled
     def set_animation_duration(self, name: str, value: int) -> None:
-        DURATION[name] = value
+        with _theme_lock:
+            DURATION[name] = value
     def get_available_themes(self) -> list[dict]:
         return [{"id": k, **v} for k, v in THEMES.items()]
     def set_current_theme(self, theme_name: str) -> None:
-        global COLORS
+        global COLORS, _current_theme
         if theme_name in THEMES:
-            COLORS.clear()
-            COLORS.update(THEMES[theme_name]["colors"])
-            global _current_theme
-            _current_theme = theme_name
+            with _theme_lock:
+                COLORS.clear()
+                COLORS.update(THEMES[theme_name]["colors"])
+                _current_theme = theme_name
     def get_current_theme(self) -> str:
         return _current_theme
     def get_stylesheet(self, theme_name: Optional[str] = None) -> str:
@@ -469,31 +479,35 @@ def ensure_app_fonts() -> str:
     if _FONT_RESOURCES_LOADED:
         return FONTS["family"]
 
-    candidate_paths = (
-        Path(r"C:\Windows\Fonts\msyh.ttc"),
-        Path(r"C:\Windows\Fonts\msyhbd.ttc"),
-        Path(r"C:\Windows\Fonts\simhei.ttf"),
-        Path(r"C:\Windows\Fonts\simsun.ttc"),
-    )
-    desired_family = FONTS["family"]
-    fallback_family = desired_family
+    with _theme_lock:
+        if _FONT_RESOURCES_LOADED:
+            return FONTS["family"]
 
-    for path in candidate_paths:
-        if not path.exists():
-            continue
-        font_id = QFontDatabase.addApplicationFont(str(path))
-        if font_id < 0:
-            continue
-        families = QFontDatabase.applicationFontFamilies(font_id)
-        if desired_family in families:
-            fallback_family = desired_family
-            break
-        if families and fallback_family == desired_family:
-            fallback_family = families[0]
+        candidate_paths = (
+            Path(r"C:\Windows\Fonts\msyh.ttc"),
+            Path(r"C:\Windows\Fonts\msyhbd.ttc"),
+            Path(r"C:\Windows\Fonts\simhei.ttf"),
+            Path(r"C:\Windows\Fonts\simsun.ttc"),
+        )
+        desired_family = FONTS["family"]
+        fallback_family = desired_family
 
-    FONTS["family"] = fallback_family
-    FONTS["family_display"] = fallback_family
-    _FONT_RESOURCES_LOADED = True
+        for path in candidate_paths:
+            if not path.exists():
+                continue
+            font_id = QFontDatabase.addApplicationFont(str(path))
+            if font_id < 0:
+                continue
+            families = QFontDatabase.applicationFontFamilies(font_id)
+            if desired_family in families:
+                fallback_family = desired_family
+                break
+            if families and fallback_family == desired_family:
+                fallback_family = families[0]
+
+        FONTS["family"] = fallback_family
+        FONTS["family_display"] = fallback_family
+        _FONT_RESOURCES_LOADED = True
     return fallback_family
 
 

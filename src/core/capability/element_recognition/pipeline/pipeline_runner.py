@@ -47,8 +47,12 @@ class PipelineRunner:
         graph: PipelineGraph,
         entry: str,
         max_steps: int = 100,
+        clear_state: bool = True,
     ) -> Dict[str, Any]:
-        self._hit_counts.clear()
+        # N2: 仅在全新执行时清空命中计数；重试场景由 run_pipeline 控制，
+        # 避免清空已累计的 max_hit 计数导致重试失效。
+        if clear_state:
+            self._hit_counts.clear()
         current = graph.get_node_or_entry(entry)
         if current is None:
             return {"status": "error", "message": f"Entry node '{entry}' not found"}
@@ -108,12 +112,14 @@ class PipelineRunner:
         max_retries: int = 3,
         retry_backoff_s: float = 0.1,
     ) -> Dict[str, Any]:
-        result = self.run(screen, graph, entry, max_steps)
+        # N2: 全新执行入口清空命中计数；后续重试传入 clear_state=False 不再清空。
+        self._hit_counts.clear()
+        result = self.run(screen, graph, entry, max_steps, clear_state=False)
         retries = 0
         while result["status"] != "matched" and result["steps"] < max_steps and retries < max_retries:
             time.sleep(retry_backoff_s)
             retries += 1
-            result = self.run(screen, graph, entry, max_steps)
+            result = self.run(screen, graph, entry, max_steps, clear_state=False)
             if target_node and target_node in result.get("executed", []):
                 break
         return result
@@ -142,6 +148,12 @@ class PipelineRunner:
             return self._evaluate_and(screen, node, graph)
         if node.recognition == RecognitionType.Or:
             return self._evaluate_or(screen, node, graph)
+        # G: 未实现的识别类型（ColorMatch/Custom 等）按非命中处理并记录告警。
+        logger.warning(
+            "未实现的识别类型 %s（节点 %s），按非命中处理",
+            node.recognition.value if hasattr(node.recognition, "value") else node.recognition,
+            node.name,
+        )
         return None
 
     def _match_template(
@@ -322,7 +334,8 @@ class PipelineRunner:
                 continue
             if graph.get_node(next_name) is not None:
                 return next_name
-        return node.next[0] if node.next else None
+        # B4: 没有有效的下一节点时结束流程，而不是返回带方括号的死令牌（如 "[...]"）。
+        return None
 
     def _transition(
         self, graph: PipelineGraph, current: PipelineNode, executed: List[str]
@@ -348,4 +361,13 @@ class PipelineRunner:
     def _wait_for_freeze(
         self, screen: np.ndarray, freeze_spec: Any
     ) -> None:
-        pass
+        # H-03: 实现「等待画面稳定」的最小可用版本。runner 此时只持有当前帧，
+        # 无法跨帧比较 SSIM，故将 freeze_spec 解释为「等待时长（毫秒）」让画面沉降，
+        # 避免节点在动画/转场未完成时立即识别。
+        duration_ms = 0
+        if isinstance(freeze_spec, int):
+            duration_ms = freeze_spec
+        elif isinstance(freeze_spec, dict):
+            duration_ms = int(freeze_spec.get("duration", freeze_spec.get("timeout", 0)) or 0)
+        if duration_ms > 0:
+            time.sleep(duration_ms / 1000.0)

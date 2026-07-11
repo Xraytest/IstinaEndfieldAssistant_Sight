@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -59,6 +60,7 @@ _ZONE_MAP = {
     "map01": "ValleyIV_Base",
     "map02": "Wuling_Base",
     "base01": "Dijiang_Base",
+    "dung01": "dung01_Base",
 }
 
 
@@ -98,12 +100,24 @@ class MapDataLoader:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
+        except MemoryError:
+            self._logger.error("out of memory while loading layout %s", map_name)
+            raise
         except Exception as exc:
             self._logger.warning("failed to load layout %s: %s", map_name, exc)
             return None
 
+        # NAV-04: 顶层结构校验，非法结构记录 warning 并返回空
+        if not isinstance(raw, dict):
+            self._logger.warning("layout %s top-level is not an object: %s", map_name, type(raw).__name__)
+            return None
+        levels_raw = raw.get("levels", {})
+        if not isinstance(levels_raw, dict):
+            self._logger.warning("layout %s 'levels' is not an object", map_name)
+            return None
+
         levels = {}
-        for lid, lv in raw.get("levels", {}).items():
+        for lid, lv in levels_raw.items():
             levels[lid] = MapLevel(x=lv["x"], y=lv["y"], width=lv["width"], height=lv["height"])
 
         layout = MapLayout(
@@ -115,12 +129,13 @@ class MapDataLoader:
             levels=levels,
         )
         self._layouts[map_name] = layout
-        return layout
+        # NAV-07~11: 返回深拷贝，防止调用方修改内部缓存
+        return copy.deepcopy(layout)
 
     def load_all_layouts(self) -> Dict[str, MapLayout]:
         for name in _LAYOUT_FILES:
             self.load_layout(name)
-        return dict(self._layouts)
+        return copy.deepcopy(self._layouts)
 
     def get_layout(self, map_name: str) -> Optional[MapLayout]:
         return self._layouts.get(map_name) or self.load_layout(map_name)
@@ -141,18 +156,29 @@ class MapDataLoader:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
+        except MemoryError:
+            self._logger.error("out of memory while loading grid_tiers")
+            raise
         except Exception as exc:
             self._logger.warning("failed to load grid_tiers: %s", exc)
             return {}
 
+        # NAV-04/NAV-07: 顶层结构校验与单条目类型校验
+        if not isinstance(raw, dict):
+            self._logger.warning("grid_tiers top-level is not an object: %s", type(raw).__name__)
+            return {}
         for key, val in raw.items():
+            if not isinstance(val, dict):
+                self._logger.warning("grid_tiers entry %r is not an object, skipped", key)
+                continue
             self._grid_tiers[key] = GridCell(
                 center=tuple(val["center"]),
                 lb=tuple(val["lb"]),
                 rt=tuple(val["rt"]),
                 items=dict(val.get("items", {})),
             )
-        return dict(self._grid_tiers)
+        # NAV-07~11: 返回深拷贝，防止调用方修改内部缓存
+        return copy.deepcopy(self._grid_tiers)
 
     def get_grid_cell(self, key: str) -> Optional[GridCell]:
         if not self._grid_tiers:
@@ -175,13 +201,24 @@ class MapDataLoader:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
+        except MemoryError:
+            self._logger.error("out of memory while loading bbox data")
+            raise
         except Exception as exc:
             self._logger.warning("failed to load bbox data: %s", exc)
             return {}
 
+        # NAV-04/NAV-07: 顶层结构校验与单条目类型校验
+        if not isinstance(raw, dict):
+            self._logger.warning("bbox data top-level is not an object: %s", type(raw).__name__)
+            return {}
         for key, val in raw.items():
-            self._bbox_data[key] = tuple(val)
-        return dict(self._bbox_data)
+            if not isinstance(val, (list, tuple)) or len(val) < 4:
+                self._logger.warning("bbox entry %r is invalid, skipped", key)
+                continue
+            self._bbox_data[key] = tuple(val[:4])
+        # NAV-07~11: 返回深拷贝，防止调用方修改内部缓存
+        return copy.deepcopy(self._bbox_data)
 
     def get_bbox(self, key: str) -> Optional[Tuple[int, int, int, int]]:
         if not self._bbox_data:
@@ -204,13 +241,24 @@ class MapDataLoader:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
+        except MemoryError:
+            self._logger.error("out of memory while loading scene map")
+            raise
         except Exception as exc:
             self._logger.warning("failed to load scene map: %s", exc)
             return {}
 
+        # NAV-04/NAV-07: 顶层结构校验与单条目类型校验
+        if not isinstance(raw, dict):
+            self._logger.warning("scene map top-level is not an object: %s", type(raw).__name__)
+            return {}
         for key, val in raw.items():
+            if not isinstance(val, dict):
+                self._logger.warning("scene map entry %r is not an object, skipped", key)
+                continue
             self._scene_map[key] = val.get("scene_manager_node", "")
-        return dict(self._scene_map)
+        # NAV-07~11: 返回深拷贝，防止调用方修改内部缓存
+        return copy.deepcopy(self._scene_map)
 
     def get_scene_node(self, level_id: str) -> Optional[str]:
         if not self._scene_map:

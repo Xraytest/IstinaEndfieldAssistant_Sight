@@ -97,9 +97,14 @@ def main() -> int:
         t0 = time.time()
         with urllib.request.urlopen(req, timeout=120) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
-            print("响应:", data.get("choices", [{}])[0].get("text", "")[:200])
-        t1 = time.time()
-        print(f"耗时: {t1-t0:.2f}s")
+            # B3: choices 可能为空（推理失败），先检查再索引
+            choices = data.get("choices") or []
+            if not choices:
+                print("响应中无 choices，推理可能失败:", data)
+                return 1
+            print("响应:", choices[0].get("text", "")[:200])
+            t1 = time.time()
+            print(f"耗时: {t1-t0:.2f}s")
 
         # 读取剩余stderr
         time.sleep(1)

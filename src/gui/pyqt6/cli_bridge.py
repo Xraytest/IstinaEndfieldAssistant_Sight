@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -87,7 +88,8 @@ class CLIBridge(QObject):
 
     @staticmethod
     def _build_args(command: str, params: Dict[str, Any]) -> List[str]:
-        args = command.split()
+        # N07: shlex.split 正确处理带空格/引号的值，避免 split() 误切分
+        args = shlex.split(command)
         for key, value in params.items():
             if value is None:
                 continue

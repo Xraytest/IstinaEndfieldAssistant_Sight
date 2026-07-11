@@ -22,6 +22,8 @@ class LocaleManager:
         self._translations: Dict[str, Dict[str, str]] = {}
         self._current_locale: str = "zh_CN"
         self._settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
+        # I18N-1: 持有 translator 引用，防止被 GC 回收导致翻译失效
+        self._qt_translator: Optional[QTranslator] = None
         self._load_all()
 
     def _load_all(self) -> None:
@@ -72,12 +74,13 @@ class LocaleManager:
             app = QApplication.instance()
         if app is None:
             return
-        translator = QTranslator(app)
+        # I18N-1: 持有 translator 引用，防止被 GC 回收导致翻译失效
+        self._qt_translator = QTranslator(app)
         # attempt to load Qt's built-in translation for the locale
         locale = QLocale(self._current_locale)
         qm_name = f"qt_{locale.name()}"
-        if translator.load(qm_name):
-            app.installTranslator(translator)
+        if self._qt_translator.load(qm_name):
+            app.installTranslator(self._qt_translator)
 
     @property
     def locales_dir(self) -> Path:

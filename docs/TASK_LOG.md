@@ -1436,6 +1436,24 @@
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 7 个源文件当前代码逐行核对。历史报告 210+ 条发现全部经二次验证确认准确。
 
+## 2026-07-11 15:30 (AutoCodeReview 第五十一批次·设备恢复层/Android 守护进程/LLM 客户端深挖 + 既往报告终审)
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。严禁修改文件！
+- **Outcome**: 增量审计此前未深度审查的 `recovery.py`（Android 应用恢复策略）、`android_runtime.py`（守护进程单例完整逐行审查）、`llm/client.py`（LLM HTTP 客户端逻辑），识别 7 项新发现（2 High / 2 Medium / 2 Low / 1 Info）。对批次 46-50 共 5 份报告做终审审计，识别 5 项审计修正（AUDIT-1~5）。
+  1. **[REC01 High]** `recovery.py:72` 强制停止命令参数拼接错误——`"am force-stop"` 作为单个参数传递给 mksh，解释为命令名而非 `am` + `force-stop` 子命令，导致**强制停止完全无效**，应用残留导致重启失败。
+  2. **[REC02 Medium]** `recovery.py:81-94` `_clear_canvas` 所有异常被静默吞掉，关键恢复步骤失败无法追溯。
+  3. **[ANDROID01 Medium]** `android_runtime.py:170-172` `stop()` 未检查 `_thread` 是否已启动，可能在状态未初始化时崩溃。
+  4. **[LLM05 High]** `llm/client.py:98` 异常日志格式化参数顺序错误——`LogCategory.MAIN` 被当作格式化值输出，**绕过日志分类机制**。
+  5. **[LLM06 Low]** `llm/client.py:82-99` `_post()` 未区分 HTTP 4xx/5xx 错误，5xx 响应体丢失，外部 API 接入时影响诊断。
+  6. **[ANDROID02 Low]** `android_runtime.py:78-85` 硬编码 8 秒超时，未考虑设备性能差异/网络延迟/热启动 vs 冷启动。
+  7. **[ANDROID03 Info]** `android_runtime.py:54` `_lock` 使用上下文管理器，符合最佳实践（确认性审计）。
+  8. **[AUDIT-1]** 批次 48 LLM01 日志格式化参数顺序错误——本批次为纠正和深化，明确为 High 优先级。
+  9. **[AUDIT-2~5]** GEO01/02、PRTS01、OCR01b、PR01/02 验证成立，本批次不重复。
+- **Files Modified**:
+  - `reports/auto/20260711_1530_recovery_android_llm.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 3 个源文件当前代码逐行核对。历史报告 230+ 条发现全部经二次验证确认准确。
+
 ## 2026-07-11 15:00 (AutoCodeReview 第五十批次·PRTS智能页/OCR后端深挖 + 既往报告审计纠错)
 
 - **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。

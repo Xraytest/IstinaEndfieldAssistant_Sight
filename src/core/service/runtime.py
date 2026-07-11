@@ -107,7 +107,14 @@ class IstinaRuntime:
     """Istina 统一运行时门面，聚合设备、MaaEnd、LLM、场景理解等服务。"""
 
     def __init__(self, config_path: Optional[str] = None):
-        self._config_path = Path(config_path).resolve() if config_path else None
+        if config_path:
+            cfg = Path(config_path).resolve()
+            root = get_project_root().resolve()
+            if root not in cfg.parents and cfg != root:
+                raise ValueError(f"config_path 必须在项目目录内: {config_path}")
+            self._config_path = cfg
+        else:
+            self._config_path = None
         self._logger = get_logger(__name__)
         self._config = self._load_config()
         self._android_clients: Dict[str, AndroidRuntimeProxy] = {}
@@ -118,6 +125,7 @@ class IstinaRuntime:
         self._llm_client: Optional[Any] = None
         self._scene_svc: Optional[Any] = None
         self._nav: Optional[Any] = None
+        self._nav_android: Optional[Any] = None
 
     @property
     def _llm_runtime_instance(self) -> Any:
@@ -201,11 +209,14 @@ class IstinaRuntime:
         return self._scene_svc
 
     def navigator(self) -> Any:
-        if self._nav is None:
+        android = self.android()
+        # XC-4: 设备切换时废弃旧的 screenshot_fn bound method，重新绑定新设备
+        if self._nav is None or self._nav_android is not android:
             self._nav = _get_navigator()(
                 maaend=self.maaend(),
-                screenshot_fn=self.android().screenshot,
+                screenshot_fn=android.screenshot,
             )
+            self._nav_android = android
         return self._nav
 
     def connect(self, serial: Optional[str] = None) -> bool:

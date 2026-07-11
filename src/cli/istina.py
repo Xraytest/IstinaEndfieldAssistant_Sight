@@ -275,7 +275,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     sys.stdout.buffer.write((_json_dumps(result) + "\n").encode("utf-8"))
     sys.stdout.buffer.flush()
-    return 0 if isinstance(result, dict) and result.get("status") == "success" else 1
+    # CLI03: "ok" 与 "success" 均视为成功退出码 0
+    success = isinstance(result, dict) and result.get("status") in ("success", "ok")
+    return 0 if success else 1
 
 
 def _interactive_loop(parser: argparse.ArgumentParser) -> int:
@@ -378,7 +380,8 @@ def _auto_warmup(runtime: IstinaRuntime, args: argparse.Namespace) -> None:
     # processes interactive commands serially on one thread, so a blocking
     # warmup on `llm status` would starve every later command (e.g.
     # `metadata list`), leaving task/preset lists permanently empty.
-    if args.command == "llm" and getattr(args, "action", None) not in ("status",):
+    # H-10: llm start/stop 跳过预热（start 由 handler 显式预热，避免双重预热）
+    if args.command == "llm" and getattr(args, "action", None) not in ("status", "start"):
         runtime.warmup_llm()
 
 

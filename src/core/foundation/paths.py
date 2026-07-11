@@ -40,7 +40,14 @@ def get_cache_subdir(name: str) -> Path:
     Returns:
         Path: cache/<name> 目录
     """
+    # H-07: 防御路径遍历——禁止 ".." 成分与绝对路径
+    if ".." in Path(name).parts:
+        raise ValueError(f"非法缓存子目录名（可能存在路径遍历）: {name!r}")
     p = get_cache_dir() / name
+    resolved = p.resolve()
+    cache_root = get_cache_dir().resolve()
+    if not str(resolved).startswith(str(cache_root)):
+        raise ValueError(f"缓存子目录越界: {name!r}")
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -52,15 +59,12 @@ def ensure_src_path(path: Optional[str] = None) -> None:
     这样可以保证 `from core.xxx import ...` 正常工作。
 
     Args:
-        path: 可选的参考文件路径，用于计算项目根目录。
-              如果为 None，则使用当前文件位置计算。
+        path: 可选的参考文件路径（仅用于日志/兼容，不再用于推断根目录）。
+              项目根目录始终基于 paths.py 自身位置计算。
     """
-    if path is not None:
-        # 使用提供的路径计算项目根目录
-        source = Path(path).resolve()
-        project_root = source.parent.parent.parent.parent
-    else:
-        project_root = get_project_root()
+    # H-06: 始终基于 paths.py 自身位置推断项目根目录，不依赖传入 path 的层级，
+    # 避免 source.parent.parent.parent.parent 因目录结构变化解析到错误目录。
+    project_root = get_project_root()
 
     src_dir = project_root / "src"
     src_str = str(src_dir)

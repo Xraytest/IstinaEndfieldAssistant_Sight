@@ -38,7 +38,9 @@ class Navigator:
         self._data = MapDataLoader()
         self._entities = EntityDatabase()
         self._locator = MinimapLocator(self._data)
-        self._entities.load()
+        # NAV-03: 加载实体库失败时记录 warning 并继续使用空库，避免中断构造
+        if not self._entities.load():
+            self._logger.warning("entity database failed to load; navigation will use an empty entity set")
 
     def set_screenshot_fn(self, fn) -> None:
         self._screenshot_fn = fn
@@ -68,6 +70,9 @@ class Navigator:
         """
         self._logger.info("nav to coords: map=%s x=%.1f y=%.1f", map_name, x, y)
 
+        if map_name == "unknown":
+            return {"status": "error", "message": "cannot navigate to unknown map"}
+
         frame = self._get_frame()
         if frame is None:
             return {"status": "error", "message": "no screenshot available"}
@@ -79,7 +84,12 @@ class Navigator:
         if not level_to_nav:
             return {"status": "error", "message": "cannot determine target level"}
 
-        if current_pos and current_pos.map_id != map_name:
+        # NAV-02: 当前地图未知时不做强制传送，避免误传送
+        if (
+            current_pos
+            and current_pos.map_id not in ("unknown", "")
+            and current_pos.map_id != map_name
+        ):
             self._logger.info("different map, teleporting first")
             teleport_ok = self._teleport_to(map_name, level_to_nav)
             if not teleport_ok:
@@ -164,6 +174,11 @@ class Navigator:
         self._entities.load()
         if name_filter:
             matches = self._entities.find_by_name(name_filter, limit=limit)
+            # XC-2: name_filter 存在时仍保留 category/map_name 过滤，用 and 组合
+            if category:
+                matches = [e for e in matches if e.category == category]
+            if map_name:
+                matches = [e for e in matches if e.map_id == map_name]
         elif category and map_name:
             all_in_map = self._entities.find_by_map(map_name, limit=10000)
             matches = [e for e in all_in_map if e.category == category][:limit]

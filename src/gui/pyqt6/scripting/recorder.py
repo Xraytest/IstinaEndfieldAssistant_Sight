@@ -130,10 +130,9 @@ class Recorder(QObject):
         for skipped_type in _SKIPPED_TYPES:
             if isinstance(widget, skipped_type):
                 return True
+        # Only record widgets that expose an object name; internal Qt
+        # widgets typically lack one and cannot be reliably replayed.
         obj_name = widget.objectName() if hasattr(widget, "objectName") else ""
-        if not obj_name and not isinstance(widget, QLineEdit | QComboBox):
-            return True
-        # Skip internal Qt widgets (usually have no object name)
         if not obj_name:
             return True
         return False

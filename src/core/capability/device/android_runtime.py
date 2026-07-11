@@ -25,102 +25,16 @@ from core.capability.device.adb_manager import ADBDeviceInfo, ADBDeviceManager
 from core.capability.device.touch_manager import TouchManager
 from core.foundation.logger import get_logger
 from core.foundation.paths import get_cache_subdir, get_project_root
+from core.foundation.shell_security import (
+    ALLOWED_SHELL_PREFIXES as _ALLOWED_SHELL_PREFIXES,
+    KNOWN_KEYEVENT_NAMES as _KNOWN_KEYEVENT_NAMES,
+    is_allowed_shell_cmd as _is_allowed_shell_cmd,
+    is_valid_keyevent as _is_valid_keyevent,
+)
 
 
 class AndroidRuntimeError(Exception):
     """AndroidRuntime 基础异常"""
-
-
-# ---------------------------------------------------------------------------
-# 安全校验：防止 ADB shell 命令注入和 keyevent 注入
-# ---------------------------------------------------------------------------
-
-# 允许的 shell 命令前缀白名单（用于设备诊断与常规操作）
-_ALLOWED_SHELL_PREFIXES: tuple[str, ...] = (
-    "input ",
-    "getprop ",
-    "settings ",
-    "dumpsys ",
-    "pm list ",
-    "am start ",
-    "am force-stop ",
-    "wm ",
-    "svc ",
-)
-
-# Android KeyEvent 常量名（部分常用），其余要求纯数字
-_KNOWN_KEYEVENT_NAMES: frozenset[str] = frozenset(
-    {
-        "KEYCODE_BACK",
-        "KEYCODE_HOME",
-        "KEYCODE_MENU",
-        "KEYCODE_POWER",
-        "KEYCODE_VOLUME_UP",
-        "KEYCODE_VOLUME_DOWN",
-        "KEYCODE_VOLUME_MUTE",
-        "KEYCODE_APP_SWITCH",
-        "KEYCODE_ENTER",
-        "KEYCODE_DEL",
-        "KEYCODE_TAB",
-        "KEYCODE_ESCAPE",
-        "KEYCODE_DPAD_UP",
-        "KEYCODE_DPAD_DOWN",
-        "KEYCODE_DPAD_LEFT",
-        "KEYCODE_DPAD_RIGHT",
-        "KEYCODE_DPAD_CENTER",
-        "KEYCODE_CAMERA",
-        "KEYCODE_WAKEUP",
-        "KEYCODE_SEARCH",
-        "KEYCODE_NOTIFICATION",
-        "KEYCODE_RECENT_APPS",
-        "KEYCODE_MEDIA_PLAY",
-        "KEYCODE_MEDIA_PAUSE",
-        "KEYCODE_MEDIA_PLAY_PAUSE",
-        "KEYCODE_MEDIA_STOP",
-        "KEYCODE_MEDIA_NEXT",
-        "KEYCODE_MEDIA_PREVIOUS",
-        "KEYCODE_MEDIA_REWIND",
-        "KEYCODE_MEDIA_FAST_FORWARD",
-        "KEYCODE_SPACE",
-        "KEYCODE_SHIFT_LEFT",
-        "KEYCODE_SHIFT_RIGHT",
-        "KEYCODE_CTRL_LEFT",
-        "KEYCODE_CTRL_RIGHT",
-        # Movement / camera / interact keys used by VLM walking
-        "KEYCODE_W",
-        "KEYCODE_A",
-        "KEYCODE_S",
-        "KEYCODE_D",
-        "KEYCODE_Q",
-        "KEYCODE_E",
-        "KEYCODE_F",
-    }
-)
-
-
-def _is_valid_keyevent(key: Any) -> bool:
-    """校验 keyevent 参数：必须为纯数字或已知 KEYCODE 常量名。"""
-    if key is None:
-        return False
-    s = str(key).strip()
-    if not s:
-        return False
-    if s.isdigit():
-        return True
-    return s in _KNOWN_KEYEVENT_NAMES
-
-
-def _is_allowed_shell_cmd(cmd: str) -> bool:
-    """校验 shell 命令是否在允许的前缀白名单内。"""
-    if not cmd or not isinstance(cmd, str):
-        return False
-    stripped = cmd.strip()
-    if not stripped:
-        return False
-    # 拒绝明显的注入尝试
-    if any(ch in stripped for ch in (";", "|", "&", "`", "$", "(", ")", "{", "}", "<", ">", "\n", "\r")):
-        return False
-    return any(stripped.startswith(prefix) for prefix in _ALLOWED_SHELL_PREFIXES)
 
 
 class _ScrcpySession:
@@ -147,6 +61,7 @@ class _ScrcpySession:
         self._codec: Optional[av.CodecContext] = None
         self._device_name: Optional[str] = None
         self._frame_count = 0
+        self._socket_ready = threading.Event()
 
     def start(self, serial: str, jar_path: str, max_size: int = 1280, bit_rate: int = 8000000) -> None:
         if self._thread is not None:
@@ -156,6 +71,7 @@ class _ScrcpySession:
         self._serial = serial
         self._stop_event.clear()
         self._latest_frame = None
+        self._socket_ready.clear()
         self._thread = threading.Thread(
             target=self._run,
             args=(jar_path, max_size, bit_rate),
@@ -163,12 +79,14 @@ class _ScrcpySession:
         )
         self._thread.start()
         import time
-        deadline = time.time() + 8.0
+        # H-01: 首帧计时从 socket 建立成功起算，而非线程启动；总超时放大到 15s
+        self._socket_ready.wait(timeout=10.0)
+        deadline = time.time() + 15.0
         while time.time() < deadline:
             if self._latest_frame is not None:
                 return
             time.sleep(0.005)
-        raise TimeoutError("scrcpy 未在 8s 内收到首帧")
+        raise TimeoutError("scrcpy 未在 15s 内收到首帧")
 
     def stop(self, serial: Optional[str] = None) -> None:
         self._stop_event.set()
@@ -244,6 +162,7 @@ class _ScrcpySession:
                 m = re.search(r"(\d+)\s*$", text)
                 if m:
                     self._local_port = int(m.group(1))
+                    self._socket_ready.set()
                     return True
             except Exception:
                 pass
@@ -606,16 +525,9 @@ class _Daemon:
                         self._logger.debug("daemon screenshot 使用 scrcpy 帧", serial=serial, frame_shape=frame.shape if hasattr(frame, 'shape') else None)
                         _, buf = cv2.imencode(".png", frame)
                         return self._encode_binary(buf.tobytes())
-                    self._logger.warning("daemon screenshot scrcpy 无帧，回退 ADB", serial=serial)
-                    try:
-                        output = self._adb_manager.screencap(serial=serial)
-                        if output is not None:
-                            self._logger.debug("daemon screenshot ADB 成功", serial=serial, size=len(output))
-                            return self._encode_binary(output)
-                    except Exception as exc:
-                        self._logger.warning("daemon screenshot ADB 失败", serial=serial, error=str(exc))
-                    self._logger.error("daemon screenshot 全部失败", serial=serial)
-                    return {"error": "screenshot failed"}
+                    # H-01: 不再回退到 ADB 截图，scrcpy 无帧即视为未就绪
+                    self._logger.error("daemon screenshot scrcpy 无帧", serial=serial)
+                    return {"error": "scrcpy not ready"}
                 if method == "tap":
                     self._touch.tap(int(params.get("x", 0)), int(params.get("y", 0)), serial=params.get("serial", self._serial))
                     return {"result": True}
@@ -809,6 +721,8 @@ class AndroidRuntime:
 
     def keyevent(self, key: str, serial: Optional[str] = None) -> str:
         response = self._call("keyevent", {"key": key, "serial": serial or self._serial})
+        if response.get("error"):
+            raise AndroidRuntimeError(f"keyevent 失败: {response['error']}")
         return response.get("result", "")
 
     def shell(self, cmd: str, serial: Optional[str] = None) -> str:

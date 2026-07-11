@@ -27,13 +27,27 @@ class Entity:
         rl = raw.get("raw_location", [0, 0, 0])
         pl = raw.get("pixel_location", [0, 0])
         ml = raw.get("map_location", [0, 0])
+        try:
+            raw_location = (
+                (float(rl[0]), float(rl[1]), float(rl[2])) if len(rl) >= 3 else (0.0, 0.0, 0.0)
+            )
+            pixel_location = (
+                (float(pl[0]), float(pl[1])) if len(pl) >= 2 else (0.0, 0.0)
+            )
+            map_location = (
+                (float(ml[0]), float(ml[1])) if len(ml) >= 2 else (0.0, 0.0)
+            )
+        except (ValueError, TypeError, IndexError) as exc:
+            raise ValueError(
+                f"invalid coordinate in entity id={raw.get('id')!r}: {exc}"
+            ) from exc
         return cls(
             id=raw.get("id", 0),
             template_name=raw.get("template_name", ""),
             key_name=raw.get("key_name", ""),
-            raw_location=(float(rl[0]), float(rl[1]), float(rl[2])) if len(rl) >= 3 else (0.0, 0.0, 0.0),
-            pixel_location=(float(pl[0]), float(pl[1])) if len(pl) >= 2 else (0.0, 0.0),
-            map_location=(float(ml[0]), float(ml[1])) if len(ml) >= 2 else (0.0, 0.0),
+            raw_location=raw_location,
+            pixel_location=pixel_location,
+            map_location=map_location,
             category=category,
             map_id=map_id,
             map_level_id=map_level_id,
@@ -89,7 +103,14 @@ class EntityDatabase:
                 for cat_entry in level_entry.get("categories", []):
                     category = cat_entry.get("category", "unknown")
                     for raw_entity in cat_entry.get("data", []):
-                        entity = Entity.from_raw(raw_entity, category, map_id, level_id)
+                        try:
+                            entity = Entity.from_raw(raw_entity, category, map_id, level_id)
+                        except ValueError as exc:
+                            self._logger.warning(
+                                "skipping malformed entity in %s/%s/%s: %s",
+                                map_id, level_id, category, exc,
+                            )
+                            continue
                         self._entities.append(entity)
                         self._by_id[entity.id] = entity
                         self._by_name.setdefault(entity.key_name, []).append(entity)

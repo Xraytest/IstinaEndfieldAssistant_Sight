@@ -1,7 +1,7 @@
 {
     "task": [
         {
-            "name": "CreditShoppingN2",
+            "name": "CreditShopping",
             "label": "$task.CreditShopping.label",
             "entry": "CreditShoppingMain",
             "description": "$task.CreditShopping.description",

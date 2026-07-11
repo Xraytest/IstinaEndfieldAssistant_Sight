@@ -42,7 +42,8 @@ class PipelineLoader:
         if not self._pipelines_root.is_dir():
             logger.warning(f"Pipelines root not found: {self._pipelines_root}")
             return graph
-        for fpath in sorted(self._pipelines_root.glob("*.json")):
+        # PL-2: 递归加载子目录下的 pipeline JSON
+        for fpath in sorted(self._pipelines_root.rglob("*.json")):
             self._load_file(fpath, graph)
         return graph
 
@@ -69,7 +70,8 @@ class PipelineLoader:
 
     def _load_file(self, path: Path, graph: PipelineGraph) -> None:
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            # PL-1: 使用 utf-8-sig 自动剥离 UTF-8 BOM，避免首字节损坏导致 JSON 解析失败
+            with open(path, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
         except Exception as e:
             logger.error(f"Failed to load pipeline file {path}: {e}")

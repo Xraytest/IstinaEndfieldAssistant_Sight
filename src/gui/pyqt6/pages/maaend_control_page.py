@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -9,10 +10,12 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QEvent,
     QEventLoop,
+    QMetaObject,
     QPropertyAnimation,
     Qt,
     QThread,
     QTimer,
+    Q_ARG,
     pyqtSignal,
 )
 from PyQt6.QtGui import QColor, QFont, QShowEvent
@@ -260,6 +263,8 @@ class MaaEndControlPage(QWidget):
         self._option_widgets: Dict[str, QWidget] = {}
         self._is_executing = False
         self._worker: Optional[TaskRunWorker] = None
+        self._failed_indices: list[int] = []
+        self._failed_indices_lock = threading.Lock()  # H-12: 保护跨线程访问
         self._connected = False
         self._tasks_cache: Dict[str, Dict[str, Any]] = {}
         self._presets_cache: Dict[str, Dict[str, Any]] = {}
@@ -279,6 +284,9 @@ class MaaEndControlPage(QWidget):
             if widget is not None:
                 widget.setFont(font)
         self._auto_connect_attempted = False
+        # O1: 日志缓冲，供 _apply_log_filter 按级别过滤重渲染
+        self._log_entries: List[Dict[str, str]] = []
+        self._log_filter_mode = 0  # 0=All 1=Info 2=Warning 3=Error
         # 延迟初始化：先尝试自动连接，再刷新列表，避免在 __init__ 中启动嵌套 QEventLoop
         QTimer.singleShot(0, self._delayed_init)
         self._queue_state.load()
@@ -290,16 +298,6 @@ class MaaEndControlPage(QWidget):
         self.queue_item_status_changed.connect(self._on_queue_item_status_changed)
         self.progress_changed.connect(self._on_progress_changed)
 
-
-    def _refresh_queue_list(self) -> None:
-        for row in range(self._queue_list.rowCount()):
-            item = self._queue_list.item(row, 0)
-            if not item:
-                continue
-            entry = self._queue_state.get_queue_item(row)
-            if not entry:
-                continue
-            item.setText(self._format_queue_label(entry.get("name", ""), entry.get("type", "task"), entry.get("options") or {}))
 
     def _restore_queue_ui(self) -> None:
         self._focused_queue_index = None
@@ -317,6 +315,15 @@ class MaaEndControlPage(QWidget):
         self.refresh()
 
     def _sync_execute(self, command: str, params: Optional[Dict[str, Any]] = None, timeout_ms: int = 300000) -> Optional[dict]:
+        """在 Worker 线程内同步等待命令结果。
+
+        C-04 修复：原实现在 Worker(QThread) 内直接调用主线程创建的 `self._bridge`
+        方法并在 Worker 事件循环里嵌套 `QEventLoop`，存在 Qt 线程亲缘违规与跨线程
+        信号投递死锁风险。现改为：
+          - `bridge.execute()` 通过 `BlockingQueuedConnection` 投递到主线程执行；
+          - `commandFinished` 回调用 `DirectConnection`，由发出信号的线程（主线程）
+            调用 `loop.quit()`，跨线程 quit 是线程安全的。
+        """
         self._logger.debug(LogCategory.GUI, "_sync_execute 开始", command=command, timeout_ms=timeout_ms)
         loop = QEventLoop()
         result = None
@@ -329,12 +336,22 @@ class MaaEndControlPage(QWidget):
                 result = res
                 loop.quit()
 
-        self._bridge.commandFinished.connect(_on_finished)
-        self._bridge.execute(command, params or {})
-        QTimer.singleShot(timeout_ms, loop.quit)
-        loop.exec()
-        timed_out = result is None
-        self._bridge.commandFinished.disconnect(_on_finished)
+        # DirectConnection：回调在发出 commandFinished 的线程（主线程）执行，
+        # 调用 loop.quit() 跨线程安全，避免 QueuedConnection 在 Worker 事件循环
+        # 被阻塞时永远无法投递。
+        self._bridge.commandFinished.connect(_on_finished, Qt.DirectConnection)
+        try:
+            # 通过 BlockingQueuedConnection 让主线程执行 bridge.execute（bridge 属主线程），
+            # 避免 Worker 线程直接访问主线程 QObject 的线程亲缘违规。
+            QMetaObject.invokeMethod(
+                self._bridge, "execute", Qt.ConnectionType.BlockingQueuedConnection,
+                Q_ARG(str, command), Q_ARG(dict, params or {}),
+            )
+        finally:
+            QTimer.singleShot(timeout_ms, loop.quit)
+            loop.exec()
+            timed_out = result is None
+            self._bridge.commandFinished.disconnect(_on_finished)
         self._logger.debug(LogCategory.GUI, "_sync_execute 结束", command=command, timed_out=timed_out, result_type=type(result).__name__)
         return result
 
@@ -535,7 +552,7 @@ class MaaEndControlPage(QWidget):
         log_btn_row.setSpacing(4)
         self._clear_log_btn = QPushButton(locale.tr("btn_clear", "Clear"))
         self._clear_log_btn.setStyleSheet(BTN_DEFAULT)
-        self._clear_log_btn.clicked.connect(self._log_text.clear)
+        self._clear_log_btn.clicked.connect(self._clear_logs)
         log_btn_row.addWidget(self._clear_log_btn)
         self._log_filter_combo = QComboBox()
         self._log_filter_combo.addItems([locale.tr("log_filter_all", "All"), locale.tr("log_filter_info", "Info"), locale.tr("log_filter_warning", "Warning"), locale.tr("log_filter_error", "Error")])
@@ -829,7 +846,8 @@ class MaaEndControlPage(QWidget):
             self.log_message.emit("队列", f"{_zh(name)} -> {locale.tr('queue_success' if ok else 'queue_failed', 'Success' if ok else 'Failed')} ({idx + 1}/{total})")
             if not ok:
                 failed.append(idx)
-        self._failed_indices = failed
+        with self._failed_indices_lock:
+            self._failed_indices = failed
         if failed:
             self.progress_changed.emit(100, locale.tr("execution_failed", "Failed"))
             return False
@@ -886,8 +904,11 @@ class MaaEndControlPage(QWidget):
         self._option_form.setEnabled(False)
         # 信号防护由 _apply_saved_option_values 内部对每个 widget 调用 blockSignals 实现；
         # 布局对象本身不发射信号，外层 _option_form.blockSignals 无效，故移除。
-        self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
-        self._option_form.setEnabled(True)
+        try:
+            self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
+        finally:
+            # G2: 即使 _apply_saved_option_values 抛异常，也必须恢复面板可用状态
+            self._option_form.setEnabled(True)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -1355,6 +1376,9 @@ class MaaEndControlPage(QWidget):
     def set_connected(self, connected: bool) -> None:
         """由 MainWindow 同步设备连接状态。"""
         self._connected = connected
+        if not connected:
+            # G3: 手动断开后阻止自动重连（_ensure_connected 不会再触发重连）
+            self._auto_connect_attempted = True
 
     def set_auto_connect_attempted(self) -> None:
         """标记启动自动连接已尝试过，后续不再重试。"""
@@ -1441,18 +1465,21 @@ class MaaEndControlPage(QWidget):
             return
         if not self._ensure_connected():
             return
-        self._failed_indices: list[int] = []
+        with self._failed_indices_lock:
+            self._failed_indices = []
         self._retry_count = 0
         self._start_execution(lambda: self._runtime_queue_runner())
 
     def _retry_failed(self) -> None:
-        if self._is_executing or not self._failed_indices:
+        with self._failed_indices_lock:
+            failed = list(self._failed_indices)
+        if self._is_executing or not failed:
             return
         if not self._ensure_connected():
             return
         self._retry_count += 1
-        self._append_log("系统", locale.tr("retry_started", "Retry {count}/{max} for {n} failed items").format(count=self._retry_count, max=self._max_retries, n=len(self._failed_indices)))
-        self._start_execution(lambda: self._runtime_queue_runner(retry_indices=self._failed_indices))
+        self._append_log("系统", locale.tr("retry_started", "Retry {count}/{max} for {n} failed items").format(count=self._retry_count, max=self._max_retries, n=len(failed)))
+        self._start_execution(lambda: self._runtime_queue_runner(retry_indices=failed))
 
     def _start_execution(self, target):
         self._is_executing = True
@@ -1479,6 +1506,11 @@ class MaaEndControlPage(QWidget):
             self._append_log("系统", locale.tr("auto_retry_scheduled", "Auto-retry in {delay}s...").format(delay=self._retry_delay_ms / 1000))
             QTimer.singleShot(self._retry_delay_ms, self._retry_failed)
         self.execution_state_changed.emit(False)
+        # H-12: 释放 Worker 句柄，避免 QThread 句柄泄漏
+        if self._worker is not None:
+            self._worker.wait()
+            self._worker.deleteLater()
+            self._worker = None
 
     def _update_execution_ui(self):
         self._apply_preset_to_queue_btn.setEnabled(not self._is_executing)
@@ -1531,20 +1563,50 @@ class MaaEndControlPage(QWidget):
         # ADB 诊断类日志归属设备连接页，不在执行页刷屏
         if source == "ADB":
             return
+        # 缓冲日志条目（限制长度防止无限增长），并派生级别供过滤使用
+        level = self._derive_log_level(source, text)
+        self._log_entries.append({"source": source, "text": text, "level": level})
+        if len(self._log_entries) > 2000:
+            self._log_entries.pop(0)
+        if self._log_filter_mode == 0 or self._log_filter_mode == level:
+            self._render_log_entry(source, text)
+        else:
+            # 被过滤掉时也滚动到底部，保持实时感
+            self._scroll_log_to_bottom()
+
+    @staticmethod
+    def _derive_log_level(source: str, text: str) -> int:
+        """从 source/text 启发式派生级别：1=Info 2=Warning 3=Error。"""
+        t = text.lower()
+        if source == "系统":
+            return 1
+        if any(k in t for k in ("error", "错误", "失败", "failed", "exception", "异常")):
+            return 3
+        if any(k in t for k in ("warning", "警告", "warn", "重试", "retry")):
+            return 2
+        return 1
+
+    def _render_log_entry(self, source: str, text: str) -> None:
         color = BLUE_STYLE if source == "系统" else VAL_STYLE
         self._log_text.append(f"<span style='{color}'>[{source}] {text}</span>")
-        # Auto-scroll to bottom for real-time log streaming
+        self._scroll_log_to_bottom()
+
+    def _scroll_log_to_bottom(self) -> None:
         cursor = self._log_text.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
         self._log_text.setTextCursor(cursor)
 
+    def _clear_logs(self) -> None:
+        self._log_text.clear()
+        self._log_entries.clear()
 
     def _apply_log_filter(self, index: int) -> None:
-        # Simple filter: hide/show log lines by checking source tags
-        # For a full implementation, we'd need to store line data; here we just
-        # clear and re-emit filtered logs from a buffer.
-        # This is a lightweight placeholder that future-proofs the UI.
-        pass
+        # O1: 根据级别过滤重渲染日志缓冲（0=All 1=Info 2=Warning 3=Error）
+        self._log_filter_mode = index
+        self._log_text.clear()
+        for entry in self._log_entries:
+            if index == 0 or index == entry["level"]:
+                self._render_log_entry(entry["source"], entry["text"])
 
     def refresh(self):
         self._refresh_task_list()

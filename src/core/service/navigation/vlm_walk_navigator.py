@@ -278,19 +278,19 @@ class VlmWalkNavigator:
     # Action execution
     # ------------------------------------------------------------------
 
-# Semantic VLM action -> Android keycode name.
-# The AndroidRuntime daemon only accepts digit keycodes or known KEYCODE_*
-# constant names (see android_runtime._KNOWN_KEYEVENT_NAMES); raw letters
-# like "w" were previously rejected silently, breaking the whole walk loop.
-_ACTION_KEYCODE_MAP: Dict[str, str] = {
-    "forward": "KEYCODE_W",
-    "backward": "KEYCODE_S",
-    "left": "KEYCODE_A",
-    "right": "KEYCODE_D",
-    "turn_left": "KEYCODE_Q",
-    "turn_right": "KEYCODE_E",
-    "interact": "KEYCODE_F",
-}
+    # Semantic VLM action -> Android keycode name.
+    # The AndroidRuntime daemon only accepts digit keycodes or known KEYCODE_*
+    # constant names (see android_runtime._KNOWN_KEYEVENT_NAMES); raw letters
+    # like "w" were previously rejected silently, breaking the whole walk loop.
+    _ACTION_KEYCODE_MAP: Dict[str, str] = {
+        "forward": "KEYCODE_W",
+        "backward": "KEYCODE_S",
+        "left": "KEYCODE_A",
+        "right": "KEYCODE_D",
+        "turn_left": "KEYCODE_Q",
+        "turn_right": "KEYCODE_E",
+        "interact": "KEYCODE_F",
+    }
 
     def _execute_action(self, action: Dict[str, Any]) -> None:
         act = action["action"]

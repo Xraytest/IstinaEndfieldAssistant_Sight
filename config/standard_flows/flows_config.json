@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "note": "标准流程配置：组合多个任务形成一个可一键执行的流程。flow.steps 按顺序执行，每个 step 引用 assets/tasks 下的任务名。",
+  "flows": [
+    {
+      "id": "daily_full",
+      "name": "每日全流程",
+      "description": "完成每日奖励、收集与制造等常规事务。",
+      "steps": [
+        { "task": "DailyRewards", "options": {} },
+        { "task": "AutoCollect", "options": {} },
+        { "task": "Crafting", "options": {} }
+      ]
+    },
+    {
+      "id": "harvest_only",
+      "name": "仅收取",
+      "description": "只执行收取类任务。",
+      "steps": [
+        { "task": "AutoCollect", "options": {} },
+        { "task": "AutoStockpile", "options": {} }
+      ]
+    }
+  ]
+}
