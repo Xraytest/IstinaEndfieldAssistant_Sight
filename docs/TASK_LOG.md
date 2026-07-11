@@ -1052,4 +1052,21 @@
 - **Files Modified**:
   - `reports/auto/20260711_084958.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
-- **验证**：只读审查，未修改业务代码；所有分析均经当次 `main` 分支源文件逐行核对。历史报告 130+ 条发现全部经二次验证确认准确，零新增修正。
+- **验证**：只读审查，未修改业务代码；所有结论经 `runtime.py`/`android_runtime.py`/`handlers.py`/`vlm_walk_navigator.py`/`navigator.py` 当前源文件逐行核对。
+
+## 2026-07-11（第三十八批次·__init__.py独立审计 + 批次37报告审计修正）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 独立审计14个此前仅被隐式覆盖的 `__init__.py` 包初始化文件，识别6项新发现（1 Low / 4 Info），并审计批次37报告发现3处修正。
+  1. **[N01 Low]** `capability/__init__.py`、`service/navigation/__init__.py` 空文件违反 PEP 8。
+  2. **[N02/N03 Info]** `service/navigation/__init__.py`、`gui/pyqt6/theme/__init__.py` 空文件缺乏 docstring。
+  3. **[N04 Info]** `i18n/__init__.py:75` `install_qt_translator` 的 QTranslator 为局部变量（批次30 已部分报告，本次补充分析）。
+  4. **[N05 Info]** `i18n/__init__.py:90` `get_locale_manager()` 单例非线程安全——项目中第五个同类问题（系统性并发缺陷）。
+  5. **[N06 Info]** `i18n/__init__.py:1-4` 混合导入风格（`from __future__` + 绝对导入）。
+  6. **[批次37 修正1] M06 分析错误**：崩溃点不在 `_llm_client_instance.chat()`，而在 `_llm_status` 的 `runtime.ready`（line 902），且 try/except 保护范围不足。
+  7. **[批次37 修正2] 统计不一致**：报告声称"10项发现"，实际正文列出 M01-M12 共12项，"2个信息"应为"4个信息"。
+  8. **[批次37 修正3] M11/M12 建议可操作性不足**：M11 建议与调用方现有行为重复；M12 建议使用 Event 中断 MaaFramework 内部阻塞，未说明可行性。
+- **Files Modified**:
+  - `reports/auto/20260711_090739.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有 `__init__.py` 文件经 Glob 枚举 + 逐文件核对。历史报告 130+ 条发现全部经二次验证确认准确。
