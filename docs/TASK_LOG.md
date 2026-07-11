@@ -1660,3 +1660,10 @@
 - **Outcome**: 批次 66 完成。2 新发现（2 Info）+ 2 审计验证。核心发现：`cli_bridge.py` `_interactive` 恒为 True 导致非交互模式死代码（`_start_next_process` 为不可达别名，`execute` 和 `_on_finished` 中的非交互分支不可达）；`_on_finished` 崩溃恢复成功后不重置 `_crash_count`（恢复后再次崩溃时连续次数被高估）。审计验证批次 65 合理（维持评级），批次 2345 U10 与本批互补（U10 关注重启失败静默性，本批关注恢复后计数偏差）。
 - **Files Modified**: reports/auto/20260711_1930_clibridge_dead_code_audit.md (新增)
 - **验证**：只读审查，未修改业务代码；关键推演依据 _interactive 在全文件无赋值修改为恒定 True；_crash_count=0 位于不可达分支；交叉核对 19 份历史报告确认两个新发现均为全新。
+
+## 2026-07-11 19:50
+
+- **User Request**: 继续完成批次 67 代码审计（批次 66 延续）。寻找代码存在的漏洞与错误，提出可用的修改建议；审计之前的报告，寻找错误或不必要的建议；避免重复提交历史问题。
+- **Outcome**: 批次 67 完成。0 新发现 + 3 审计验证。核心审计：批次 66 两条 Info 发现均合理（_interactive 恒为 True 死代码；崩溃恢复后不重置 _crash_count）；批次 080730 I01（缓冲区无界增长）已被 commit b2b85a1 修复（MAX_INPUT_LENGTH 1MB 上限）；批次 1600 CLI01-CLI05 均合理。本批为纯审计批次，无新发现。
+- **Files Modified**: reports/auto/20260711_1950_pure_audit_batch66_080730_1600.md (新增)
+- **验证**：只读审查，未修改业务代码；git show b2b85a1 确认 MAX_INPUT_LENGTH 已添加；grep 确认 _interactive 仅一处赋值；交叉核对 21 份历史报告确认无新发现可提交。
