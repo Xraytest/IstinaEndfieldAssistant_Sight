@@ -937,3 +937,37 @@
   - `reports/auto/20260711_080614.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 99+ 条发现全部经二次验证确认准确，新增1处修正。
+
+## 2026-07-11（第三十三批次·增量代码审计·CLI/Handlers/Bridge/推理页）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次32未覆盖区域（istina.py CLI入口、handlers.py全部函数、cli_bridge.py、maaend_control_page.py、log_page.py、settings_page.py、queue_state.py、recognizer.py、llm_server.py），识别 8 项新发现（2 Medium / 4 Low / 2 Info），并审计批次30 F01/F02（确认仍存在，原报告状态准确）。
+  1. **[I01 Medium]** `istina.py:340-344` `_interactive_loop` 缓冲区无界增长——无换行输入持续追加，长时间交互会话OOM风险。
+  2. **[I02 Medium]** `handlers.py:36` `_write_or_base64` 写入文件失败时崩溃而非返回错误——截图保存IO异常未被捕获。
+  3. **[I03 Low]** `istina.py:14` 手动 `sys.path.insert` 绕过 `ensure_src_path()`，违反项目路径管理规范。
+  4. **[I04 Low]** `handlers.py:398` `_handle_device_status` 异常信息原样返回，可能泄露内部路径。
+  5. **[I05 Low]** `handlers.py:445` `_handle_device_keyevent` CLI白名单与 `_is_valid_keyevent` 一致但均缺少字母键（批次7/23/29/32第五次记录）。
+  6. **[I06 Low]** `maaend_control_page.py:1542` `_apply_log_filter` 空实现占位符——UI暴露无功能过滤控件。
+  7. **[I07 Info]** `handlers.py:677` `_handle_gpu_recommend` 冗余比较，`mem >= 4GiB or mem >= 2GiB` 第二个条件不可达。
+  8. **[I08 Info]** `istina.py:340-370` 非换行结尾输入在EOF时被静默丢弃。
+  9. **历史确认**：批次30 F01（touch_manager.py back() 无异常处理）和 F02（recovery.py _clear_canvas 静默吞错）在最新源码中仍未修复，原报告状态准确。
+- **Files Modified**:
+  - `reports/auto/20260711_080730.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 100+ 条发现全部经二次验证确认准确，零新增修正。
+
+## 2026-07-11（第三十二批次·并发补录·审计纠错专项 · 0804.md）
+
+- **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给修改建议；完成后审计之前的报告，寻找错误或不必要的建议，深入写入当前批次报告；避免执行测试、避免重复既往问题。
+- **Outcome**: 与并发实例的 080614.md（H01–H08）错位，本批次聚焦**审计纠错专项**，产出 4 处纠正 + 6 项回归确认 + 1 处低危新观察。关键结论：
+  1. **[A1 撤销] 批次31 G01（Medium）**：`android_runtime.py` 全文件及 `runtime.py` 的 `AndroidRuntimeProxy`（73–103 行）均**无 `_connected` 属性、无 `_connect_once` 方法**；设备层连接经 `AndroidRuntime._get_daemon()` 惰性启动隐式达成，无 `self._connected=True` 布尔标志。G01 引用的代码在设备层两文件中均不存在（疑误挂 `maa_end/runtime.py` 的 `MaaEndRuntime` 连接逻辑）→ 撤销。
+  2. **[A2 撤销] 批次29 E02（Low）**：`handlers.py:292` 在 `_handle_screenshot` 首行即 `_logger = get_logger(__name__)`，原论断"NameError 致命令完全不可用"与当前代码矛盾 → 撤销（与 080614 "E01/E02 已修复"一致）。
+  3. **[A3 降级] 批次29 E01（Medium→Low）**：`android.default_client is None` 时 `.version()` 抛 AttributeError，但被外层 `try/except Exception` 捕获转为错误体，**不崩溃** → 降级为 Low（UX 清晰度）。
+  4. **[A4 复核] 批次23 N2/N6（fd 泄漏）**：`_encode_binary` 已有 `finally` 关闭 `mm`/`fd`，与 memory 06:59 A2 一致 → 当前已修复。
+  5. **[回归·仍存活]** C10（`runtime.py:697/706` 传 `self._llm_client`）、XC-4（`runtime.py:207` 绑定旧设备 bound method）、W1（导航层三重静默）、S2（`handlers.py:677` 4GB 死分支）、CFG-15（`_load_config` bare except 返 `{}`）当前代码确认未修复（印证 080614 H01/H02）。
+  6. **[回归·已落地]** 守护进程 `_is_valid_keyevent`/`_is_allowed_shell_cmd`（android_runtime.py:75/87）已接线 → W1 边界已封但调用方错误传播未封，属不完整修复。
+  7. **[NEW-1 Low]** `runtime.py:725` `import time` 置于模拟长按 `for` 循环体内（代码异味，无功能影响）。
+- **Files Modified**:
+  - `reports/auto/20260711_0804.md`（新增·审计纠错专项报告）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有结论经 `runtime.py`/`android_runtime.py`/`handlers.py`/`vlm_walk_navigator.py`/`navigator.py` 当前源文件逐行核对。
