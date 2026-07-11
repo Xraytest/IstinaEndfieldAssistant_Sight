@@ -997,6 +997,27 @@
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 110+ 条发现全部经二次验证确认准确，零新增修正。
 
+## 2026-07-11（第三十六批次·增量代码审计·MinimapLocator/VLM解析/数据校验）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次35未覆盖深层逻辑区域（MinimapLocator小地图定位、VlmWalkNavigator解析/执行、EntityDatabase数据校验、MapDataLoader惰性加载），识别 11 项新发现（1 High / 3 Medium / 4 Low / 3 Info），历史报告零修正。
+  1. **[L01 High]** `minimap_locator.py:29,105-114` `_find_minimap_bbox` 完全依赖硬编码 bbox `(925,15,1250,340)` 线性缩放，无真实小地图检测——分辨率变化或UI更新后裁剪区域错误，定位完全失效。
+  2. **[L02 Medium]** `minimap_locator.py:181` `_parse_tile` 使用固定宽度切片 `tile_class[5:11]` 解析 level_id——新地图格式（下划线分隔）导致截取错误。
+  3. **[L03 Medium]** `minimap_locator.py:147` `_parse_tile` 置信度阈值 0.3 过低——ONNX多分类输出概率高于30%即接受，大量误定位。
+  4. **[L06 Medium]** `vlm_walk_navigator.py:322-325` `_parse_action` 解析失败静默返回 None，无日志记录——VLM输出格式异常时难以调试。
+  5. **[L04 Low]** `minimap_locator.py:59` 直接访问 `MapDataLoader._maaend_root` 私有属性——跨模块耦合。
+  6. **[L07 Low]** `vlm_walk_navigator.py:266` `_execute_action` 对 duration 无范围校验——VLM可能返回极端值导致角色长时间移动。
+  7. **[L09 Low]** `entity_db.py:78-83` `load()` 无JSON顶层结构校验——顶层为dict时遍历键名而非列表项。
+  8. **[L10 Low]** `map_data_loader.py:157` `get_grid_cell` 触发全量加载grid_tiers——单key查询导致全量IO。
+  9. **[L05 Info]** `minimap_locator.py:79` ONNX providers硬编码CUDA优先——CPU-only环境产生额外延迟。
+  10. **[L08 Info]** `vlm_walk_navigator.py:300` `_frame_to_base64` 不校验`cv2.imencode`返回值。
+  11. **[L11 Info]** `map_data_loader.py:98` `load_layout` 无JSON结构类型校验——格式错误与文件缺失返回相同None。
+  12. **关联分析**：L01（硬编码bbox）与批次34 J01（伪造坐标）形成叠加效应——小地图裁剪失败频繁触发J01的伪造坐标逻辑。
+- **Files Modified**:
+  - `reports/auto/20260711_084447.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 120+ 条发现全部经二次验证确认准确，零新增修正。
+
 ## 2026-07-11（第三十二批次·并发补录·审计纠错专项 · 0804.md）
 
 - **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给修改建议；完成后审计之前的报告，寻找错误或不必要的建议，深入写入当前批次报告；避免执行测试、避免重复既往问题。
