@@ -457,17 +457,38 @@ class IstinaRuntime:
 
     def _load_config(self) -> Dict[str, Any]:
         path = self._resolve_config_path()
-        if path.exists():
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except Exception as e:
-                self._logger.warning(LogCategory.MAIN, "加载配置失败，使用默认值", error=str(e))
-        return {}
+        if not path.exists():
+            self._logger.info(LogCategory.MAIN, "配置文件不存在，使用默认值", path=str(path))
+            return {}
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:  # CFG-12/15: 拆分异常类型，给出可定位的错误
+            self._logger.error(LogCategory.MAIN, "配置 JSON 解析失败", path=str(path), error=str(e))
+            return {}
+        except PermissionError as e:
+            self._logger.error(LogCategory.MAIN, "配置无读取权限", path=str(path), error=str(e))
+            return {}
+        except OSError as e:
+            self._logger.error(LogCategory.MAIN, "配置读取失败", path=str(path), error=str(e))
+            return {}
+        if not isinstance(data, dict):
+            self._logger.error(LogCategory.MAIN, "配置根不是对象", path=str(path))
+            return {}
+        # 最小 schema 校验：关键字段缺失给出明确告警
+        llm = data.get("llm", {}) or {}
+        if not str(llm.get("model_path", "")).strip():
+            self._logger.warning(LogCategory.MAIN, "配置缺少 llm.model_path，LLM 将无法启动", path=str(path))
+        return data
 
     def _resolve_config_path(self) -> Path:
         if self._config_path is not None:
-            return self._config_path
+            p = Path(self._config_path).expanduser().resolve()
+            root = get_project_root().resolve()
+            if root not in p.parents and p != root:  # CFG-09: 约束 --config 在项目根内
+                self._logger.warning(LogCategory.MAIN, "config 路径越界，回退默认", path=str(p))
+                return root / "config" / "client_config.json"
+            return p
         return get_project_root() / "config" / "client_config.json"
 
     def save_config(self) -> None:

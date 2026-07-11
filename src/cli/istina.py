@@ -283,6 +283,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 def _interactive_loop(parser: argparse.ArgumentParser) -> int:
     runtime = IstinaRuntime()
     buffer = ""
+    MAX_INPUT_LENGTH = 1 * 1024 * 1024  # SEC-02: 交互输入上限 1MB，防止内存耗尽
     self_logger = get_logger(__name__)
 
     # Redirect stdout fd → stderr fd so that C++ library output (MaaFramework
@@ -340,6 +341,11 @@ def _interactive_loop(parser: argparse.ArgumentParser) -> int:
             if not chunk:
                 continue
             try:
+                if len(buffer) >= MAX_INPUT_LENGTH:
+                    self_logger.error("CLI 交互循环: 输入超过最大长度", length=len(buffer))
+                    _write_result({"status": "error", "message": f"input exceeds {MAX_INPUT_LENGTH} bytes"})
+                    buffer = ""
+                    continue
                 buffer += chunk
             except Exception as exc:
                 self_logger.error("CLI 交互循环: buffer 追加异常", error=str(exc))

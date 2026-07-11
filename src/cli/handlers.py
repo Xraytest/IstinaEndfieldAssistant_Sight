@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import math
 import os
 import platform
 import shutil
@@ -33,10 +34,26 @@ def _write_or_base64(data: bytes, out_path: Optional[str]) -> Dict[str, Any]:
         return {"status": "error", "message": "screenshot returned None"}
     out = Path(out_path) if out_path else None
     if out:
+        # SEC-01: 约束 --out 在项目根内，防止路径遍历写入任意位置
+        root = get_project_root().resolve()
+        resolved = out.resolve()
+        if root not in resolved.parents and resolved != root:
+            return {"status": "error", "message": f"--out 路径越界，禁止写入项目外: {out_path}"}
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(data)
         return {"status": "success", "path": str(out), "size": len(data)}
     return {"status": "success", "size": len(data), "base64": base64.b64encode(data).decode("ascii")}
+
+
+def _check_coord(v: Any, name: str) -> Optional[Dict[str, Any]]:
+    """SEC-04: 校验触控坐标为 [0, 65535] 范围内的整数。"""
+    try:
+        iv = int(v)
+    except (TypeError, ValueError):
+        return {"status": "error", "message": f"invalid {name}: {v!r}"}
+    if not (0 <= iv <= 65535):
+        return {"status": "error", "message": f"{name} out of range [0,65535]: {iv}"}
+    return None
 
 
 class CLIDispatch:
@@ -414,30 +431,37 @@ def _handle_device_screenshot(runtime: IstinaRuntime, args: argparse.Namespace) 
 
 
 def _handle_device_tap(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    err = _check_coord(args.x, "x") or _check_coord(args.y, "y")
+    if err:
+        return err
     android = runtime.android()
     try:
-        android.tap(int(args.x), int(args.y))
-        return {"status": "success", "x": int(args.x), "y": int(args.y)}
+        x, y = int(args.x), int(args.y)
+        android.tap(x, y)
+        return {"status": "success", "x": x, "y": y}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
 
 def _handle_device_swipe(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    err = (
+        _check_coord(args.x1, "x1")
+        or _check_coord(args.y1, "y1")
+        or _check_coord(args.x2, "x2")
+        or _check_coord(args.y2, "y2")
+    )
+    if err:
+        return err
     android = runtime.android()
     try:
-        android.swipe(
-            int(args.x1),
-            int(args.y1),
-            int(args.x2),
-            int(args.y2),
-            duration_ms=int(args.duration),
-        )
+        x1, y1, x2, y2 = int(args.x1), int(args.y1), int(args.x2), int(args.y2)
+        android.swipe(x1, y1, x2, y2, duration_ms=int(args.duration))
         return {
             "status": "success",
-            "x1": int(args.x1),
-            "y1": int(args.y1),
-            "x2": int(args.x2),
-            "y2": int(args.y2),
+            "x1": x1,
+            "y1": y1,
+            "x2": x2,
+            "y2": y2,
             "duration_ms": int(args.duration),
         }
     except Exception as exc:
@@ -886,6 +910,15 @@ def _handle_nav2(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, 
 def _handle_nav3(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     action = getattr(args, "action", None)
     if action == "walk":
+        # SEC-05: 校验坐标有限且在合理范围、地图名非空
+        try:
+            fx, fy = float(args.x), float(args.y)
+        except (TypeError, ValueError):
+            return {"status": "error", "message": "invalid nav3 walk coords"}
+        if not (math.isfinite(fx) and math.isfinite(fy)) or abs(fx) > 1e6 or abs(fy) > 1e6:
+            return {"status": "error", "message": "nav3 walk coords out of range"}
+        if not str(getattr(args, "map_name", "")).strip():
+            return {"status": "error", "message": "empty nav3 map_name"}
         return runtime.execute("nav3.walk", {
             "map_name": args.map_name,
             "x": args.x,

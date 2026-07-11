@@ -85,6 +85,7 @@ class MaaEndRuntime:
         self._connected = False
         # 队列：唯一可执行单元。预设只是任务列表，应用预设 = 用其任务覆盖队列。
         self._queue: List[Dict[str, Any]] = []
+        self._load_lock = threading.Lock()  # N11: 保护 load_tasks/load_presets 并发调用
 
     def _default_maaend_root(self) -> Path:
         return get_project_root() / "3rd-part" / "maaend"
@@ -131,52 +132,54 @@ class MaaEndRuntime:
         return self._interface or {}
 
     def load_tasks(self) -> Dict[str, Dict[str, Any]]:
-        tasks_root = self._resolve_asset_path("tasks")
-        self._tasks = {}
-        self._option_defs = {}
-        for json_path in tasks_root.rglob("*.json"):
-            if json_path.name == "nodes.json":
-                continue
-            try:
-                with open(json_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                # 提取全局 option 定义（每个 JSON 文件顶层可能有 option 字典）
-                global_options = data.get("option")
-                if isinstance(global_options, dict):
-                    self._option_defs.update(global_options)
-                task_list = data.get("task", [])
-                for task in task_list:
-                    name = task.get("name")
-                    if name:
-                        task_copy = dict(task)
-                        task_copy["_source"] = str(json_path.relative_to(self._maaend_root))
-                        task_copy["_option_defs"] = dict(global_options) if isinstance(global_options, dict) else {}
-                        self._tasks[name] = task_copy
-            except Exception as e:  # pragma: no cover
-                self.logger.debug(LogCategory.MAIN, "加载任务定义失败", path=str(json_path), error=str(e))
-        self._tasks_loaded = True  # 标志位移到循环结束后，避免空列表固化
-        return self._tasks
+        with self._load_lock:  # N11: 并发加载加锁，避免 self._tasks 竞争
+            tasks_root = self._resolve_asset_path("tasks")
+            self._tasks = {}
+            self._option_defs = {}
+            for json_path in tasks_root.rglob("*.json"):
+                if json_path.name == "nodes.json":
+                    continue
+                try:
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    # 提取全局 option 定义（每个 JSON 文件顶层可能有 option 字典）
+                    global_options = data.get("option")
+                    if isinstance(global_options, dict):
+                        self._option_defs.update(global_options)
+                    task_list = data.get("task", [])
+                    for task in task_list:
+                        name = task.get("name")
+                        if name:
+                            task_copy = dict(task)
+                            task_copy["_source"] = str(json_path.relative_to(self._maaend_root))
+                            task_copy["_option_defs"] = dict(global_options) if isinstance(global_options, dict) else {}
+                            self._tasks[name] = task_copy
+                except Exception as e:  # pragma: no cover
+                    self.logger.debug(LogCategory.MAIN, "加载任务定义失败", path=str(json_path), error=str(e))
+            self._tasks_loaded = True  # 标志位移到循环结束后，避免空列表固化
+            return self._tasks
 
     def load_presets(self) -> Dict[str, Dict[str, Any]]:
-        preset_root = self._resolve_asset_path("tasks", "preset")
-        self._presets = {}
-        if not preset_root.exists():
-            self._presets_loaded = True
+        with self._load_lock:  # N11: 并发加载加锁，避免 self._presets 竞争
+            preset_root = self._resolve_asset_path("tasks", "preset")
+            self._presets = {}
+            if not preset_root.exists():
+                self._presets_loaded = True
+                return self._presets
+            for json_path in preset_root.glob("*.json"):
+                try:
+                    with open(json_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    preset_list = data.get("preset", [])
+                    for preset in preset_list:
+                        name = preset.get("name")
+                        if name:
+                            self._presets[name] = preset
+                            self._presets[name]["_source"] = str(json_path.relative_to(self._maaend_root))
+                except Exception as e:  # pragma: no cover
+                    self.logger.debug(LogCategory.MAIN, "加载预设失败", path=str(json_path), error=str(e))
+            self._presets_loaded = True  # 标志位移到循环结束后
             return self._presets
-        for json_path in preset_root.glob("*.json"):
-            try:
-                with open(json_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                preset_list = data.get("preset", [])
-                for preset in preset_list:
-                    name = preset.get("name")
-                    if name:
-                        self._presets[name] = preset
-                        self._presets[name]["_source"] = str(json_path.relative_to(self._maaend_root))
-            except Exception as e:  # pragma: no cover
-                self.logger.debug(LogCategory.MAIN, "加载预设失败", path=str(json_path), error=str(e))
-        self._presets_loaded = True  # 标志位移到循环结束后
-        return self._presets
 
     def connect(self) -> bool:
         # 先清理可能残留的旧连接，避免 agent 进程 / Tasker 资源泄漏
@@ -310,6 +313,20 @@ class MaaEndRuntime:
 
     def _cleanup_partial(self) -> None:
         """Clean up partially-created resources after a failed connect()."""
+        # C7/N10: 连接失败时显式释放 MaaFW 原生资源，避免泄漏
+        for attr in ("_resource", "_controller"):
+            val = getattr(self, attr, None)
+            if val is not None:
+                try:
+                    destroy = getattr(val, "destroy", None)
+                    if callable(destroy):
+                        destroy()
+                except Exception as exc:
+                    self.logger.warning(LogCategory.MAIN, f"销毁 {attr} 失败", error=str(exc))
+                try:
+                    setattr(self, attr, None)
+                except Exception:
+                    pass
         try:
             if self._tasker is not None:
                 self._tasker = None

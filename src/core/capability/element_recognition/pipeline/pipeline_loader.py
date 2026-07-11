@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import logging
 from pathlib import Path
 from typing import Optional, Set
@@ -19,6 +20,7 @@ class PipelineLoader:
         self._pipelines_root = get_project_root() / "assets" / "pipelines"
         self._maaend_root = get_project_root() / "3rd-part" / "maaend" / "resource" / "pipeline"
         self._loaded_modules: Set[str] = set()
+        self._load_lock = threading.Lock()  # PL-3: 保护 _loaded_modules 并发访问
 
     def load_module(self, module_name: str) -> PipelineGraph:
         graph = PipelineGraph()
@@ -34,7 +36,8 @@ class PipelineLoader:
                 break
         if not loaded:
             logger.debug(f"Pipeline module not found: {module_name}")
-        self._loaded_modules.add(module_name)
+        with self._load_lock:  # PL-3
+            self._loaded_modules.add(module_name)
         return graph
 
     def load_all(self) -> PipelineGraph:

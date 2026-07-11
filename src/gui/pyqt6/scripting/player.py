@@ -166,6 +166,7 @@ class Player(QObject):
         text = value.get("text", "")
         if isinstance(widget, QLineEdit):
             widget.setText(text)
+            # SEC-06: 刻意 emit——脚本回放需要触发与真实用户编辑相同的验证/保存流程
             widget.editingFinished.emit()
         elif isinstance(widget, QComboBox):
             widget.setCurrentText(text)

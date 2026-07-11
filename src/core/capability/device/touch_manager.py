@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Optional
 
 from core.foundation.logger import LogCategory, get_logger
@@ -56,11 +57,14 @@ class TouchManager:
         subprocess.check_output(args, timeout=10)
 
     _instance = None
+    _lock = threading.Lock()
 
     @classmethod
     def get_instance(cls, adb_path: str = "3rd-part/adb/adb.exe", device_address: Optional[str] = None) -> "TouchManager":
         if cls._instance is None:
-            cls._instance = cls(adb_path, device_address)
+            with cls._lock:  # D10: 双重检查锁，避免并发首访创建多实例
+                if cls._instance is None:
+                    cls._instance = cls(adb_path, device_address)
         return cls._instance
 
     def _tap_adb(self, x: int, y: int, serial: Optional[str]) -> None:

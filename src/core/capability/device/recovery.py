@@ -69,7 +69,7 @@ class AndroidAppRestartPolicy:
 
     def _force_stop(self, serial: Optional[str]) -> None:
         try:
-            self._run(["shell", "am force-stop", self._package], serial)
+            self._run(["shell", "am", "force-stop", self._package], serial)  # D1: 防御性拆分 argv，等价于 am force-stop <pkg>
         except Exception as exc:
             self._logger.warning(
                 LogCategory.MAIN,

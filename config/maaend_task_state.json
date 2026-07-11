@@ -1,11 +1,101 @@
 {
-  "selected_task": "TaskA",
+  "selected_task": "DijiangRewards",
   "selected_preset": "DailyFull",
-  "queue_items": [],
+  "queue_items": [
+    {
+      "name": "VisitFriends",
+      "type": "task",
+      "options": {
+        "VisitFriendsRemark": "Yes",
+        "ProductionAssistControl": [
+          "ProductionAssistControlNexus",
+          "ProductionAssistMFGCabin",
+          "ProductionAssistGrowthChamber"
+        ]
+      }
+    },
+    {
+      "name": "DijiangRewards",
+      "type": "task",
+      "options": {
+        "AutoStartExchange": "Yes",
+        "StageTaskSetting": "No",
+        "ClueSetting": "Yes",
+        "SelectToGrow": "Any"
+      }
+    },
+    {
+      "name": "CreditShoppingN2",
+      "type": "task",
+      "options": {}
+    },
+    {
+      "name": "DeliveryJobs",
+      "type": "task",
+      "options": {
+        "ValleyIV": "Yes",
+        "Wuling": "Yes"
+      }
+    },
+    {
+      "name": "SellProduct",
+      "type": "task",
+      "options": {}
+    },
+    {
+      "name": "AutoStockpile",
+      "type": "task",
+      "options": {}
+    },
+    {
+      "name": "AutoStockStaple",
+      "type": "task",
+      "options": {}
+    },
+    {
+      "name": "AutoSell",
+      "type": "task",
+      "options": {}
+    },
+    {
+      "name": "EnvironmentMonitoring",
+      "type": "task",
+      "options": {}
+    },
+    {
+      "name": "DailyRewards",
+      "type": "task",
+      "options": {
+        "DailyEmailRewards": "Yes",
+        "DailyEventRewards": "Yes",
+        "DailyTaskRewards": "Yes",
+        "DailyClaimDeliveryJobsRewards": "Yes",
+        "DailyProtocolPassRewards": "Yes"
+      }
+    },
+    {
+      "name": "SeizeDeliveryJobs",
+      "type": "task",
+      "options": {}
+    },
+    {
+      "name": "AutoCollect",
+      "type": "task",
+      "options": {
+        "AutoCollectRoutes": [
+          "Route1",
+          "Route2",
+          "Route3",
+          "Route4",
+          "Route5"
+        ]
+      }
+    }
+  ],
   "task_options": {
     "VisitFriends": {
-      "VisitFriendsRemark": "Yes",
       "ProductionAssistControl": [
+        "ProductionAssistControlNexus",
         "ProductionAssistMFGCabin",
         "ProductionAssistGrowthChamber"
       ]
@@ -13,8 +103,7 @@
     "DijiangRewards": {
       "AutoStartExchange": "Yes",
       "StageTaskSetting": "No",
-      "ClueSetting": "No",
-      "SelectToGrow": "GrowAgain"
+      "ClueStockLimit": "2"
     },
     "CreditShoppingN2": {
       "CreditShoppingForce": "Refresh",
