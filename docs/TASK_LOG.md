@@ -1370,3 +1370,25 @@
   - `reports/auto/20260711_1100_path.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 10 个源文件当前代码逐行核对 + 全局 grep 统计（197/86 处）。历史报告 190+ 条发现全部经二次验证确认准确，新增 5 处修正。
+
+## 2026-07-11（第四十七批次·Pipeline执行引擎深层 + MaaEnd Runtime深层 + 既往报告终审）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 Pipeline 执行引擎（pipeline_runner.py）运行时行为、MaaEnd Runtime（maa_end/runtime.py）连接与任务执行逻辑、ADB 设备管理器（adb_manager.py）、触控管理器（touch_manager.py）及颜色匹配后端（color_backend.py），识别 8 项新发现（3 Medium / 3 Low / 2 Info）。对批次 37-46 全部 10 份报告做终审，识别 5 项审计修正（C1-C5），含 1 项不成立分析（C4）。
+  1. **[PR01 Medium]** `pipeline_runner.py:348-351` `_wait_for_freeze` 为桩实现——`pre_wait_freezes` 配置完全无效，任何配置了此属性的节点不会等待画面冻结。
+  2. **[PR02 Medium]** `pipeline_runner.py:320-325` `_pick_next` JumpBack 处理逻辑错误——所有后继为 JumpBack 引用时 fallback 返回无法解析的引用，导致 pipeline 静默终止。
+  3. **[PR03 Medium]** `pipeline_runner.py:335-341` `_is_rate_limited` 使用 `time.time()` 而非 `time.monotonic()`——系统时钟变化可能导致 rate limiting 行为异常。
+  4. **[PR04 Low]** `maa_end/runtime.py:47-56` monkey-patch `AgentClient.__del__` 抑制异常——影响全局，可能掩盖真实清理问题。
+  5. **[PR05 Low]** `pipeline_runner.py:58-98` 主循环无循环检测——依赖 `max_steps` 防止无限执行。
+  6. **[PR06 Low]** `touch_manager.py:53-56` `back()` 方法不捕获异常——与其他触控方法不一致。
+  7. **[PR07 Low]** `adb_manager.py:120-130` PNG CRLF 修复过于简单——可能误替换合法 `\r\n` 序列。
+  8. **[PR08 Info]** `pipeline_runner.py:79-89` StopTask 后 result status 不区分匹配/未匹配——调用方无法判断终止原因。
+  9. **[C1 修正]** 批次 46 MAA01/MAA02 应强调 sys.path 冗余是架构约束产物，而非纯粹代码冗余。
+  10. **[C2 修正]** 批次 45 SCR02 应补充与 batch 44 N01 的关联分析（即使修复 matcher.py，template_backend.py 吞错仍掩盖其他异常）。
+  11. **[C3 修正]** 批次 44 N08 fallback 偏移影响面评估——仅在三层匹配全部失败时触发，实际概率极低。
+  12. **[C4 不成立]** 批次 46 MAA07/MAA08 统计分类不精确——197 处总数包含了很多合理的异常处理，应更精确分类。
+  13. **[C5 修正]** 批次 43 MCP01 措辞应修正为"未定义行为/崩溃风险"而非"堆损坏"。
+- **Files Modified**:
+  - `reports/auto/20260711_1115_pipeline.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 5 个源文件当前代码逐行核对。历史报告 190+ 条发现全部经二次验证确认准确，新增 5 处修正。
