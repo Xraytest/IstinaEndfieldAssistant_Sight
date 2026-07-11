@@ -2018,3 +2018,11 @@
 **新增发现**: DEVICE-01 — device_settings_page.py disconnect 成功后 timer 仍启动（用户意图矛盾）；DEVICE-03 — _on_auto_reconnect_toggled 断连状态下启用自动重连不启动 timer（功能失效）
 **批次 86 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正
 **风险**: 2 项低（UX），无中高风险
+
+## 审计批次 88 — DEVICE-04 commandError 不重置连接状态 + CLI-04 设备信息 handler 误导性成功 + 审计批次 87
+
+**时间**: 2026-07-12 10:00
+**审计文件**: device_settings_page.py, handlers.py, android_runtime.py
+**新增发现**: DEVICE-04 — _on_command_error 不重置 _connected 状态（connect/disconnect 异常后连接态不一致）；CLI-04 — _handle_device_info/monitor 返回误导性 "success" 空结果（缺少 default_client 检查）
+**批次 87 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正
+**风险**: 2 项低（1 UX + 1 代码质量），无中高风险
