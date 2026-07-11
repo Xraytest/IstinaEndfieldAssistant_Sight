@@ -1815,3 +1815,12 @@
   - src/gui/pyqt6/locales/zh_CN.json
   - src/gui/pyqt6/locales/en_US.json
 - **验证**: `3rd-part/python/python.exe -m py_compile` + `json.load` 通过
+
+## 2026-07-11 23:45 (批次 79 — 选项编辑器 falsy 处理 / 队列导出非原子写入 + 审计批次 78)
+
+- **范围**: `maaend_control_page.py` 选项编辑器（子选项渲染/值收集）、队列导入/导出流程 + 批次 78 审计验证
+- **报告**: reports/auto/20260711_2345_batch79_option_editor_export.md
+- **发现**: 2 项（1 BUG 中 / 1 代码质量低）
+- **关键项**: MAEEND-01 (select 控件 falsy data=0 导致子选项/管道覆盖匹配错误), MAEEND-02 (导出文件非原子写入)
+- **审计**: 批次 78 全部 4 项结论经逐项源码复核确认准确，无需修正
+- **验证**: 只读审查，未修改业务代码；交叉核对 280+ 历史报告确认 2 项为新发现；`currentData()` falsy 模式经 Grep 全项目搜索（2 处命中，均在本文件）
