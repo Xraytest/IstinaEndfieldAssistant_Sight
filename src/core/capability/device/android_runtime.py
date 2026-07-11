@@ -117,6 +117,8 @@ class _ScrcpySession:
             if not self._wait_for_socket():
                 return
             self._decode_loop()
+        except TimeoutError:
+            self._logger.warning("scrcpy socket 读取超时，准备重建会话")
         except Exception:
             self._logger.exception("scrcpy 会话异常")
         finally:
@@ -273,6 +275,7 @@ class _ScrcpySession:
             self._codec.flags |= 1 << 19
             self._codec.open()
 
+            sock.settimeout(10.0)
             try:
                 while not self._stop_event.is_set():
                     # KEEPALIVE-01: 帧超时检测；若超过 10s 未收到新帧，视为通道异常，主动退出以便重建

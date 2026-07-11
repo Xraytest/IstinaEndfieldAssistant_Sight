@@ -1855,3 +1855,13 @@
   - `reports/auto/20260712_0000_batch80_vlm_agent_adb.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**: 只读审查，未修改业务代码；交叉核对 280+ 历史报告确认 3 项为新发现；`_frame_to_base64`、`_start_agent`、`adb_manager` 回退模式经 Grep 全项目搜索确认无历史覆盖。
+
+## 2026-07-11 21:40 (修复 scrcpy _decode_loop TimeoutError 日志噪声与会话重建延迟)
+
+- **User Request**: 阅读最新日志，修正代码语法问题，完成修改后提交修改并推送到远端
+- **Outcome**: 阅读最新 main.log（2026-07-11 21:30-21:40 区段），确认上次 `import time` NameError 修复（commit 808119b）已生效——日志中无 NameError/SyntaxError。发现活跃运行时错误：`_decode_loop` 的 `fileobj.read(12)` 因 scrcpy 流停滞触发 `TimeoutError`（socket 30s 超时），以 `[ERROR] scrcpy 会话异常` + 完整 traceback 记录。根因：socket 超时（30s）远长于 KEEPALIVE-01 间隔（10s），且 `fileobj.read` 阻塞期间 keep-alive 检查为死代码，导致会话重建延迟 30s 而非 10s。修复两处：(1) `_run()` 新增 `except TimeoutError` 将 ERROR+traceback 降级为 WARNING；(2) 内层 decode 循环前 `sock.settimeout(10.0)` 匹配 keep-alive 间隔，加速停滞检测。四部分报告见 reports/incidents/2026-07-11_scrcpy_timeout_fix.md。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py
+  - reports/incidents/2026-07-11_scrcpy_timeout_fix.md
+  - docs/TASK_LOG.md
+- **验证**: `3rd-part/python/python.exe -c "import py_compile; py_compile.compile(..., doraise=True)"` 通过；`TimeoutError` 为 `OSError` 子类，Python 3.10+ `socket.timeout` 即 `TimeoutError`，`except TimeoutError` 能正确捕获。
