@@ -438,9 +438,10 @@ class MaaEndRuntime:
         try:
             resource_dir = self._resolve_asset_path("resource")
             # nodes.json 是 IEA 把全部任务 pipeline 聚合后的冗余副本，与
-            # resource/pipeline 下分散的任务文件大量重名；MaaFW 会递归加载该目录
-            # 全部 JSON 并因 "key already exists" 整体失败。加载前将其移出 pipeline 目录。
-            self._relocate_aggregate_nodes(resource_dir)
+            # resource*/pipeline 下分散的任务文件大量重名；MaaFW 会递归加载各 resource
+            # 目录全部 JSON 并因 "key already exists" 整体失败。加载前将各 pipeline 目录
+            # 中的聚合 nodes.json 统一移出。
+            self._relocate_aggregate_nodes()
             job = self._resource.post_bundle(resource_dir)
             job.wait()
             if not job.succeeded:
@@ -460,33 +461,36 @@ class MaaEndRuntime:
             self.logger.exception(LogCategory.MAIN, "Pipeline 资源加载异常", error=str(e))
             return False
 
-    def _relocate_aggregate_nodes(self, resource_dir: Path) -> None:
-        """将 resource/pipeline/nodes.json 移出 pipeline 目录（若存在）。
+    def _relocate_aggregate_nodes(self) -> None:
+        """将各 resource*/pipeline/nodes.json 聚合副本移出 pipeline 目录。
 
-        MaaFW 的 Resource.post_bundle 会递归加载 resource/pipeline 下的全部 JSON，
-        而 nodes.json 是 IEA 把全部任务 pipeline 聚合后的冗余副本，与分散的任务文件
-        大量重名，会触发 'key already exists' 导致整个资源加载失败。将其移到 maaend
-        根目录，仅供 IEA 自有的 PipelineLoader 使用，避免污染 MaaFW 加载。该方法可
-        在每次加载时自愈，防止重新同步 3rd-part 后该文件再次落入 pipeline 目录。
+        MaaFW 的 Resource.post_bundle 会递归加载每个 resource 目录下 pipeline/ 的
+        全部 JSON，而 nodes.json 是 IEA 把全部任务 pipeline 聚合后的冗余副本，与分散
+        的任务文件大量重名，会触发 'key already exists' 导致整个资源加载失败。该方法
+        扫描 maaend 根目录下所有 pipeline/nodes.json 并移出：首个保留为
+        maaend_root/nodes.json 供 IEA 自有 PipelineLoader 使用，其余冗余副本直接丢弃。
+        从而在每次加载时自愈，防止重新同步 3rd-part 后该文件再次落入 pipeline 目录。
         """
-        nodes = resource_dir / "pipeline" / "nodes.json"
-        if not nodes.is_file():
-            return
         target = self._maaend_root / "nodes.json"
-        try:
-            if target.is_file():
-                # 目标已存在则直接丢弃 pipeline 中的冗余副本
-                nodes.unlink()
-                self.logger.debug(LogCategory.MAIN, "丢弃 pipeline 目录冗余 nodes.json", target=str(target))
-                return
-            nodes.replace(target)
-            self.logger.warning(
-                LogCategory.MAIN,
-                "已将聚合 nodes.json 移出 pipeline 目录以避免 MaaFW 资源加载冲突",
-                target=str(target),
-            )
-        except Exception as exc:
-            self.logger.warning(LogCategory.MAIN, "移动聚合 nodes.json 失败，资源加载可能冲突", error=str(exc))
+        for nodes in self._maaend_root.rglob("pipeline/nodes.json"):
+            if not nodes.is_file():
+                continue
+            try:
+                if target.is_file():
+                    # 目标已存在则直接丢弃 pipeline 中的冗余副本
+                    nodes.unlink()
+                    self.logger.debug(LogCategory.MAIN, "丢弃 pipeline 目录冗余 nodes.json", path=str(nodes))
+                else:
+                    nodes.replace(target)
+                    self.logger.warning(
+                        LogCategory.MAIN,
+                        "已将聚合 nodes.json 移出 pipeline 目录以避免 MaaFW 资源加载冲突",
+                        target=str(target),
+                    )
+            except Exception as exc:
+                self.logger.warning(
+                    LogCategory.MAIN, "移动聚合 nodes.json 失败，资源加载可能冲突", path=str(nodes), error=str(exc)
+                )
 
     def build_pipeline_override(self, task_name: str, options: Dict[str, Any]) -> Dict[str, Any]:
         task = self._tasks.get(task_name)
