@@ -1328,3 +1328,23 @@
   - `reports/auto/20260711_104045.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 template_backend.py、yolo_backend.py、scene_geometry.py、pipeline_node.py、template_registry.py、logger.py 当前源文件逐行核对。历史报告 180+ 条发现全部经二次验证确认准确，新增 6 处修正。W1/C10/D02 修复经 android_runtime.py、runtime.py、vlm_walk_navigator.py 当前源码确认到位。
+
+## 2026-07-11（第四十五批次·识别器/匹配器/场景服务/任务系统 + 脚本录制回放 + 既往报告终审）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计此前未深度审查的识别器（recognizer.py）、匹配器（matcher.py）、场景服务（scene_service.py）、任务系统（task_loader.py, task_runner.py, pipeline_loader.py）、导航辅助（minimap_locator.py）、GUI 脚本录制回放系统（scripting_page.py, player.py, recorder.py, models.py）、数据模型（element_info.py）、国际化（i18n/__init__.py）及 OCR 后端（ocr_backend.py），识别 10 项新发现（3 Medium / 6 Low / 1 Info）。对批次37-44 全部7份报告做终审，识别 6 项审计修正（A1-A6）。
+  1. **[SCR01 Medium]** `recognizer.py:70` 直接修改 `TemplateBackend._catalog`——侵入式紧耦合，TemplateBackend 重构后静默失效。
+  2. **[SCR02 Medium]** `matcher.py:27,102` `cv2.cvtColor(COLOR_BGR2GRAY)` 对 BGRA 输入抛 `cv2.error`——scrcpy BGRA 截图触发模板匹配静默失败。
+  3. **[SCR03 Medium]** `minimap_locator.py:167-179` `break` 仅退出内层循环——可读性差，同 tier 多匹配时取第一个而非最近。
+  4. **[SCR04 Low]** `element_info.py:64-73` `__post_init__` 静默篡改无效 element_type/action——掩盖数据质量问题。
+  5. **[SCR05 Low]** `scene_service.py:56-58` 异常处理返回通用 "unknown" 结果——丢失诊断上下文。
+  6. **[SCR06 Low]** `player.py:62,84` 信号真值检查恒为 True——技术债。
+  7. **[SCR07 Low]** `scripting_page.py:155-157` 死代码——赋值后立即覆盖。
+  8. **[SCR08 Low]** `pipeline_loader.py:85-86` 死代码分支——`pass` 无操作。
+  9. **[SCR09 Info]** `i18n/__init__.py:90-95` 单例无锁——系统性反模式。
+  10. **[SCR10 Info]** `recognizer.py:88-93` 条件初始化非对称对象结构——结构性风险。
+  11. **[A1-A6 修正]** 批次37-44 报告中6处技术细节偏差/误判。
+- **Files Modified**:
+  - `reports/auto/20260711_1045_scr.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 14 个源文件当前代码逐行核对。历史报告 190+ 条发现全部经二次验证确认准确，新增 6 处修正。
