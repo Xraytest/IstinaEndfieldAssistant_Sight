@@ -1719,3 +1719,12 @@
   - `reports/auto/20260711_2130_cli_handler_ux_audit.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 30 份历史报告确认 CLI-01/02/03/04 和 GUI-01 为全新发现，无重复；batch 71/65 审计经代码逐行复核确认无误。
+
+## 2026-07-11 21:45 (AutoCodeReview·第七十三批次)
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。避免执行测试，以代码逻辑分析为主体。分析后报告存放到./reports/auto/<timestamp>.md。避免重复提交之前发现的问题。严禁修改文件。
+- **Outcome**: 批次 73 完成。4 新发现（2 Low / 2 Info）+ 2 审计验证。核心发现：`llm/runtime.py` `_try_start` 60 秒启动超时后返回 False 但子进程仍在运行（僵尸进程泄漏，第二次启动覆盖 `self._process` 后第一个 PID 丢失追踪）、`android_runtime.py` `_call()` `json.loads` 失败被 `except Exception` 掩埋为"连接失败"（实际连接成功但响应格式错误）、`_Daemon._handle_client` `json.JSONDecodeError` 静默丢弃请求导致客户端等 30 秒超时、`client.py` `_post` 日志格式双 `[MAIN]` 标签。审计验证批次 72 CLI-01/02/03/04 + GUI-01 确认准确、批次 71 MAA71-01/02/03 确认准确。
+- **Files Modified**:
+  - `reports/auto/20260711_2145_llm_zombie_daemon_json.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 30 份历史报告确认 LLM-01/02/D-06/D-07 为全新发现，无重复；batch 72/71 审计经代码逐行复核确认无误。
