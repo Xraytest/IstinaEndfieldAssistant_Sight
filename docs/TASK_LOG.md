@@ -1348,3 +1348,25 @@
   - `reports/auto/20260711_1045_scr.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 14 个源文件当前代码逐行核对。历史报告 190+ 条发现全部经二次验证确认准确，新增 6 处修正。
+
+## 2026-07-11（第四十六批次·路径管理深层分析 + 异常处理系统性审查）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计项目路径管理的系统性反模式（sys.path 冗余、parent 链硬编码、ensure_src_path 实现缺陷）及全局异常处理模式统计，识别 8 项新发现（3 Medium / 3 Low / 2 Info）。对批次 37-45 全部 9 份报告做终审，识别 5 项审计修正（B1-B5），含 1 项不成立分析（B5 降级为 Info）。
+  1. **[MAA01 Medium]** `main.py:8-11,21` 手动 sys.path.insert 与 ensure_src_path() 功能重复——鸡-蛋问题的双重路径计算。
+  2. **[MAA02 Medium]** `istina.py:14,37` 相同的鸡-蛋问题——sys.path.insert 与 ensure_src_path() 冗余。
+  3. **[MAA03 Medium]** `maaend_control_page.py:127,1183` 5 级 parent 链（项目最深）——应使用 get_project_root()。
+  4. **[MAA04 Low]** `paths.py:61` ensure_src_path() 内重复计算项目根——应复用 get_project_root()。
+  5. **[MAA05 Low]** `maaend_control_page.py:1165` fallback 使用 4 级 parent 链 + except Exception 过于宽泛。
+  6. **[MAA06 Low]** `scripting/recorder.py:56` 和 `scripting_page.py:39` 4 级 parent 链——应使用 get_project_root()。
+  7. **[MAA07 Info]** 全局 197 处 bare except Exception: 模式——系统性反模式。
+  8. **[MAA08 Info]** 全局 86 处 bare except Exception: pass 模式——最严重的静默吞错。
+  9. **[B1 修正]** 批次 42/44 遗漏了 scripting/ 模块的 4 级 parent 链。
+  10. **[B2 修正]** 批次 44 N07 描述可更精确（应强调未使用 get_project_root() 而非 "hardcoded"）。
+  11. **[B3 修正]** 批次 45 SCR06 未提及替代方案（receivers() 检查连接数）。
+  12. **[B4 修正]** 批次 45 SCR03 结论正确，break 作用域问题已确认。
+  13. **[B5 不成立]** 批次 45 SCR10 条件初始化描述不成立——为正常可选依赖模式，非结构性风险，降级为 Info。
+- **Files Modified**:
+  - `reports/auto/20260711_1100_path.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 10 个源文件当前代码逐行核对 + 全局 grep 统计（197/86 处）。历史报告 190+ 条发现全部经二次验证确认准确，新增 5 处修正。
