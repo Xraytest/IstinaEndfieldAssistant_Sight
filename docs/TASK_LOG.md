@@ -1929,3 +1929,15 @@
   - `reports/auto/20260712_0800_batch82_device_layer_consistency.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**: 只读分析，未修改业务代码；关键发现经对应源文件逐行核对。
+
+## 2026-07-12 08:30 (AutoCodeReview 批次83·增量审查·队列执行自动重试/连接活性验证 + 批次82审计)
+
+- **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给出修改建议；完成后审计既往报告（批次 82），指出错误或不必要的建议；以代码逻辑分析为主（不执行测试），报告存放 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 审计 `maaend_control_page.py` 队列执行流程和 `runtime.py` 连接就绪检查，识别 2 项新发现（1 Medium / 1 Low），并审计批次 82。
+  1. **[MAAEND-01 Medium]** `_on_execution_finished` 在设置 `_is_executing = False` 后立即安排自动重试定时器，`_stop_execution` 不取消定时器，导致手动停止后自动重试仍会触发（用户无感知恢复执行）。
+  2. **[RUNTIME-02 Low]** `_ensure_maaend_ready` 仅检查 `runtime.connected` 标志位，不验证实际连接活性（ADB 断开后标志位仍为 True）。
+  3. **审计批次 82**：TOUCH-01/REC-01/CLI-01/SET-01/RUNTIME-01 全部 5 项结论经源码逐行复核确认准确，无需修正。
+- **Files Modified**:
+  - `reports/auto/20260712_0830_batch83_maaend_retry_stop.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**: 只读分析，未修改业务代码；关键发现经 `maaend_control_page.py:1852-1861` 和 `runtime.py:256-265` 源码逐行核对。
