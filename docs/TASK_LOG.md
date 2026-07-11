@@ -1805,3 +1805,13 @@
 - **Files Modified**:
   - src/core/capability/device/android_runtime.py
 - **验证**: `3rd-part/python/python.exe -m py_compile` 通过
+
+## 2026-07-11 21:25 (底部「重试」按钮改为「执行」)
+
+- **User Request**: 将底部「重试」按钮改为「执行」
+- **Outcome**: 底部按钮文本从「重试」(btn_retry) 改为「执行」(btn_execute)，点击行为从 `_retry_failed`（仅重试失败项）改为 `_run_queue`（执行整个队列），启用条件去掉「必须有失败项」限制（改为 `not self._is_executing`）。变量名 `_retry_btn` 保留未改（最小改动）。自动重试逻辑 `_retry_failed` 保留供失败后自动重试使用。
+- **Files Modified**:
+  - src/gui/pyqt6/pages/maaend_control_page.py
+  - src/gui/pyqt6/locales/zh_CN.json
+  - src/gui/pyqt6/locales/en_US.json
+- **验证**: `3rd-part/python/python.exe -m py_compile` + `json.load` 通过

@@ -141,6 +141,7 @@
   "retry_started": "正在重试 {count}/{max}，共 {n} 个失败项",
   "auto_retry_scheduled": "{delay} 秒后自动重试...",
   "btn_retry": "重试",
+  "btn_execute": "执行",
   "queue_empty": "队列为空",
   "queue_empty_msg": "当前队列没有可导出的任务。",
   "export_queue": "导出队列",

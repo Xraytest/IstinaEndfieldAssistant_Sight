@@ -143,6 +143,7 @@
   "retry_started": "Retry {count}/{max} for {n} failed items",
   "auto_retry_scheduled": "Auto-retry in {delay}s...",
   "btn_retry": "Retry",
+  "btn_execute": "Execute",
   "queue_empty": "Queue Empty",
   "queue_empty_msg": "The queue is empty.",
   "export_queue": "Export Queue",
