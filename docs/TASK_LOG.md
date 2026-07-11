@@ -918,3 +918,22 @@
   - `reports/auto/20260711_083500.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 98+ 条发现全部经二次验证确认准确，零新增纠正。
+
+## 2026-07-11（第三十二批次·增量代码审计·运行时/VLM/GUI剩余/历史修正）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次31未覆盖区域（IstinaRuntime门面/VLM导航链、VlmWalkNavigator、ThemeManager、ScriptingPage、TrayIcon、CLI handlers验证、PRTS页面修复验证），识别 8 项新发现（2 Medium / 4 Low / 2 Info），并修正1条历史报告、确认1条历史报告仍未修复。
+  1. **[H01 Medium]** `runtime.py:697,706` `_nav3_walk`/`_nav3_to_entity` 传递 `self._llm`（未初始化，始终为 None）而非 `_llm_client_instance` property——VLM导航从LLM客户端层面完全不可用。
+  2. **[H02 Medium]** `android_runtime.py:64-84` `_is_valid_keyevent` 白名单缺少游戏控制字母键（w/a/s/d/q/e/f）——VLM导航的移动控制完全失效，批次7/23/29三次记录仍未修复。
+  3. **[H03 Low]** `runtime.py:86-88` `AndroidRuntimeProxy.__getattr__` 无保护，_client_for返回None时引发AttributeError，且Python内部属性访问可能导致无限递归。
+  4. **[H04 Low]** `runtime.py:94-100` `_client_for` 传入serial参数时忽略self._device_address，可能创建与预期不符的AndroidRuntime实例。
+  5. **[H05 Low]** `theme_manager.py` ThemeManager单例非线程安全（第四次同类问题：ThemeManager/TemplateRegistry/TouchManager），建议提取线程安全基类。
+  6. **[H06 Low]** `scripting_page.py:39` `_RECORDINGS_DIR` 硬编码4级parent链（与批次31 G03 相同模式）。
+  7. **[H07 Low]** `tray_icon.py:80-83` `show_message` 托盘不可见时静默失败，用户丢失关键通知。
+  8. **[H08 Info]** `runtime.py:447-455` `_load_config` 无备份机制（D05模式第四次出现）。
+  9. **历史修正**：批次29 E01/E02 已修复（handlers.py 中添加了 None 检查 和 logger 定义），原报告073517.md应标记为已解决。
+  10. **历史确认**：批次29 E04/E05 在 prts_full_intelligence_page.py 中仍未修复。
+- **Files Modified**:
+  - `reports/auto/20260711_080614.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 99+ 条发现全部经二次验证确认准确，新增1处修正。
