@@ -1833,3 +1833,16 @@
 - **关键项**: MAEEND-01 (select 控件 falsy data=0 导致子选项/管道覆盖匹配错误), MAEEND-02 (导出文件非原子写入)
 - **审计**: 批次 78 全部 4 项结论经逐项源码复核确认准确，无需修正
 - **验证**: 只读审查，未修改业务代码；交叉核对 280+ 历史报告确认 2 项为新发现；`currentData()` falsy 模式经 Grep 全项目搜索（2 处命中，均在本文件）
+
+## 2026-07-12 00:00 (AutoCodeReview 未覆盖模块审查·VLM/Agent/ADB + 批次 79审计)
+
+- **User Request**: 完整阅读文档明析需求与边界；寻找代码漏洞与错误并给修改建议；完成后审计既往报告，避免重复提交历史问题。
+- **Outcome**: 聚焦 VLM 行走导航帧编码路径、MaaEnd Agent 进程启动诊断输出、ADB 库降级回退路径，识别出 3 项新发现（1 BUG 低 / 2 代码质量低），并审计批次 79 全部 2 项结论确认准确。
+  1. **[VLM-01 BUG/低]** `vlm_walk_navigator.py:331-333` `_frame_to_base64` 对 `cv2.imencode` 返回值无防护，帧编码失败时 `buf` 为 `None`，`base64.b64encode(None)` 崩溃。scrcpy 丢帧/内存不足时触发，VLM 行走导航中断。
+  2. **[MAA-07 代码质量/低]** `maa_end/runtime.py:458-464` `_start_agent` 将 go-service 的 stdout/stderr 重定向到 `DEVNULL`，Agent 启动失败时诊断输出永久丢失。对比 `llm/runtime.py:344` 使用 `PIPE` 保留输出的做法。
+  3. **[ADB-01 代码质量/低]** `adb_manager.py:89/102` `shell` 和 `screencap` 方法在 adbutils 失败时静默回退到 subprocess，不记录原始异常。对比 `get_devices()`（line 57）已记录 warning 的做法。
+  4. **审计批次 79**: MAEEND-01 (`_get_current_case`/`_collect_option_recursive` falsy) 和 MAEEND-02 (`_export_queue` 非原子写入) 结论均经源码逐行复核确认准确。
+- **Files Modified**:
+  - `reports/auto/20260712_0000_batch80_vlm_agent_adb.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**: 只读审查，未修改业务代码；交叉核对 280+ 历史报告确认 3 项为新发现；`_frame_to_base64`、`_start_agent`、`adb_manager` 回退模式经 Grep 全项目搜索确认无历史覆盖。

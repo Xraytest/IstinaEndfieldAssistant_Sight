@@ -234,10 +234,22 @@ class IstinaRuntime:
         # 连接成功后立即启动 scrcpy 常驻图像通道，供预览按需取用。
         try:
             self._logger.info(LogCategory.MAIN, "尝试启动 scrcpy 预览通道", serial=serial)
-            self.android(serial).start_scrcpy(serial=serial)
-            self._logger.info(LogCategory.MAIN, "scrcpy 预览通道启动成功", serial=serial)
+            result = self.android(serial).start_scrcpy(serial=serial)
+            if isinstance(result, dict) and result.get("error"):
+                self._logger.warning(LogCategory.MAIN, "scrcpy 预览通道启动失败", error=result["error"], serial=serial)
+                # 清理失败 session，允许下次连接重试
+                try:
+                    self.android(serial).stop_scrcpy(serial=serial)
+                except Exception:
+                    pass
+            else:
+                self._logger.info(LogCategory.MAIN, "scrcpy 预览通道启动成功", serial=serial)
         except Exception as exc:
-            self._logger.warning(LogCategory.MAIN, "scrcpy 预览通道启动失败", error=str(exc))
+            self._logger.warning(LogCategory.MAIN, "scrcpy 预览通道启动失败", error=str(exc), serial=serial)
+            try:
+                self.android(serial).stop_scrcpy(serial=serial)
+            except Exception:
+                pass
         self._logger.info(LogCategory.MAIN, "MaaEnd runtime 已就绪")
         return True
 
