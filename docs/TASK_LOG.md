@@ -1996,3 +1996,17 @@
 **新增发现**: DAEMON-01 — daemon screenshot handler 丢弃 cv2.imencode 返回值（与 O-22/VLM-03 同一根因，不同文件/路径）；MW-01 — _refresh_preview 跨类访问 MaaEndControlPage 私有属性
 **批次 85 审计**: 全部 2 项新发现 + 1 项范围延伸 + 批次 84 审计均经逐项源码复核确认准确，无需修正
 **风险**: 2 项低，无中高风险
+
+## 2026-07-12 10:30 (scrcpy 握手成功但无帧 — 根因诊断与修复)
+
+- **User Request**: scrcpy 是串流方案，不应该有这么长时间没有帧（质疑上一轮保活修复只治标不治本，要求诊断无帧根因）
+- **Outcome**: 三处修改解决"握手成功但无帧"的诊断盲区与直接原因：
+  1. **DIAG-01**（`_drain_pipe`）：从"读取即丢弃"改为按行读取并记录到 logger，使 scrcpy-server 的启动日志/编码器错误/协议警告全部可见。这是诊断无帧根因的关键第一步——之前完全看不到 server 输出。
+  2. **POWER-01**（`_start_server`）：增加 `power_on=true` 参数 + `input keyevent 224`（KEYCODE_WAKEUP）唤醒屏幕。设备为网络 ADB（192.168.1.12:16512），`stay_awake=true` 仅 USB 有效；屏幕关闭时 Android MediaCodec 不产生帧，scrcpy-server 无帧可发。这是无帧的直接原因。
+  3. **SILENT-01**（`_decode_loop`）：在握手成功/config packet/首帧/socket断开/异常包大小/解码失败等关键点增加诊断日志，不再 `pass` 静默吞掉异常。新增 frame_counter 和 first_frame_logged 局部变量。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py
+  - reports/incidents/2026-07-12_scrcpy_no_frame_diagnosis.md（新增）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 通过；commit 28e5eb0 已推送。
+- **与 09:00 保活条目的关系**: 递进而非冲突。09:00 修复解决"断流后如何自动重连"（退避+重置_timestamp），本次修复解决"为何无帧"（电源唤醒+诊断可见性）。根因修复后退避逻辑极少触发，作为兜底保留。
