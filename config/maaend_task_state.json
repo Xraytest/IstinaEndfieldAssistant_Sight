@@ -1,5 +1,5 @@
 {
-  "selected_task": "DijiangRewards",
+  "selected_task": "CreditShoppingN2",
   "selected_preset": "DailyFull",
   "queue_items": [
     {
@@ -20,10 +20,13 @@
       "display_name": "DijiangRewards",
       "type": "task",
       "options": {
-        "AutoStartExchange": "Yes",
+        "AutoStartExchange": "No",
         "StageTaskSetting": "No",
-        "ClueSetting": "Yes",
-        "SelectToGrow": "Any"
+        "ClueSetting": "No",
+        "SelectToGrow": "Any",
+        "AutoExtractSeed": "Yes",
+        "SortBy": "Default",
+        "SortOrder": "ASC"
       }
     },
     {
@@ -36,28 +39,103 @@
       "name": "DeliveryJobs",
       "display_name": "DeliveryJobs",
       "type": "task",
-      "options": {
-        "ValleyIV": "Yes",
-        "Wuling": "Yes"
-      }
+      "options": {}
     },
     {
       "name": "SellProduct",
       "display_name": "SellProduct",
       "type": "task",
-      "options": {}
+      "options": {
+        "SellProductSchedule": [
+          "SellProductScheduleMonday",
+          "SellProductScheduleTuesday",
+          "SellProductScheduleWednesday",
+          "SellProductScheduleThursday",
+          "SellProductScheduleFriday",
+          "SellProductScheduleSaturday",
+          "SellProductScheduleSunday"
+        ],
+        "SellBeyondAidQuota": "No",
+        "ValleyIVSell": "Yes",
+        "WulingSell": "Yes"
+      }
     },
     {
       "name": "AutoStockpile",
       "display_name": "AutoStockpile",
       "type": "task",
-      "options": {}
+      "options": {
+        "AutoStockpileServerTime": "CN_UTC_PLUS_8",
+        "AutoStockpileAllowDataUpload": "Yes",
+        "AutoStockpileElasticValleyIV": "Yes",
+        "AutoStockpileElasticWuling": "Yes"
+      }
     },
     {
       "name": "AutoStockStaple",
       "display_name": "AutoStockStaple",
       "type": "task",
-      "options": {}
+      "options": {
+        "AutoStockStapleSchedule": [
+          "AutoStockStapleScheduleMonday",
+          "AutoStockStapleScheduleTuesday",
+          "AutoStockStapleScheduleWednesday",
+          "AutoStockStapleScheduleThursday",
+          "AutoStockStapleScheduleFriday",
+          "AutoStockStapleScheduleSaturday",
+          "AutoStockStapleScheduleSunday"
+        ],
+        "AutoStockStapleValleyIV": "Yes",
+        "AutoStockReserveValleyIV": {
+          "ReserveValleyIV": "240000"
+        },
+        "AutoStockBuyDailyGoodsValleyIV": [],
+        "AutoStockBuyDailyGoodsValleyIVEngravingPermitLimit": {
+          "ValleyEngravingPermitLimit": "20"
+        },
+        "AutoStockBuyDailyGoodsValleyIVFoodAndBuffLimit": {
+          "ValleyFoodAndBuffLimit": "20"
+        },
+        "AutoStockBuyStockFactoryGoodsValleyIV": [
+          "KeenValleyDetector",
+          "KeenValleyCompass"
+        ],
+        "AutoStockBuyStockFactoryGoodsValleyIVDetectorCompassLimit": {
+          "ValleyDetectorCompassLimit": "20"
+        },
+        "AutoStockBuyCulturalGoodsValleyIV": [],
+        "AutoStockBuyCulturalGoodsValleyIVGiftLimit": {
+          "ValleyGiftLimit": "20"
+        },
+        "AutoStockUseDiscountsValleyIV": "50",
+        "AutoStockStapleWuling": "Yes",
+        "AutoStockReserveWuling": {
+          "ReserveWuling": "240000"
+        },
+        "AutoStockBuyDailyGoodsWuling": [],
+        "AutoStockBuyDailyGoodsWulingEngravingPermitLimit": {
+          "WulingEngravingPermitLimit": "20"
+        },
+        "AutoStockBuyDailyGoodsWulingFoodAndBuffLimit": {
+          "WulingFoodAndBuffLimit": "20"
+        },
+        "AutoStockBuyStockFactoryGoodsWuling": [
+          "WulingArtificingCatalyst",
+          "KeenWulingDetector",
+          "KeenWulingCompass"
+        ],
+        "AutoStockBuyStockFactoryGoodsWulingArtificingCatalystLimit": {
+          "WulingArtificingCatalystLimit": "20"
+        },
+        "AutoStockBuyStockFactoryGoodsWulingDetectorCompassLimit": {
+          "WulingDetectorCompassLimit": "20"
+        },
+        "AutoStockBuyCulturalGoodsWuling": [],
+        "AutoStockBuyCulturalGoodsWulingGiftLimit": {
+          "WulingGiftLimit": "20"
+        },
+        "AutoStockUseDiscountsWuling": "50"
+      }
     },
     {
       "name": "AutoSell",
@@ -113,40 +191,24 @@
       ]
     },
     "DijiangRewards": {
-      "AutoStartExchange": "Yes",
+      "AutoStartExchange": "No",
       "StageTaskSetting": "No",
-      "ClueStockLimit": "2"
+      "ClueSetting": "No",
+      "SelectToGrow": "Any"
     },
     "CreditShoppingN2": {
-      "CreditShoppingForce": "Refresh",
       "CreditShoppingReserve": {
         "ReserveCreditThreshold": "300"
       },
+      "CreditShoppingClueSend": {
+        "MaxClueSendWhenInsufficient": "1"
+      },
+      "CreditShoppingClueStockLimit": "2",
       "CreditShoppingPriority1": "Yes",
-      "CreditShoppingPriority1Items": [
-        "ArsenalTicket",
-        "Oroberyl"
-      ],
-      "CreditShoppingPriority1DiscountValue": "Any",
       "CreditShoppingPriority2": "Yes",
-      "CreditShoppingPriority2Items": [
-        "ArsenalTicket",
-        "Oroberyl",
-        "TCreds",
-        "ElementaryCognitiveCarrier",
-        "ElementaryCombatRecord",
-        "IntermediateCombatRecord",
-        "ArmsInspector",
-        "ArmsINSPKit",
-        "CastDie",
-        "HeavyCastDie",
-        "Protodisk",
-        "Protoset",
-        "Protoprism",
-        "Protohedron"
-      ],
-      "CreditShoppingPriority2DiscountValue": "-75%",
-      "CreditShoppingPriority3": "No"
+      "CreditShoppingPriority3": "No",
+      "CreditShoppingForce": "Refresh",
+      "CreditShoppingKeepShelfRecord": "Yes"
     },
     "DeliveryJobs": {
       "ValleyIV": "Yes",
@@ -173,6 +235,23 @@
         "Route4",
         "Route5"
       ]
+    },
+    "ProtocolSpace": {
+      "ProtocolSpaceSchedule": [
+        "ProtocolSpaceScheduleMonday",
+        "ProtocolSpaceScheduleTuesday",
+        "ProtocolSpaceScheduleWednesday",
+        "ProtocolSpaceScheduleThursday",
+        "ProtocolSpaceScheduleFriday",
+        "ProtocolSpaceScheduleSaturday",
+        "ProtocolSpaceScheduleSunday"
+      ],
+      "AutoFightSetting": "No",
+      "ProtocolSpaceTeamChoose": "ProtocolSpaceTeamChooseDefault",
+      "ProtocolSpaceSuccessAction": "RewardClaim",
+      "ProtocolSpaceSuccessCount": "ProtocolSpaceSuccessCountUnlimited",
+      "ProtocolSpaceFailedCount": "ProtocolSpaceFailedCount3",
+      "ProtocolSpaceTab": "OperatorProgression"
     }
   }
 }

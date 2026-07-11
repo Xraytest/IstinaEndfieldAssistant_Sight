@@ -19,6 +19,68 @@ from typing import Any, Dict, List, Optional
 from core.foundation.logger import LogCategory, get_logger
 from core.foundation.paths import get_project_root
 
+
+def _strip_json_comments(text: str) -> str:
+    """Remove // line comments and /* */ block comments from a JSON string.
+
+    MaaFW's resource JSON (rapidjson) legitimately allows both comment styles,
+    so upstream task/preset/interface files shipped under 3rd-part/maaend may
+    contain them. Python's ``json`` rejects comments, so we strip them outside
+    of string literals before parsing. String contents are preserved verbatim.
+    """
+    result: List[str] = []
+    i = 0
+    n = len(text)
+    in_str: Optional[str] = None
+    while i < n:
+        ch = text[i]
+        if in_str is not None:
+            result.append(ch)
+            if ch == "\\":
+                if i + 1 < n:
+                    result.append(text[i + 1])
+                    i += 2
+                    continue
+            elif ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch == '"' or ch == "'":
+            in_str = ch
+            result.append(ch)
+            i += 1
+            continue
+        if ch == "/" and i + 1 < n:
+            nxt = text[i + 1]
+            if nxt == "/":
+                j = text.find("\n", i)
+                if j == -1:
+                    break
+                i = j + 1
+                continue
+            if nxt == "*":
+                j = text.find("*/", i + 2)
+                if j == -1:
+                    break
+                i = j + 2
+                continue
+        result.append(ch)
+        i += 1
+    return "".join(result)
+
+
+def _load_json_file(path: Path) -> Dict[str, Any]:
+    """Load a JSON file, tolerating MaaFW-style // and /* */ comments.
+
+    Falls back to comment-stripping only on a parse error, so clean JSON keeps
+    the fast native path and error messages stay precise for genuinely broken files.
+    """
+    text = Path(path).read_text(encoding="utf-8")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return json.loads(_strip_json_comments(text))
+
 # Point maa library to MaaEnd maafw DLLs for matching versions.
 _PROJECT_ROOT = get_project_root()
 _maaend_agent_dir = _PROJECT_ROOT / "3rd-part" / "maaend" / "agent"

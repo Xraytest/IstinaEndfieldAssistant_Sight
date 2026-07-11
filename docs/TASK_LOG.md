@@ -1677,6 +1677,15 @@
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 30 份历史报告确认 RT-01/RT-02/RT-03 为全新发现，无重复；batch 69 审计经代码复核确认无误。
 
+## 2026-07-11 21:00 (AutoCodeReview·第七十一批次)
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。避免执行测试，以代码逻辑分析为主体。分析后报告存放到./reports/auto/<timestamp>.md。避免重复提交之前发现的问题。严禁修改文件。
+- **Outcome**: 批次 71 完成。3 新发现（3 Low）+ 2 审计验证。核心发现：`maaend_control_page.py:174` 5 级 parent 链为项目最深深硬编码路径（绕过 `get_project_root()`）、`qt_log_filter.py` `_INSTALLED` 标志非原子检查（与项目其他无锁单例同模式）、`widget_styles.py` `BLUE_STYLE` 重复定义（第二处静默覆盖第一处）。审计发现批次 1445 AUDIT-1 论断已过时（minimap_locator level_id bug 已被正则修复，但报告声称"仍然存活"）；确认批次 70 全部 3 项发现准确无误。
+- **Files Modified**:
+  - `reports/auto/20260711_2100_qtlog_widget_parent_audit.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 30 份历史报告确认 MAA71-01/02/03 为全新发现，无重复；AUDIT-1 经直接读取 minimap_locator.py:191-195 确认代码已修复；AUDIT-2 经逐行复核 runtime.py 确认无误。
+
 ## 2026-07-11 20:30
 
 - **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。避免执行测试，以代码逻辑分析为主体。分析后报告存放到./reports/auto/<timestamp>.md。避免重复提交之前发现的问题。严禁修改文件。
@@ -1685,6 +1694,15 @@
   - `reports/auto/20260711_2030_i18n_queue_audit.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 0030.md I18N-1 确认本批 3 项为全新发现，无重复；batch 68/155129 审计经代码复核确认无误。
+
+## 2026-07-11 21:00
+
+- **User Request**: 信用交易任务的可设置项未能够在 GUI 内正确展示，修正问题。
+- **Outcome**: 定位根因并修复。`_build_option_editor` 在渲染选项后执行 `_apply_saved_option_values`，期间对 `_option_form` 执行 `setEnabled(False)`，导致 Qt 在禁用父布局期间构建的子控件 widget 在恢复启用后无法正确进入 paint 流程。移除该 `setEnabled(False/True)` 包装后，CreditShoppingN2 的 17 个选项控件（8 顶层 + 9 子选项）均能正确显示，Priority1/Priority2 默认 Yes 的子选项容器可见，Priority3 默认 No 的子选项正确隐藏。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/maaend_control_page.py`（移除 `_build_option_editor` 中 `setEnabled(False)` / `setEnabled(True)`）
+  - `tests/gui/pyqt6/test_credit_shopping_repro.py`（更新断言并修复退出逻辑）
+- **验证**：结构验证通过（17 widgets/17 tree nodes，sub_container 可见性符合预期）；全量 GUI 测试 104 passed；对比 ProtocolSpace（同为嵌套选项任务）结构逻辑一致，确认修复为通用根因而非 CreditShopping 特例。
 
 ## 2026-07-11 20:10
 

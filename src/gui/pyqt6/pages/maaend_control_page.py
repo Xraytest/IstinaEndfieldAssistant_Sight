@@ -115,7 +115,7 @@ NAME_ZH = {
     "DailyRewards": "📅日常奖励领取",
     "ClaimSimulationRewards": "📦领取模拟空间奖励",
     "TrialOfSwordmancy": "🗡️选剑演武",
-    "CreditShopping": "🛍️信用点购物",
+    "CreditShoppingN2": "🛍️信用点购物",
     "AccountSwitch": "自动切换账号",
     "WebEvent202605": "🎁自动共贺庆典网页活动",
     "AndroidOpenGame": "🎮打开游戏",
@@ -977,11 +977,7 @@ class MaaEndControlPage(QWidget):
         for name in option_names:
             self._render_option_row(name, option_defs, self._option_form, level=0)
         self._option_form.addStretch()
-        self._option_form.setEnabled(False)
-        try:
-            self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
-        finally:
-            self._option_form.setEnabled(True)
+        self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
 
     def _resolve_option_defs(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """解析任务的选项定义，优先使用任务内联 _option_defs，回退到全局 _task_option_defs。"""
