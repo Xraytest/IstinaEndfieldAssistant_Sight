@@ -1415,3 +1415,23 @@
   - `reports/auto/20260711_1120_llm.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 6 个源文件当前代码逐行核对。历史报告 200+ 条发现全部经二次验证确认准确，新增 5 处修正。
+
+## 2026-07-11 14:45 (AutoCodeReview 第四十九批次·识别几何/管线节点/设备页/响应式 + 既往报告终审)
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计此前从未深度审查的 7 个文件（scene_geometry.py、pipeline_node.py、device_settings_page.py、responsive.py、icons.py、animations.py、hero.py），识别 10 项新发现（2 High / 2 Medium / 4 Low / 2 Info）。对批次 1213、1230、1410 共 3 份报告做终审，识别 5 项审计修正（AUDIT-1~5），全部验证成立。
+  1. **[GEO02 High]** `scene_geometry.py:50-52` BGRA 输入导致 `cvtColor(COLOR_BGR2GRAY)` 崩溃——与 matcher.py 同类模式。
+  2. **[DEVICE01 High]** `device_settings_page.py:209` `QPropertyAnimation` 在 QLabel 上使用不存在的 `windowOpacity` 属性，连接成功闪烁反馈完全失效。
+  3. **[GEO01 Medium]** `scene_geometry.py:134-136` Canny 对 float32 输入截断为 uint8——边界负值回绕导致边缘误检。
+  4. **[PIPENODE01 Medium]** `pipeline_node.py:60` 使用 `RecognitionType._value2member_map_` 私有属性。
+  5. **[PIPENODE02 Medium]** `pipeline_node.py:112` `to_dict()` 返回原始 metadata 而非解析后的节点状态。
+  6. **[DEVICE02 Low]** `device_settings_page.py:95-99` 构造时硬编码默认值被 `_load_device_preferences` 覆盖。
+  7. **[DEVICE03 Low]** `device_settings_page.py:320` `_save_device_settings` 每次保存触发 `config reload`。
+  8. **[RESPONSIVE01 Low]** `responsive.py:53-55` `ui_mode_for_size` 与 `is_narrow_size` 语义不一致。
+  9. **[DEADCODE01 Info]** `scene_service.py:139-144` `analyze_scene_3d` 方法已定义但从未被调用。
+  10. **[ICONS01 Info]** `icons.py:259` "running" 与 "pending" 使用相同图标。
+  11. **[AUDIT-1~5]** 批次 1213/1230/1410 全部审计修正验证成立（含 W1 降级修正确认）。
+- **Files Modified**:
+  - `reports/auto/20260711_1445_code.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 7 个源文件当前代码逐行核对。历史报告 210+ 条发现全部经二次验证确认准确。
