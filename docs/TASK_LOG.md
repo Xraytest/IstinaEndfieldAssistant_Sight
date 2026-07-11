@@ -1979,3 +1979,12 @@
   - `reports/auto/20260712_0845_batch84_runtime_save_vlm_frame.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**: 只读分析，未修改业务代码；关键发现经对应源文件逐行核对。
+
+## 审计批次 85 — CLI keyevent 校验粒度不一致 / O-10 范围延伸 + 审计批次 84
+
+**时间**: 2026-07-12 09:00
+**审计文件**: handlers.py, vlm_walk_navigator.py, runtime.py, cli_bridge.py
+**新增发现**: CLI-03 — `_handle_device_keyevent` 校验粒度与 daemon 层 `KNOWN_KEYEVENT_NAMES` 不一致
+**范围延伸**: O-10 延伸覆盖 keyevent/monitor handlers 缺少 default_client 检查
+**批次 84 审计**: 全部 3 项结论经逐项源码复核确认准确，无需修正
+**风险**: 1 项低（CLI-03），无中高风险
