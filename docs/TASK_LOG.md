@@ -1613,3 +1613,9 @@
 - **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告。
 - **Outcome**: 批次 59 完成。5 新发现（1 Low / 4 Info）+ 1 审计验证。核心发现：player._do_click 本地/全局坐标混淆导致脚本点击落在错误位置（Low）；models.py 非原子写入、format_gpu_warning 模糊、client._post 120s 硬编码超时、minimap_locator ONNX_AVAILABLE 死代码、log_page 扩展名过滤（Info）。审计验证批次 2400 N-26 坐标分析前提错误。
 - **Files Modified**: reports/auto/20260711_162302.md (新增)
+
+## 2026-07-11 16:41
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告。
+- **Outcome**: 批次 60 完成。3 新发现（1 Low / 2 Info）+ 1 审计验证。核心发现：runtime.py save_config 非原子写入（Info）；task_runner.py switch 类型 falsy 值强制转换 bug（Low）；touch_manager.py back() 无异常处理（Info）。审计验证批次 36 S07 break 语句已修复。
+- **Files Modified**: reports/auto/20260711_164102.md (新增)
