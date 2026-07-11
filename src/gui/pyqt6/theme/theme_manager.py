@@ -137,8 +137,11 @@ FONTS: Dict[str, str] = {
     "family_mono": "Consolas",
 }
 
-# 保护单例构造与全局主题变量（COLORS/FONTS/ANIMATION_CONFIG 等）的并发写入
-_theme_lock = threading.Lock()
+# 保护单例构造与全局主题变量（COLORS/FONTS/ANIMATION_CONFIG 等）的并发写入。
+# 必须是可重入锁 (RLock)：get_instance() 在持锁时调用 cls()，cls() 又触发 __new__
+# 内的同一把锁；若用不可重入的 Lock 会造成同一线程自死锁，导致 MainWindow
+# 构造卡死、整个 GUI 窗口无法显示（即"主页面不显示"）。
+_theme_lock = threading.RLock()
 
 FONT_SIZES: Dict[str, int] = {
     "size_base": 12, "size_small": 11, "size_large": 13, "size_xlarge": 15,
