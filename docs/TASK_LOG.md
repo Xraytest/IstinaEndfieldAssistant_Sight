@@ -2050,3 +2050,11 @@
 **新增发现**: AGENT-01 — _start_agent 就绪检查循环在进程存活时误设 ready（sleep 后 poll 时序问题）
 **批次 90 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正
 **风险**: 1 项中（AGENT-01），无高风险
+
+## 审计批次 92 — CACHE-01 metadata_cache 非原子写入 + 审计批次 91
+
+**时间**: 2026-07-11 23:31
+**审计文件**: maaend_control_page.py, vlm_walk_navigator.py, maa_end/runtime.py
+**新增发现**: CACHE-01 — _persist_metadata_cache 直接 write_text 覆盖写入（非原子，异常时缓存文件损坏）；补充观察：_export_queue 和 device_settings_page._write_config 同样使用非原子写入
+**批次 91 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正；补充观察：_start_agent 的 except 块未重置 _connected，若 AgentClient.bind()/connect() 失败，连接态保持 True 导致后续操作失败
+**风险**: 1 项低（CACHE-01），无中高风险
