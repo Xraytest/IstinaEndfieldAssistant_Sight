@@ -339,7 +339,7 @@ class MaaEndControlPage(QWidget):
         # DirectConnection：回调在发出 commandFinished 的线程（主线程）执行，
         # 调用 loop.quit() 跨线程安全，避免 QueuedConnection 在 Worker 事件循环
         # 被阻塞时永远无法投递。
-        self._bridge.commandFinished.connect(_on_finished, Qt.DirectConnection)
+        self._bridge.commandFinished.connect(_on_finished, Qt.ConnectionType.DirectConnection)
         try:
             # 通过 BlockingQueuedConnection 让主线程执行 bridge.execute（bridge 属主线程），
             # 避免 Worker 线程直接访问主线程 QObject 的线程亲缘违规。
