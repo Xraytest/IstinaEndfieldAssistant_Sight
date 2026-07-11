@@ -35,3 +35,9 @@
 
 - 底部按钮高度从 QSS `min-height: 24px`（实际约 24-30px 浮动）变为固定 36px，视觉上会比之前略高且更统一。若与队列区按钮（`_run_queue_btn` 等，仍用 QSS 24px）产生新的高度差，属预期外但用户未要求的视觉不一致——如需统一可后续给所有按钮统一 `setFixedHeight`。
 - `execution_state_changed` 信号在 `__init__` 额外 emit 一次，若未来有监听方在该信号上做非幂等操作（如计数），需注意。当前无此监听。
+
+## 五、方法改进（同日）
+
+- **问题**：上述方案用 `setFixedHeight(36)` 固定高度。但 Qt 中 `setFixedHeight` 设置的 `maximumHeight` 会与 QSS 的 `min-height: 24px`（经 padding/border 放大后实际 widget 最小高度可能 > 36）冲突，导致 `max < min` 矛盾，按钮实际高度由 QSS 强制值决定且可能两按钮渲染不等高。
+- **改进**：移除 `setFixedHeight(36)`，改用 QSS 层面统一高度——给两个按钮的 `setStyleSheet` 追加 `QPushButton { min-height: 36px; max-height: 36px; }`。QSS 后定义覆盖原 `min-height: 24px`，且 `max-height` 同时锁定上限，两按钮在 QSS 盒模型内绝对等高，不再与 widget 级 `setFixedHeight` 冲突。
+- **影响**：仅底部 `_stop_btn` 与 `_retry_btn`，其他按钮不受影响。

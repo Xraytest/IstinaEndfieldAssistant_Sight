@@ -1825,6 +1825,15 @@
   - reports/MODIFICATION_REPORT_2026-07-11_btn_height_click.md
 - **验证**: `3rd-part/python/python.exe -m py_compile` 通过
 
+## 2026-07-11 21:45 (改用 QSS 方法统一底部按钮高度)
+
+- **User Request**: 使用方法让停止与执行处于同一高度
+- **Outcome**: 上一提交用 `setFixedHeight(36)`，但 Qt 中 setFixedHeight 的 maximumHeight 会与 QSS min-height（经 padding/border 放大后可能 >36）冲突，导致 max<min 矛盾、渲染不等高。改进：移除 setFixedHeight，改用 QSS 层面统一——两按钮 setStyleSheet 追加 `QPushButton { min-height: 36px; max-height: 36px; }`，QSS 后定义覆盖原 24px 且锁定上限，盒模型内绝对等高。报告已追加"方法改进"部分。
+- **Files Modified**:
+  - src/gui/pyqt6/pages/maaend_control_page.py
+  - reports/MODIFICATION_REPORT_2026-07-11_btn_height_click.md
+- **验证**: `3rd-part/python/python.exe -m py_compile` 通过
+
 ## 2026-07-11 23:45 (批次 79 — 选项编辑器 falsy 处理 / 队列导出非原子写入 + 审计批次 78)
 
 - **范围**: `maaend_control_page.py` 选项编辑器（子选项渲染/值收集）、队列导入/导出流程 + 批次 78 审计验证
