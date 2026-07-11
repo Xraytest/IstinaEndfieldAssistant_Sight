@@ -1632,3 +1632,10 @@
 - **Outcome**: 批次 62 完成。1 新发现（1 Low）+ 3 审计验证。核心发现：maaend_control_page.py `_resolve_connect_params` 静默吞没所有异常（JSONDecodeError/PermissionError 等），隐藏配置读取失败根因，导致启动自动连接静默失败。审计验证批次 61（SG-01/SRV-02 均合理）、批次 1745（A1-A4 均合理）、批次 1730（控制页审查充分但无遗漏发现）。
 - **Files Modified**: reports/auto/20260711_1810_control_page_audit.md (新增)
 - **验证**：只读审查，未修改业务代码；交叉核对 8 份历史报告（2210、2315、2345、235000、001647、0020、1045_scr、1115_pipeline）确认 `_resolve_connect_params` 为全新发现；批次 61/1745/1730 审计结论均经代码逐行复核确认无误。
+
+## 2026-07-11 18:30
+
+- **User Request**: 继续完成批次 63 代码审计（批次 62 延续）。寻找代码存在的漏洞与错误，提出可用的修改建议；审计之前的报告，寻找错误或不必要的建议；避免重复提交历史问题。
+- **Outcome**: 批次 63 完成。2 新发现（1 Medium / 1 Low）+ 2 审计验证。核心发现：`_do_auto_connect` + `_do_metadata_load` 阻塞主线程代码流长达 25 秒（嵌套 QEventLoop 仍处理 I/O 但代码流被阻塞）；自动连接超时后手动连接成功，预览定时器未重启（竞态条件）。审计验证批次 58 GUI58-02 分析正确（维持 Low），批次 60 无矛盾。
+- **Files Modified**: reports/auto/20260711_1830_startup_block_audit.md (新增)
+- **验证**：只读审查，未修改业务代码；关键推演依据 Qt 嵌套事件循环确定语义（QEventLoop.exec() 处理事件但阻塞调用栈）；交叉核对 10 份历史报告确认两个新发现均为全新。
