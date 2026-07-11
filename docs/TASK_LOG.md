@@ -1607,3 +1607,9 @@
   - reports/auto/20260711_160507.md（新增报告）
   - docs/TASK_LOG.md（本文件更新）
 - **验证**：未修改代码，静态分析为主。历史报告 260+ 条发现全部经二次验证确认无重复。saved_task_options 首次报告；singleShot lambda 模式首次报告；QShortcut 上下文首次报告。
+
+## 2026-07-11 16:23
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告。
+- **Outcome**: 批次 59 完成。5 新发现（1 Low / 4 Info）+ 1 审计验证。核心发现：player._do_click 本地/全局坐标混淆导致脚本点击落在错误位置（Low）；models.py 非原子写入、format_gpu_warning 模糊、client._post 120s 硬编码超时、minimap_locator ONNX_AVAILABLE 死代码、log_page 扩展名过滤（Info）。审计验证批次 2400 N-26 坐标分析前提错误。
+- **Files Modified**: reports/auto/20260711_162302.md (新增)
