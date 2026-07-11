@@ -633,15 +633,17 @@ class MaaEndControlPage(QWidget):
         bottom = QHBoxLayout()
         bottom.setContentsMargins(0, 0, 0, 0)
         bottom.addSpacing(4)
-        # QSS 固定高度统一两按钮：setFixedHeight 会与 QSS min-height 冲突导致渲染不等高
-        bottom_btn_height = "QPushButton { min-height: 36px; max-height: 36px; }"
+        # 底部两按钮：QSS min-height 归零消除与 setFixedHeight 的冲突，setFixedHeight 锁定等高
+        bottom_btn_fix = "QPushButton { min-height: 0px; }"
         self._stop_btn = QPushButton(locale.tr("btn_stop", "Stop"))
-        self._stop_btn.setStyleSheet(BTN_STOP + bottom_btn_height)
+        self._stop_btn.setStyleSheet(BTN_STOP + bottom_btn_fix)
+        self._stop_btn.setFixedHeight(36)
         self._stop_btn.setEnabled(False)
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
         self._retry_btn = QPushButton(locale.tr("btn_execute", "执行"))
-        self._retry_btn.setStyleSheet(BTN_DEFAULT + bottom_btn_height)
+        self._retry_btn.setStyleSheet(BTN_DEFAULT + bottom_btn_fix)
+        self._retry_btn.setFixedHeight(36)
         self._retry_btn.setEnabled(False)
         self._retry_btn.clicked.connect(self._run_queue)
         bottom.addWidget(self._retry_btn)

@@ -1834,6 +1834,15 @@
   - reports/MODIFICATION_REPORT_2026-07-11_btn_height_click.md
 - **验证**: `3rd-part/python/python.exe -m py_compile` 通过
 
+## 2026-07-11 21:55 (底部按钮等高 — 最终组合方案)
+
+- **User Request**: 偏差依然存在，修正问题
+- **Outcome**: 纯 QSS min-height/max-height: 36px 仍有偏差（Qt QSS 对 QPushButton 的 max-height 支持不可靠）。改用组合方案：QSS 追加 `min-height: 0px` 覆盖原 24px（消除与 setFixedHeight 的冲突），再用 `setFixedHeight(36)` 在 widget 级锁定 min=max=36。QSS 让步 + widget 锁定，两按钮绝对等高。报告追加"方法改进二"。
+- **Files Modified**:
+  - src/gui/pyqt6/pages/maaend_control_page.py
+  - reports/MODIFICATION_REPORT_2026-07-11_btn_height_click.md
+- **验证**: `3rd-part/python/python.exe -m py_compile` 通过
+
 ## 2026-07-11 23:45 (批次 79 — 选项编辑器 falsy 处理 / 队列导出非原子写入 + 审计批次 78)
 
 - **范围**: `maaend_control_page.py` 选项编辑器（子选项渲染/值收集）、队列导入/导出流程 + 批次 78 审计验证
