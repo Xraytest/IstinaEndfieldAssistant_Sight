@@ -1875,6 +1875,15 @@
   - docs/TASK_LOG.md
 - **验证**: `3rd-part/python/python.exe -c "import py_compile; py_compile.compile(..., doraise=True)"` 通过；`TimeoutError` 为 `OSError` 子类，Python 3.10+ `socket.timeout` 即 `TimeoutError`，`except TimeoutError` 能正确捕获。
 
+## 2026-07-11 22:00 (scrcpy 画面管道频繁断开根因分析)
+
+- **User Request**: 阅读新更新的日志，分析画面管道经常断开的原因
+- **Outcome**: 分析 2026-07-08~07-11 main.log，发现 scrcpy 会话在网络 ADB（192.168.1.12:16512）下呈现稳定的 **启动→短暂工作→超时→重建** 循环，会话寿命与 socket 超时强相关（30s 超时→~31s 寿命；10s 超时→~11s 寿命），表明 scrcpy 流在交付初始关键帧后即停止发送数据。100+ 条"无帧"事件全部发生在网络 ADB，本地/USB 连接无此问题。根因链：scrcpy server 在设备端退出/停滞 → localabstract socket 关闭但 ADB forward 隧道未及时检测 → 客户端 socket 超时 → 会话重建 → 循环。确认 3 个加剧因素：(1) `get_latest_frame()` line 107 在读缓存时更新 `_last_frame_ts`，使 KEEPALIVE-01 完全失效；(2) decode loop 无 `_server_proc.poll()` 存活检测；(3) `_drain_pipe` 丢弃所有 server 输出，退出原因不可见。另有 `_check_jar_cached` 始终失败（`ls ... 2>/dev/null` 退出码非零），导致每次推送 jar。建议修复方案分 P0/P1/P2 三级，详见报告。**本次仅分析，未修改代码。**
+- **Files Modified**:
+  - reports/incidents/2026-07-11_scrcpy_pipeline_disconnect_analysis.md（新增）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: 只读分析，未修改业务代码；日志交叉核对覆盖 2026-07-08~07-11 全部 scrcpy 相关条目（100+ 条"无帧"/超时事件）。
+
 ## 2026-07-12 (消化 reports/auto/ 自动报告 + 更新 CODE_REVIEW_WARNS)
 
 - **User Request**: 总结 reports/auto/ 内的报告，结合实际代码实现给出综合分析报告；分析自动报告内的分析是否真的是本项目需要的，并针对冗余分析更新 CODE_REVIEW_WARNS.md；清除已完成阅读的自动报告。
