@@ -1639,3 +1639,10 @@
 - **Outcome**: 批次 63 完成。2 新发现（1 Medium / 1 Low）+ 2 审计验证。核心发现：`_do_auto_connect` + `_do_metadata_load` 阻塞主线程代码流长达 25 秒（嵌套 QEventLoop 仍处理 I/O 但代码流被阻塞）；自动连接超时后手动连接成功，预览定时器未重启（竞态条件）。审计验证批次 58 GUI58-02 分析正确（维持 Low），批次 60 无矛盾。
 - **Files Modified**: reports/auto/20260711_1830_startup_block_audit.md (新增)
 - **验证**：只读审查，未修改业务代码；关键推演依据 Qt 嵌套事件循环确定语义（QEventLoop.exec() 处理事件但阻塞调用栈）；交叉核对 10 份历史报告确认两个新发现均为全新。
+
+## 2026-07-11 18:50
+
+- **User Request**: 继续完成批次 64 代码审计（批次 63 延续）。寻找代码存在的漏洞与错误，提出可用的修改建议；审计之前的报告，寻找错误或不必要的建议；避免重复提交历史问题。
+- **Outcome**: 批次 64 完成。2 新发现（1 Medium / 1 Low）+ 1 审计验证。核心发现：`device_settings_page.py` `_attempt_reconnect` 无限重连无退避（固定 5s 间隔，无最大次数），ADB 风暴风险；`_write_config` 非原子写入，与 `settings_page.py` 原子写入不一致。审计验证批次 63 NEW-MEDIUM 可降为 Low（启动仅一次，嵌套事件循环仍处理 I/O），NEW-LOW 维持。
+- **Files Modified**: reports/auto/20260711_1850_device_reconnect_config.md (新增)
+- **验证**：只读审查，未修改业务代码；交叉核对 15 份历史报告确认两个新发现均为全新；批次 63 审计结论经代码逐行复核确认无误。
