@@ -13,7 +13,7 @@ import shlex
 import sys
 from typing import Any, Dict, List, Optional
 
-from PyQt6.QtCore import QObject, QProcess, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QProcess, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QMessageBox
 
 from core.foundation.logger import LogCategory, get_logger
@@ -77,6 +77,7 @@ class CLIBridge(QObject):
         self._command_ready = False
         self._logger = get_logger(__name__)
 
+    @pyqtSlot(str, dict)
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> None:
         params = params or {}
         args = self._build_args(command, params)
@@ -164,6 +165,11 @@ class CLIBridge(QObject):
     def _on_stdout(self) -> None:
         data = bytes(self._process.readAllStandardOutput()).decode("utf-8", errors="replace")
         self._stdout_buffer += data
+        if len(self._stdout_buffer) > 4 * 1024 * 1024:  # SEC-03: stdout 缓冲上限 4MB，防止 GUI 内存耗尽
+            self._logger.error(LogCategory.GUI, "CLI stdout 缓冲区超上限，已清空", size=len(self._stdout_buffer))
+            self._stdout_buffer = ""
+            self.commandError.emit(" ".join(self._last_command), "CLI output exceeded buffer limit")
+            return
         self._logger.debug(LogCategory.GUI, "CLI stdout 数据到达", size=len(data))
         while True:
             newline_index = self._stdout_buffer.find("\n")
