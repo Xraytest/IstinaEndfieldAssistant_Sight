@@ -1592,3 +1592,18 @@
   - reports/auto/20260711_155129_gui57.md（新增）
   - docs/TASK_LOG.md（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 18 个源文件当前代码逐行核对。历史报告 260+ 条发现全部经二次验证确认无重复。批次 54 SCENE-02 深化为 GUI57-01，批次 47 D1 验证为合理实现。
+
+
+## 2026-07-11 16:05 (批次 58：设备层 / GUI 主窗口 / 状态持久化 深层审计)
+
+- **User Request**: 对 adb_manager.py、touch_manager.py、queue_state.py、main_window.py、template_backend.py、ocr_backend.py、color_backend.py、matcher.py、template_registry.py、istina.py、logger.py、recovery.py、scene_geometry.py、paths.py 等 14 个文件进行深层静态审计，确认前序 57 批次 260+ 条发现无重复，寻找新增漏洞。
+- **Outcome**: 完成 14 个文件深层静态分析，发现 3 条新增发现（0 High / 0 Medium / 2 Low / 1 Info），2 条审计验证（AUDIT-1~2），确认历史报告无重复。前序批次深度覆盖的文件（template_backend.py、ocr_backend.py、color_backend.py、scene_geometry.py、matcher.py、template_registry.py、istina.py、touch_manager.py）在本次审计中未发现新的独立问题。
+  1. **[GUI58-01 Low]** queue_state.py:42-45 saved_task_options 返回浅拷贝，内层字典共享引用，调用方修改内层 dict 值会绕过 save_options() 直接污染持久化状态。
+  2. **[GUI58-02 Low]** main_window.py:305 _on_execution_state_changed 中 QTimer.singleShot(1000, lambda: self._set_taskbar_progress(0)) 无父对象，窗口 1 秒内销毁时 lambda 崩溃。
+  3. **[GUI58-03 Info]** main_window.py:86-91 QShortcut 默认 WidgetShortcut 上下文限制快捷键仅在主窗口焦点时生效，子控件操作时（QLineEdit/QTextEdit）Ctrl+1-5 完全失效。
+  4. **[AUDIT-1]** 批次 47 D1 _wait_for_freeze 当前实现为轮询等待方案，批次 57 AUDIT-2 架构约束下合理折衷 结论仍然成立。
+  5. **[AUDIT-2]** 批次 56 SRV-01 recovery.py:72 force-stop 命令格式错误仍未修复，本批次确认不重复报告。
+- **Files Modified**:
+  - reports/auto/20260711_160507.md（新增报告）
+  - docs/TASK_LOG.md（本文件更新）
+- **验证**：未修改代码，静态分析为主。历史报告 260+ 条发现全部经二次验证确认无重复。saved_task_options 首次报告；singleShot lambda 模式首次报告；QShortcut 上下文首次报告。
