@@ -180,6 +180,27 @@ TABLE_STYLE = f"""
     QHeaderView::section {{ background-color: {_PRIMARY}14; color: {_PRIMARY}; font-size: 11px; font-weight: bold; padding: 6px; border: none; }}
 """
 
+TREE_STYLE = f"""
+    QTreeWidget {{ background-color: rgba(10, 10, 15, 0.90); border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; outline: none; }}
+    QTreeWidget::item {{ padding: 3px 6px; min-height: 26px; }}
+    QTreeWidget::item:hover {{ background-color: rgba(25, 209, 255, 0.08); border-left: 2px solid rgba(25, 209, 255, 0.35); }}
+    QTreeWidget::item:selected {{ background-color: {_rgba(_PRIMARY, 0.10)}; color: {_PRIMARY}; border-left: 2px solid {_PRIMARY}; }}
+    QTreeWidget::branch:has-siblings:!adjoins-item {{ border-image: none; }}
+    QTreeWidget::branch:has-siblings:adjoins-item {{ border-image: none; }}
+    QTreeWidget::branch:!has-children:!has-siblings:adjoins-item {{ border-image: none; }}
+    QTreeWidget::branch:has-children:!has-siblings:closed, QTreeWidget::branch:closed:has-children:has-siblings {{ border-image: none; image: none; }}
+    QTreeWidget::branch:open:has-children:!has-siblings:adjoins-item, QTreeWidget::branch:open:has-children:has-siblings {{ border-image: none; image: none; }}
+    QHeaderView::section {{ background-color: {_PRIMARY}14; color: {_PRIMARY}; font-size: 11px; font-weight: bold; padding: 4px; border: none; }}
+"""
+
+SUB_OPTION_STYLE = f"color: {_TEXT_SECONDARY}; font-size: {_SIZE_BASE - 1}px; font-family: '{_FONT}'; padding: 2px 0;"
+
+DESC_LABEL_STYLE = f"color: {_TEXT_SECONDARY}; font-size: {_SIZE_BASE - 2}px; font-family: '{_FONT}'; padding: 1px 0 3px 0; font-style: italic;"
+
+INPUT_INVALID_STYLE = f"""
+    QLineEdit {{ background-color: rgba(40, 10, 10, 0.60); color: {_TEXT_PRIMARY}; border: 1px solid {_DANGER}; border-radius: 2px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; padding: 4px 10px; min-height: 28px; }}
+"""
+
 PREVIEW_STYLE = f"""
     QLabel {{
         background-color: rgba(8, 8, 12, 0.95);

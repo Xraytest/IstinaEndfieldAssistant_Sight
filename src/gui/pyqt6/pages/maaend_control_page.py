@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -41,6 +42,9 @@ from PyQt6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QTreeWidgetItemIterator,
     QVBoxLayout,
     QWidget,
 )
@@ -57,8 +61,10 @@ from gui.pyqt6.theme.widget_styles import (
     CARD_STYLE,
     CHECK_STYLE,
     COMBO_STYLE,
+    DESC_LABEL_STYLE,
     HEADER_STYLE,
     INFO_STYLE,
+    INPUT_INVALID_STYLE,
     INPUT_STYLE,
     LIST_STYLE,
     LOG_STYLE,
@@ -66,7 +72,9 @@ from gui.pyqt6.theme.widget_styles import (
     RED_STYLE,
     SCROLL_AREA_TRANSPARENT_STYLE,
     SPLITTER_HANDLE_STYLE,
+    SUB_OPTION_STYLE,
     TABLE_STYLE,
+    TREE_STYLE,
     VAL_STYLE,
 )
 
@@ -125,6 +133,42 @@ def _zh(name: str) -> str:
     if not name:
         return name
     return NAME_ZH.get(name, name)
+
+
+# MaaEnd interface.json group → Chinese label (mirrors interface.json "group" section)
+GROUP_ZH = {
+    "regional_development": "🏗️地区建设",
+    "valuables_vault": "💎贵重品库",
+    "open_world": "🌍大世界",
+    "sanity_sink": "🧠理智消耗",
+    "dijiang_ship": "🚢帝江号",
+    "backpack": "🎒背包",
+    "other_menu": "📋其他菜单",
+    "realtime": "🤖实时辅助",
+    "setting": "⚙️设置",
+    "_ungrouped": "📦未分组",
+}
+
+# Tasks that should not appear in the standard task list (internal/preliminary)
+_HIDDEN_TASK_NAMES = {"GameSetting"}
+
+# Group display order
+_GROUP_ORDER = [
+    "regional_development",
+    "valuables_vault",
+    "open_world",
+    "sanity_sink",
+    "dijiang_ship",
+    "backpack",
+    "other_menu",
+    "realtime",
+    "setting",
+    "_ungrouped",
+]
+
+
+def _group_label(group_name: str) -> str:
+    return GROUP_ZH.get(group_name, group_name)
 
 
 _OPTION_LOCALE_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / "3rd-part" / "maaend" / "locales" / "interface" / "zh_cn.json"
@@ -261,6 +305,8 @@ class MaaEndControlPage(QWidget):
         self._selected_preset: Optional[str] = None
         self._focused_queue_index: Optional[int] = None
         self._option_widgets: Dict[str, QWidget] = {}
+        # 选项树：{ option_name: { "row": QWidget, "widget": QWidget, "sub_container": QWidget, "children": {...} } }
+        self._option_tree: Dict[str, Dict[str, Any]] = {}
         self._is_executing = False
         self._worker: Optional[TaskRunWorker] = None
         self._failed_indices: list[int] = []
@@ -408,13 +454,15 @@ class MaaEndControlPage(QWidget):
         task_layout = QVBoxLayout(task_card)
         task_layout.setContentsMargins(2, 2, 2, 2)
         task_layout.setSpacing(2)
-        self._task_list = QListWidget()
-        self._task_list.setStyleSheet(LIST_STYLE)
+        self._task_list = QTreeWidget()
+        self._task_list.setStyleSheet(TREE_STYLE)
+        self._task_list.setHeaderHidden(True)
         self._task_list.setMinimumHeight(80)
         self._task_list.itemSelectionChanged.connect(self._on_task_selected)
         self._task_list.itemDoubleClicked.connect(lambda item: self._add_to_queue())
         self._task_list.setDragEnabled(True)
         self._task_list.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+        self._task_list.setIndentation(16)
         task_layout.addWidget(self._task_list, 1)
 
         tasks_layout.addWidget(task_card)
@@ -640,14 +688,35 @@ class MaaEndControlPage(QWidget):
 
         if loaded:
             self._task_list.clear()
-            for name in sorted(self._tasks_cache.keys()):
-                item = QListWidgetItem(_zh(name))
-                item.setData(Qt.ItemDataRole.UserRole, name)
-                self._task_list.addItem(item)
+            # 按 MaaEnd interface.json 的 group 分组组织任务
+            groups_map: Dict[str, List[str]] = {}
+            for name, task in self._tasks_cache.items():
+                if name in _HIDDEN_TASK_NAMES:
+                    continue
+                task_groups = task.get("group", [])
+                if not task_groups:
+                    groups_map.setdefault("_ungrouped", []).append(name)
+                else:
+                    for g in task_groups:
+                        groups_map.setdefault(g, []).append(name)
+            # 按 _GROUP_ORDER 顺序添加分组节点
+            for group_name in _GROUP_ORDER:
+                tasks_in_group = groups_map.get(group_name)
+                if not tasks_in_group:
+                    continue
+                group_item = QTreeWidgetItem(self._task_list, [_group_label(group_name)])
+                group_item.setData(0, Qt.ItemDataRole.UserRole, None)  # group node has no task name
+                font = group_item.font(0)
+                font.setBold(True)
+                group_item.setFont(0, font)
+                group_item.setExpanded(True)
+                for name in sorted(tasks_in_group):
+                    child = QTreeWidgetItem(group_item, [_zh(name)])
+                    child.setData(0, Qt.ItemDataRole.UserRole, name)
+                    child.setFlags(child.flags() & ~Qt.ItemFlag.ItemIsDropEnabled)
+            # 恢复选中状态
             if selected_before and selected_before in self._tasks_cache:
-                matches = self._task_list.findItems(_zh(selected_before), Qt.MatchFlag.MatchExactly)
-                if matches:
-                    self._task_list.setCurrentItem(matches[0])
+                self._find_and_select_task(selected_before)
             if selected_before and not self._task_list.currentItem():
                 self._selected_task = selected_before
 
@@ -680,10 +749,27 @@ class MaaEndControlPage(QWidget):
 
     def _on_task_selected(self):
         items = self._task_list.selectedItems()
-        self._selected_task = items[0].data(Qt.ItemDataRole.UserRole) if items else None
-        self._focused_queue_index = None
-        self._build_option_editor()
-        self._persist_state()
+        if items:
+            task_name = items[0].data(0, Qt.ItemDataRole.UserRole)
+            if task_name:
+                self._selected_task = task_name
+                self._focused_queue_index = None
+                self._build_option_editor()
+                self._persist_state()
+            # 分组节点点击时不做任何操作
+        else:
+            self._selected_task = None
+
+    def _find_and_select_task(self, task_name: str) -> None:
+        """在 QTreeWidget 中查找并选中指定任务（跳过分组节点）。"""
+        iterator = QTreeWidgetItemIterator(self._task_list)
+        while iterator.value():
+            item = iterator.value()
+            if item.data(0, Qt.ItemDataRole.UserRole) == task_name:
+                self._task_list.setCurrentItem(item)
+                self._task_list.scrollToItem(item)
+                return
+            iterator += 1
 
     def _on_preset_selected(self):
         items = self._preset_list.selectedItems()
@@ -871,6 +957,7 @@ class MaaEndControlPage(QWidget):
             if widget:
                 widget.deleteLater()
         self._option_widgets.clear()
+        self._option_tree.clear()
         if not self._selected_task:
             hint = QLabel(locale.tr("select_task_first", "Please select a task first to edit options."))
             hint.setStyleSheet(INFO_STYLE)
@@ -885,36 +972,219 @@ class MaaEndControlPage(QWidget):
             hint.setStyleSheet(INFO_STYLE)
             self._option_form.addWidget(hint)
             return
+        option_defs = self._resolve_option_defs(task)
+        # 递归渲染选项（含子选项），level=0 为顶层
+        for name in option_names:
+            self._render_option_row(name, option_defs, self._option_form, level=0)
+        self._option_form.addStretch()
+        self._option_form.setEnabled(False)
+        try:
+            self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
+        finally:
+            self._option_form.setEnabled(True)
+
+    def _resolve_option_defs(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        """解析任务的选项定义，优先使用任务内联 _option_defs，回退到全局 _task_option_defs。"""
         option_defs = self._task_option_defs or {}
         local_defs = task.get("_option_defs")
         if isinstance(local_defs, dict) and local_defs:
             option_defs = local_defs
         if not isinstance(option_defs, dict):
             option_defs = {}
-        for name in option_names:
-            opt_def = option_defs.get(name, {})
-            container = QWidget()
-            row = QHBoxLayout(container)
-            row.setContentsMargins(0, 0, 0, 0)
-            row.setSpacing(8)
-            label = QLabel(_resolve_label(opt_def.get("label", name)))
-            label.setStyleSheet(INFO_STYLE)
-            label.setMaximumWidth(220)
-            label.setWordWrap(True)
-            row.addWidget(label)
-            widget = self._create_option_widget(name, opt_def)
-            self._option_widgets[name] = widget
-            row.addWidget(widget, 1)
-            self._option_form.addWidget(container)
-        self._option_form.addStretch()
-        self._option_form.setEnabled(False)
-        # 信号防护由 _apply_saved_option_values 内部对每个 widget 调用 blockSignals 实现；
-        # 布局对象本身不发射信号，外层 _option_form.blockSignals 无效，故移除。
-        try:
-            self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
-        finally:
-            # G2: 即使 _apply_saved_option_values 抛异常，也必须恢复面板可用状态
-            self._option_form.setEnabled(True)
+        return option_defs
+
+    def _render_option_row(self, name: str, option_defs: Dict[str, Any], parent_layout: QVBoxLayout, level: int) -> None:
+        """递归渲染单个选项行，包含其子选项（当 case 含 option[] 时）。
+
+        Args:
+            name: 选项名称
+            option_defs: 全局选项定义字典
+            parent_layout: 父布局（顶层为 _option_form，子选项为 sub_container 的布局）
+            level: 嵌套层级（0=顶层, 1=一级子选项, ...）
+        """
+        opt_def = option_defs.get(name, {})
+        opt_type = opt_def.get("type", "switch")
+
+        # 主行容器：label + widget + (可选) description
+        row_container = QWidget()
+        row_layout = QVBoxLayout(row_container)
+        row_layout.setContentsMargins(level * 20, 0, 0, 0)  # 按层级缩进
+        row_layout.setSpacing(2)
+
+        # 横向行：label + widget
+        row_widget = QWidget()
+        h_layout = QHBoxLayout(row_widget)
+        h_layout.setContentsMargins(0, 0, 0, 0)
+        h_layout.setSpacing(8)
+
+        label_text = _resolve_label(opt_def.get("label", name))
+        label = QLabel(label_text)
+        label.setStyleSheet(SUB_OPTION_STYLE if level > 0 else INFO_STYLE)
+        label.setMaximumWidth(220)
+        label.setWordWrap(True)
+        # 描述 tooltip
+        desc_raw = opt_def.get("description")
+        if desc_raw:
+            desc_text = _resolve_label(desc_raw)
+            label.setToolTip(desc_text)
+        h_layout.addWidget(label)
+
+        widget = self._create_option_widget(name, opt_def)
+        # input 类型的 widget 已含 label，不需要额外标签
+        if opt_type == "input":
+            # input 自带 form label，隐藏外层 label
+            label.setVisible(False)
+        h_layout.addWidget(widget, 1)
+        row_layout.addWidget(row_widget)
+
+        # 描述行（如果有 description，且不是 input 类型 — input 已有自身 label）
+        if desc_raw and opt_type != "input":
+            desc_label = QLabel(_resolve_label(desc_raw))
+            desc_label.setStyleSheet(DESC_LABEL_STYLE)
+            desc_label.setWordWrap(True)
+            desc_label.setMaximumWidth(380)
+            row_layout.addWidget(desc_label)
+
+        # 子选项容器（初始不可见，当父选项选中含 option 的 case 时显示）
+        sub_container = QWidget()
+        sub_layout = QVBoxLayout(sub_container)
+        sub_layout.setContentsMargins(0, 0, 0, 0)
+        sub_layout.setSpacing(4)
+        sub_container.setVisible(False)
+        row_layout.addWidget(sub_container)
+
+        parent_layout.addWidget(row_container)
+
+        # 注册到 _option_widgets 和 _option_tree
+        self._option_widgets[name] = widget
+        node: Dict[str, Any] = {
+            "row": row_container,
+            "widget": widget,
+            "opt_def": opt_def,
+            "opt_type": opt_type,
+            "sub_container": sub_container,
+            "sub_layout": sub_layout,
+            "children": {},  # name -> node
+            "level": level,
+        }
+        self._option_tree[name] = node
+
+        # 为 switch/select 类型连接子选项刷新信号
+        if opt_type in ("switch", "select"):
+            if opt_type == "switch":
+                widget.toggled.connect(lambda checked, n=name: self._refresh_sub_options(n))
+            elif opt_type == "select":
+                widget.currentIndexChanged.connect(lambda idx, n=name: self._refresh_sub_options(n))
+
+        # 初始渲染当前 case 的子选项
+        self._refresh_sub_options(name)
+
+    def _refresh_sub_options(self, parent_name: str) -> None:
+        """当父选项(switch/select)值变化时，动态刷新子选项的显示。
+
+        根据 MaaEnd 的选项结构，case 中的 "option" 字段列出了该 case 激活时
+        应显示的子选项名称。子选项本身可能也含有子选项（多级嵌套）。
+        """
+        node = self._option_tree.get(parent_name)
+        if not node:
+            return
+        opt_def = node["opt_def"]
+        opt_type = node["opt_type"]
+        sub_container = node["sub_container"]
+        sub_layout = node["sub_layout"]
+
+        # 获取当前选中的 case 名称
+        current_case = self._get_current_case(parent_name, opt_def, node["widget"])
+        if not current_case:
+            # 无 case 选中，隐藏子选项
+            sub_container.setVisible(False)
+            self._clear_sub_option_nodes(parent_name)
+            self._save_options()
+            return
+
+        # 查找 case 定义中是否有子选项
+        cases = opt_def.get("cases", [])
+        case_def = None
+        for c in cases:
+            if c.get("name") == current_case:
+                case_def = c
+                break
+
+        sub_option_names = case_def.get("option", []) if case_def else []
+
+        if not sub_option_names:
+            # 该 case 无子选项，隐藏子容器
+            sub_container.setVisible(False)
+            self._clear_sub_option_nodes(parent_name)
+            self._save_options()
+            return
+
+        # 该 case 有子选项：清空旧子选项并重新渲染
+        self._clear_sub_option_nodes(parent_name)
+
+        # 获取子选项定义（复用全局 option_defs）
+        option_defs = self._task_option_defs or {}
+        task = self._tasks_cache.get(self._selected_task) if self._selected_task else None
+        if task:
+            option_defs = self._resolve_option_defs(task)
+
+        for sub_name in sub_option_names:
+            self._render_option_row(sub_name, option_defs, sub_layout, level=node["level"] + 1)
+            # 将子节点注册到 parent 的 children
+            child_node = self._option_tree.get(sub_name)
+            if child_node:
+                node["children"][sub_name] = child_node
+
+        sub_container.setVisible(True)
+
+        # 应用子选项的已保存值（如果有）
+        self._apply_saved_to_subtree(parent_name)
+
+        self._save_options()
+
+    def _clear_sub_option_nodes(self, parent_name: str) -> None:
+        """清除父选项下所有子节点（递归）。"""
+        node = self._option_tree.get(parent_name)
+        if not node:
+            return
+        sub_layout = node["sub_layout"]
+        # 清除子布局中的所有 widget
+        while sub_layout.count():
+            item = sub_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+        # 递归清除 children 在 _option_tree 和 _option_widgets 中的引用
+        for child_name in list(node["children"].keys()):
+            self._remove_option_node(child_name)
+        node["children"].clear()
+
+    def _remove_option_node(self, name: str) -> None:
+        """递归删除选项节点及其所有子节点。"""
+        node = self._option_tree.get(name)
+        if node:
+            for child_name in list(node["children"].keys()):
+                self._remove_option_node(child_name)
+            node["children"].clear()
+            self._option_tree.pop(name, None)
+        self._option_widgets.pop(name, None)
+
+    def _get_current_case(self, name: str, opt_def: Dict[str, Any], widget: QWidget) -> Optional[str]:
+        """获取 switch/select 选项当前选中的 case 名称。"""
+        opt_type = opt_def.get("type", "switch")
+        if opt_type == "switch":
+            return widget.value()  # "Yes" or "No"
+        if opt_type == "select":
+            data = widget.currentData()
+            return str(data) if data else widget.currentText()
+        return None
+
+    def _get_sub_option_names(self, parent_name: str) -> List[str]:
+        """获取当前活动的子选项名称列表。"""
+        node = self._option_tree.get(parent_name)
+        if not node or not node["sub_container"].isVisible():
+            return []
+        return list(node["children"].keys())
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -928,11 +1198,13 @@ class MaaEndControlPage(QWidget):
                     return True
             elif event.type() == QEvent.Type.Drop:
                 if event.source() is self._task_list:
-                    selected = self._task_list.currentItem()
-                    if selected:
-                        self._selected_task = selected.data(Qt.ItemDataRole.UserRole)
-                        if not self._is_executing:
-                            self._add_to_queue()
+                    current = self._task_list.currentItem()
+                    if current:
+                        task_name = current.data(0, Qt.ItemDataRole.UserRole)
+                        if task_name:
+                            self._selected_task = task_name
+                            if not self._is_executing:
+                                self._add_to_queue()
                     event.accept()
                     return True
         return super().eventFilter(obj, event)
@@ -971,10 +1243,15 @@ class MaaEndControlPage(QWidget):
         opt_type = opt_def.get("type", "switch")
         cases = opt_def.get("cases", [])
         default_case = opt_def.get("default_case")
+        # tooltip 文本（在 _render_option_row 中已设置 label tooltip，这里给 widget 也设置）
+        tooltip = _resolve_label(opt_def["description"]) if opt_def.get("description") else ""
+
         if opt_type == "switch":
             toggle = ToggleSwitch(cases)
             if default_case is not None:
                 toggle.setValue(str(default_case))
+            if tooltip:
+                toggle.setToolTip(tooltip)
             toggle.toggled.connect(self._save_options)
             return toggle
         if opt_type == "checkbox":
@@ -988,6 +1265,8 @@ class MaaEndControlPage(QWidget):
                 cb = QCheckBox(_resolve_label(case.get("label", case.get("name", ""))))
                 cb.setStyleSheet(CHECK_STYLE)
                 cb.setChecked(case.get("name", "") in default_items)
+                if tooltip:
+                    cb.setToolTip(tooltip)
                 cb.toggled.connect(self._save_options)
                 layout.addWidget(cb)
                 checkboxes[case.get("name", "")] = cb
@@ -1004,6 +1283,8 @@ class MaaEndControlPage(QWidget):
                     idx = combo.findText(str(default_case))
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
+            if tooltip:
+                combo.setToolTip(tooltip)
             combo.currentIndexChanged.connect(self._save_options)
             return combo
         if opt_type == "input":
@@ -1017,14 +1298,44 @@ class MaaEndControlPage(QWidget):
                 input_name = input_def.get("name", "")
                 le = QLineEdit(str(input_def.get("default", "")))
                 le.setStyleSheet(INPUT_STYLE)
+                # 提取验证规则
+                verify_pattern = input_def.get("verify")
+                pipeline_type = input_def.get("pipeline_type", "string")
+                # 验证器：用 lambda 闭包捕获各自的 pattern 和 type
+                le._verify_pattern = verify_pattern  # type: ignore[attr-defined]
+                le._pipeline_type = pipeline_type  # type: ignore[attr-defined]
+                if tooltip:
+                    le.setToolTip(tooltip)
+                # 输入变化时验证
+                if verify_pattern or pipeline_type == "int":
+                    le.textChanged.connect(lambda text, ed=le, pat=verify_pattern, pt=pipeline_type: self._validate_input(ed, pat, pt))
                 le.textChanged.connect(self._save_options)
-                form.addRow(QLabel(_resolve_label(input_def.get("label", input_name))), le)
+                input_label_text = _resolve_label(input_def.get("label", input_name))
+                form.addRow(QLabel(input_label_text), le)
                 line_edits[input_name] = le
             container.line_edits = line_edits  # type: ignore[attr-defined]
             return container
         return QLabel("Unsupported option type")
 
+    def _validate_input(self, le: QLineEdit, verify_pattern: Optional[str], pipeline_type: str) -> None:
+        """验证 input 选项的输入值，不合法时显示红色边框。"""
+        text = le.text()
+        is_valid = True
+        if pipeline_type == "int" and text:
+            try:
+                int(text)
+            except ValueError:
+                is_valid = False
+        if is_valid and verify_pattern and text:
+            try:
+                if not re.match(verify_pattern, text):
+                    is_valid = False
+            except re.error:
+                pass  # 正则本身有误，不阻拦用户输入
+        le.setStyleSheet(INPUT_INVALID_STYLE if not is_valid else INPUT_STYLE)
+
     def _collect_options(self) -> Dict[str, Any]:
+        """递归收集所有可见（活动）选项的值，包括子选项。"""
         options: Dict[str, Any] = {}
         if not self._selected_task:
             return options
@@ -1032,31 +1343,36 @@ class MaaEndControlPage(QWidget):
         if not task:
             return options
         option_names = task.get("option", [])
-        option_defs = self._task_option_defs or {}
-        local_defs = task.get("_option_defs")
-        if isinstance(local_defs, dict) and local_defs:
-            option_defs = local_defs
-        if not isinstance(option_defs, dict):
-            option_defs = {}
+        option_defs = self._resolve_option_defs(task)
         for name in option_names:
-            widget = self._option_widgets.get(name)
-            if widget is None:
-                continue
-            opt_def = option_defs.get(name, {})
-            opt_type = opt_def.get("type", "switch")
-            if opt_type == "switch":
-                toggle = widget
-                options[name] = toggle.value()
-            elif opt_type == "checkbox":
-                checkboxes = getattr(widget, "checkboxes", {})
-                options[name] = [n for n, cb in checkboxes.items() if cb.isChecked()]
-            elif opt_type == "select":
-                combo = widget
-                options[name] = combo.currentData() or combo.currentText()
-            elif opt_type == "input":
-                line_edits = getattr(widget, "line_edits", {})
-                options[name] = {n: le.text() for n, le in line_edits.items()}
+            self._collect_option_recursive(name, option_defs, options)
         return options
+
+    def _collect_option_recursive(self, name: str, option_defs: Dict[str, Any], options: Dict[str, Any]) -> None:
+        """递归收集单个选项的值，包括其可见的子选项。"""
+        node = self._option_tree.get(name)
+        widget = self._option_widgets.get(name)
+        if widget is None:
+            return
+        opt_def = option_defs.get(name, node["opt_def"] if node else {})
+        opt_type = opt_def.get("type", "switch")
+        if opt_type == "switch":
+            options[name] = widget.value()
+        elif opt_type == "checkbox":
+            checkboxes = getattr(widget, "checkboxes", {})
+            options[name] = [n for n, cb in checkboxes.items() if cb.isChecked()]
+        elif opt_type == "select":
+            data = widget.currentData()
+            options[name] = data if data else widget.currentText()
+        elif opt_type == "input":
+            line_edits = getattr(widget, "line_edits", {})
+            options[name] = {n: le.text() for n, le in line_edits.items()}
+        # 递归收集可见子选项
+        if node:
+            for child_name in node["children"]:
+                child_node = node["children"][child_name]
+                if child_node["row"].isVisible():
+                    self._collect_option_recursive(child_name, option_defs, options)
 
     def _format_queue_label(self, name: str, item_type: str, options: Dict[str, Any]) -> str:
         return f"[{item_type.upper()}] {_zh(name)}"
@@ -1128,11 +1444,9 @@ class MaaEndControlPage(QWidget):
 
     def _apply_saved_option_values(self, task_name: str, queue_index: Optional[int] = None) -> None:
         if queue_index is not None and 0 <= queue_index < len(self._queue_state.queue_items):
-            # 队列实例权威：只读取该条目的实例 options，不回退共享快照（避免被其他实例污染）
             entry = self._queue_state.queue_items[queue_index]
             saved = dict(entry.get("options") or {})
         else:
-            # 非队列聚焦（任务列表选中）：读取共享默认
             saved = self._load_options(task_name)
             if not saved:
                 return
@@ -1140,48 +1454,80 @@ class MaaEndControlPage(QWidget):
         if not task:
             return
         option_names = task.get("option", [])
-        option_defs = self._task_option_defs or {}
-        local_defs = task.get("_option_defs")
-        if isinstance(local_defs, dict) and local_defs:
-            option_defs = local_defs
-        if not isinstance(option_defs, dict):
-            option_defs = {}
+        option_defs = self._resolve_option_defs(task)
         for name in option_names:
-            if name not in saved:
-                continue
-            widget = self._option_widgets.get(name)
-            if widget is None:
-                continue
-            value = saved[name]
-            opt_def = option_defs.get(name, {})
-            opt_type = opt_def.get("type", "switch")
-            if opt_type == "switch":
-                widget.blockSignals(True)
-                widget.setValue(str(value))
-                widget.blockSignals(False)
-            elif opt_type == "checkbox":
-                checkboxes = getattr(widget, "checkboxes", {})
-                if isinstance(value, list):
-                    for n, cb in checkboxes.items():
-                        cb.blockSignals(True)
-                        cb.setChecked(n in value)
-                        cb.blockSignals(False)
-            elif opt_type == "select":
-                widget.blockSignals(True)
-                idx = widget.findData(str(value))
-                if idx < 0:
-                    idx = widget.findText(str(value))
-                if idx >= 0:
-                    widget.setCurrentIndex(idx)
-                widget.blockSignals(False)
-            elif opt_type == "input":
-                line_edits = getattr(widget, "line_edits", {})
-                if isinstance(value, dict):
-                    for n, le in line_edits.items():
-                        if n in value:
-                            le.blockSignals(True)
-                            le.setText(str(value[n]))
-                            le.blockSignals(False)
+            self._apply_saved_option_recursive(name, option_defs, saved)
+
+    def _apply_saved_option_recursive(self, name: str, option_defs: Dict[str, Any], saved: Dict[str, Any]) -> None:
+        """递归应用保存的选项值，包括子选项。
+
+        对于 switch/select 类型，先设置父值，触发 _refresh_sub_options 渲染子选项，
+        然后递归应用子选项的值。
+        """
+        if name not in saved:
+            # 未保存的选项：仍然刷新子选项（使用默认值）
+            node = self._option_tree.get(name)
+            if node and node["opt_type"] in ("switch", "select"):
+                self._refresh_sub_options(name)
+            return
+        widget = self._option_widgets.get(name)
+        if widget is None:
+            return
+        value = saved[name]
+        opt_def = option_defs.get(name, self._option_tree.get(name, {}).get("opt_def", {}))
+        opt_type = opt_def.get("type", "switch")
+        if opt_type == "switch":
+            widget.blockSignals(True)
+            widget.setValue(str(value))
+            widget.blockSignals(False)
+            # 触发子选项刷新（但 blockSignals 后不会自动触发）
+            self._refresh_sub_options(name)
+        elif opt_type == "checkbox":
+            checkboxes = getattr(widget, "checkboxes", {})
+            if isinstance(value, list):
+                for n, cb in checkboxes.items():
+                    cb.blockSignals(True)
+                    cb.setChecked(n in value)
+                    cb.blockSignals(False)
+        elif opt_type == "select":
+            widget.blockSignals(True)
+            idx = widget.findData(str(value))
+            if idx < 0:
+                idx = widget.findText(str(value))
+            if idx >= 0:
+                widget.setCurrentIndex(idx)
+            widget.blockSignals(False)
+            # 触发子选项刷新
+            self._refresh_sub_options(name)
+        elif opt_type == "input":
+            line_edits = getattr(widget, "line_edits", {})
+            if isinstance(value, dict):
+                for n, le in line_edits.items():
+                    if n in value:
+                        le.blockSignals(True)
+                        le.setText(str(value[n]))
+                        le.blockSignals(False)
+
+    def _apply_saved_to_subtree(self, parent_name: str) -> None:
+        """对父选项下新渲染的子选项应用已保存的值。"""
+        node = self._option_tree.get(parent_name)
+        if not node:
+            return
+        # 获取保存的选项（从队列实例或共享默认）
+        saved: Dict[str, Any] = {}
+        if self._focused_queue_index is not None and 0 <= self._focused_queue_index < len(self._queue_state.queue_items):
+            entry = self._queue_state.queue_items[self._focused_queue_index]
+            saved = dict(entry.get("options") or {})
+        elif self._selected_task:
+            saved = self._load_options(self._selected_task)
+        # 获取子选项定义
+        task = self._tasks_cache.get(self._selected_task) if self._selected_task else None
+        if not task:
+            return
+        option_defs = self._resolve_option_defs(task)
+        for child_name in node["children"]:
+            if child_name in saved:
+                self._apply_saved_option_recursive(child_name, option_defs, saved)
 
     def _resolve_state_path(self) -> Path:
         try:
