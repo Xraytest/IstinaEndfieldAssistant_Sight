@@ -1646,3 +1646,10 @@
 - **Outcome**: 批次 64 完成。2 新发现（1 Medium / 1 Low）+ 1 审计验证。核心发现：`device_settings_page.py` `_attempt_reconnect` 无限重连无退避（固定 5s 间隔，无最大次数），ADB 风暴风险；`_write_config` 非原子写入，与 `settings_page.py` 原子写入不一致。审计验证批次 63 NEW-MEDIUM 可降为 Low（启动仅一次，嵌套事件循环仍处理 I/O），NEW-LOW 维持。
 - **Files Modified**: reports/auto/20260711_1850_device_reconnect_config.md (新增)
 - **验证**：只读审查，未修改业务代码；交叉核对 15 份历史报告确认两个新发现均为全新；批次 63 审计结论经代码逐行复核确认无误。
+
+## 2026-07-11 19:10
+
+- **User Request**: 继续完成批次 65 代码审计（批次 64 延续）。寻找代码存在的漏洞与错误，提出可用的修改建议；审计之前的报告，寻找错误或不必要的建议；避免重复提交历史问题。
+- **Outcome**: 批次 65 完成。2 新发现（1 Medium / 1 Low）+ 2 审计验证。核心发现：`prts_full_intelligence_page.py` `LlmChatWorker.run()` 竞态发送虚假"Error: empty"消息（`execute` 异步返回 None，worker 无条件发出错误结果）；`_attach_image` 异常时 `_pending_image_b64` 泄漏旧值（下次发送消息携带已失败的旧图片）。审计验证批次 64 合理（维持评级），批次 1500 PRTS01-04 准确（与本批独立不重叠）。
+- **Files Modified**: reports/auto/20260711_1910_prts_worker_race.md (新增)
+- **验证**：只读审查，未修改业务代码；关键推演依据 Qt 信号槽串行处理语义与 CLIBridge.execute 异步返回 None；交叉核对 17 份历史报告确认两个新发现均为全新。
