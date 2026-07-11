@@ -1865,3 +1865,22 @@
   - reports/incidents/2026-07-11_scrcpy_timeout_fix.md
   - docs/TASK_LOG.md
 - **验证**: `3rd-part/python/python.exe -c "import py_compile; py_compile.compile(..., doraise=True)"` 通过；`TimeoutError` 为 `OSError` 子类，Python 3.10+ `socket.timeout` 即 `TimeoutError`，`except TimeoutError` 能正确捕获。
+
+## 2026-07-12 (消化 reports/auto/ 自动报告 + 更新 CODE_REVIEW_WARNS)
+
+- **User Request**: 总结 reports/auto/ 内的报告，结合实际代码实现给出综合分析报告；分析自动报告内的分析是否真的是本项目需要的，并针对冗余分析更新 CODE_REVIEW_WARNS.md；清除已完成阅读的自动报告。
+- **Outcome**: 
+  1. 读取并消化 reports/auto/ 下 ~101 份自动报告（2026-07-10 22:10 → 2026-07-12 00:00），覆盖批次 1–80 + 多份元分析（FINAL/SYNTHESIS/SECPEN/FIXABILITY/FINAL_CONFIRM 等）。
+  2. 对关键 Open 项做代码级复验：O-01（maaend_control_page falsy）、O-02（pipeline_node 静默回退）、O-03（pipeline_loader 重复加载）、O-04（map_data_loader KeyError）、O-05（player 信号双发）、O-08（重连 timer 停止）均确认仍 Open。
+  3. **FP-07 纠错**：CODE_REVIEW_WARNS 原将"托盘退出仅隐藏"标为误报（声称已修复），但代码复验发现 tray_icon.py:64 调 QApplication.quit() 被 main_window.py:111-113 的 closeEvent 拦截（event.ignore()+hide()），应用实际不退出。该条从 FP 移入 Open（O-21）。
+  4. 新增 Open 项：O-22（VLM-01 帧编码无防护）、O-23（MAA-07 Agent 诊断输出丢弃）、O-24（ADB-01 adbutils 降级无日志）。
+  5. 新增冗余模式：DUP-I（审计段落冗余）、DUP-J（falsy 判断分散建议）。
+  6. 综合分析报告写入 reports/AUTO_ANALYSIS_SUMMARY_2026-07-12.md。
+  7. reports/auto/ 目录已真正清空（98 份 .md 文件全部删除）。
+- **Files Modified**:
+  - reports/AUTO_ANALYSIS_SUMMARY_2026-07-12.md（新增）
+  - reports/CODE_REVIEW_WARNS.md（更新：FP-07 纠错、O-21~O-24 新增、DUP-I/J 新增、统计更新）
+  - reports/README.md（auto/ 条目更新为已清空）
+  - reports/auto/*.md（98 份文件删除）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: 只读分析 + 代码复验，未修改业务代码；FP-07 纠错经完整调用链推演（tray_icon → QApplication.quit → closeAllWindows → MainWindow.closeEvent → event.ignore+hide）；D1 已确认修复（recovery.py:72 拆分 argv + 注释 # D1）。
