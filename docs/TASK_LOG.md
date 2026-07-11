@@ -1728,3 +1728,21 @@
   - `reports/auto/20260711_2145_llm_zombie_daemon_json.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 30 份历史报告确认 LLM-01/02/D-06/D-07 为全新发现，无重复；batch 72/71 审计经代码逐行复核确认无误。
+
+## 2026-07-11 11:43 (图像传递链接保活问题分析)
+
+- **User Request**: 阅读代码实现，分析图像传递链接无法正确保活的原因。
+- **Outcome**: 完成静态代码分析并产出根因报告。核心结论：`_ScrcpySession._decode_loop()` 被文档描述为 "Continuous keep-alive"，但实现上只有被动读帧，无主动心跳、超时重连或健康检测；一旦 scrcpy 视频流断流，session 静默死亡且无法自动恢复。daemon 的 `startScrcpy` 不会重建已死亡的 session（因 `_scrcpy_session is not None` 阻止重试），`runtime.connect()` 又不检查 `start_scrcpy` 返回值、无条件记 success，导致失败被掩盖。更深层的问题是 GUI 预览 (`main_window.py`) 仍走 `_sync_execute("screenshot")` → QProcess → CLI → daemon → mmap 的旧链路，完全未采用 README §5.5B 设计的 `get_latest_frame()` 零开销直读路径，使预览帧率被进程启动和管道拷贝严重拖慢，任何底层异常都被放大为"图像传递链接断开"。
+- **Files Modified**:
+  - `reports/image_keepalive_analysis.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读静态审查，未修改业务代码；调用链与代码位置经 `android_runtime.py`、`runtime.py`、`main_window.py`、`cli_bridge.py` 四文件交叉核对；历史报告 `20260710_2210.md` 中 H1/H2 与本报告结论一致但未涉及"预览未采用直读架构"这一根本架构偏离。
+
+## 2026-07-11 22:00 (AutoCodeReview·第七十四批次)
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。避免执行测试，以代码逻辑分析为主体。分析后报告存放到./reports/auto/<timestamp>.md。避免重复提交之前发现的问题。严禁修改文件。
+- **Outcome**: 批次 74 完成。3 新发现（2 Low / 1 Info）+ 2 审计验证。核心发现：`settings_page.py` `_on_language_changed` 切换语言后不刷新设置页自身 UI（中英文混合界面）、`scripting_page.py` `_RECORDINGS_DIR` 使用 4 级 parent 链路径错误（到达 `src/` 而非项目根，保存到 `src/scripts/recorded` 而非 `scripts/recorded`）、`queue_state.py` `load()` 用 `or` 运算符处理 JSON null 值静默保留旧状态（round-trip 不安全）。审计验证批次 73 LLM-01/D-06/D-07/LLM-02 确认准确、批次 71 MAA71-01/02/03 确认准确。
+- **Files Modified**:
+  - `reports/auto/20260711_2200_settings_lang_scripting_path_queue.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 30 份历史报告确认 GUI-02/03 和 QS-01 为全新发现，无重复；batch 73/71 审计经代码逐行复核确认无误。
