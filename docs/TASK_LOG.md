@@ -1781,3 +1781,10 @@
   - eports/auto/20260711_2030_maaend_thread_token_config.md（新增）
   - docs/TASK_LOG.md（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 38+ 份历史报告确认本批 6 项新发现无重复；批次 75 审计经源码逐项复核确认无误。
+## 2026-07-11 — 批次 77
+- **范围**: pipeline 引擎、导航数据层、LLM 客户端、几何分析
+- **报告**: reports/auto/20260711_2230_batch77_pipeline_nav_llm.md
+- **发现**: 6 项（2 BUG 中、1 漏洞 中、3 代码质量 低）
+- **关键项**: PIPELINE-01 (_loaded_modules 有写入无读取), PIPELINE-02 (无效 recognition 类型静默回退), MDL-02 (层级条目键缺失级联失败)
+- **审计**: 批次 75/76 共 15 项结论全部正确，无需修正
+- **提交**: cd38ea4
