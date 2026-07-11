@@ -315,14 +315,17 @@ class MaaEndControlPage(QWidget):
         self.refresh()
 
     def _sync_execute(self, command: str, params: Optional[Dict[str, Any]] = None, timeout_ms: int = 300000) -> Optional[dict]:
-        """在 Worker 线程内同步等待命令结果。
+        """同步等待命令结果（调用线程会阻塞直到 commandFinished 或超时）。
 
-        C-04 修复：原实现在 Worker(QThread) 内直接调用主线程创建的 `self._bridge`
-        方法并在 Worker 事件循环里嵌套 `QEventLoop`，存在 Qt 线程亲缘违规与跨线程
-        信号投递死锁风险。现改为：
-          - `bridge.execute()` 通过 `BlockingQueuedConnection` 投递到主线程执行；
-          - `commandFinished` 回调用 `DirectConnection`，由发出信号的线程（主线程）
-            调用 `loop.quit()`，跨线程 quit 是线程安全的。
+        线程模型说明：
+          - `self._bridge`(CLIBridge) 创建于主线程，其 QProcess 也驻主线程；
+          - 本方法的所有调用方（按钮回调、QTimer.singleShot 启动序列等）均在
+            主线程执行，因此**默认路径就是同线程调用**，直接执行 `bridge.execute()`
+            即可（execute 仅把命令入队并异步经 QProcess 发送，不阻塞）。
+          - 仅当未来有 Worker(QThread) 调用本方法时，才需要把 `execute` 跨线程
+            投递到主线程。此时用 `BlockingQueuedConnection`（目标对象在主线程，
+            调用方在其它线程，语义正确）。注意：**绝不可在同线程用
+            BlockingQueuedConnection**，否则 `invokeMethod` 会立即死锁/失败。
         """
         self._logger.debug(LogCategory.GUI, "_sync_execute 开始", command=command, timeout_ms=timeout_ms)
         loop = QEventLoop()
@@ -337,16 +340,19 @@ class MaaEndControlPage(QWidget):
                 loop.quit()
 
         # DirectConnection：回调在发出 commandFinished 的线程（主线程）执行，
-        # 调用 loop.quit() 跨线程安全，避免 QueuedConnection 在 Worker 事件循环
+        # 调用 loop.quit() 跨线程安全，避免 QueuedConnection 在事件循环
         # 被阻塞时永远无法投递。
         self._bridge.commandFinished.connect(_on_finished, Qt.ConnectionType.DirectConnection)
         try:
-            # 通过 BlockingQueuedConnection 让主线程执行 bridge.execute（bridge 属主线程），
-            # 避免 Worker 线程直接访问主线程 QObject 的线程亲缘违规。
-            QMetaObject.invokeMethod(
-                self._bridge, "execute", Qt.ConnectionType.BlockingQueuedConnection,
-                Q_ARG(str, command), Q_ARG(dict, params or {}),
-            )
+            if self._bridge.thread() is QThread.currentThread():
+                # 同线程（主线程）直接调用，避免同线程 BlockingQueuedConnection 死锁/失败。
+                self._bridge.execute(command, params)
+            else:
+                # 调用方在其它线程：把 execute 安全地投递到主线程执行。
+                QMetaObject.invokeMethod(
+                    self._bridge, "execute", Qt.ConnectionType.BlockingQueuedConnection,
+                    Q_ARG(str, command), Q_ARG(dict, params or {}),
+                )
         finally:
             QTimer.singleShot(timeout_ms, loop.quit)
             loop.exec()
