@@ -4,6 +4,7 @@
   "queue_items": [
     {
       "name": "VisitFriends",
+      "display_name": "VisitFriends",
       "type": "task",
       "options": {
         "VisitFriendsRemark": "Yes",
@@ -16,6 +17,7 @@
     },
     {
       "name": "DijiangRewards",
+      "display_name": "DijiangRewards",
       "type": "task",
       "options": {
         "AutoStartExchange": "Yes",
@@ -26,11 +28,13 @@
     },
     {
       "name": "CreditShoppingN2",
+      "display_name": "CreditShoppingN2",
       "type": "task",
       "options": {}
     },
     {
       "name": "DeliveryJobs",
+      "display_name": "DeliveryJobs",
       "type": "task",
       "options": {
         "ValleyIV": "Yes",
@@ -39,31 +43,37 @@
     },
     {
       "name": "SellProduct",
+      "display_name": "SellProduct",
       "type": "task",
       "options": {}
     },
     {
       "name": "AutoStockpile",
+      "display_name": "AutoStockpile",
       "type": "task",
       "options": {}
     },
     {
       "name": "AutoStockStaple",
+      "display_name": "AutoStockStaple",
       "type": "task",
       "options": {}
     },
     {
       "name": "AutoSell",
+      "display_name": "AutoSell",
       "type": "task",
       "options": {}
     },
     {
       "name": "EnvironmentMonitoring",
+      "display_name": "EnvironmentMonitoring",
       "type": "task",
       "options": {}
     },
     {
       "name": "DailyRewards",
+      "display_name": "DailyRewards",
       "type": "task",
       "options": {
         "DailyEmailRewards": "Yes",
@@ -75,11 +85,13 @@
     },
     {
       "name": "SeizeDeliveryJobs",
+      "display_name": "SeizeDeliveryJobs",
       "type": "task",
       "options": {}
     },
     {
       "name": "AutoCollect",
+      "display_name": "AutoCollect",
       "type": "task",
       "options": {
         "AutoCollectRoutes": [
