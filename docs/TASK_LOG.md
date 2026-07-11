@@ -1392,3 +1392,26 @@
   - `reports/auto/20260711_1115_pipeline.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 5 个源文件当前代码逐行核对。历史报告 190+ 条发现全部经二次验证确认准确，新增 5 处修正。
+
+## 2026-07-11 11:20 (AutoCodeReview 第四十八批次·LLM运行时/GPU检测/主题管理/设置页/托盘图标 + 既往报告终审)
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 LLM 运行时（llm/runtime.py, llm/client.py）、GPU 检测（gpu_check.py）、主题管理系统（theme_manager.py）、设置页面（settings_page.py）、系统托盘图标（tray_icon.py），识别 9 项新发现（1 High / 3 Medium / 3 Low / 2 Info）。对批次 37-47 全部 11 份报告做终审，识别 5 项审计修正（D1-D5）。
+  1. **[LLM01 High]** `llm/runtime.py:131-133` CUDA 失败后强制 CPU 重试——原始错误丢失、`_cuda_failed` 永久为 True 导致无法恢复 GPU 模式。
+  2. **[LLM02 Medium]** `llm/runtime.py:80-82` `get_default_instance()` 无锁读取 `_instances` 字典——与 `get_instance()` 的有锁写入不一致。
+  3. **[LLM03 Medium]** `llm/runtime.py:96-98` `_get_llm_config` 类型不一致——非 dict config 导致 LLM 静默不启动。
+  4. **[GPU01 Low]** `gpu_check.py:64-80` VRAM 解析失败返回 `vram_mib=0` 而非 `None`——与"0 MiB VRAM"合法值混淆。
+  5. **[THEME01 Low]** `theme_manager.py:390-402` ThemeManager 单例无锁——系统性反模式。
+  6. **[THEME02 Low]** `theme_manager.py:445-453` `set_current_theme` 修改全局 `COLORS`——并发不安全。
+  7. **[SETTINGS01 Low]** `settings_page.py:131-134` `_SpinBoxWheelFilter` 局部变量被 GC 风险。
+  8. **[TRAY01 Info]** `tray_icon.py:42-49` `QPainter.end()` 未显式调用。
+  9. **[LLM04 Info]** `llm/runtime.py:204-217` `_find_pids_on_port` 可能误匹配 IPv6 地址。
+  10. **[D1 修正]** 批次 47 PR01 补充：`pre_wait_freezes` 在全部 pipeline JSON 中未被使用，属"已存在但未触发"缺陷。
+  11. **[D2 修正]** 批次 46 MAA03 5 级 parent 链描述正确（已核对确认）。
+  12. **[D3 修正]** 批次 45 SCR05 异常处理为服务层合理设计，原报告建议会改变 API 契约。
+  13. **[D4 修正]** 批次 45 SCR02 BGRA 问题影响面修正——仅 Route 1（legacy matcher）触发，Route 0（Pipeline）和 Route 2（SIFT）不受影响。
+  14. **[D5 不成立]** 批次 47 PR08 StopTask status 问题——典型用法中 StopTask 在匹配成功后触发，影响面极低，降级为 Info。
+- **Files Modified**:
+  - `reports/auto/20260711_1120_llm.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 6 个源文件当前代码逐行核对。历史报告 200+ 条发现全部经二次验证确认准确，新增 5 处修正。
