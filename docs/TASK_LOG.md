@@ -1772,3 +1772,12 @@
   - eports/auto/20260711_2230_tray_quit_i18n_atomic.md（新增）
   - docs/TASK_LOG.md（本文件）
 - **验证**：只读审查，未修改业务代码；交叉核对 35+ 份历史报告确认本批 9 项新发现无重复，NAV-01（批次 8）和 D1（批次 7）已在审计部分验证未作为新发现重复提交。
+
+## 2026-07-11 20:30 (AutoCodeReview·第七十六批次)
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。避免执行测试，以代码逻辑分析为主体。分析后报告存放 ./reports/auto/<timestamp>.md。避免重复提交之前发现的问题。严禁修改文件。
+- **Outcome**: 批次 76 完成，6 新发现（2 Medium / 1 Low / 3 Info） + 1 审计验证。核心发现：maa_end/runtime.py _connect_with_timeout 和 _wait_job 守护线程在超时后仍持有/访问已销毁资源（Use-After-Free 风险）；untime.py save_config 非原子写入；prts_full_intelligence_page.py 无 LLM 重复启动保护；_replace_tokens 级联替换风险；_cleanup_partial 重复清理代码。审计验证：批次 75 全部 9 项发现确认准确，无错误或不必要建议。
+- **Files Modified**:
+  - eports/auto/20260711_2030_maaend_thread_token_config.md（新增）
+  - docs/TASK_LOG.md（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 38+ 份历史报告确认本批 6 项新发现无重复；批次 75 审计经源码逐项复核确认无误。
