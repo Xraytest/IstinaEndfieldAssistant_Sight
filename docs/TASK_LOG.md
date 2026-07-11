@@ -1145,3 +1145,25 @@
   - `reports/auto/20260711_0945.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经脚本源码、config JSON、queue_state.py、qt_log_filter.py、responsive.py、device_settings_page.py 当前源文件逐行核对。历史报告 170+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第四十三批次·maaend_control_page深层/CLI handlers深层审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 maaend_control_page.py 线程安全/信号槽深层逻辑和 CLI handlers 导航/LLM/认证深层逻辑，识别 13 项新发现（2 Critical / 4 High / 4 Medium / 3 Low）。历史报告零修正。
+  1. **[MCP01 Critical]** `_sync_execute` 从 TaskRunWorker 线程直接访问 `self._bridge`——Qt GUI 对象跨线程访问，可能导致堆损坏。
+  2. **[MCP02 Critical]** Worker 线程嵌套 QEventLoop 阻止 queued 信号投递——`_sync_execute` 在 Worker 中调用时任务永久挂起。
+  3. **[MCP03 High]** `_failed_indices` 跨线程读写无同步——自动重试可能使用过期数据。
+  4. **[MCP04 High]** `_on_execution_finished` 不清理 `self._worker`——QThread 句柄长期累积泄漏。
+  5. **[CLI01 High]** `llm stop` 先触发 warmup 再执行停止——用户等待 60 秒后服务被终止。
+  6. **[CLI02 High]** `_handle_llm_prompt` float/int 转换无验证——非法参数导致 ValueError 崩溃。
+  7. **[MCP05 Medium]** 队列索引快照漂移——执行期间队列修改导致状态更新到错误项。
+  8. **[CLI03 Medium]** `auth status/login` 返回 "not_implemented" 导致退出码 1。
+  9. **[CLI04 Medium]** `_handle_task_list` 不一致的错误处理策略。
+  10. **[CLI05 Medium]** `llm start` 双重 warmup（_auto_warmup + handler）。
+  11. **[CLI06-CLI08 Low]** 空 prompt/target 无验证、截图双路径不一致。
+  12. **历史验证**：全部历史报告经二次验证确认准确，零新增纠正。
+  13. **关联分析**：MCP01+MCP02 形成"跨线程死锁链"；CLI01+CLI05 形成"warmup 双重触发链"；MCP03+MCP04 形成"Worker 资源泄漏链"。
+- **Files Modified**:
+  - `reports/auto/20260711_1000.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 maaend_control_page.py、handlers.py、istina.py 当前源文件逐行核对。历史报告 180+ 条发现全部经二次验证确认准确。
