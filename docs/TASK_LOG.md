@@ -2093,3 +2093,9 @@
 - **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
 - **Outcome**: 批次 98 审计完成，新增 1 项发现：DEBOUNCE-LOSS — settings_page.py 防抖写入（400ms QTimer）在窗口关闭时未 flush，用户编辑可能丢失。批次 97 审计确认 1 项新发现准确无需修正。本轮为跨模块覆盖审计（settings/main_window），无中高风险发现。
 - **Files Modified**: reports/auto/20260712_0033_batch98.md
+
+## 2026-07-12 00:54
+
+- **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
+- **Outcome**: 批次 99 审计完成，新增 2 项发现：SCRIPT-SAVE-NONATOMIC — Script.save() 非原子写入，中断导致 JSON 文件损坏（DUP-A 模式新实例）；SCRIPT-LIST-SILENT — _refresh_script_list() bare except: pass 静默吞掉加载错误（BACKEND-SILENT 模式新实例）。批次 98 审计确认 1 项新发现准确无需修正。本轮跨模块扫描覆盖 scripting/i18n/device/handlers 等模块，O-10 确认仍为 Open。
+- **Files Modified**: reports/auto/20260712_0054_batch99.md
