@@ -344,6 +344,8 @@ class MaaEndControlPage(QWidget):
         self.queue_item_status_changed.connect(self._on_queue_item_status_changed)
         self.progress_changed.connect(self._on_progress_changed)
 
+        self._update_execution_ui()
+
 
     def _restore_queue_ui(self) -> None:
         self._focused_queue_index = None
@@ -633,11 +635,13 @@ class MaaEndControlPage(QWidget):
         bottom.addSpacing(4)
         self._stop_btn = QPushButton(locale.tr("btn_stop", "Stop"))
         self._stop_btn.setStyleSheet(BTN_STOP)
+        self._stop_btn.setFixedHeight(36)
         self._stop_btn.setEnabled(False)
         self._stop_btn.clicked.connect(self._stop_execution)
         bottom.addWidget(self._stop_btn)
         self._retry_btn = QPushButton(locale.tr("btn_execute", "执行"))
         self._retry_btn.setStyleSheet(BTN_DEFAULT)
+        self._retry_btn.setFixedHeight(36)
         self._retry_btn.setEnabled(False)
         self._retry_btn.clicked.connect(self._run_queue)
         bottom.addWidget(self._retry_btn)

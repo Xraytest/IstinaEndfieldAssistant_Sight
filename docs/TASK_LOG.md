@@ -1816,6 +1816,15 @@
   - src/gui/pyqt6/locales/en_US.json
 - **验证**: `3rd-part/python/python.exe -m py_compile` + `json.load` 通过
 
+## 2026-07-11 21:35 (执行/停止按钮高度不统一且无法点击)
+
+- **User Request**: 执行按钮与停止按钮高度不统一且无法被点击，修正并提交并推送
+- **Outcome**: 根因1（无法点击）：`_update_execution_ui()` 仅在 `_start_execution`/`_on_execution_finished` 调用，`__init__` 从不调用，导致 `_retry_btn` 创建时的 `setEnabled(False)` 永不刷新，按钮一直禁用。修复：`__init__` 末尾追加 `self._update_execution_ui()`。根因2（高度不统一）：`_stop_btn`(BTN_STOP) 与 `_retry_btn`(BTN_DEFAULT) 虽 QSS min-height 一致但渲染浮动。修复：两按钮各加 `setFixedHeight(36)` 强制等高。四部分报告见 reports/MODIFICATION_REPORT_2026-07-11_btn_height_click.md。
+- **Files Modified**:
+  - src/gui/pyqt6/pages/maaend_control_page.py
+  - reports/MODIFICATION_REPORT_2026-07-11_btn_height_click.md
+- **验证**: `3rd-part/python/python.exe -m py_compile` 通过
+
 ## 2026-07-11 23:45 (批次 79 — 选项编辑器 falsy 处理 / 队列导出非原子写入 + 审计批次 78)
 
 - **范围**: `maaend_control_page.py` 选项编辑器（子选项渲染/值收集）、队列导入/导出流程 + 批次 78 审计验证
