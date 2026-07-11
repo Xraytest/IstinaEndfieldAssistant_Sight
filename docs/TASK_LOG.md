@@ -1625,3 +1625,10 @@
 - **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告。
 - **Outcome**: 批次 61 完成。2 新发现（0 Low / 2 Info）+ 1 审计验证。核心发现：scene_geometry.py 阈值计算在平坦图像下失效（Info）；scene_service.py verify_by_key_elements 子串匹配假阳性（Info）。审计验证批次 1445 DEADCODE01 analyze_scene_3d 死代码准确。
 - **Files Modified**: reports/auto/20260711_165135.md (新增)
+
+## 2026-07-11 18:10
+
+- **User Request**: 继续完成批次 62 代码审计（批次 61 延续）。寻找代码存在的漏洞与错误，提出可用的修改建议；审计之前的报告，寻找错误或不必要的建议；避免重复提交历史问题。
+- **Outcome**: 批次 62 完成。1 新发现（1 Low）+ 3 审计验证。核心发现：maaend_control_page.py `_resolve_connect_params` 静默吞没所有异常（JSONDecodeError/PermissionError 等），隐藏配置读取失败根因，导致启动自动连接静默失败。审计验证批次 61（SG-01/SRV-02 均合理）、批次 1745（A1-A4 均合理）、批次 1730（控制页审查充分但无遗漏发现）。
+- **Files Modified**: reports/auto/20260711_1810_control_page_audit.md (新增)
+- **验证**：只读审查，未修改业务代码；交叉核对 8 份历史报告（2210、2315、2345、235000、001647、0020、1045_scr、1115_pipeline）确认 `_resolve_connect_params` 为全新发现；批次 61/1745/1730 审计结论均经代码逐行复核确认无误。
