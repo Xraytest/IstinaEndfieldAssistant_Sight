@@ -2034,3 +2034,11 @@
 **新增发现**: REC-02 — _extract_features 异常静默返回空特征字典（页面分类降级无日志）；REC-03 — _load_catalog 异常静默且日志级别过低（catalog 损坏无感知）
 **批次 88 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正
 **风险**: 2 项低（代码质量），无中高风险
+
+## 审计批次 90 — SHELL-01 shell() 不检查 daemon 错误 / PRTS-05 启动结果未校验 + 审计批次 89
+
+**时间**: 2026-07-12 10:30
+**审计文件**: android_runtime.py, handlers.py, prts_full_intelligence_page.py, cli_bridge.py
+**新增发现**: SHELL-01 — AndroidRuntime.shell() 不检查 daemon 错误（与 tap/swipe/keyevent 不一致，返回空字符串误导成功）；PRTS-05 — _start_llm 不检查 "llm start" 结果，启动失败静默（用户等待 60s 超时才看到状态）
+**批次 89 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正；补充观察 TemplateBackend.__init__ 存在与 REC-03 相同的异常静默模式
+**风险**: 2 项低（1 代码质量 + 1 UX），无中高风险
