@@ -1667,3 +1667,10 @@
 - **Outcome**: 批次 67 完成。0 新发现 + 3 审计验证。核心审计：批次 66 两条 Info 发现均合理（_interactive 恒为 True 死代码；崩溃恢复后不重置 _crash_count）；批次 080730 I01（缓冲区无界增长）已被 commit b2b85a1 修复（MAX_INPUT_LENGTH 1MB 上限）；批次 1600 CLI01-CLI05 均合理。本批为纯审计批次，无新发现。
 - **Files Modified**: reports/auto/20260711_1950_pure_audit_batch66_080730_1600.md (新增)
 - **验证**：只读审查，未修改业务代码；git show b2b85a1 确认 MAX_INPUT_LENGTH 已添加；grep 确认 _interactive 仅一处赋值；交叉核对 21 份历史报告确认无新发现可提交。
+
+## 2026-07-11 20:10
+
+- **User Request**: 继续完成批次 68 代码审计（批次 67 延续）。寻找代码存在的漏洞与错误，提出可用的修改建议；审计之前的报告，寻找错误或不必要的建议；避免重复提交历史问题。
+- **Outcome**: 批次 68 完成。1 新发现（1 Low）+ 2 审计验证。核心发现：`tray_icon.py` 托盘菜单"退出"按钮实际不退出程序（`QApplication.quit()` 触发 `closeEvent`，但托盘可用路径 `event.ignore()` 拒绝关闭，仅隐藏窗口），导致队列状态未持久化、资源未释放、任务继续后台运行。审计验证批次 67 纯审计无误、批次 155129 AUDIT-3 PRTS04 准确。
+- **Files Modified**: reports/auto/20260711_2010_tray_quit_ux.md (新增)
+- **验证**：只读审查，未修改业务代码；关键推演依据 Qt closeEvent 拒绝关闭事件语义；交叉核对 22 份历史报告确认 NEW-LOW 为全新发现。
