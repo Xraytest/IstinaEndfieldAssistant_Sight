@@ -104,26 +104,33 @@ class _ScrcpySession:
         with self._lock:
             if self._latest_frame is None:
                 return None
-            self._last_frame_ts = time.time()
             return self._latest_frame
 
     def _run(self, jar_path: str, max_size: int, bit_rate: int) -> None:
-        try:
-            if not self._serial:
+        while not self._stop_event.is_set():
+            try:
+                if not self._serial:
+                    return
+                if not self._check_jar_cached():
+                    self._push_jar(jar_path)
+                self._start_server(max_size, bit_rate)
+                if not self._wait_for_socket():
+                    if self._stop_event.is_set():
+                        return
+                    self._logger.warning("scrcpy 等待 socket 超时，2s 后重试")
+                    time.sleep(2.0)
+                    continue
+                self._decode_loop()
+            except TimeoutError:
+                self._logger.warning("scrcpy socket 读取超时，2s 后重建会话")
+            except Exception:
+                self._logger.exception("scrcpy 会话异常，2s 后重试")
+            finally:
+                self._close_codec()
+                self._cleanup()
+            if self._stop_event.is_set():
                 return
-            if not self._check_jar_cached():
-                self._push_jar(jar_path)
-            self._start_server(max_size, bit_rate)
-            if not self._wait_for_socket():
-                return
-            self._decode_loop()
-        except TimeoutError:
-            self._logger.warning("scrcpy socket 读取超时，准备重建会话")
-        except Exception:
-            self._logger.exception("scrcpy 会话异常")
-        finally:
-            self._close_codec()
-            self._cleanup()
+            time.sleep(2.0)
 
     def _check_jar_cached(self) -> bool:
         try:
@@ -281,6 +288,10 @@ class _ScrcpySession:
                     # KEEPALIVE-01: 帧超时检测；若超过 10s 未收到新帧，视为通道异常，主动退出以便重建
                     if self._last_frame_ts and (time.time() - self._last_frame_ts) > 10.0:
                         self._logger.warning("scrcpy 帧接收超时，准备重建会话")
+                        break
+                    # SERVER-01: server 进程存活检测；进程退出后 socket read 会阻塞至超时，提前退出加速重建
+                    if self._server_proc is not None and self._server_proc.poll() is not None:
+                        self._logger.warning("scrcpy server 进程已退出", returncode=self._server_proc.returncode)
                         break
                     header = fileobj.read(12)
                     if len(header) < 12:

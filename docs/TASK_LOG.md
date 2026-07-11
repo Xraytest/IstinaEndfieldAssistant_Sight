@@ -1942,3 +1942,19 @@
   - `reports/auto/20260712_0830_batch83_maaend_retry_stop.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**: 只读分析，未修改业务代码；关键发现经 `maaend_control_page.py:1852-1861` 和 `runtime.py:256-265` 源码逐行核对。
+
+## 2026-07-12 09:00 (scrcpy 持久保活 + 预览实时性修复 + 状态角标)
+
+- **User Request**: 即使画面不被需要，scrcpy 的画面传输依然应该保持。修正预览画面不实时更新的原因，并在画面右下角标明状态。
+- **Outcome**: 三方面修改：
+  1. **scrcpy 持久保活**（ndroid_runtime.py）：修复 get_latest_frame() 中 _last_frame_ts 被读操作污染导致 KEEPALIVE-01 失效的 bug；_run() 改为 while not _stop_event.is_set() 自动重连循环，超时/异常后 2s 退避重建会话；_decode_loop() 增加 _server_proc.poll() 存活检测，server 退出后提前 break 将重建延迟从 10s 降至接近 0。
+  2. **预览状态角标**（main_window.py）：新增 PreviewWidget(QWidget) 替换原 QLabel，在 paintEvent 中绘制 pixmap + 右下角状态角标（"● 实时" / "执行中" / "重连中" / "已断开" / "未连接"），色值与 theme_manager COLORS 一致。_refresh_preview/_on_execution_state_changed/_on_bridge_command_finished 在各状态变更点更新角标。
+  3. **i18n**（zh_CN.json + en_US.json）：新增 6 个 preview_status_* / preview_lost_connection 键。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py
+  - src/gui/pyqt6/main_window.py
+  - src/gui/pyqt6/locales/zh_CN.json
+  - src/gui/pyqt6/locales/en_US.json
+  - eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 通过（android_runtime.py + main_window.py）；json.load 校验通过（zh_CN.json + en_US.json）；pytest 181 passed / 5 skipped / 1 failed（	est_config_get_set_works 为环境权限问题，非本次引入）。

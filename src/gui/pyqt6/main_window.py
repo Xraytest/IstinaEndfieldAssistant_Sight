@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from PyQt6.QtCore import QSettings, Qt, QTimer
-from PyQt6.QtGui import QCloseEvent, QCursor, QPixmap, QShortcut
+from PyQt6.QtGui import QCloseEvent, QColor, QCursor, QFont, QPainter, QPen, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -33,11 +33,82 @@ from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
 from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, fade_widget, ui_mode_for_size
-from gui.pyqt6.theme.widget_styles import PANEL_STYLE, PREVIEW_STYLE
+from gui.pyqt6.theme.widget_styles import PANEL_STYLE
 from gui.pyqt6.tray_icon import TrayIcon
 
 ensure_src_path(__file__)
 locale = get_locale_manager()
+
+
+# 预览状态色值（与 theme_manager.py 中 COLORS 保持一致）
+_STATUS_COLOR_LIVE = "#19d1ff"          # primary
+_STATUS_COLOR_IDLE = "#8a8ea4"         # text_secondary
+_STATUS_COLOR_RECONNECTING = "#f08c00"  # warning
+_STATUS_COLOR_LOST = "#e03131"          # danger
+
+
+class PreviewWidget(QWidget):
+    """预览画面 widget，在 pixmap 上叠加右下角状态角标。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pixmap: Optional[QPixmap] = None
+        self._status_text: str = ""
+        self._status_color: str = _STATUS_COLOR_IDLE
+        self.setFixedSize(220, 124)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+    def set_pixmap(self, pixmap: Optional[QPixmap]) -> None:
+        self._pixmap = pixmap
+        self.update()
+
+    def clear_pixmap(self) -> None:
+        self._pixmap = None
+        self.update()
+
+    def set_status(self, text: str, color: str = _STATUS_COLOR_IDLE) -> None:
+        self._status_text = text
+        self._status_color = color
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect()
+
+        painter.fillRect(rect, QColor(8, 8, 12))
+
+        if self._pixmap is not None and not self._pixmap.isNull():
+            scaled = self._pixmap.scaled(
+                rect.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            x = (rect.width() - scaled.width()) // 2
+            y = (rect.height() - scaled.height()) // 2
+            painter.drawPixmap(x, y, scaled)
+        else:
+            painter.setPen(QColor(_STATUS_COLOR_IDLE))
+            font = QFont()
+            font.setPointSize(9)
+            painter.setFont(font)
+            painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, locale.tr("preview_empty", "No preview"))
+
+        if self._status_text:
+            painter.setPen(QColor(self._status_color))
+            font = QFont()
+            font.setPointSize(8)
+            painter.setFont(font)
+            margin = 6
+            painter.drawText(
+                rect.adjusted(0, 0, -margin, -margin),
+                Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight,
+                self._status_text,
+            )
+
+        painter.setPen(QPen(QColor(25, 209, 255, 26), 1))
+        painter.drawRoundedRect(rect, 4, 4)
+        painter.end()
 
 
 class MainWindow(QMainWindow):
@@ -67,7 +138,7 @@ class MainWindow(QMainWindow):
 
         self._navigation_list: Optional[QListWidget] = None
         self._page_stack: Optional[QStackedWidget] = None
-        self._preview_label: Optional[QLabel] = None
+        self._preview_widget: Optional[PreviewWidget] = None
         self._preview_timer = QTimer(self)
         self._preview_timer.setInterval(self._preview_interval_ms())
         self._preview_timer.timeout.connect(self._refresh_preview)
@@ -167,14 +238,10 @@ class MainWindow(QMainWindow):
         self._navigation_list.setAccessibleDescription("nav_list_desc")
         nav_layout.addWidget(self._navigation_list)
 
-        self._preview_label = QLabel(locale.tr("preview_empty", "No preview"))
-        self._preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._preview_label.setStyleSheet(PREVIEW_STYLE)
-        self._preview_label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self._preview_label.setFixedSize(220, 124)
-        self._preview_label.setAccessibleName("preview_area")
-        self._preview_label.setAccessibleDescription("preview_area_desc")
-        nav_layout.addWidget(self._preview_label, 1)
+        self._preview_widget = PreviewWidget()
+        self._preview_widget.setAccessibleName("preview_area")
+        self._preview_widget.setAccessibleDescription("preview_area_desc")
+        nav_layout.addWidget(self._preview_widget, 1)
 
         shell_layout.addWidget(nav_panel, 0, Qt.AlignmentFlag.AlignTop)
 
@@ -261,11 +328,11 @@ class MainWindow(QMainWindow):
         navigation_list = getattr(self, "_navigation_list", None)
         if navigation_list is not None:
             navigation_list.setFixedWidth(180 if mode == "compact" else 220)
-        preview_label = getattr(self, "_preview_label", None)
-        if preview_label is not None:
+        preview_widget = getattr(self, "_preview_widget", None)
+        if preview_widget is not None:
             width = 180 if mode == "compact" else 220
             height = max(101, int(width * 9 / 16))
-            preview_label.setFixedSize(width, height)
+            preview_widget.setFixedSize(width, height)
 
     def _on_nav_changed(self, index: int) -> None:
         if self._page_stack is None or index < 0:
@@ -281,17 +348,25 @@ class MainWindow(QMainWindow):
         if command.startswith("system connect"):
             if result.get("status") == "success":
                 self._maaend_page.set_connected(True)
+                if self._preview_widget is not None:
+                    self._preview_widget.set_status(locale.tr("preview_status_reconnecting", "重连中"), _STATUS_COLOR_RECONNECTING)
                 QTimer.singleShot(0, self._refresh_preview)
             else:
                 self._maaend_page.set_connected(False)
                 self._maaend_page.set_auto_connect_attempted()
+                if self._preview_widget is not None:
+                    self._preview_widget.set_status(locale.tr("preview_status_disconnected", "未连接"), _STATUS_COLOR_IDLE)
         elif command.startswith("system disconnect"):
             self._maaend_page.set_connected(False)
+            if self._preview_widget is not None:
+                self._preview_widget.set_status(locale.tr("preview_status_disconnected", "未连接"), _STATUS_COLOR_IDLE)
 
     def _on_execution_state_changed(self, is_executing: bool) -> None:
         self._is_executing = is_executing
         if is_executing:
             self._preview_timer.stop()
+            if self._preview_widget is not None:
+                self._preview_widget.set_status(locale.tr("preview_status_executing", "执行中"), _STATUS_COLOR_IDLE)
             self._title_animation_timer.start(500)
             QApplication.setOverrideCursor(QCursor(Qt.CursorShape.BusyCursor))
             self._set_taskbar_progress(0)
@@ -318,14 +393,16 @@ class MainWindow(QMainWindow):
 
     def _refresh_preview(self) -> None:
         self._logger.debug(LogCategory.GUI, "预览定时器触发", connected=self._maaend_page._connected, executing=self._maaend_page._is_executing)
-        if self._preview_label is None:
-            self._logger.debug(LogCategory.GUI, "预览退出: _preview_label is None")
+        if self._preview_widget is None:
+            self._logger.debug(LogCategory.GUI, "预览退出: _preview_widget is None")
             return
         if not self._maaend_page._connected:
             self._logger.debug(LogCategory.GUI, "预览退出: _connected is False")
+            self._preview_widget.set_status(locale.tr("preview_status_disconnected", "未连接"), _STATUS_COLOR_IDLE)
             return
         if self._maaend_page._is_executing:
             self._logger.debug(LogCategory.GUI, "预览退出: 任务执行中")
+            self._preview_widget.set_status(locale.tr("preview_status_executing", "执行中"), _STATUS_COLOR_IDLE)
             return
         self._logger.debug(LogCategory.GUI, "开始同步执行 screenshot 命令")
         result = self._maaend_page._sync_execute("screenshot", timeout_ms=5000)
@@ -336,9 +413,12 @@ class MainWindow(QMainWindow):
             self._preview_fail_count = getattr(self, "_preview_fail_count", 0) + 1
             if self._preview_fail_count >= 5:
                 self._logger.warning(LogCategory.GUI, "连续截图失败达到阈值，标记连接为断开", fail_count=self._preview_fail_count)
+                self._preview_widget.set_status(locale.tr("preview_status_lost", "已断开"), _STATUS_COLOR_LOST)
                 self._maaend_page.set_connected(False)
                 self._maaend_page._append_log("系统", locale.tr("preview_lost_connection", "Preview unavailable: device connection may be lost."))
                 self._preview_fail_count = 0
+            else:
+                self._preview_widget.set_status(locale.tr("preview_status_reconnecting", "重连中"), _STATUS_COLOR_RECONNECTING)
             return
         # 截图成功，重置失败计数
         self._preview_fail_count = 0
@@ -367,8 +447,8 @@ class MainWindow(QMainWindow):
         loaded = pixmap.loadFromData(image_data)
         self._logger.debug(LogCategory.GUI, "QPixmap 加载", loaded=loaded, image_size=len(image_data))
         if loaded:
-            scaled = pixmap.scaled(self._preview_label.contentsRect().size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            self._preview_label.setPixmap(scaled)
+            self._preview_widget.set_pixmap(pixmap)
+            self._preview_widget.set_status(locale.tr("preview_status_live", "● 实时"), _STATUS_COLOR_LIVE)
             self._logger.debug(LogCategory.GUI, "预览图像已上屏")
 
     def _resize_navigation_list(self) -> None:
