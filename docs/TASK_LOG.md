@@ -2166,6 +2166,12 @@
 - **Outcome**: 批次 111 扩展扫描，新增 1 项发现（Medium）：OO-03 — `src/gui/pyqt6/pages/prts_full_intelligence_page.py:231` `self._prompt_input.text.strip()` 遗漏括号，应为 `self._prompt_input.text().strip()`。QLineEdit.text 是方法而非 Python 属性，调用 `.strip()` 会抛 AttributeError，导致 PRTS 页面发送聊天消息崩溃。对批次 110 报告审计确认结论正确。对剩余未覆盖文件（paths.py, istina.py, handlers.py CLIDispatch, prts_full_intelligence_page, scene_service, scene_geometry, task_loader, task_runner, annotation.py, responsive.py, hero.py, animations.py, widget_styles.py）进行了全量扩展分析，无其他功能性 bug。O-01~O-24 全部仍为 Open，FX-01~FX-10 全部仍为 Fixed，FP-01~FP-08 全部仍为误报。
 - **Files Modified**: reports/auto/20260712_0530_batch111.md, docs/TASK_LOG.md
 
+## 2026-07-12 05:45
+
+- **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
+- **Outcome**: 批次 112 全量扫描饱和，0 项新发现。对批次 111 未覆盖的剩余文件（log_page.py, vlm_walk_navigator.py, models.py）进行了全量扩展分析，无功能性 bug。vlm_walk_navigator._is_stuck 已从硬编码阈值改进为相对阈值（D02 修复）。审计批次 111 报告结论正确。项目全部 ~60 个 Python 源码文件已逐文件审查完毕，无未覆盖区域。O-01~O-24 全部仍为 Open，FX-01~FX-10 全部仍为 Fixed，FP-01~FP-08 全部仍为误报。
+- **Files Modified**: reports/auto/20260712_0545_batch112.md, docs/TASK_LOG.md
+
 ## 2026-07-12 02:10
 
 - **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
