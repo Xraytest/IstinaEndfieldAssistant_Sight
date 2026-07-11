@@ -901,3 +901,20 @@
   - `reports/auto/20260711_074404.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 97+ 条发现全部经二次验证确认准确，零新增纠正。
+
+## 2026-07-11（第三十一批次·增量代码审计·连接逻辑/GUI状态/路径）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次30未覆盖区域（android_runtime.py Agent启动逻辑、maa_end/runtime.py连接超时线程、main_window.py截图失败阈值/托盘持久化、standard_inference_page.py路径硬编码、client.py日志格式、pipeline_node.py死代码），识别 7 项新发现（1 Medium / 5 Low / 1 Info）。历史报告 98+ 条发现全部经二次验证确认准确，零修正。
+  1. **[G01 Medium]** `android_runtime.py:263` `_connect_once` Agent进程已启动但客户端创建失败时，仍标记连接成功（`self._connected = True`）。
+  2. **[G02 Low]** `main_window.py:336` 截图失败阈值硬编码为5，不可配置。
+  3. **[G03 Low]** `standard_inference_page.py:127` `_OPTION_LOCALE_PATH` 使用5级parent链而非 `get_project_root()`。
+  4. **[G04 Low]** `maa_end/runtime.py:281` `_connect_with_timeout` 超时后daemon线程继续运行，可能与后续连接冲突。
+  5. **[G05 Low]** `main_window.py:111` 托盘可用时跳过 `_persist_state()`，队列状态可能丢失。
+  6. **[G06 Low]** `client.py:98` 日志格式字符串与 ProjectLogger 约定不一致。
+  7. **[G07 Info]** `pipeline_node.py:61` `from_dict` 冗余条件判断（死代码）。
+  8. **F03扩展**：TouchManager 单例同样非线程安全，三处单例无锁（ThemeManager/TemplateRegistry/TouchManager）。
+- **Files Modified**:
+  - `reports/auto/20260711_083500.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 98+ 条发现全部经二次验证确认准确，零新增纠正。
