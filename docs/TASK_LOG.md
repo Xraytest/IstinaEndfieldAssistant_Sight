@@ -2058,3 +2058,12 @@
 **新增发现**: CACHE-01 — _persist_metadata_cache 直接 write_text 覆盖写入（非原子，异常时缓存文件损坏）；补充观察：_export_queue 和 device_settings_page._write_config 同样使用非原子写入
 **批次 91 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正；补充观察：_start_agent 的 except 块未重置 _connected，若 AgentClient.bind()/connect() 失败，连接态保持 True 导致后续操作失败
 **风险**: 1 项低（CACHE-01），无中高风险
+
+## 审计批次 93 — LLM-02 llm start 无诊断 / LLM-03 llm stop 总是成功 / SYS-01 disconnect 总是成功 + 审计批次 92
+
+**时间**: 2026-07-11 23:42
+**审计文件**: cli/handlers.py, core/service/runtime.py, core/service/maa_end/runtime.py
+**新增发现**: LLM-02 — CLI llm start 启动失败时返回无诊断信息的错误响应（warmup_llm 内部记录详细失败原因但不暴露给 CLI）；LLM-03 — CLI llm stop 总是返回 success，cooldown_llm 内部吞掉异常；SYS-01 — CLI system disconnect 总是返回 success，runtime.disconnect 内部吞掉异常
+**共性**: LLM-03 和 SYS-01 共享根因——生命周期方法内部 except Exception 后不返回状态，handler 无条件返回 success
+**批次 92 审计**: 全部 1 项新发现经逐项源码复核确认准确，无需修正
+**风险**: 3 项低（1 UX + 2 代码质量），无中高风险
