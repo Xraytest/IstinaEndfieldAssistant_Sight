@@ -1653,3 +1653,10 @@
 - **Outcome**: 批次 65 完成。2 新发现（1 Medium / 1 Low）+ 2 审计验证。核心发现：`prts_full_intelligence_page.py` `LlmChatWorker.run()` 竞态发送虚假"Error: empty"消息（`execute` 异步返回 None，worker 无条件发出错误结果）；`_attach_image` 异常时 `_pending_image_b64` 泄漏旧值（下次发送消息携带已失败的旧图片）。审计验证批次 64 合理（维持评级），批次 1500 PRTS01-04 准确（与本批独立不重叠）。
 - **Files Modified**: reports/auto/20260711_1910_prts_worker_race.md (新增)
 - **验证**：只读审查，未修改业务代码；关键推演依据 Qt 信号槽串行处理语义与 CLIBridge.execute 异步返回 None；交叉核对 17 份历史报告确认两个新发现均为全新。
+
+## 2026-07-11 19:30
+
+- **User Request**: 继续完成批次 66 代码审计（批次 65 延续）。寻找代码存在的漏洞与错误，提出可用的修改建议；审计之前的报告，寻找错误或不必要的建议；避免重复提交历史问题。
+- **Outcome**: 批次 66 完成。2 新发现（2 Info）+ 2 审计验证。核心发现：`cli_bridge.py` `_interactive` 恒为 True 导致非交互模式死代码（`_start_next_process` 为不可达别名，`execute` 和 `_on_finished` 中的非交互分支不可达）；`_on_finished` 崩溃恢复成功后不重置 `_crash_count`（恢复后再次崩溃时连续次数被高估）。审计验证批次 65 合理（维持评级），批次 2345 U10 与本批互补（U10 关注重启失败静默性，本批关注恢复后计数偏差）。
+- **Files Modified**: reports/auto/20260711_1930_clibridge_dead_code_audit.md (新增)
+- **验证**：只读审查，未修改业务代码；关键推演依据 _interactive 在全文件无赋值修改为恒定 True；_crash_count=0 位于不可达分支；交叉核对 19 份历史报告确认两个新发现均为全新。
