@@ -1844,6 +1844,14 @@
   - ToolBox/pyqt_renderer/ (新增渲染模块)
 - **验证**: ToolBox/pyqt_renderer 离屏渲染确认两按钮均为 617x36，高度差 0px ✓
 
+## 2026-07-11 23:00 (scrcpy 会话重建死循环修复 — 队列执行阻塞/画面静止根因)
+
+- **User Request**: 阅读最新的日志，执行队列时存在严重阻塞，画面未发生任何变化
+- **Outcome**: 日志分析发现 scrcpy 会话重建死循环（每 2-3 秒一次，持续 40+ 秒）。根因：`_cleanup()` 清理 codec/socket/server 进程但**未重置 `_last_frame_ts`**。新会话的 `_decode_loop` 进入帧接收循环时，`_last_frame_ts` 仍是上一次会话的值，`time.time() - _last_frame_ts > 10.0` 立即成立，打印"帧接收超时"并 break，形成死循环。画面因此完全静止。修复：(1) `_cleanup()` 中重置 `_last_frame_ts = 0.0`，新会话从零开始计时；(2) `_run()` 增加连续失败计数器和指数退避（2s→4s→8s→16s→32s→60s 上限），避免在 scrcpy-server 无法产生帧时频繁重建。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py
+- **验证**: `3rd-part/python/python.exe -m py_compile` 通过
+
 ## 2026-07-11 23:45 (批次 79 — 选项编辑器 falsy 处理 / 队列导出非原子写入 + 审计批次 78)
 
 - **范围**: `maaend_control_page.py` 选项编辑器（子选项渲染/值收集）、队列导入/导出流程 + 批次 78 审计验证

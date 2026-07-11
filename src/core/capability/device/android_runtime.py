@@ -107,6 +107,7 @@ class _ScrcpySession:
             return self._latest_frame
 
     def _run(self, jar_path: str, max_size: int, bit_rate: int) -> None:
+        consecutive_failures = 0
         while not self._stop_event.is_set():
             try:
                 if not self._serial:
@@ -126,11 +127,19 @@ class _ScrcpySession:
             except Exception:
                 self._logger.exception("scrcpy 会话异常，2s 后重试")
             finally:
+                had_frame = self._last_frame_ts > 0.0
                 self._close_codec()
                 self._cleanup()
+                if had_frame:
+                    consecutive_failures = 0
+                else:
+                    consecutive_failures += 1
             if self._stop_event.is_set():
                 return
-            time.sleep(2.0)
+            backoff = min(2.0 * (2 ** consecutive_failures), 60.0) if consecutive_failures > 0 else 2.0
+            if consecutive_failures >= 3:
+                self._logger.warning(f"scrcpy 连续 {consecutive_failures} 次未收到帧，{int(backoff)}s 后重试")
+            time.sleep(backoff)
 
     def _check_jar_cached(self) -> bool:
         try:
@@ -354,6 +363,7 @@ class _ScrcpySession:
 
     def _cleanup(self) -> None:
         self._close_codec()
+        self._last_frame_ts = 0.0
         try:
             if self._local_port:
                 self._adb_manager.run_adb(
