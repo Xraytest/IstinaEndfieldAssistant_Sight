@@ -956,6 +956,26 @@
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 100+ 条发现全部经二次验证确认准确，零新增修正。
 
+## 2026-07-11（第三十四批次·增量代码审计·VLM导航/Pipeline引擎/场景几何）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次33未覆盖深层逻辑区域（VlmWalkNavigator导航逻辑、PipelineRunner执行引擎、SceneGeometry算法、MapDataLoader数据层、EntityDatabase查询、YOLO后端、PipelineLoader/PipelineNode），识别 10 项新发现（1 High / 3 Medium / 4 Low / 2 Info），并审计批次30 F01/F02（确认仍存在）、批次33 I01/I02（确认准确）。
+  1. **[J01 High]** `vlm_walk_navigator.py:165-170` 定位失败时伪造(0,0)坐标传递给VLM——VLM收到错误坐标做出完全错误的导航决策，可能导致角色乱跑。
+  2. **[J02 Medium]** `pipeline_runner.py:111-119` `run_pipeline`重试时未重置`_hit_counts`/`_last_run`——第二轮执行时节点可能被误判为限流中而跳过。
+  3. **[J03 Medium]** `pipeline_runner.py:180-182` `_match_template_maafw`未校验`detail`对象完整性——MaaFW任务异常时可能引发AttributeError。
+  4. **[J04 Medium]** `scene_geometry.py:267-270` saliency累积乘法过度抑制——边缘区域显著性被压至极低，可能导致边缘实体丢失。
+  5. **[J05 Low]** `map_data_loader.py:107` `load_layout`直接索引`lv["x"]`等，缺少KeyError保护。
+  6. **[J06 Low]** `entity_db.py:129` `find_by_name`使用正则搜索，建议改用`in`运算符。
+  7. **[J07 Low]** `pipeline_loader.py:67` `extract_module_nodes`共享PipelineNode引用，修改子图影响原始图。
+  8. **[J09 Info]** `pipeline_runner.py:320-325` `_pick_next` fallback可能返回分支标记。
+  9. **[J10 Info]** `touch_manager.py:53-56` `back()`无try/except（F01，批次30/33/34三度确认）。
+  10. **[J11 Info]** `recovery.py:81-94` `_clear_canvas`静默吞错（F02，批次30/33/34三度确认）。
+  11. **历史确认**：批次33 I01/I02（istina.py无界缓冲区、handlers.py写入崩溃）准确；批次30 F01/F02仍未修复。
+- **Files Modified**:
+  - `reports/auto/20260711_082654.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 100+ 条发现全部经二次验证确认准确，零新增修正。
+
 ## 2026-07-11（第三十二批次·并发补录·审计纠错专项 · 0804.md）
 
 - **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给修改建议；完成后审计之前的报告，寻找错误或不必要的建议，深入写入当前批次报告；避免执行测试、避免重复既往问题。
