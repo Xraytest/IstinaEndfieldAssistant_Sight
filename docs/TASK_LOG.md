@@ -1902,3 +1902,15 @@
   - reports/auto/*.md（98 份文件删除）
   - docs/TASK_LOG.md（本文件）
 - **验证**: 只读分析 + 代码复验，未修改业务代码；FP-07 纠错经完整调用链推演（tray_icon → QApplication.quit → closeAllWindows → MainWindow.closeEvent → event.ignore+hide）；D1 已确认修复（recovery.py:72 拆分 argv + 注释 # D1）。
+
+## 2026-07-12 07:40 (AutoCodeReview 批次81·增量审查·LLM/MaaEnd 异常处理)
+
+- **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给出修改建议；完成后审计既往报告（批次 80），指出错误或不必要的建议；以代码逻辑分析为主（不执行测试），报告存放 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 审计 `llm/runtime.py` 和 `maa_end/runtime.py` 的异常处理路径，识别 2 项新发现（2 Medium），并审计批次 80。
+  1. **[LLM-02 Medium]** `_try_start` 中 `communicate()` 失败被静默吞掉，导致 `out`/`err` 为空，日志输出误导性"exited early (code=None) stdout='' stderr=''"，掩盖真正的启动失败原因（CUDA 不可用、模型损坏等）。
+  2. **[MAA-08 Medium]** `_start_agent` 中 `process.wait()` 超时后调用 `process.kill()`，但嵌套 `except Exception: pass` 静默吞掉 kill() 的异常，导致残留进程占用端口且无日志。与 O-06/O-07（线程 join 超时）不同问题。
+  3. **审计批次 80**：VLM-01、MAA-07、ADB-01 全部结论经源码复核确认准确，无需修正。
+- **Files Modified**:
+  - `reports/auto/20260712_0740_batch81_llm_maa_cleanup.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**: 只读分析，未修改业务代码；关键发现经 `llm/runtime.py:354-368` 和 `maa_end/runtime.py:485-493` 源码逐行核对。
