@@ -2067,3 +2067,11 @@
 **共性**: LLM-03 和 SYS-01 共享根因——生命周期方法内部 except Exception 后不返回状态，handler 无条件返回 success
 **批次 92 审计**: 全部 1 项新发现经逐项源码复核确认准确，无需修正
 **风险**: 3 项低（1 UX + 2 代码质量），无中高风险
+
+## 审计批次 94 — NAV-DRAIN 守护线程泄漏 / SCRCPY-SILENT connect 静默 scrcpy 失败 / AUTO-PARAMS 配置读取静默吞错 / PLAYER-SILENT 脚本回放动作失败静默 + 审计批次 93
+
+**时间**: 2026-07-11 23:51
+**审计文件**: android_runtime.py, core/service/runtime.py, maaend_control_page.py, scripting/player.py
+**新增发现**: NAV-DRAIN — _drain_pipe/_accept_loop/_handle_client 守护线程未 join，清理时泄漏文件描述符；SCRCPY-SILENT — connect() 无条件返回 True 即使 scrcpy 预览通道启动失败；AUTO-PARAMS — _resolve_connect_params 裸 except 吞掉配置读取错误；PLAYER-SILENT — 脚本回放动作失败后静默继续
+**批次 93 审计**: 全部 3 项新发现经逐项源码复核确认准确，无需修正；补充观察已纳入 SYS-01 修复范围
+**风险**: 2 项中（NAV-DRAIN, SCRCPY-SILENT），2 项低（AUTO-PARAMS, PLAYER-SILENT），无高风险
