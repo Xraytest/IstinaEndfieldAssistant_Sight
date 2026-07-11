@@ -1988,3 +1988,11 @@
 **范围延伸**: O-10 延伸覆盖 keyevent/monitor handlers 缺少 default_client 检查
 **批次 84 审计**: 全部 3 项结论经逐项源码复核确认准确，无需修正
 **风险**: 1 项低（CLI-03），无中高风险
+
+## 审计批次 86 — DAEMON-01 daemon 层 cv2.imencode 返回值丢弃 / MW-01 私有属性跨类访问 + 审计批次 85
+
+**时间**: 2026-07-12 09:30
+**审计文件**: android_runtime.py, main_window.py, handlers.py, maa_end/runtime.py, vlm_walk_navigator.py
+**新增发现**: DAEMON-01 — daemon screenshot handler 丢弃 cv2.imencode 返回值（与 O-22/VLM-03 同一根因，不同文件/路径）；MW-01 — _refresh_preview 跨类访问 MaaEndControlPage 私有属性
+**批次 85 审计**: 全部 2 项新发现 + 1 项范围延伸 + 批次 84 审计均经逐项源码复核确认准确，无需修正
+**风险**: 2 项低，无中高风险
