@@ -204,12 +204,20 @@ class _ScrcpySession:
         except Exception:
             pass
         self._ensure_device_online()
+        # POWER-01: 网络ADB下 stay_awake 仅USB有效，屏幕关闭时编码器不产生帧。
+        # 显式 power_on=true 让 server 调 PowerManager.wakeUp()；并补 input keyevent 224
+        # 作为双保险，确保屏幕点亮后再启动视频编码。
+        try:
+            self._host_shell("input keyevent 224")
+        except Exception:
+            pass
         server_cmd = (
             f"CLASSPATH=/data/local/tmp/scrcpy-server.jar "
             "app_process /system/bin com.genymobile.scrcpy.Server "
             "2.7 tunnel_forward=true audio=false "
             "video=true control=false show_touches=false stay_awake=true "
-            "send_dummy_byte=true send_device_meta=true send_frame_meta=true "
+            "power_on=true send_dummy_byte=true send_device_meta=true "
+            "send_frame_meta=true "
             f"max_size={max_size} video_bit_rate={bit_rate}"
         )
         adb = str(self._adb_manager._resolve_adb_path())
@@ -290,40 +298,54 @@ class _ScrcpySession:
             self._codec.pix_fmt = "yuv420p"
             self._codec.flags |= 1 << 19
             self._codec.open()
+            self._logger.info(
+                "scrcpy 握手成功",
+                device=self._device_name,
+                codec=codec_name,
+                width=w,
+                height=h,
+                port=self._local_port,
+            )
 
             sock.settimeout(10.0)
+            first_frame_logged = False
+            frame_counter = 0
             try:
                 while not self._stop_event.is_set():
                     # KEEPALIVE-01: 帧超时检测；若超过 10s 未收到新帧，视为通道异常，主动退出以便重建
                     if self._last_frame_ts and (time.time() - self._last_frame_ts) > 10.0:
-                        self._logger.warning("scrcpy 帧接收超时，准备重建会话")
+                        self._logger.warning("scrcpy 帧接收超时，准备重建会话", frames_received=frame_counter)
                         break
                     # SERVER-01: server 进程存活检测；进程退出后 socket read 会阻塞至超时，提前退出加速重建
                     if self._server_proc is not None and self._server_proc.poll() is not None:
-                        self._logger.warning("scrcpy server 进程已退出", returncode=self._server_proc.returncode)
+                        self._logger.warning("scrcpy server 进程已退出", returncode=self._server_proc.returncode, frames_received=frame_counter)
                         break
                     header = fileobj.read(12)
                     if len(header) < 12:
+                        self._logger.warning("scrcpy socket 断开（header 不完整）", frames_received=frame_counter)
                         break
 
                     pts_flags = struct.unpack(">Q", header[:8])[0]
                     pkt_size = struct.unpack(">I", header[8:12])[0]
 
                     if pkt_size == 0 or pkt_size > 2 * 1024 * 1024:
+                        self._logger.warning("scrcpy 异常包大小", pkt_size=pkt_size, pts_flags=hex(pts_flags))
                         continue
 
                     data = fileobj.read(pkt_size)
                     if len(data) < pkt_size:
+                        self._logger.warning("scrcpy socket 断开（data 不完整）", expected=pkt_size, got=len(data), frames_received=frame_counter)
                         break
 
                     is_config = bool(pts_flags & (1 << 63))
                     is_keyframe = bool(pts_flags & (1 << 62))
 
                     if is_config:
+                        self._logger.info("scrcpy 收到 config packet", size=pkt_size)
                         try:
                             self._codec.decode(av.Packet(data))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            self._logger.warning("scrcpy config 解码失败", error=str(e))
                         continue
 
                     try:
@@ -336,8 +358,12 @@ class _ScrcpySession:
                             with self._lock:
                                 self._latest_frame = img
                                 self._last_frame_ts = time.time()
-                    except Exception:
-                        pass
+                            frame_counter += 1
+                            if not first_frame_logged:
+                                first_frame_logged = True
+                                self._logger.info("scrcpy 首帧接收成功", codec=codec_name, width=w, height=h)
+                    except Exception as e:
+                        self._logger.warning("scrcpy 帧解码失败", error=str(e), pkt_size=pkt_size, is_keyframe=is_keyframe)
             finally:
                 # 确保正常退出或异常时释放 socket 和 fileobj，避免文件描述符泄漏
                 try:
@@ -387,11 +413,24 @@ class _ScrcpySession:
             pass
 
     def _drain_pipe(self, pipe) -> None:
+        # 诊断关键：scrcpy-server 的 stdout/stderr 必须可见，否则无法判断
+        # 编码器初始化失败、协议版本不匹配、屏幕关闭等根因。按行读取并记录到日志。
+        buf = b""
         try:
             while True:
-                chunk = pipe.read(65536)
+                chunk = pipe.read(4096)
                 if not chunk:
                     break
+                buf += chunk
+                while b"\n" in buf:
+                    line, buf = buf.split(b"\n", 1)
+                    text = line.decode("utf-8", errors="replace").rstrip("\r")
+                    if text.strip():
+                        self._logger.info("scrcpy-server: " + text)
+            if buf.strip():
+                text = buf.decode("utf-8", errors="replace").rstrip("\r")
+                if text.strip():
+                    self._logger.info("scrcpy-server: " + text)
         except Exception:
             pass
         finally:
