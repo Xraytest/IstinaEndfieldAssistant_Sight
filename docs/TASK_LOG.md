@@ -1033,3 +1033,23 @@
   - `reports/auto/20260711_0804.md`（新增·审计纠错专项报告）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有结论经 `runtime.py`/`android_runtime.py`/`handlers.py`/`vlm_walk_navigator.py`/`navigator.py` 当前源文件逐行核对。
+
+## 2026-07-11（第三十七批次·增量代码审计·IstinaRuntime集成层/MaaEnd深层逻辑）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次36未覆盖的运行时层（IstinaRuntime统一门面、MaaEndRuntime连接逻辑、AndroidRuntime按键白名单与VLM导航的集成影响），识别10项新发现（1 Critical / 3 Medium / 4 Low / 2 Info），历史报告零修正。
+  1. **[M01 Critical]** `runtime.py:712-730` + `android_runtime.py:75-84` `_vlm_keyevent` 发送的字母键（w/a/s/d/q/e/f）被 `_is_valid_keyevent` 静默拒绝——VLM步行导航完全失效。完整调用链：VlmWalkNavigator._execute_action → _vlm_keyevent → android.keyevent("w") → _is_valid_keyevent 返回 False → 静默失败。与批次23 W1 互补：W1 关注白名单缺陷，M01 发现致命集成影响。
+  2. **[M02 Medium]** `runtime.py:348-349` `execute()` 对未知命令返回 None，破坏数据契约——调用方期望 dict 时获得 None，`None.get()` 抛出 AttributeError。
+  3. **[M03 Medium]** `runtime.py:473` `reload_config` 直接写入 `MaaEndRuntime._adb_restart_on_timeout` 私有属性，违反封装。
+  4. **[M04 Medium]** `runtime.py:514-521` `shell("pidof")` 调用无超时控制，设备断连时可能长时间阻塞。
+  5. **[M07 Low]** `runtime.py:86-100` `AndroidRuntimeProxy._client_for` 不检查客户端有效性，断连后仍持有无效引用。
+  6. **[M08 Low]** `runtime.py:437-441` legacy `_maaend` 回退逻辑依赖全局状态，客户端已迁移时可能冲突。
+  7. **[M09 Low]** `runtime.py:223-230` scrcpy 启动失败无重试机制，预览功能永久缺失。
+  8. **[M10 Low]** `runtime.py:175-194` `_maaend` 与 `_maaend_clients` 共存可能重复创建运行时。
+  9. **[M06 Info]** `runtime.py:129-132` `_llm_client_instance` 初始化失败时静默设置 None。
+  10. **[M11/M12 Info]** `maa_end/runtime.py:256-284` AgentClient 异常后仍标记 `_connected=True` + 超时后 daemon 线程泄漏。
+  11. **关联分析**：M01 + 批次34 J01（伪造坐标）+ 批次36 L01（硬编码bbox）形成"三重失效链"——VLM导航无法发送有效按键（M01）→ 角色不移动 → 小地图定位可能失败（L01）→ 即使定位成功坐标可能是假的（J01）。
+- **Files Modified**:
+  - `reports/auto/20260711_084958.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当次 `main` 分支源文件逐行核对。历史报告 130+ 条发现全部经二次验证确认准确，零新增修正。
