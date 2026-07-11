@@ -1124,3 +1124,24 @@
   - `reports/auto/20260711_093351.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经测试文件源码 + docs/ARCHITECTURE.md 逐行核对。历史报告 160+ 条发现全部经二次验证确认准确，新增 2 处修正。
+
+## 2026-07-11（第四十二批次·scripts/config/GUI残余文件审计）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计此前未被深度审查的 scripts/*.py（4个LLM验证脚本）、config/*.json（3个配置文件）、src/gui/pyqt6/queue_state.py、qt_log_filter.py、responsive.py 及 device_settings_page.py 深层逻辑，识别 12 项新发现（2 Medium / 4 Low / 6 Info），含 1 项不成立分析（R01 声称 DPI 阈值顺序错误，经验证逻辑正确）。历史报告零修正。
+  1. **[S01 Medium]** `verify_llm.py` + `check_llm_cuda.py` 绕过 `ensure_src_path()`，使用手动 `sys.path.insert`——与同目录 `verify_llm_simple.py` 路径管理不一致。
+  2. **[S02 Medium]** `verify_llm.py` 硬编码相对 `MODEL_PATH`，依赖工作目录——在其他 cwd 下运行时无法找到模型。
+  3. **[QF01 Medium]** `qt_log_filter.py` 安装失败后标记 `_INSTALLED=True`，阻止后续所有重试——Qt 日志过滤器永久失效。
+  4. **[S03 Low]** `check_llm_cuda.py` 使用 `shell=True` 不必要（硬编码参数，无用户输入）。
+  5. **[S04 Low]** 验证脚本端口无冲突检查（固定端口 10270、10260-10265 范围）。
+  6. **[S05 Low]** `verify_llm_simple.py` 函数内 `import json`（代码风格问题）。
+  7. **[C01 Low]** config/client_config.json 中 `n_gpu_layers: 999` 无验证——显存不足时 OOM。
+  8. **[S06 Low]** 硬编码线程数 24——在少核机器上过度订阅。
+  9. **[DSP01 Low]** `device_settings_page.py` `_on_command_finished` 无 None 检查——批次37 M02 影响面之一。
+  10. **[Q02/SDSP02/DSP03/QF02/Q03/S07 Info]** 线程安全但无备份机制、无原子写入、固定重连间隔无退避、4级 parent 链、模块级 locale 初始化、魔法数 240。
+  11. **[R01 不成立]** 声称 `responsive.py` DPI 阈值顺序错误，经逐行验证：高阈值优先匹配逻辑正确。
+  12. **历史验证**：全部历史报告经二次验证确认准确，零新增纠正。
+- **Files Modified**:
+  - `reports/auto/20260711_0945.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经脚本源码、config JSON、queue_state.py、qt_log_filter.py、responsive.py、device_settings_page.py 当前源文件逐行核对。历史报告 170+ 条发现全部经二次验证确认准确。
