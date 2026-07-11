@@ -2142,6 +2142,12 @@
 - **Outcome**: 批次 107 审计完成，新增 2 项发现（1 Medium / 1 Low）：PREVIEW-TIMER-NORESTART — maaend_control_page._delayed_init 停止 preview_timer 后仅在自动连接成功时重启，失败时 timer 永久停止，预览空白即使用户后续手动连接成功。LLM-WORKER-FINISHED-DEAD — LlmChatWorker.finished pyqtSignal 在 run() 中发射但整个代码库无连接者，为死代码。批次 106 审计确认结论正确。O-01~O-24 全部仍为 Open，FX-01~FX-10 全部仍为 Fixed，FP-01~FP-08 全部仍为误报。
 - **Files Modified**: reports/auto/20260712_0440_batch107.md, docs/TASK_LOG.md
 
+## 2026-07-12 04:58
+
+- **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
+- **Outcome**: 批次 108 扫描饱和，0 项新发现。对 15 个扫描方向（QTimer/QThread/subprocess/open()/pyqtSignal/DUP-B/bare except/daemon/config merge/recursion/DirectConnection/write atomic/closeEvent/BlockingQueuedConnection/mmap）进行了全量分析，所有发现均已被前序批次覆盖。`_resolve_metadata_cache_path`（line 1559）的 5 级 parent 链正确到达项目根，非功能 bug（但属于 DUP-B 模式，建议后续统一使用 get_project_root()）。`_persist_metadata_cache` 使用非原子写入（低优先级，数据可恢复）。O-01~O-24 全部仍为 Open，FX-01~FX-10 全部仍为 Fixed，FP-01~FP-08 全部仍为误报。
+- **Files Modified**: reports/auto/20260712_0458_batch108.md, docs/TASK_LOG.md
+
 ## 2026-07-12 02:10
 
 - **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
