@@ -2042,3 +2042,11 @@
 **新增发现**: SHELL-01 — AndroidRuntime.shell() 不检查 daemon 错误（与 tap/swipe/keyevent 不一致，返回空字符串误导成功）；PRTS-05 — _start_llm 不检查 "llm start" 结果，启动失败静默（用户等待 60s 超时才看到状态）
 **批次 89 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正；补充观察 TemplateBackend.__init__ 存在与 REC-03 相同的异常静默模式
 **风险**: 2 项低（1 代码质量 + 1 UX），无中高风险
+
+## 审计批次 91 — AGENT-01 `_start_agent` 就绪检查逻辑错误 + 审计批次 90
+
+**时间**: 2026-07-12 10:45
+**审计文件**: maa_end/runtime.py, touch_manager.py, pipeline_node.py, pipeline_runner.py
+**新增发现**: AGENT-01 — _start_agent 就绪检查循环在进程存活时误设 ready（sleep 后 poll 时序问题）
+**批次 90 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正
+**风险**: 1 项中（AGENT-01），无高风险
