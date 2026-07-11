@@ -2130,6 +2130,12 @@
 - **Outcome**: 批次 105 审计完成，新增 3 项发现（1 Medium / 2 Low）：RECORDER-STALE-TIMER — scripting/recorder.py 防抖定时器替换时不停止旧实例，孤儿 timer 触发时使用 lambda 捕获的 stale 文本值，且 `_pending_text` dict 为死代码（写入但零读取）。快速输入时录制脚本包含中间态错误文本。LLM-HTTP-LEAK — llm/runtime.py `_http_shutdown` 使用 `urllib.request.urlopen` 未用 `with`，HTTPResponse socket 未显式关闭。LLM-SUBPROCESS-PIPE-LEAK — llm/runtime.py `_kill_processes_on_port` 使用 `subprocess.Popen` 加 PIPE 但 wait 前不读取管道，taskkill 输出虽小但仍为反模式。代码变更确认：批次 104 仅变更 docs/report，working tree 干净。O-01~O-24 全部仍为 Open，FX-01~FX-10 全部仍为 Fixed，FP-01~FP-08 全部仍为误报。
 - **Files Modified**: reports/auto/20260712_0425_batch105.md, docs/TASK_LOG.md
 
+## 2026-07-12 04:30
+
+- **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
+- **Outcome**: 批次 106 审计完成，新增 3 项发现（1 Medium / 1 Low 用户体验 / DUP-B 3 实例）：LOCALE-NO-SIGNAL — LocaleManager.set_locale() 无 pyqtSignal 机制，全项目语言切换后所有页面 widget 不刷新，settings_page 自身也不更新，本质是架构性缺陷。I18N-HARDCODED-LABEL — main_window.py:208 和 maaend_control_page.py:1321 硬编码英文字符串未经过 i18n 框架。DUP-B-NEW — queue_state.py:29、qt_log_filter.py:59、maaend_control_page.py:1541 三处新 DUP-B 模式实例。O-14 根因确认为 LOCALE-NO-SIGNAL（非仅 settings_page 不刷新，而是全项目无通知机制）。代码变更确认：批次 105 仅变更 docs/report，working tree 干净。O-01~O-24 全部仍为 Open，FX-01~FX-10 全部仍为 Fixed，FP-01~FP-08 全部仍为误报。
+- **Files Modified**: reports/auto/20260712_0430_batch106.md, docs/TASK_LOG.md
+
 ## 2026-07-12 02:10
 
 - **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
