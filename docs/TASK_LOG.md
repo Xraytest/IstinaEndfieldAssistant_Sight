@@ -1710,3 +1710,12 @@
 - **Outcome**: 批次 68 完成。1 新发现（1 Low）+ 2 审计验证。核心发现：`tray_icon.py` 托盘菜单"退出"按钮实际不退出程序（`QApplication.quit()` 触发 `closeEvent`，但托盘可用路径 `event.ignore()` 拒绝关闭，仅隐藏窗口），导致队列状态未持久化、资源未释放、任务继续后台运行。审计验证批次 67 纯审计无误、批次 155129 AUDIT-3 PRTS04 准确。
 - **Files Modified**: reports/auto/20260711_2010_tray_quit_ux.md (新增)
 - **验证**：只读审查，未修改业务代码；关键推演依据 Qt closeEvent 拒绝关闭事件语义；交叉核对 22 份历史报告确认 NEW-LOW 为全新发现。
+
+## 2026-07-11 21:30 (AutoCodeReview·第七十二批次)
+
+- **User Request**: 完整阅读文档，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。避免执行测试，以代码逻辑分析为主体。分析后报告存放到./reports/auto/<timestamp>.md。避免重复提交之前发现的问题。严禁修改文件。
+- **Outcome**: 批次 72 完成。4 新发现（3 Low / 1 Info）+ 2 审计验证。核心发现：`_handle_gpu_monitor` 在 GPUtil 安装但无 GPU 时返回误导性"no gpu libs"消息（与同文件 `_handle_gpu_status` 的 [] 返回不一致）、`_json_dumps` 在 `istina.py` 和 `handlers.py` 完全重复定义（`handlers.py` 版本为死代码）、`_handle_config_set` 响应返回原始字符串值而非转换后值、`model download` 解析器已定义但无处理函数、`_set_taskbar_progress` 桩函数被 3 处调用。审计验证批次 71 MAA71-01/02/03 准确无误、批次 65 PRTS-01/02 准确无误。
+- **Files Modified**:
+  - `reports/auto/20260711_2130_cli_handler_ux_audit.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；交叉核对 30 份历史报告确认 CLI-01/02/03/04 和 GUI-01 为全新发现，无重复；batch 71/65 审计经代码逐行复核确认无误。
