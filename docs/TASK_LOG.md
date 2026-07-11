@@ -1088,3 +1088,21 @@
   - `reports/auto/20260711_091448.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 handlers.py/istina.py/runtime.py/android_runtime.py 当前源文件逐行核对。历史报告 140+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11（第四十批次·scripts/debug目录审计 + 批次39报告审计修正）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计 `scripts/debug/` 目录（47个调试/验证脚本），识别8项新发现（2 Critical / 1 Medium / 2 Low / 3 Info），批次39报告修正3处。
+  1. **[D01 Critical]** 7个 debug 脚本引用不存在的 `device.touch.maafw_touch_adapter` 模块——死代码，ImportError 崩溃。
+  2. **[D02 Critical]** 8个 debug 脚本引用不存在的 `_path_setup` 模块——死代码，ImportError 崩溃。
+  3. **[D03 Medium]** 5个 debug 脚本硬编码 `C:\Users\xray\Documents\...` 路径——从其他用户项目复制时未更新。
+  4. **[D04 Low]** 4个 debug 脚本中文注释乱码（UTF-8 编码问题）。
+  5. **[D05 Low]** `verify_llm.py`/`check_llm_cuda.py` 魔法数字 999 表示"全部 GPU 层"。
+  6. **[D06-D08 Info]** 路径解析不一致、无端口冲突检查、路径初始化模式不统一。
+  7. **[批次39 修正1] P01 条件非恒真**：`_handle_gpu_recommend` 逻辑正确但阈值设计不合理，降级为 Info。
+  8. **[批次39 修正2] P02 风险高估**：config_set 攻击场景需要本地访问且已有更强攻击路径，降级为 Low。
+  9. **[批次39 修正3] P06 分析过度**：`_interactive_loop` 和 `main()` 互斥执行，fd 双重关闭不可能触发。
+- **Files Modified**:
+  - `reports/auto/20260711_092407.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 debug 脚本源码 + handlers.py/istina.py 逐行核对。历史报告 150+ 条发现全部经二次验证确认准确。
