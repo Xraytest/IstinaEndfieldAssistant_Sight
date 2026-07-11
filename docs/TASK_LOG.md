@@ -2105,3 +2105,9 @@
 - **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
 - **Outcome**: 批次 100 审计完成，新增 1 项发现：TASK-LOADER-EARLY-RETURN — TaskLoader.load_task() 候选路径异常时提前 return None，后续路径未尝试。与 load_all_tasks()/load_presets() 的 continue 策略不一致。批次 99 审计确认 2 项新发现准确无需修正。本轮跨模块扫描覆盖 paths/gpu_check/annotation/element_info/runtime/adb_manager/theme_manager/task_loader/i18n，无其他新发现。
 - **Files Modified**: reports/auto/20260712_0103_batch100.md
+
+## 2026-07-12 01:23
+
+- **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
+- **Outcome**: 批次 101 审计完成，新增 3 项发现：TMPL-CATALOG-SILENT — template_backend.py catalog 加载 bare except: pass；CONFIG-SILENT — maaend_control_page.py config 读取 bare except: pass；RECOG-SILENT — recognizer.py _extract_features bare except: return {}。三处均为 BACKEND-SILENT 模式的新实例，位于不同模块/上下文。批次 100 审计确认 1 项新发现准确无需修正。本轮使用全量 Grep 扫描 `except Exception:` 模式，逐一复核排除已报告项。
+- **Files Modified**: reports/auto/20260712_0123_batch101.md
