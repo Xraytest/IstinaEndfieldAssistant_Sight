@@ -1834,14 +1834,15 @@
   - reports/MODIFICATION_REPORT_2026-07-11_btn_height_click.md
 - **验证**: `3rd-part/python/python.exe -m py_compile` 通过
 
-## 2026-07-11 21:55 (底部按钮等高 — 最终组合方案)
+## 2026-07-11 21:55 (底部按钮等高 — 渲染验证后的最终方案)
 
 - **User Request**: 偏差依然存在，修正问题
-- **Outcome**: 纯 QSS min-height/max-height: 36px 仍有偏差（Qt QSS 对 QPushButton 的 max-height 支持不可靠）。改用组合方案：QSS 追加 `min-height: 0px` 覆盖原 24px（消除与 setFixedHeight 的冲突），再用 `setFixedHeight(36)` 在 widget 级锁定 min=max=36。QSS 让步 + widget 锁定，两按钮绝对等高。报告追加"方法改进二"。
+- **Outcome**: 前两次方案（纯 setFixedHeight / QSS min=0 + setFixedHeight）均有偏差。根因：QSS `min-height` 是 **content-box** 尺寸（不含 padding/border），而 `setFixedHeight` 是总高度。QSS `min-height: 0px` 把 widget minimumHeight 压到 0，但 sizeHint=21px 仍生效，按钮渲染为 21px 而非 36px。最终方案：QSS `min-height: 26px`（content-box）+ `setFixedHeight(36)`（总高度），26 + 6(padding) + 4(border) = 36px，两者单位对齐。新增 ToolBox/pyqt_renderer 离屏渲染模块验证。报告追加"方法改进三"。
 - **Files Modified**:
   - src/gui/pyqt6/pages/maaend_control_page.py
   - reports/MODIFICATION_REPORT_2026-07-11_btn_height_click.md
-- **验证**: `3rd-part/python/python.exe -m py_compile` 通过
+  - ToolBox/pyqt_renderer/ (新增渲染模块)
+- **验证**: ToolBox/pyqt_renderer 离屏渲染确认两按钮均为 617x36，高度差 0px ✓
 
 ## 2026-07-11 23:45 (批次 79 — 选项编辑器 falsy 处理 / 队列导出非原子写入 + 审计批次 78)
 

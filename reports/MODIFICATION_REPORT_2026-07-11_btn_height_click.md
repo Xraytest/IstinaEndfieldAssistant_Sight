@@ -42,8 +42,10 @@
 - **改进**：移除 `setFixedHeight(36)`，改用 QSS 层面统一高度——给两个按钮的 `setStyleSheet` 追加 `QPushButton { min-height: 36px; max-height: 36px; }`。QSS 后定义覆盖原 `min-height: 24px`，且 `max-height` 同时锁定上限，两按钮在 QSS 盒模型内绝对等高，不再与 widget 级 `setFixedHeight` 冲突。
 - **影响**：仅底部 `_stop_btn` 与 `_retry_btn`，其他按钮不受影响。
 
-## 六、方法改进二（同日，最终方案）
+## 七、方法改进三（同日，渲染验证后的最终方案）
 
-- **问题**：方法改进一用纯 QSS `min-height/max-height: 36px`，但 Qt QSS 对 QPushButton 的 `max-height` 支持不可靠（常被忽略），`min-height` 只保证下限不锁定上限，widget 仍可能被内容撑高，两按钮渲染仍有偏差。
-- **改进**：组合用法——QSS 追加 `QPushButton { min-height: 0px; }` 把原 `min-height: 24px` 覆盖为 0（消除 QSS 强制最小高度与 setFixedHeight 的冲突），再用 `setFixedHeight(36)` 在 widget 级别锁定 `minimumHeight=maximumHeight=36`。QSS 不再强制更高，fixedHeight 完全生效，两按钮绝对等高 36px。
-- **要点**：单独 `setFixedHeight` 会与 QSS `min-height` 冲突（max<min 矛盾）；单独 QSS `max-height` 对 QPushButton 不可靠。两者组合（QSS 让步 + widget 锁定）是可靠方案。
+- **问题**：方法改进二的 `QPushButton { min-height: 0px; }` + `setFixedHeight(36)` 在离屏渲染下显示按钮高度仅 21px。根因：QSS `min-height: 0px` 把 widget 的 `minimumHeight` 压到 0，`setFixedHeight(36)` 设 `maximumHeight=36`，但 QSS 的 `min-height` 在 Qt 盒模型中是 **content-box** 尺寸（不含 padding/border），实际 widget 最小高度 = 0 + 6(padding) + 4(border) = 10px，而 sizeHint 是 21px，Qt 取 sizeHint 与 maximumHeight 的较小值 → 21px。
+- **根因**：QSS `min-height` 是 content-box 尺寸，`setFixedHeight` 是总高度（含 padding/border）。两者单位不同，不能直接比较。
+- **改进**：QSS `min-height` 设为 **26px**（content-box），对应总高度 = 26 + 6(padding) + 4(border) = 36px，与 `setFixedHeight(36)` 一致。两者单位对齐后，Qt 取两者较大值 → 36px，两按钮绝对等高。
+- **验证**：ToolBox/pyqt_renderer 离屏渲染确认两按钮均为 617x36，高度差 0px ✓。
+- **要点**：QSS `min-height` 是 content-box（不含 padding/border），widget 级 `setFixedHeight`/`minimumHeight` 是总高度。组合使用时必须换算：`QSS min-height = setFixedHeight - padding上下 - border上下`。
