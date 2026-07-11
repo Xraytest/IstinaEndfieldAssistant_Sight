@@ -1435,3 +1435,21 @@
   - `reports/auto/20260711_1445_code.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析经 7 个源文件当前代码逐行核对。历史报告 210+ 条发现全部经二次验证确认准确。
+
+## 2026-07-11 15:00 (AutoCodeReview 第五十批次·PRTS智能页/OCR后端深挖 + 既往报告审计纠错)
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计此前未深度审查的 `prts_full_intelligence_page.py`（PRTS 全智能 GUI 页）和 `ocr_backend.py`（OCR 后端），识别 6 项新发现（1 Medium / 2 Low / 3 Info）。对批次 45-49 共 5 份报告做终审审计，识别 5 项审计修正（AUDIT-1~5）。
+  1. **[PRTS01 Medium]** `prts_full_intelligence_page.py:267-271` `_append_chat` 未转义 HTML，LLM 输出可注入富文本渲染——与 log_page.py 的 `html.escape` 修复形成对比。
+  2. **[PRTS02 Low]** `prts_full_intelligence_page.py:96-100` 硬编码横幅样式（hex 颜色）与暗色主题冲突。
+  3. **[PRTS03 Low]** `prts_full_intelligence_page.py:251-265` `_attach_image` 无文件大小限制，大图可导致内存累积。
+  4. **[PRTS04 Info]** `prts_full_intelligence_page.py:165` `commandFinished` 信号连接后未断开。
+  5. **[OCR01b Medium]** `ocr_backend.py:142` `_run_maafw_ocr` box 解包无长度校验——与 batch 47 OCR-01 同模式但不同代码路径。
+  6. **[OCR02 Low]** `ocr_backend.py:264` 角点格式检测逻辑可误分类小框。
+  7. **[AUDIT-1]** 批次 49 GEO01 应降级为 Info（死代码中的理论缺陷）。
+  8. **[AUDIT-2]** 批次 49 GEO02 影响面评估正确但应标注"当前不触发"。
+  9. **[AUDIT-3~5]** DEVICE01/PIPENODE01-02 验证成立；LLM01 报告写作风格应改进。
+- **Files Modified**:
+  - `reports/auto/20260711_1500_prts_ocr.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析经 2 个源文件当前代码逐行核对。历史报告 220+ 条发现全部经二次验证确认准确。
