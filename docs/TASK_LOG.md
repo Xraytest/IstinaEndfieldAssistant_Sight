@@ -976,6 +976,27 @@
   - `docs/TASK_LOG.md`（本文件）
 - **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 100+ 条发现全部经二次验证确认准确，零新增修正。
 
+## 2026-07-11（第三十五批次·增量代码审计·GUI主题/脚本录制/图标系统）
+
+- **User Request**: 完整阅读文档明析需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议。完成报告编写后审计之前的报告，寻找错误或不必要的建议。以代码逻辑分析为主体，分析后报告存放到 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 增量审计批次34未覆盖区域（GUI主题/样式系统、脚本录制回放、图标系统、动画组件、国际化、状态持久化），识别 12 项新发现（3 Medium / 5 Low / 4 Info），历史报告零修正。
+  1. **[K01 Medium]** `animations.py:25-36` `AnimatedButton._bg_opacity` 使用 Python `property()` 模拟 Qt 属性，`QPropertyAnimation` 无法驱动——按钮悬停动画完全失效。
+  2. **[K02 Medium]** `player.py:101-104` `_schedule_next` 创建 QTimer 但不清理旧 timer——`stop()` 可能无法阻止 pending 的回调，播放已停止后仍可能继续执行动作。
+  3. **[K03 Medium]** `recorder.py:128-139` `_should_skip` 对 QLineEdit/QComboBox 跳过逻辑矛盾——点击输入框不录制但文本变更录制，回放可能丢失聚焦步骤。
+  4. **[K04 Low]** `player.py:152` `_do_click` 坐标双重映射（mapToGlobal→mapFromGlobal）相互抵消，代码意图不清晰。
+  5. **[K05 Low]** `icons.py:259-333` `get_status_icon` 忽略 size 参数，工厂函数使用硬编码 size=4 和 size=16，高 DPI 缩放模糊。
+  6. **[K06 Low]** `widget_styles.py:49-60` `BLUE_STYLE` 重复定义两次，内容完全相同。
+  7. **[K07 Low]** `models.py:40-47` `Script.from_dict` 无字段验证，缺失 `name` 导致保存为 `.json` 空文件名。
+  8. **[K08 Low]** `icons.py:265` 图标缓存 `_cache` 无容量上限，主题切换后旧颜色图标不刷新。
+  9. **[K09 Info]** `icons.py:20-29` `_pixmap_from_path` 无 painter.isActive() 检查。
+  10. **[K10 Info]** `player.py:88` `is_playing` 在最后一个动作执行后、`_on_finished` 之前返回 False，状态边界不准确。
+  11. **[K11 Info]** `i18n/__init__.py:87-95` `LocaleManager` 单例非线程安全（项目中第五个同类问题）。
+  12. **[K12 Info]** `recorder.py:176-183` `stop()` 调用 `_text_timers.clear()` 但不 stop pending 的 QTimer。
+- **Files Modified**:
+  - `reports/auto/20260711_083819.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**：只读审查，未修改业务代码；所有分析均经当前 `main` 分支源文件逐行核对。历史报告 110+ 条发现全部经二次验证确认准确，零新增修正。
+
 ## 2026-07-11（第三十二批次·并发补录·审计纠错专项 · 0804.md）
 
 - **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给修改建议；完成后审计之前的报告，寻找错误或不必要的建议，深入写入当前批次报告；避免执行测试、避免重复既往问题。
