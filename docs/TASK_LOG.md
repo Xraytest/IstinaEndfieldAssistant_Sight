@@ -1958,3 +1958,16 @@
   - eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 通过（android_runtime.py + main_window.py）；json.load 校验通过（zh_CN.json + en_US.json）；pytest 181 passed / 5 skipped / 1 failed（	est_config_get_set_works 为环境权限问题，非本次引入）。
+
+## 2026-07-12 08:45 (AutoCodeReview 批次84·增量审查·runtime.save_config/VLM帧编码/CLI崩溃计数 + 批次83审计)
+
+- **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给出修改建议；完成后审计既往报告（批次 83），指出错误或不必要的建议；以代码逻辑分析为主（不执行测试），报告存放 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 审计 `runtime.py`、`vlm_walk_navigator.py`、`cli_bridge.py`、`template_backend.py`，识别 3 项新发现（2 Medium / 1 Low），并审计批次 83。
+  1. **[RUNTIME-03 Medium]** `runtime.py:506-510` `save_config` 仍用非原子 `open().write()`，崩溃导致配置截断损坏。项目内 `settings_page.py` 和 `queue_state.py` 已采用 `tempfile.mkstemp + os.replace` 原子写入，`runtime.py` 未跟进。
+  2. **[VLM-03 Medium]** `vlm_walk_navigator.py:331-333` `_frame_to_base64` 用 `_, buf = cv2.imencode(".png", frame)` 丢弃返回值，O-22 仍未修复。imencode 失败时 buf=None，base64.b64encode(None) 崩溃。
+  3. **[CLI-02 Low]** `cli_bridge.py:229-231` 交互模式正常退出时不重置 `_crash_count`，跨会话累积导致 _max_crashes 容忍度被"预扣减"。
+  4. **审计批次 83**：MAAEND-01 和 RUNTIME-02 全部结论经源码逐行复核确认准确，无需修正。
+- **Files Modified**:
+  - `reports/auto/20260712_0845_batch84_runtime_save_vlm_frame.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**: 只读分析，未修改业务代码；关键发现经对应源文件逐行核对。
