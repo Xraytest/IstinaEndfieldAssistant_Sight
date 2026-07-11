@@ -14,6 +14,7 @@ import secrets
 import socket
 import subprocess
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -62,8 +63,9 @@ class _ScrcpySession:
         self._device_name: Optional[str] = None
         self._frame_count = 0
         self._socket_ready = threading.Event()
+        self._last_frame_ts: float = 0.0
 
-    def start(self, serial: str, jar_path: str, max_size: int = 1280, bit_rate: int = 8000000) -> None:
+    def start(self, serial: str, jar_path: str, max_size: int = 1280, bit_rate: int = 8000000, wait_first_frame: bool = True) -> None:
         if self._thread is not None:
             if self._thread.is_alive():
                 return
@@ -78,6 +80,8 @@ class _ScrcpySession:
             daemon=True,
         )
         self._thread.start()
+        if not wait_first_frame:
+            return
         import time
         # H-01: 首帧计时从 socket 建立成功起算，而非线程启动；总超时放大到 15s
         self._socket_ready.wait(timeout=10.0)
@@ -100,6 +104,7 @@ class _ScrcpySession:
         with self._lock:
             if self._latest_frame is None:
                 return None
+            self._last_frame_ts = time.time()
             return self._latest_frame
 
     def _run(self, jar_path: str, max_size: int, bit_rate: int) -> None:
@@ -270,6 +275,10 @@ class _ScrcpySession:
 
             try:
                 while not self._stop_event.is_set():
+                    # KEEPALIVE-01: 帧超时检测；若超过 10s 未收到新帧，视为通道异常，主动退出以便重建
+                    if self._last_frame_ts and (time.time() - self._last_frame_ts) > 10.0:
+                        self._logger.warning("scrcpy 帧接收超时，准备重建会话")
+                        break
                     header = fileobj.read(12)
                     if len(header) < 12:
                         break
@@ -303,6 +312,7 @@ class _ScrcpySession:
                             img = frame.to_ndarray(format="bgr24")
                             with self._lock:
                                 self._latest_frame = img
+                                self._last_frame_ts = time.time()
                     except Exception:
                         pass
             finally:
@@ -502,14 +512,21 @@ class _Daemon:
                     output = self._adb_manager.version()
                     return {"result": output}
                 if method == "startScrcpy":
+                    if self._scrcpy_session is not None:
+                        thread = getattr(self._scrcpy_session, "_thread", None)
+                        if thread is not None and not thread.is_alive():
+                            self._scrcpy_session = None
                     if self._scrcpy_session is None:
                         self._scrcpy_session = _ScrcpySession(self._adb_manager, self._logger)
-                    self._scrcpy_session.start(
-                        serial=params.get("serial", self._serial),
-                        jar_path=self._scrcpy_jar_path,
-                        max_size=int(params.get("maxSize", 1280)),
-                        bit_rate=int(params.get("bitRate", 8000000)),
-                    )
+                    try:
+                        self._scrcpy_session.start(
+                            serial=params.get("serial", self._serial),
+                            jar_path=self._scrcpy_jar_path,
+                            max_size=int(params.get("maxSize", 1280)),
+                            bit_rate=int(params.get("bitRate", 8000000)),
+                        )
+                    except Exception as exc:
+                        return {"error": str(exc)}
                     return {"result": True}
                 if method == "stopScrcpy":
                     if self._scrcpy_session is not None:
@@ -519,6 +536,22 @@ class _Daemon:
                 if method == "screenshot":
                     serial = params.get("serial", self._serial)
                     frame = None
+                    if self._scrcpy_session is not None:
+                        thread = getattr(self._scrcpy_session, "_thread", None)
+                        if thread is not None and not thread.is_alive():
+                            self._scrcpy_session = None
+                    if self._scrcpy_session is None:
+                        try:
+                            self._scrcpy_session = _ScrcpySession(self._adb_manager, self._logger)
+                            self._scrcpy_session.start(
+                                serial=serial,
+                                jar_path=self._scrcpy_jar_path,
+                                max_size=1280,
+                                bit_rate=8000000,
+                                wait_first_frame=False,
+                            )
+                        except Exception:
+                            self._scrcpy_session = None
                     if self._scrcpy_session is not None:
                         frame = self._scrcpy_session.get_latest_frame()
                     if frame is not None:
