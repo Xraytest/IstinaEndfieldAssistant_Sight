@@ -2118,6 +2118,12 @@
 - **Outcome**: 批次 102 饱和声明。验证结果：`src/` 共 58 个 .py 文件全部已覆盖；全量 bare except 扫描（裸 except / except Exception / except Exception as e: pass/debug）src/ 和 scripts/ 均无新匹配；所有 DUP 反模式无新实例。代码库已达到审计饱和。批次 101/100/99/98 审计结论全部正确无需修正。未来仅在代码变更时启动新一轮审计。
 - **Files Modified**: reports/auto/20260712_0140_batch102.md, docs/TASK_LOG.md
 
+## 2026-07-12 04:19
+
+- **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
+- **Outcome**: 批次 104 审计完成，新增 2 项发现（1 Medium / 1 Info）：PRTS-WORKER-LINGER — PrtsFullIntelligencePage 的 LlmChatWorker(QThread) 启动后无生命周期管理，无 closeEvent/hideEvent 清理，切换页面时 worker 线程仍活跃，commandFinished 信号回调可能访问已销毁的 QWidget，触发 RuntimeError。与 maaend_control_page 的 TaskRunWorker 完整生命周期（stop→wait→deleteLater）形成对比。SCRIPT-DUP-B — scripting_page.py `_RECORDINGS_DIR` 硬编码 parent 链（DUP-B 模式新实例）。代码变更确认：批次 103 仅变更 docs/report，working tree 干净。O-01~O-24 全部仍为 Open，FX-01~FX-10 全部仍为 Fixed，FP-01~FP-08 全部仍为误报。bare except 饱和确认，无新匹配。
+- **Files Modified**: reports/auto/20260712_0419_batch104.md, docs/TASK_LOG.md
+
 ## 2026-07-12 02:10
 
 - **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
