@@ -2010,3 +2010,11 @@
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 通过；commit 28e5eb0 已推送。
 - **与 09:00 保活条目的关系**: 递进而非冲突。09:00 修复解决"断流后如何自动重连"（退避+重置_timestamp），本次修复解决"为何无帧"（电源唤醒+诊断可见性）。根因修复后退避逻辑极少触发，作为兜底保留。
+
+## 审计批次 87 — DEVICE-01 手动断开后自动重连仍触发 / DEVICE-03 断连时启用自动重连不启动 timer + 审计批次 86
+
+**时间**: 2026-07-12 09:45
+**审计文件**: device_settings_page.py, main_window.py, handlers.py, android_runtime.py
+**新增发现**: DEVICE-01 — device_settings_page.py disconnect 成功后 timer 仍启动（用户意图矛盾）；DEVICE-03 — _on_auto_reconnect_toggled 断连状态下启用自动重连不启动 timer（功能失效）
+**批次 86 审计**: 全部 2 项新发现经逐项源码复核确认准确，无需修正
+**风险**: 2 项低（UX），无中高风险
