@@ -1914,3 +1914,18 @@
   - `reports/auto/20260712_0740_batch81_llm_maa_cleanup.md`（新增）
   - `docs/TASK_LOG.md`（本文件）
 - **验证**: 只读分析，未修改业务代码；关键发现经 `llm/runtime.py:354-368` 和 `maa_end/runtime.py:485-493` 源码逐行核对。
+
+## 2026-07-12 08:00 (AutoCodeReview 批次82·增量审查·设备层异常处理一致性)
+
+- **User Request**: 完整阅读文档明析需求与边界；基于边界寻找代码漏洞与错误并给出修改建议；完成后审计既往报告（批次 81），指出错误或不必要的建议；以代码逻辑分析为主（不执行测试），报告存放 `./reports/auto/<timestamp>.md`，避免重复既往问题。
+- **Outcome**: 审计设备层（`touch_manager.py`、`recovery.py`）、LLM 客户端（`client.py`）、GUI 设置页（`settings_page.py`）和统一运行时（`runtime.py`），识别 5 项新发现（5 Low），并审计批次 81。
+  1. **[TOUCH-01 Low]** `TouchManager.back()` 无异常处理，与 `tap()`/`swipe()`/`long_press()` 的 try/except+log+raise 模式不一致。
+  2. **[REC-01 Low]** `AndroidAppRestartPolicy._clear_canvas` 3 个 ADB 命令连续 `except Exception: pass`，恢复步骤完整性不可见。
+  3. **[CLI-01 Low]** `LlmClient.health_check()` 吞掉所有异常返回 `False`，启动轮询中失败原因不可区分。
+  4. **[SET-01 Low]** `SettingsPage._read_config` 仅捕获 `JSONDecodeError`，`PermissionError`/`OSError` 未处理导致设置页崩溃。
+  5. **[RUNTIME-01 Low]** `IstinaRuntime.connect()` 中 `stop_scrcpy` 清理异常静默吞掉，残留会话不可见。
+  6. **审计批次 81**：LLM-02 和 MAA-08 全部结论经源码逐行复核确认准确，无需修正。
+- **Files Modified**:
+  - `reports/auto/20260712_0800_batch82_device_layer_consistency.md`（新增）
+  - `docs/TASK_LOG.md`（本文件）
+- **验证**: 只读分析，未修改业务代码；关键发现经对应源文件逐行核对。
