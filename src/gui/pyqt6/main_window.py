@@ -43,7 +43,6 @@ locale = get_locale_manager()
 # 预览状态色值（与 theme_manager.py 中 COLORS 保持一致）
 _STATUS_COLOR_LIVE = "#19d1ff"          # primary
 _STATUS_COLOR_IDLE = "#8a8ea4"         # text_secondary
-_STATUS_COLOR_RECONNECTING = "#f08c00"  # warning
 _STATUS_COLOR_LOST = "#e03131"          # danger
 
 
@@ -348,25 +347,23 @@ class MainWindow(QMainWindow):
         if command.startswith("system connect"):
             if result.get("status") == "success":
                 self._maaend_page.set_connected(True)
-                if self._preview_widget is not None:
-                    self._preview_widget.set_status(locale.tr("preview_status_reconnecting", "重连中"), _STATUS_COLOR_RECONNECTING)
+                # 不再显示"重连中"，直接刷新预览；刷新结果决定显示"实时"或"已断开"
                 QTimer.singleShot(0, self._refresh_preview)
             else:
                 self._maaend_page.set_connected(False)
                 self._maaend_page.set_auto_connect_attempted()
                 if self._preview_widget is not None:
-                    self._preview_widget.set_status(locale.tr("preview_status_disconnected", "未连接"), _STATUS_COLOR_IDLE)
+                    self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
         elif command.startswith("system disconnect"):
             self._maaend_page.set_connected(False)
             if self._preview_widget is not None:
-                self._preview_widget.set_status(locale.tr("preview_status_disconnected", "未连接"), _STATUS_COLOR_IDLE)
+                self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
     def _on_execution_state_changed(self, is_executing: bool) -> None:
         self._is_executing = is_executing
         if is_executing:
             self._preview_timer.stop()
-            if self._preview_widget is not None:
-                self._preview_widget.set_status(locale.tr("preview_status_executing", "执行中"), _STATUS_COLOR_IDLE)
+            # 不再显示"执行中"状态，预览状态只分为"实时"和"已断开"
             self._title_animation_timer.start(500)
             QApplication.setOverrideCursor(QCursor(Qt.CursorShape.BusyCursor))
             self._set_taskbar_progress(0)
@@ -398,27 +395,26 @@ class MainWindow(QMainWindow):
             return
         if not self._maaend_page._connected:
             self._logger.debug(LogCategory.GUI, "预览退出: _connected is False")
-            self._preview_widget.set_status(locale.tr("preview_status_disconnected", "未连接"), _STATUS_COLOR_IDLE)
+            self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
             return
         if self._maaend_page._is_executing:
+            # 任务执行中不刷新预览，也不改变状态角标（保留上一次的"实时"或"已断开"）
             self._logger.debug(LogCategory.GUI, "预览退出: 任务执行中")
-            self._preview_widget.set_status(locale.tr("preview_status_executing", "执行中"), _STATUS_COLOR_IDLE)
             return
         self._logger.debug(LogCategory.GUI, "开始同步执行 screenshot 命令")
         result = self._maaend_page._sync_execute("screenshot", timeout_ms=5000)
         self._logger.debug(LogCategory.GUI, "screenshot 命令完成", result_type=type(result).__name__, result_status=result.get("status") if isinstance(result, dict) else None)
         if not result or result.get("status") != "success":
             self._logger.debug(LogCategory.GUI, "预览刷新失败", result=result)
-            # 连续截图失败时反写连接状态，避免 GUI 显示"已连接"但预览空白且无提示
+            # 连续截图失败达到阈值才标记"已断开"，避免单次抖动导致状态频繁切换
             self._preview_fail_count = getattr(self, "_preview_fail_count", 0) + 1
-            if self._preview_fail_count >= 5:
+            if self._preview_fail_count >= 3:
                 self._logger.warning(LogCategory.GUI, "连续截图失败达到阈值，标记连接为断开", fail_count=self._preview_fail_count)
-                self._preview_widget.set_status(locale.tr("preview_status_lost", "已断开"), _STATUS_COLOR_LOST)
+                self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
                 self._maaend_page.set_connected(False)
                 self._maaend_page._append_log("系统", locale.tr("preview_lost_connection", "Preview unavailable: device connection may be lost."))
                 self._preview_fail_count = 0
-            else:
-                self._preview_widget.set_status(locale.tr("preview_status_reconnecting", "重连中"), _STATUS_COLOR_RECONNECTING)
+            # 未达阈值时不改变状态角标，保留上一次的"实时"显示，下一次刷新继续尝试
             return
         # 截图成功，重置失败计数
         self._preview_fail_count = 0
