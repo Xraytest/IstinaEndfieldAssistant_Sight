@@ -246,15 +246,17 @@ class _ScrcpySession:
         except Exception as exc:
             self._logger.exception(f"scrcpy server 启动失败 error={exc}")
 
-    def _recv_exact(self, fileobj, n: int) -> Optional[bytes]:
-        """从 fileobj 精确读取 n 字节，处理 partial read 和超时。
+    def _recv_exact(self, sock, n: int) -> Optional[bytes]:
+        """从 sock 精确读取 n 字节，处理 partial read 和超时。
 
-        socket.makefile("rb", buffering=0) 的 read(n) 仅做一次 recv()，对大帧
-        （数十 KB）常返回 < n 字节——这是 TCP 正常的 partial read，不是 EOF。
-        原代码把 partial read 误判为 socket 断开，导致重连死循环。
+        直接使用 sock.recv() 而非 fileobj.read()。原因：socket.makefile("rb",
+        buffering=0) 创建的 file object 在 socket.timeout 后进入 poisoned 状态，
+        后续 read 抛出 OSError("cannot read from timed out object") 而非
+        socket.timeout，导致 _recv_exact 无法捕获超时、会话被反复重建。
 
-        本方法循环读取直到收齐 n 字节。socket.timeout 时检查 server 进程：
-        存活则继续等待（编码器可能因 ADB 传输争用暂时停滞），已退出则返回 None。
+        sock.recv() 始终抛出 socket.timeout，可被正确捕获。recv 返回 < n 字节
+        是 TCP 正常的 partial read（非 EOF），本方法循环读取直到收齐 n 字节。
+        socket.timeout 时检查 server 进程：存活则继续等待，已退出则返回 None。
         recv 返回空（真 EOF）也返回 None。
         """
         data = bytearray()
@@ -263,7 +265,7 @@ class _ScrcpySession:
             if self._stop_event.is_set():
                 return None
             try:
-                chunk = fileobj.read(n - len(data))
+                chunk = sock.recv(n - len(data))
             except socket.timeout:
                 if self._server_proc is not None and self._server_proc.poll() is not None:
                     self._logger.warning(
@@ -307,17 +309,18 @@ class _ScrcpySession:
                 time.sleep(0.2)
                 continue
 
-            fileobj = sock.makefile("rb", buffering=0)
+            # FILEOBJ-01: 不使用 sock.makefile() —— makefile 创建的 file object
+            # 在 socket.timeout 后进入 poisoned 状态，后续 read 抛出
+            # OSError("cannot read from timed out object") 而非 socket.timeout，
+            # 导致 _recv_exact 无法捕获超时。直接用 sock.recv() 避免 this。
             try:
-                dummy = fileobj.read(1)
+                dummy = sock.recv(1)
             except socket.timeout:
-                fileobj.close()
                 sock.close()
                 time.sleep(0.2)
                 continue
 
             if not dummy or dummy != b"\x00":
-                fileobj.close()
                 sock.close()
                 time.sleep(0.2)
                 continue
@@ -325,17 +328,25 @@ class _ScrcpySession:
             sock.settimeout(30.0)
             sock.sendall(b"\x00")
 
-            name_raw = fileobj.read(64)
+            try:
+                name_raw = sock.recv(64)
+            except socket.timeout:
+                sock.close()
+                time.sleep(0.2)
+                continue
             if len(name_raw) < 64:
-                fileobj.close()
                 sock.close()
                 time.sleep(0.2)
                 continue
             self._device_name = name_raw.rstrip(b"\x00").decode("utf-8", errors="replace")
 
-            video_header = fileobj.read(12)
+            try:
+                video_header = sock.recv(12)
+            except socket.timeout:
+                sock.close()
+                time.sleep(0.2)
+                continue
             if len(video_header) < 12:
-                fileobj.close()
                 sock.close()
                 time.sleep(0.2)
                 continue
@@ -344,7 +355,6 @@ class _ScrcpySession:
             h = struct.unpack(">I", video_header[8:12])[0]
 
             if codec_id not in (0x68323634, 0x68323635, 0x00617631):
-                fileobj.close()
                 sock.close()
                 return
 
@@ -378,7 +388,7 @@ class _ScrcpySession:
                     if self._server_proc is not None and self._server_proc.poll() is not None:
                         self._logger.warning("scrcpy server 进程已退出", returncode=self._server_proc.returncode, frames_received=frame_counter)
                         break
-                    header = self._recv_exact(fileobj, 12)
+                    header = self._recv_exact(sock, 12)
                     if header is None:
                         break
 
@@ -389,7 +399,7 @@ class _ScrcpySession:
                         self._logger.warning("scrcpy 异常包大小", pkt_size=pkt_size, pts_flags=hex(pts_flags))
                         continue
 
-                    data = self._recv_exact(fileobj, pkt_size)
+                    data = self._recv_exact(sock, pkt_size)
                     if data is None:
                         break
 
@@ -424,11 +434,7 @@ class _ScrcpySession:
                     except Exception as e:
                         self._logger.warning("scrcpy 帧解码失败", error=str(e), pkt_size=pkt_size, is_keyframe=is_keyframe)
             finally:
-                # 确保正常退出或异常时释放 socket 和 fileobj，避免文件描述符泄漏
-                try:
-                    fileobj.close()
-                except Exception:
-                    pass
+                # 确保正常退出或异常时释放 socket，避免文件描述符泄漏
                 try:
                     sock.close()
                 except Exception:
