@@ -199,10 +199,19 @@ class _ScrcpySession:
             pass
 
     def _start_server(self, max_size: int, bit_rate: int) -> None:
-        try:
-            self._host_shell("pkill -f com.genymobile.scrcpy.Server || true")
-        except Exception:
-            pass
+        # PKILL-01: 不再使用 `pkill -f com.genymobile.scrcpy.Server`，因为该命令
+        # 会杀死设备上所有 scrcpy server 进程，包括其他会话（如预览通道）的 server。
+        # 改为只终止本会话管理的上一个 server 进程，避免跨会话干扰。
+        if self._server_proc is not None and self._server_proc.poll() is None:
+            try:
+                self._server_proc.terminate()
+                try:
+                    self._server_proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    self._server_proc.kill()
+            except Exception:
+                pass
+        self._server_proc = None
         self._ensure_device_online()
         server_cmd = (
             f"CLASSPATH=/data/local/tmp/scrcpy-server.jar "
@@ -210,7 +219,7 @@ class _ScrcpySession:
             "2.7 tunnel_forward=true audio=false "
             "video=true control=false show_touches=false stay_awake=true "
             "power_on=true send_dummy_byte=true send_device_meta=true "
-            "send_frame_meta=true "
+            "send_frame_meta=true cleanup=false "
             f"max_size={max_size} video_bit_rate={bit_rate} "
             # ENCODER-01: 模拟器软件编码器 c2.android.avc.encoder 不实现
             # KEY_REPEAT_PREVIOUS_FRAME_AFTER，静态画面下仅按 KEY_I_FRAME_INTERVAL
@@ -322,7 +331,14 @@ class _ScrcpySession:
                         break
                     header = fileobj.read(12)
                     if len(header) < 12:
-                        self._logger.warning("scrcpy socket 断开（header 不完整）", frames_received=frame_counter)
+                        # DIAG-01: 记录 server 进程状态，区分"server 被杀"vs"ADB 隧道断开"
+                        _srv_alive = self._server_proc is not None and self._server_proc.poll() is None
+                        _srv_rc = self._server_proc.returncode if self._server_proc is not None and self._server_proc.poll() is not None else None
+                        self._logger.warning(
+                            "scrcpy socket 断开（header 不完整）",
+                            frames_received=frame_counter,
+                            server_alive=_srv_alive, server_returncode=_srv_rc,
+                        )
                         break
 
                     pts_flags = struct.unpack(">Q", header[:8])[0]
@@ -334,7 +350,14 @@ class _ScrcpySession:
 
                     data = fileobj.read(pkt_size)
                     if len(data) < pkt_size:
-                        self._logger.warning("scrcpy socket 断开（data 不完整）", expected=pkt_size, got=len(data), frames_received=frame_counter)
+                        # DIAG-01: 记录 server 进程状态，区分"server 被杀"vs"ADB 隧道断开"
+                        _srv_alive = self._server_proc is not None and self._server_proc.poll() is None
+                        _srv_rc = self._server_proc.returncode if self._server_proc is not None and self._server_proc.poll() is not None else None
+                        self._logger.warning(
+                            "scrcpy socket 断开（data 不完整）",
+                            expected=pkt_size, got=len(data), frames_received=frame_counter,
+                            server_alive=_srv_alive, server_returncode=_srv_rc,
+                        )
                         break
 
                     is_config = bool(pts_flags & (1 << 63))
@@ -405,13 +428,10 @@ class _ScrcpySession:
             if self._server_proc is not None:
                 try:
                     self._server_proc.kill()
+                    self._server_proc.wait(timeout=2)
                 except Exception:
                     pass
                 self._server_proc = None
-        except Exception:
-            pass
-        try:
-            self._host_shell("pkill -f com.genymobile.scrcpy.Server || true")
         except Exception:
             pass
 
