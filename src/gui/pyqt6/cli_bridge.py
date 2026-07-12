@@ -215,16 +215,17 @@ class CLIBridge(QObject):
             self.processCrashed.emit(self._crash_count)
         if self._interactive:
             if crashed:
+                # CLIIBRIDGE-02: 崩溃时立即通知调用方命令失败，避免 _sync_execute 等满 300s 超时。
+                # 旧实现仅在崩溃达上限时 emit commandError，未达上限时静默重启重试，
+                # 导致 _sync_execute 既收不到 commandFinished 也收不到 commandError。
+                self.commandError.emit(
+                    " ".join(self._last_command),
+                    locale.tr("crash_dialog_msg", "CLI subprocess crashed {count} times consecutively.").format(count=self._crash_count),
+                )
                 if self._crash_count < self._max_crashes and not self._restart_pending:
                     self._restart_pending = True
-                    if self._current_command:
-                        self._pending_commands.insert(0, list(self._current_command))
-                    QTimer.singleShot(1000, self._restart_last_command)
+                    QTimer.singleShot(1000, self._restart_process_only)
                 else:
-                    self.commandError.emit(
-                        " ".join(self._last_command),
-                        locale.tr("crash_dialog_msg", "CLI subprocess crashed {count} times consecutively.").format(count=self._crash_count),
-                    )
                     self._show_crash_dialog()
             else:
                 self._logger.info(LogCategory.GUI, "CLI 交互进程正常退出", exit_code=exit_code)
@@ -267,6 +268,19 @@ class CLIBridge(QObject):
             self._pending_commands.insert(0, list(self._current_command))
         self._finalize_current_process()
         self._start_next_process()
+
+    def _restart_process_only(self) -> None:
+        """重启 CLI 进程处理后续待执行命令（不重试崩溃的命令）。"""
+        self._restart_pending = False
+        self._finalize_current_process()
+        if self._pending_commands:
+            self._start_interactive_process()
+
+    def clear_pending(self) -> None:
+        """清空待执行命令队列，用于停止队列执行。"""
+        count = len(self._pending_commands)
+        self._pending_commands.clear()
+        self._logger.info(LogCategory.GUI, "已清空待执行命令队列", cleared=count)
 
     def _handle_process_error(self, message: str) -> None:
         self._logger.error(LogCategory.MAIN, "CLI 进程错误", error=message)

@@ -2372,3 +2372,19 @@
   - reports/incidents/2026-07-12_queue_stop_and_no_effect.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: `py_compile` 通过；逻辑验证三项修改相互独立、可单独回退；`_sync_execute` 在预览/自动连接路径（主线程、`_worker` 为 None）不受停止检查影响。
+
+## 2026-07-12 23:10 (CLI 崩溃静默重启导致队列卡死 — CLIIBRIDGE-02)
+
+- **User Request**: "相同的问题，没有解决" — 上一轮修复（commit 2b2b415）无效，队列执行仍无效果、停止仍无效
+- **根因推翻**: 上一轮假设 `_sync_execute` 不连接 `commandError` 是根因。实际证据（logs/main.log）显示 CLI 子进程在 task run 期间崩溃（exit_code=-1073741510），而 `cli_bridge.py` interactive 模式崩溃路径在崩溃次数未达上限时**不 emit commandError 也不 emit commandFinished**，只安排 1s 后静默重启重试。因此上一轮连接 `commandError` 无效——崩溃路径根本不 emit 它。`_sync_execute` 等满 300s 超时，期间设备无变化。
+- **Outcome**: 基于运行时日志证据定位真正根因并修复：
+  1. **CLIIBRIDGE-02**（cli_bridge.py `_on_finished`）：interactive 模式崩溃时立即 emit `commandError`（不再静默重启重试），改用 `_restart_process_only` 只重启进程处理后续命令（不重排队崩溃的命令）。崩溃重试职责转移给 GUI 的 `_retry_failed` 机制，更可控。
+  2. **停止不清空队列**（maaend_control_page.py `_stop_execution`）：新增 `self._bridge.clear_pending()` 清空待执行命令队列，避免停止后 CLI 继续执行后续任务。旧代码崩溃时 `insert(0, crashed_cmd)` 重排队，停止后仍执行。
+  3. **诊断日志**（`_sync_execute`）：在 `_on_error`/`_check_stop`/结束点加 info 级别日志，记录退出原因（error/stop/timeout/finished），便于运行时验证。
+- **CLI 崩溃根因**: exit_code=-1073741510 (0xC000013A) 发生在 scrcpy 重建会话期间，与 project_memory 记录的"scrcpy + MaaEnd screencap 并发竞争"相关。本次不修 runtime 层崩溃，仅确保 GUI 正确处理崩溃（不卡死、可停止）。
+- **Files Modified**:
+  - src/gui/pyqt6/cli_bridge.py（`_on_finished` 崩溃立即 emit + 新增 `_restart_process_only` + `clear_pending`）
+  - src/gui/pyqt6/pages/maaend_control_page.py（`_stop_execution` 调用 `clear_pending` + `_sync_execute` 诊断日志）
+  - reports/incidents/2026-07-12_cli_crash_silent_restart.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: `py_compile` 通过。待用户运行 GUI 验证：启动队列执行，观察 logs/main.log 中 `_sync_execute 收到 commandError` 或 `_sync_execute 检测到停止标志` 日志。

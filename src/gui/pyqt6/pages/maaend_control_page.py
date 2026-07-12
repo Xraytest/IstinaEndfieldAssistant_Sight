@@ -392,6 +392,7 @@ class MaaEndControlPage(QWidget):
             nonlocal result
             # CLI 崩溃或业务错误时立即退出，避免等满超时（300s）才返回
             if cmd.split()[: len(expected)] == expected:
+                self._logger.info(LogCategory.GUI, "_sync_execute 收到 commandError", command=command, message=msg)
                 result = {"status": "error", "message": msg}
                 loop.quit()
 
@@ -406,6 +407,7 @@ class MaaEndControlPage(QWidget):
         def _check_stop():
             worker = self._worker
             if worker is not None and getattr(worker, '_stopped', False):
+                self._logger.info(LogCategory.GUI, "_sync_execute 检测到停止标志，退出等待", command=command)
                 loop.quit()
         stop_check_timer.timeout.connect(_check_stop)
         try:
@@ -426,7 +428,8 @@ class MaaEndControlPage(QWidget):
             timed_out = result is None
             self._bridge.commandFinished.disconnect(_on_finished)
             self._bridge.commandError.disconnect(_on_error)
-        self._logger.debug(LogCategory.GUI, "_sync_execute 结束", command=command, timed_out=timed_out, result_type=type(result).__name__)
+        worker_stopped = self._worker is not None and getattr(self._worker, '_stopped', False)
+        self._logger.info(LogCategory.GUI, "_sync_execute 结束", command=command, timed_out=timed_out, worker_stopped=worker_stopped, result_status=result.get("status") if isinstance(result, dict) else None)
         return result
 
     def _resolve_connect_params(self) -> Dict[str, Any]:
@@ -1870,6 +1873,8 @@ class MaaEndControlPage(QWidget):
         self._user_stopped = True
         if self._worker:
             self._worker.stop()
+        # 清空待执行命令队列，避免停止后 CLI 继续执行后续任务
+        self._bridge.clear_pending()
         self._append_log("系统", locale.tr("execution_stop_requested", "Stop requested"))
 
     def _on_execution_finished(self, success: bool):
