@@ -1,7 +1,7 @@
-# scrcpy 握手成功但无帧 — 根因诊断与修复
+# scrcpy 握手成功但无持续帧 — 根因诊断与修复
 
 > 时间：2026-07-12
-> 关联：`reports/image_keepalive_analysis.md`、`docs/TASK_LOG.md` 2026-07-12 09:00 条目
+> 关联：`docs/TASK_LOG.md` 2026-07-12 条目
 > 修改文件：`src/core/capability/device/android_runtime.py`
 
 ---
@@ -10,91 +10,99 @@
 
 ### 1.1 现象
 
-scrcpy 会话握手完整成功（dummy byte → device name 64B → video header 12B 均已收到，codec 已创建并 open），但帧读取循环中 10 秒内无任何帧数据到达，触发 KEEPALIVE-01 超时重建。上一轮修复（`_last_frame_ts` 重置 + 指数退避）只降低了重建频率，未解决"为何无帧"。
+scrcpy 会话握手完整成功（dummy byte → device name 64B → video header 12B → config packet → 首帧均正常），但首帧之后约 10-13 秒内无新帧到达，触发 KEEPALIVE-01 超时重建。会话陷入"握手→首帧→超时→重建"死循环，每 ~14 秒循环一次。
 
-### 1.2 直接原因（三个并列）
+### 1.2 直接原因
 
-| 编号 | 原因 | 代码位置 | 说明 |
-|------|------|----------|------|
-| **DIAG-01** | `_drain_pipe` 完全丢弃 server stdout/stderr | 旧 L389-401 | scrcpy-server 的启动日志、编码器错误、协议警告全部被 `pipe.read(65536)` 读后丢弃，导致**零诊断可见性**。无法判断是编码器初始化失败、屏幕关闭、还是协议不匹配。 |
-| **POWER-01** | 网络ADB下 `stay_awake=true` 无效 | `_start_server` 旧 L210 | 设备 serial 为 `192.168.1.12:16512`（网络 ADB）。scrcpy 的 `stay_awake` 依赖 USB 充电状态判断，仅在 USB 连接时生效。屏幕关闭后，Android 视频编码器（MediaCodec）不产生帧，scrcpy-server 无帧可发。 |
-| **SILENT-01** | 帧循环中所有异常/断开被静默吞掉 | 旧 L313-348 | `len(header) < 12`、`len(data) < pkt_size`、解码异常均 `break` 或 `pass` 无日志；config packet 解码失败也静默。无法区分"server 不发帧"和"发了但解码失败"。 |
+| 编号 | 原因 | 说明 |
+|------|------|------|
+| **ENCODER-01** | 模拟器软件编码器不实现 `KEY_REPEAT_PREVIOUS_FRAME_AFTER` | scrcpy 2.7 `SurfaceEncoder.createFormat()` 设置 `KEY_REPEAT_PREVIOUS_FRAME_AFTER=100000µs`（100ms），要求编码器在静态画面时每 100ms 重复上一帧。但模拟器的 `c2.android.avc.encoder` 软件编码器不实现此特性，静态画面下不产出任何帧。 |
+| **IFRAME-01** | scrcpy 默认 `KEY_I_FRAME_INTERVAL=10` 秒 | `SurfaceEncoder.DEFAULT_I_FRAME_INTERVAL = 10`，即每 10 秒才产出一个关键帧。模拟器编码器在静态画面下仅产出关键帧（不产出 P 帧），因此每 10 秒才有一次帧输出。 |
+| **TIMEOUT-01** | 客户端 keepalive 超时 = 10 秒 | `_decode_loop` 中 `sock.settimeout(10.0)` 和 `(time.time() - self._last_frame_ts) > 10.0` 恰好等于关键帧间隔，导致在下一个关键帧到达前就触发超时重建。 |
 
 ### 1.3 根本原因
 
-scrcpy 作为串流方案，server 启动后应持续产生帧。握手成功（video header 含 codec_id/width/height）证明编码器已创建，但**设备屏幕关闭时 Android SurfaceFlinger 不向编码器送画面，MediaCodec 输出队列长期为空**。叠加 `_drain_pipe` 丢弃 server 日志，使得"屏幕关闭"这一可恢复原因被掩盖为"scrcpy 通道异常"，走入无限重建死循环。
+目标设备为 Android 模拟器（非物理设备），使用软件编码器 `c2.android.avc.encoder`。该编码器存在两个问题：
 
-### 1.4 调用链
+1. **不实现 `KEY_REPEAT_PREVIOUS_FRAME_AFTER`**：scrcpy 依赖此特性在静态画面时保持帧流，但模拟器编码器忽略此参数。
+2. **静态画面下仅产出关键帧**：模拟器编码器不从 Surface 输入产出 P 帧，仅在 `KEY_I_FRAME_INTERVAL` 到期时产出关键帧。
 
+结果：scrcpy 默认 10 秒关键帧间隔 + 客户端 10 秒超时 = 死循环。
+
+> **注意**：此前一度怀疑"网络 ADB 下屏幕关闭导致 MediaCodec 无帧"。经用户确认目标为模拟器（无熄屏），此假设已被排除。
+
+### 1.4 日志证据
+
+修复前日志模式（10:37-10:42，每 ~14 秒循环）：
 ```
-_ScrcpySession._run()
-  └── _start_server(max_size, bit_rate)
-        ├── _host_shell("pkill ...")              # 清理旧 server
-        ├── _ensure_device_online()
-        ├── [旧] 无 power_on，无 keyevent wakeup   ← POWER-01：屏幕可能关闭
-        └── Popen(app_process ... scrcpy 2.7 ...)
-              └── _drain_pipe(stdout)              ← DIAG-01：输出被丢弃
-  └── _decode_loop()
-        ├── dummy byte ✓ / device name ✓ / video header ✓
-        ├── codec.open() ✓                        ← 编码器已创建
-        └── while: fileobj.read(12) → 10s 超时     ← 无帧：屏幕关闭，MediaCodec 空输出
-              └── break（旧：无日志）               ← SILENT-01
+10:37:46 scrcpy 握手成功 + 首帧接收成功
+10:38:00 scrcpy 握手成功 + 首帧接收成功  ← 14s 后超时重建
+10:38:13 scrcpy 握手成功 + 首帧接收成功  ← 13s 后超时重建
+10:38:27 scrcpy 握手成功 + 首帧接收成功  ← 14s 后超时重建
+...（持续循环）
 ```
+
+修复后日志模式（11:44:39 启动，60+ 秒无重连）：
+```
+11:44:39 scrcpy 握手成功 + config packet + 首帧接收成功
+（无后续超时/重建日志 — 会话稳定运行）
+```
+
+### 1.5 scrcpy 2.7 源码佐证
+
+`SurfaceEncoder.java` 关键代码：
+```java
+private static final int DEFAULT_I_FRAME_INTERVAL = 10; // seconds
+private static final int REPEAT_FRAME_DELAY_US = 100_000; // 100ms
+
+// createFormat():
+format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, DEFAULT_I_FRAME_INTERVAL);
+format.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, REPEAT_FRAME_DELAY_US);
+
+// encode():
+int outputBufferId = codec.dequeueOutputBuffer(bufferInfo, -1); // 无限等待
+```
+
+`dequeueOutputBuffer` 使用 `-1`（无限超时）阻塞等待编码器输出。模拟器编码器在静态画面下不产出帧，server 线程阻塞至下一个关键帧（10s），客户端在 10s 时超时断开。
 
 ---
 
 ## 2. 修改方案
 
-### 2.1 DIAG-01：`_drain_pipe` 记录 server 输出
+### 2.1 ENCODER-01：降低关键帧间隔
 
-将"读取即丢弃"改为按行读取并记录到 logger，使 scrcpy-server 的 `INFO:`/`WARN:`/`ERROR:` 日志全部可见。
-
-```python
-# 修改后
-def _drain_pipe(self, pipe) -> None:
-    buf = b""
-    try:
-        while True:
-            chunk = pipe.read(4096)
-            if not chunk:
-                break
-            buf += chunk
-            while b"\n" in buf:
-                line, buf = buf.split(b"\n", 1)
-                text = line.decode("utf-8", errors="replace").rstrip("\r")
-                if text.strip():
-                    self._logger.info("scrcpy-server: " + text)
-        # 处理尾部未换行内容
-        ...
-```
-
-### 2.2 POWER-01：`_start_server` 增加电源唤醒
-
-1. 显式添加 `power_on=true` 参数 — scrcpy 2.7 server 端调 `PowerManager.wakeUp()`，不需要 `control=true`。
-2. 启动 server 前通过 `input keyevent 224`（KEYCODE_WAKEUP）唤醒屏幕，作为双保险。
+在 scrcpy server 命令中添加 `video_codec_options=i-frame-interval:int=2`，将关键帧间隔从默认 10 秒降至 2 秒。scrcpy 的 `createFormat()` 中 codec options 在默认值之后应用，会覆盖 `KEY_I_FRAME_INTERVAL`。
 
 ```python
-# 修改后
-try:
-    self._host_shell("input keyevent 224")
-except Exception:
-    pass
 server_cmd = (
-    ... "power_on=true" ...
+    f"CLASSPATH=/data/local/tmp/scrcpy-server.jar "
+    "app_process /system/bin com.genymobile.scrcpy.Server "
+    "2.7 tunnel_forward=true audio=false "
+    "video=true control=false show_touches=false stay_awake=true "
+    "power_on=true send_dummy_byte=true send_device_meta=true "
+    "send_frame_meta=true "
+    f"max_size={max_size} video_bit_rate={bit_rate} "
+    "video_codec_options=i-frame-interval:int=2"
 )
 ```
 
-### 2.3 SILENT-01：`_decode_loop` 增加诊断日志
+效果：即使模拟器编码器仅产出关键帧，也每 2 秒一次，远小于客户端超时。
 
-在以下关键点增加日志：
-- 握手成功后：记录 device name / codec / 分辨率 / port
-- config packet 收到时：记录 size
-- 首帧收到时：记录 codec / 分辨率
-- `len(header) < 12`：记录 frames_received
-- `len(data) < pkt_size`：记录 expected / got / frames_received
-- 异常包大小：记录 pkt_size / pts_flags
-- config 解码失败：记录 error
-- 帧解码失败：记录 error / pkt_size / is_keyframe（不再 `pass` 静默）
+### 2.2 TIMEOUT-01：增加客户端超时余量
+
+将 `sock.settimeout(10.0)` 改为 `sock.settimeout(15.0)`，将 keepalive 检查从 10 秒改为 15 秒，提供充足余量。
+
+```python
+sock.settimeout(15.0)
+# ...
+if self._last_frame_ts and (time.time() - self._last_frame_ts) > 15.0:
+    self._logger.warning("scrcpy 帧接收超时，准备重建会话", ...)
+    break
+```
+
+### 2.3 移除无效的屏幕唤醒代码
+
+用户确认目标为模拟器（无熄屏），移除此前添加的 `screen_off_timeout` 和 `input keyevent 224` 调用。保留 `power_on=true`（scrcpy 原生参数，对模拟器无害）。
 
 ---
 
@@ -102,22 +110,16 @@ server_cmd = (
 
 | 组件 | 影响 | 说明 |
 |------|------|------|
-| `_drain_pipe` | 输出从丢弃改为记录 | 日志量增加（server 启动时约 5-10 行 INFO），但提供关键诊断能力。使用 4096 字节分块读取 + 按行切分，不阻塞。 |
-| `_start_server` | 增加 `input keyevent 224` + `power_on=true` | 每次启动多一次 adb shell 调用（~50ms）。`power_on=true` 是 scrcpy 2.7 原生参数，无兼容性风险。 |
-| `_decode_loop` | 增加 frame_counter / first_frame_logged 局部变量 | 仅局部变量，不影响线程安全。日志在首帧和异常路径触发，稳态不产生额外日志。 |
-| 日志系统 | 新增 `scrcpy-server:` 前缀日志 | 可被日志过滤器捕获。server 输出的 ERROR 级别内容以 INFO 记录（因为来自 stdout 合并流），但内容本身包含 ERROR 文本可检索。 |
-| `_run` 退避逻辑 | 不变 | 保留上一轮的指数退避（2s→60s），作为兜底。根因修复后退避极少触发。 |
+| `_start_server` | 新增 `video_codec_options` 参数 | scrcpy 2.7 原生支持，无兼容性风险。关键帧间隔从 10s 降至 2s，码流中关键帧占比略增，带宽轻微上升。 |
+| `_decode_loop` | 超时从 10s 增至 15s | 稳态无影响（帧流正常时不触发超时）。异常恢复时间从 10s 延长至 15s，可接受。 |
+| `_start_server` | 移除 `screen_off_timeout` / `keyevent 224` | 模拟器无熄屏，这些调用无效果。移除后每次启动减少 2 次 adb shell 调用（~100ms）。 |
 
 ---
 
 ## 4. 非期待变化
 
-1. **日志量增加**：`_drain_pipe` 现在会记录 server 的所有输出。scrcpy-server 启动时约输出 5-10 行（如 "INFO: Device: ..."），正常运行中偶尔输出。若 server 进入异常循环，日志可能刷屏。**回退策略**：可在 logger 配置中对 `scrcpy-server:` 前缀做速率限制，或降级为 DEBUG 级别。
+1. **带宽轻微增加**：关键帧间隔从 10s 降至 2s，关键帧数量增加 5 倍。但模拟器画面通常变化较小，且 `video_bit_rate=8000000` 已限制总码率，实际带宽增加有限。
 
-2. **`input keyevent 224` 在某些设备上可能唤醒锁屏**：如果设备有锁屏密码，唤醒后停在锁屏界面，scrcpy 仍能拿到帧（锁屏画面），但用户可能不期望。**回退策略**：keyevent 调用包在 try/except 中，失败不影响 server 启动；如需移除只需删 3 行。
+2. **超时恢复时间延长**：keepalive 超时从 10s 增至 15s。若通道真正断开，重建时间延长 5s。可接受，因为修复后死循环已消除，超时极少触发。
 
-3. **`power_on=true` 在不支持该参数的 scrcpy 版本上会被忽略**：scrcpy 2.7 支持，更低版本可能报 unknown option。当前 jar 为 2.7，无风险。若未来降级 jar 版本，需移除该参数。
-
-4. **首帧日志仅记录一次**：`first_frame_logged` 标志在每次 `_decode_loop` 进入时重置（局部变量），所以每次重建会话后首帧都会记录一条 INFO。这是预期行为，用于确认重建后帧流恢复。
-
-5. **帧解码失败不再静默**：以前 `except Exception: pass` 会吞掉所有解码错误，现在记录为 warning。如果存在持续性的解码问题（如码流损坏），日志中会出现多条 `scrcpy 帧解码失败` warning。这是正面变化——让问题可见而非掩盖。
+3. **`power_on=true` 对模拟器无害**：模拟器无物理屏幕电源管理，此参数为 no-op。保留以兼容未来可能的物理设备场景。

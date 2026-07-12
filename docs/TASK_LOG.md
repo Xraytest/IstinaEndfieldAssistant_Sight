@@ -2316,3 +2316,17 @@
 
 ## 2026-07-12 02:10
 - **Files Modified**: reports/auto/20260712_0210_batch103.md, docs/TASK_LOG.md
+
+## 2026-07-12 11:45 (scrcpy 死循环根因修复 — 模拟器编码器 I-frame 间隔)
+
+- **User Request**: "原理上对面是安卓模拟器，不存在熄屏的情况" — 排除 10:30 条目的屏幕关闭假设，要求找到真正的无帧根因并修复验证
+- **Outcome**: 通过分析 scrcpy 2.7 `SurfaceEncoder.java` 源码定位真正根因并修复，经运行时验证死循环消除：
+  1. **ENCODER-01**（`_start_server`）：添加 `video_codec_options=i-frame-interval:int=2`，将关键帧间隔从默认 10s 降至 2s。根因：模拟器软件编码器 `c2.android.avc.encoder` 不实现 `KEY_REPEAT_PREVIOUS_FRAME_AFTER`（100ms 重复帧），静态画面下仅按 `KEY_I_FRAME_INTERVAL`（默认 10s）产出关键帧。客户端 10s 超时恰好等于关键帧间隔，导致死循环。
+  2. **TIMEOUT-01**（`_decode_loop`）：`sock.settimeout` 和 keepalive 检查从 10s 增至 15s，提供余量。
+  3. **移除无效代码**：删除 `screen_off_timeout` 和 `input keyevent 224`（模拟器无熄屏）。**同时解决 UX-01**（批次 142 报告的 screen_off_timeout 状态泄漏问题）。
+- **根因推翻**: 10:30 条目将根因归为"网络 ADB 下屏幕关闭导致 MediaCodec 无帧"。经用户确认目标为模拟器（无熄屏），此假设排除。真正根因为模拟器软件编码器不实现帧重复特性 + 默认关键帧间隔过长。
+- **验证**: 11:44:39 启动 scrcpy 会话，60+ 秒无超时重连（修复前每 ~14s 循环一次）。commit 8f8f75c 已推送。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py
+  - reports/incidents/2026-07-12_scrcpy_no_frame_diagnosis.md（更新根因分析）
+  - docs/TASK_LOG.md（本文件）
