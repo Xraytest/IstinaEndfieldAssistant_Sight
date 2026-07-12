@@ -2590,3 +2590,22 @@
   - reports/incidents/2026-07-13_scrcpy_persistent_connection.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 三文件通过；待运行时验证 — `3rd-part/python/python.exe scripts/verify_scrcpy_persistent.py --serial <serial> --duration 120` 应显示 frame_count 持续增长、无 >15s 停滞、无"强制重建会话"日志。
+
+
+## 2026-07-13 12:30 (队列管理增强 + 修复6个任务JSON注释解析)
+
+- **User Request**: 为队列添加删除（选中的任务）按钮，任务应当允许拖动排序，允许从任务列表拖动任务加入队列。完善部分任务应当有对应选项但事实上GUI内没有能够显示（信用商店等）的任务。
+- **Outcome**:
+  1. **队列删除按钮**（maaend_control_page.py）：新增 _queue_delete_btn，实现 _queue_delete_selected() 删除当前选中行，执行期间禁用。
+  2. **队列拖拽排序**：_queue_list 启用 setDragEnabled + DragDrop 模式，重写 eventFilter 同时处理：a) 来自 _task_list 的外部拖入（_add_to_queue_at 插入到 drop 位置）；b) _queue_list 内部拖拽（_reorder_queue 重排序）。新增 _drop_row_from_event 计算目标行。
+  3. **JSON注释解析修复**（runtime.py）：load_tasks/load_presets/load_interface 原使用 json.load 无法解析上游 MaaEnd JSON 中的 // 注释。改为使用已有的 _load_json_file（先尝试原生解析，失败后剥离注释再解析）。修复后 6 个任务恢复可见：CreditShoppingN2、SeizeDeliveryJobs、DeliveryJobs、PuzzleSolver、AutoUseSpMedication、AutoEssence。
+  4. **NAME_ZH 修正**：Weapon→WeaponUpgrade（实际任务名），新增 SwitchTeam 映射。
+  5. **缓存过期检查扩展**：_is_metadata_cache_stale 现也检查 tasks/*.json（不仅 preset/），删除 cache/metadata_cache.json 确保刷新。
+  6. **i18n**：zh_CN.json + en_US.json 新增 btn_delete 键。
+- **Files Modified**:
+  - src/core/service/maa_end/runtime.py
+  - src/gui/pyqt6/pages/maaend_control_page.py
+  - src/gui/pyqt6/locales/zh_CN.json
+  - src/gui/pyqt6/locales/en_US.json
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 两文件通过；verify_locale_keys.py 键集对称（223/223）；_load_json_file 解析全部 41 个任务 JSON 文件成功；commit c894094 已推送。
