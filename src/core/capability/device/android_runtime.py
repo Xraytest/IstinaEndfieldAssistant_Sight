@@ -144,10 +144,10 @@ class _ScrcpySession:
     def _check_jar_cached(self) -> bool:
         try:
             output = self._adb_manager.run_adb(
-                ["shell", "ls /data/local/tmp/scrcpy-server.jar 2>/dev/null"],
+                ["shell", "test -f /data/local/tmp/scrcpy-server.jar && echo yes || echo no"],
                 serial=self._serial or "",
             )
-            return "scrcpy-server" in str(output)
+            return "yes" in str(output).strip()
         except Exception as exc:
             self._logger.warning("scrcpy jar 缓存检查失败", serial=self._serial, error=str(exc))
             return False
@@ -204,9 +204,12 @@ class _ScrcpySession:
         except Exception:
             pass
         self._ensure_device_online()
-        # POWER-01: 网络ADB下 stay_awake 仅USB有效，屏幕关闭时编码器不产生帧。
-        # 显式 power_on=true 让 server 调 PowerManager.wakeUp()；并补 input keyevent 224
-        # 作为双保险，确保屏幕点亮后再启动视频编码。
+        # POWER-02: 网络ADB下 stay_awake 仅USB有效，屏幕自动关闭后 MediaCodec 不产生帧。
+        # 设置 screen_off_timeout 为 30 分钟 + power_on + keyevent 224 三重保险。
+        try:
+            self._host_shell("settings put system screen_off_timeout 1800000")
+        except Exception:
+            pass
         try:
             self._host_shell("input keyevent 224")
         except Exception:
