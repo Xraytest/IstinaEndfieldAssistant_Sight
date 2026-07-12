@@ -2525,3 +2525,20 @@
   - reports/incidents/2026-07-13_preview_status_flicker.md（追加 STALE-02 + CRASH-01 分析）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 两文件通过；待 GUI 运行时验证 — 编码器停滞重建期间（~20-25s）应持续显示"● 实时"，仅超过 30s 无新帧或 CLI 崩溃时显示"已断开"。
+
+## 2026-07-13 04:50 (托盘期间运行状态保持·TRAY-01)
+
+- **User Request**: 不应该这么修改，而是设置为在托盘期间也保持与窗口相同的运行状态（scrcpy持续传输且正在执行的任务不中断）
+- **Outcome**: 用户否定 STALE-02（提高 is_stale 阈值）和 CRASH-01（标记断开+停止 reader）的修改方向。根因分析发现 CRASH-01 的 `_on_cli_crashed` handler 在 CLI 崩溃时中断运行状态（标记断开 + 停止 reader），与"保持运行状态"诉求直接冲突。CLIBridge 虽在 1s 后自动重启 CLI 进程，但不重发 `system connect`，新 CLI 空闲不连接设备。修复方案：
+  - 替换 `_on_cli_crashed`：不标记断开、不停止 reader，1.5s 后自动发起 `system connect` 重连设备
+  - 新增 `ScrcpyFrameReader.refresh()`：检测 daemon 重启（新 mmap 路径）后切换到新 mmap，实现 scrcpy 无缝恢复
+  - `_refresh_preview` 中 `is_stale` 返回 True 时先尝试 `refresh()`，仅刷新失败才显示"已断开"
+  - 恢复 `is_stale` max_age 从 30s 到 10s（不再需要阈值覆盖重建周期）
+  - 新增 `hideEvent`/`showEvent` 显式保证托盘期间 preview_timer、frame_reader、CLI 不中断
+- **Files Modified**:
+  - src/gui/pyqt6/main_window.py（替换 `_on_cli_crashed` + 新增 `_auto_reconnect_after_crash` + `_refresh_preview` 增加 `refresh()` + `max_age` 30→10s + 新增 `hideEvent`/`showEvent`）
+  - src/gui/pyqt6/scrcpy_frame_reader.py（新增 `refresh()` 方法 + `is_stale` 默认 `max_age` 30→10s + 文档更新）
+  - reports/incidents/2026-07-13_tray_state_maintenance.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 两文件通过；待 GUI 运行时验证 — CLI 崩溃后 ~8s 内自动恢复"● 实时"，无需手动 connect；托盘最小化期间预览持续更新、任务不中断。
+- **Commit**: c896f92
