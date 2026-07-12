@@ -246,6 +246,51 @@ class _ScrcpySession:
         except Exception as exc:
             self._logger.exception(f"scrcpy server 启动失败 error={exc}")
 
+    def _recv_exact(self, fileobj, n: int) -> Optional[bytes]:
+        """从 fileobj 精确读取 n 字节，处理 partial read 和超时。
+
+        socket.makefile("rb", buffering=0) 的 read(n) 仅做一次 recv()，对大帧
+        （数十 KB）常返回 < n 字节——这是 TCP 正常的 partial read，不是 EOF。
+        原代码把 partial read 误判为 socket 断开，导致重连死循环。
+
+        本方法循环读取直到收齐 n 字节。socket.timeout 时检查 server 进程：
+        存活则继续等待（编码器可能因 ADB 传输争用暂时停滞），已退出则返回 None。
+        recv 返回空（真 EOF）也返回 None。
+        """
+        data = bytearray()
+        stall_count = 0
+        while len(data) < n:
+            if self._stop_event.is_set():
+                return None
+            try:
+                chunk = fileobj.read(n - len(data))
+            except socket.timeout:
+                if self._server_proc is not None and self._server_proc.poll() is not None:
+                    self._logger.warning(
+                        "scrcpy 读取超时且 server 已退出，重建会话",
+                        bytes_read=len(data), bytes_expected=n,
+                        server_returncode=self._server_proc.returncode,
+                    )
+                    return None
+                stall_count += 1
+                if stall_count == 1:
+                    self._logger.info(
+                        "scrcpy socket 等待数据中（server 存活，不重建）",
+                        bytes_read=len(data), bytes_expected=n,
+                    )
+                continue
+            if not chunk:
+                _srv_alive = self._server_proc is not None and self._server_proc.poll() is None
+                self._logger.warning(
+                    "scrcpy socket EOF（通道关闭），重建会话",
+                    bytes_read=len(data), bytes_expected=n,
+                    server_alive=_srv_alive,
+                )
+                return None
+            data.extend(chunk)
+            stall_count = 0
+        return bytes(data)
+
     def _decode_loop(self) -> None:
         import struct
         import time
@@ -321,30 +366,20 @@ class _ScrcpySession:
                 port=self._local_port,
             )
 
-            sock.settimeout(15.0)
+            # RECV-01: socket 超时设为 5s。_recv_exact 内部捕获 socket.timeout，
+            # server 存活时继续等待，不触发重建。这消除了「大帧 partial read 被误判
+            # 为断开」和「编码器暂时停滞触发重建」两个根因导致的重连死循环。
+            sock.settimeout(5.0)
             first_frame_logged = False
             frame_counter = 0
             try:
                 while not self._stop_event.is_set():
-                    # KEEPALIVE-01: 帧超时检测；模拟器编码器可能仅在关键帧间隔(2s)产出帧，
-                    # 给 15s 余量避免误判。若超过 15s 未收到新帧，视为通道异常，主动退出以便重建
-                    if self._last_frame_ts and (time.time() - self._last_frame_ts) > 15.0:
-                        self._logger.warning("scrcpy 帧接收超时，准备重建会话", frames_received=frame_counter)
-                        break
-                    # SERVER-01: server 进程存活检测；进程退出后 socket read 会阻塞至超时，提前退出加速重建
+                    # SERVER-01: server 进程存活检测
                     if self._server_proc is not None and self._server_proc.poll() is not None:
                         self._logger.warning("scrcpy server 进程已退出", returncode=self._server_proc.returncode, frames_received=frame_counter)
                         break
-                    header = fileobj.read(12)
-                    if len(header) < 12:
-                        # DIAG-01: 记录 server 进程状态，区分"server 被杀"vs"ADB 隧道断开"
-                        _srv_alive = self._server_proc is not None and self._server_proc.poll() is None
-                        _srv_rc = self._server_proc.returncode if self._server_proc is not None and self._server_proc.poll() is not None else None
-                        self._logger.warning(
-                            "scrcpy socket 断开（header 不完整）",
-                            frames_received=frame_counter,
-                            server_alive=_srv_alive, server_returncode=_srv_rc,
-                        )
+                    header = self._recv_exact(fileobj, 12)
+                    if header is None:
                         break
 
                     pts_flags = struct.unpack(">Q", header[:8])[0]
@@ -354,16 +389,8 @@ class _ScrcpySession:
                         self._logger.warning("scrcpy 异常包大小", pkt_size=pkt_size, pts_flags=hex(pts_flags))
                         continue
 
-                    data = fileobj.read(pkt_size)
-                    if len(data) < pkt_size:
-                        # DIAG-01: 记录 server 进程状态，区分"server 被杀"vs"ADB 隧道断开"
-                        _srv_alive = self._server_proc is not None and self._server_proc.poll() is None
-                        _srv_rc = self._server_proc.returncode if self._server_proc is not None and self._server_proc.poll() is not None else None
-                        self._logger.warning(
-                            "scrcpy socket 断开（data 不完整）",
-                            expected=pkt_size, got=len(data), frames_received=frame_counter,
-                            server_alive=_srv_alive, server_returncode=_srv_rc,
-                        )
+                    data = self._recv_exact(fileobj, pkt_size)
+                    if data is None:
                         break
 
                     is_config = bool(pts_flags & (1 << 63))
