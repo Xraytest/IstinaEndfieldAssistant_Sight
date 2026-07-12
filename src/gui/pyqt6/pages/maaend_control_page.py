@@ -960,7 +960,8 @@ class MaaEndControlPage(QWidget):
             merged_options = dict(inline_options)
             merged_options.update(options)
             # name 是 argparse 位置参数，嵌入命令字符串；options 通过 params 传递
-            result = self._sync_execute(f"task run {clean_name}", {"options": merged_options}, timeout_ms=300000)
+            # timeout=90 与 CLI preset run 默认一致，避免 MaaFW 无限等待卡死 CLI 子进程
+            result = self._sync_execute(f"task run {clean_name}", {"options": merged_options, "timeout": 90}, timeout_ms=300000)
 
             ok = bool(result and result.get("status") == "success")
             self._queue_state.update_queue_item_status(idx, "success" if ok else "failed")

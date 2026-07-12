@@ -2541,4 +2541,21 @@
   - reports/incidents/2026-07-13_tray_state_maintenance.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 两文件通过；待 GUI 运行时验证 — CLI 崩溃后 ~8s 内自动恢复"● 实时"，无需手动 connect；托盘最小化期间预览持续更新、任务不中断。
-- **Commit**: c896f92
+
+## 2026-07-13 05:10 (任务 callback 误报成功·TRUTHY-01 + SKIP-01)
+
+- **User Request**: 除了启动任务其他任务的实际情况都是失败，但callback反馈成功，检查逻辑。阅读运行日志了解详细状况。阅读./MaaEnd/并重新给出进一步的分析。应用，并分析MaaEnd对第三层的处理。
+- **Outcome**: 修复 GUI 队列执行后除 AndroidOpenGame 外所有任务实际未执行但 callback 报告 success 的逻辑错误。日志证据（logs/main.log L13273-13336）：SellProduct/AutoStockStaple/AutoCollect 等任务 1s 内标记 success，但实际未执行任何游戏操作。三层根因：
+  1. **第一层·MaaEnd *Schedule 跳过设计（设计预期）**：`SellProduct.json` 等 entry 结构为 `*Schedule.next = [*ScheduleEnabled, *End]`。`ScheduleRecognition`（Go custom recognition）读取 `attach` weekday flags，全 false 时永远返回 false → 走 `*End` 跳过分支。attach 全 false 是上游模板默认值，预期由 pipeline_override 动态启用（sell-product-maintain.md 文档确认），但 GUI 未传递 weekday 选项。
+  2. **第二层·MaaFW 无 skipped 语义**：MaaStatusEnum 只有 invalid/pending/running/succeeded/failed，走到无 next 节点 = succeeded，无法区分"真正执行业务"和"走了跳过分支"。
+  3. **第三层·Python truthy bug**：`_wait_job` 用 `job.wait()` 返回值判定成功，但 `Job.wait()` 返回 `self`（Job 对象，无 `__bool__`/`__len__`，默认 truthy），导致 `if succeeded:` 永远为 True，即使 status=failed 也误报成功。15:21 CLI `preset run --timeout 90` 能正确报失败是因为超时兜底（`worker.join(90)` 后 alive → `return False`）绕过了 truthy 问题，但 1s 完成的跳过任务无法被超时捕获。
+  - **修复 1·TRUTHY-01**：`_wait_job` 的两个分支（无 timeout / 有 timeout）均改用 `job.succeeded` 替代 `job.wait()` 返回值。
+  - **修复 2·SKIP-01**：新增 `_detect_task_skipped(job, task_name)` 方法，通过 `job.get()` 获取 `TaskDetail`，检查节点轨迹（node names）——若含 End/Done/Skip 节点且不含 Main/Start/Loop 业务节点则判定为跳过。`run_task` 和 `_retry_task` 在 succeeded 后调用此方法，跳过时返回 False 并记录 warning。
+  - **修复 3·GUI timeout**：`maaend_control_page.py` 的 `_runtime_queue_runner` 传入 `"timeout": 90`，与 CLI `preset run` 默认一致，避免 MaaFW 无限等待卡死 CLI 子进程。
+  - **第三层分析（MaaEnd 对 attach 的处理）**：attach 全 false 是上游模板默认值（MaaEnd/assets/resource/pipeline/ 与 3rd-part/maaend/resource/pipeline/ 一致）。MaaEnd 预期用户通过 interface config 的 pipeline_override 动态启用 weekday（如 `SellProductSchedule` 选项写入 `attach.mon`~`attach.sun` 布尔值）。本项目 GUI 目前未传递 weekday 选项，导致 attach 保持全 false。后续需增加 weekday 选择界面。
+- **Files Modified**:
+  - src/core/service/maa_end/runtime.py（`_wait_job` truthy 修复 + `run_task`/`_retry_task` 跳过检测 + 新增 `_detect_task_skipped`）
+  - src/gui/pyqt6/pages/maaend_control_page.py（`_runtime_queue_runner` 传入 timeout=90）
+  - reports/incidents/2026-07-12_task_callback_false_success.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 两文件通过；待运行时验证 — 连接设备启动 GUI 执行队列，跳过的任务应不再报"成功"，日志出现"任务被跳过"和"任务节点轨迹"。

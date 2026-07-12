@@ -656,14 +656,19 @@ class MaaEndRuntime:
 
         timeout 为 None 或 <=0 时使用框架默认（无限等待）；否则在后台线程中
         job.wait() 并 join timeout 秒，超时返回 False，避免整个 CLI 子进程卡死。
+
+        注意：job.wait() 返回 Job 对象自身（truthy），不是任务成功与否的布尔值。
+        必须用 job.succeeded 检查任务的真实状态。
         """
         if timeout is None or timeout <= 0:
-            return job.wait()
+            job.wait()
+            return job.succeeded
         result: Dict[str, Any] = {}
 
         def _target() -> None:
             try:
-                result["ok"] = job.wait()
+                job.wait()
+                result["ok"] = job.succeeded
             except Exception:
                 result["ok"] = False
 
@@ -725,11 +730,37 @@ class MaaEndRuntime:
                 return self._retry_task(task_name, options, entry, timeout)
             return False
         if succeeded:
+            if self._detect_task_skipped(job, task_name):
+                self.logger.warning(LogCategory.MAIN, "任务被跳过（未满足执行条件，如未到计划周期）", task=task_name)
+                return False
             self.logger.info(LogCategory.MAIN, "任务执行成功", task=task_name)
             return True
         # 识别未命中等「正常失败」：仅上报失败，不污染连接态、不重启应用
         self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
         return False
+
+    def _detect_task_skipped(self, job: Any, task_name: str) -> bool:
+        """检测任务是否走了跳过分支（未真正执行业务）。
+
+        MaaEnd 的 *Schedule 任务设计为 entry.next = [业务节点, 跳过节点]。
+        当 ScheduleRecognition 不命中（如 attach 全 false）时走跳过节点，
+        MaaFW 仍报告 status=succeeded，但任务实际未执行业务。
+        通过检查节点轨迹区分跳过与真正执行。
+        """
+        try:
+            task_detail = job.get()
+            if not task_detail:
+                return False
+            node_names = [nd.name for nd in task_detail.nodes if nd and nd.name]
+            if not node_names:
+                return False
+            self.logger.info(LogCategory.MAIN, "任务节点轨迹", task=task_name, nodes=node_names)
+            has_skip = any(n.endswith(("End", "Done", "Skip")) for n in node_names)
+            has_biz = any(any(k in n for k in ("Main", "Start", "Loop")) for n in node_names)
+            return has_skip and not has_biz
+        except Exception as e:
+            self.logger.warning(LogCategory.MAIN, "跳过检测异常", task=task_name, error=str(e))
+            return False
 
     # ------------------------------------------------------------------
     # 队列（唯一可执行单元）
@@ -875,6 +906,9 @@ class MaaEndRuntime:
             self.logger.exception(LogCategory.MAIN, "重试异常", task=task_name, error=str(exc))
             return False
         if succeeded:
+            if self._detect_task_skipped(job, task_name):
+                self.logger.warning(LogCategory.MAIN, "重试任务被跳过", task=task_name)
+                return False
             self.logger.info(LogCategory.MAIN, "重试成功", task=task_name)
             return True
         self.logger.warning(LogCategory.MAIN, "重试失败", task=task_name)
