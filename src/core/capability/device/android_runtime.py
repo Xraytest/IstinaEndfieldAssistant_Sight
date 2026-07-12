@@ -12,11 +12,12 @@ import multiprocessing.connection as mp_connection
 import os
 import secrets
 import socket
+import struct
 import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import av
 import cv2
@@ -64,6 +65,9 @@ class _ScrcpySession:
         self._frame_count = 0
         self._socket_ready = threading.Event()
         self._last_frame_ts: float = 0.0
+        # 帧回调：daemon 设置此回调后，每解码一帧都通过回调写入持久 mmap，
+        # 供 GUI 进程零拷贝读取实现高帧率预览。
+        self._on_frame: Optional[Callable[[np.ndarray], None]] = None
 
     def start(self, serial: str, jar_path: str, max_size: int = 1280, bit_rate: int = 8000000, wait_first_frame: bool = True) -> None:
         if self._thread is not None:
@@ -441,6 +445,13 @@ class _ScrcpySession:
                             if not first_frame_logged:
                                 first_frame_logged = True
                                 self._logger.info("scrcpy 首帧接收成功", codec=codec_name, width=w, height=h)
+                            # 帧回调在锁外执行，将帧写入持久 mmap 供 GUI 高频读取
+                            cb = self._on_frame
+                            if cb is not None:
+                                try:
+                                    cb(img)
+                                except Exception as e:
+                                    self._logger.warning("scrcpy on_frame 回调失败", error=str(e))
                     except Exception as e:
                         self._logger.warning("scrcpy 帧解码失败", error=str(e), pkt_size=pkt_size, is_keyframe=is_keyframe)
             finally:
@@ -536,6 +547,12 @@ class _Daemon:
         self._pipe_token = secrets.token_hex(8)  # 命名管道唯一后缀，避免 FILE_FLAG_FIRST_PIPE_INSTANCE 碰撞
         self._scrcpy_session: Optional[_ScrcpySession] = None
         self._scrcpy_jar_path = str(get_project_root() / "3rd-part" / "scrcpy" / "scrcpy-server.jar")
+        safe_serial = serial.replace(":", "_").replace("/", "_").replace("\\", "_")
+        self._frame_mmap_path = str(get_cache_subdir("ipc") / f"android-{safe_serial}.frame.mmap")
+        self._info_path = str(get_cache_subdir("ipc") / f"android-{safe_serial}.info")
+        self._frame_mmap: Optional[mmap.mmap] = None
+        self._frame_mmap_size = 32 + 1280 * 720 * 3  # header(32) + max pixel(1280*720*3)
+        self._frame_count = 0
 
     @staticmethod
     def _ipc_family() -> Optional[str]:
@@ -566,6 +583,7 @@ class _Daemon:
             self._ipc_address = self._listener.address
             self._running = True
             threading.Thread(target=self._accept_loop, daemon=True).start()
+            self._init_frame_mmap()
         except Exception:
             self._running = False
             self._logger.exception("守护进程 Listener 创建失败", address=address, family=family)
@@ -578,8 +596,47 @@ class _Daemon:
             self._ipc_address = None
             raise
 
+    def _init_frame_mmap(self) -> None:
+        """预分配持久 frame mmap 并写 info 文件，供 GUI 进程零拷贝读取。"""
+        try:
+            flags = os.O_CREAT | os.O_RDWR
+            if hasattr(os, "O_BINARY"):
+                flags |= os.O_BINARY
+            fd = os.open(self._frame_mmap_path, flags)
+            os.ftruncate(fd, self._frame_mmap_size)
+            self._frame_mmap = mmap.mmap(fd, self._frame_mmap_size, access=mmap.ACCESS_WRITE)
+            os.close(fd)
+            struct.pack_into("<4siiiQI", self._frame_mmap, 0,
+                             b"SCF1", 0, 0, 0, 0, 0, 0)
+        except Exception:
+            self._logger.exception("frame mmap 预分配失败", path=self._frame_mmap_path)
+            self._frame_mmap = None
+            return
+        try:
+            info = {
+                "pid": os.getpid(),
+                "created_ts": time.time(),
+                "frame_mmap_path": self._frame_mmap_path,
+                "frame_mmap_size": self._frame_mmap_size,
+            }
+            Path(self._info_path).write_text(json.dumps(info), encoding="utf-8")
+        except Exception:
+            self._logger.warning("frame info 文件写入失败", path=self._info_path)
+
     def stop(self) -> None:
         self._running = False
+        if self._frame_mmap is not None:
+            try:
+                self._frame_mmap.close()
+            except Exception:
+                pass
+            self._frame_mmap = None
+        for _p in (self._info_path, self._frame_mmap_path):
+            try:
+                if os.path.exists(_p):
+                    os.unlink(_p)
+            except Exception:
+                pass
         if self._scrcpy_session is not None:
             try:
                 self._scrcpy_session.stop()
@@ -664,6 +721,8 @@ class _Daemon:
                         )
                     except Exception as exc:
                         return {"error": str(exc)}
+                    if self._frame_mmap is not None:
+                        self._scrcpy_session._on_frame = self._on_scrcpy_frame
                     return {"result": True}
                 if method == "stopScrcpy":
                     if self._scrcpy_session is not None:
@@ -680,6 +739,8 @@ class _Daemon:
                     if self._scrcpy_session is None:
                         try:
                             self._scrcpy_session = _ScrcpySession(self._adb_manager, self._logger)
+                            if self._frame_mmap is not None:
+                                self._scrcpy_session._on_frame = self._on_scrcpy_frame
                             self._scrcpy_session.start(
                                 serial=serial,
                                 jar_path=self._scrcpy_jar_path,
@@ -732,6 +793,27 @@ class _Daemon:
             except Exception as exc:
                 self._logger.error("守护进程执行失败 [method=%s]: %s", method, str(exc))
                 return {"error": str(exc)}
+
+    def _on_scrcpy_frame(self, img: np.ndarray) -> None:
+        """scrcpy 解码线程回调：将帧写入持久 mmap 供 GUI 零拷贝读取。
+
+        写入顺序：先写像素（offset 32+），再写 header（offset 0-31）。
+        header 最后写，确保 GUI 读到 header 时像素已就位。
+        """
+        if self._frame_mmap is None:
+            return
+        try:
+            h, w = img.shape[:2]
+            stride = w * 3
+            pixel_size = h * stride
+            if 32 + pixel_size > self._frame_mmap_size:
+                return
+            self._frame_mmap[32:32 + pixel_size] = img.tobytes()
+            self._frame_count += 1
+            struct.pack_into("<4siiiQI", self._frame_mmap, 0,
+                             b"SCF1", w, h, stride, 0, int(time.time()), self._frame_count)
+        except Exception as e:
+            self._logger.warning("frame mmap 写入失败", error=str(e))
 
     def _encode_binary(self, data: Optional[bytes]) -> Dict[str, Any]:
         if data is None:

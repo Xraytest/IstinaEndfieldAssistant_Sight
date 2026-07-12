@@ -33,6 +33,7 @@ from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
 from gui.pyqt6.pages.prts_full_intelligence_page import PrtsFullIntelligencePage
 from gui.pyqt6.pages.settings_page import SettingsPage
 from gui.pyqt6.responsive import apply_ui_mode, clamp_window_size, fade_widget, ui_mode_for_size
+from gui.pyqt6.scrcpy_frame_reader import ScrcpyFrameReader
 from gui.pyqt6.theme.widget_styles import PANEL_STYLE
 from gui.pyqt6.tray_icon import TrayIcon
 
@@ -138,9 +139,11 @@ class MainWindow(QMainWindow):
         self._navigation_list: Optional[QListWidget] = None
         self._page_stack: Optional[QStackedWidget] = None
         self._preview_widget: Optional[PreviewWidget] = None
+        self._frame_reader: Optional[ScrcpyFrameReader] = None
         self._preview_timer = QTimer(self)
-        self._preview_timer.setInterval(self._preview_interval_ms())
+        self._preview_timer.setInterval(33)  # 30fps 轮询 mmap
         self._preview_timer.timeout.connect(self._refresh_preview)
+        self._reader_retry_after: float = 0.0
         self._tray_icon: Optional[TrayIcon] = None
         self._title_animation_timer = QTimer(self)
         self._title_animation_timer.timeout.connect(self._animate_title)
@@ -189,6 +192,7 @@ class MainWindow(QMainWindow):
                     maaend_page._persist_state()
                 except Exception as exc:
                     self._logger.warning(LogCategory.GUI, "closeEvent 持久化队列状态失败", error=str(exc))
+            self._stop_frame_reader()
             super().closeEvent(event)
 
     def resizeEvent(self, event) -> None:
@@ -347,29 +351,28 @@ class MainWindow(QMainWindow):
         if command.startswith("system connect"):
             if result.get("status") == "success":
                 self._maaend_page.set_connected(True)
-                # 不再显示"重连中"，直接刷新预览；刷新结果决定显示"实时"或"已断开"
+                self._stop_frame_reader()
+                self._reader_retry_after = 0.0
                 QTimer.singleShot(0, self._refresh_preview)
             else:
                 self._maaend_page.set_connected(False)
                 self._maaend_page.set_auto_connect_attempted()
+                self._stop_frame_reader()
                 if self._preview_widget is not None:
                     self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
         elif command.startswith("system disconnect"):
             self._maaend_page.set_connected(False)
+            self._stop_frame_reader()
             if self._preview_widget is not None:
                 self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
     def _on_execution_state_changed(self, is_executing: bool) -> None:
         self._is_executing = is_executing
         if is_executing:
-            self._preview_timer.stop()
-            # 不再显示"执行中"状态，预览状态只分为"实时"和"已断开"
             self._title_animation_timer.start(500)
             QApplication.setOverrideCursor(QCursor(Qt.CursorShape.BusyCursor))
             self._set_taskbar_progress(0)
         else:
-            if self._page_stack.currentWidget() is self._maaend_page:
-                self._preview_timer.start()
             self._title_animation_timer.stop()
             self.setWindowTitle(locale.tr("app_title", "IstinaEndfieldAssistant Sight"))
             QApplication.restoreOverrideCursor()
@@ -389,63 +392,37 @@ class MainWindow(QMainWindow):
         pass
 
     def _refresh_preview(self) -> None:
-        self._logger.debug(LogCategory.GUI, "预览定时器触发", connected=self._maaend_page._connected, executing=self._maaend_page._is_executing)
         if self._preview_widget is None:
-            self._logger.debug(LogCategory.GUI, "预览退出: _preview_widget is None")
             return
         if not self._maaend_page._connected:
-            self._logger.debug(LogCategory.GUI, "预览退出: _connected is False")
+            self._stop_frame_reader()
             self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
             return
-        if self._maaend_page._is_executing:
-            # 任务执行中不刷新预览，也不改变状态角标（保留上一次的"实时"或"已断开"）
-            self._logger.debug(LogCategory.GUI, "预览退出: 任务执行中")
-            return
-        self._logger.debug(LogCategory.GUI, "开始同步执行 screenshot 命令")
-        result = self._maaend_page._sync_execute("screenshot", timeout_ms=5000)
-        self._logger.debug(LogCategory.GUI, "screenshot 命令完成", result_type=type(result).__name__, result_status=result.get("status") if isinstance(result, dict) else None)
-        if not result or result.get("status") != "success":
-            self._logger.debug(LogCategory.GUI, "预览刷新失败", result=result)
-            # 连续截图失败达到阈值才标记"已断开"，避免单次抖动导致状态频繁切换
-            self._preview_fail_count = getattr(self, "_preview_fail_count", 0) + 1
-            if self._preview_fail_count >= 3:
-                self._logger.warning(LogCategory.GUI, "连续截图失败达到阈值，标记连接为断开", fail_count=self._preview_fail_count)
-                self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
-                self._maaend_page.set_connected(False)
-                self._maaend_page._append_log("系统", locale.tr("preview_lost_connection", "Preview unavailable: device connection may be lost."))
-                self._preview_fail_count = 0
-            # 未达阈值时不改变状态角标，保留上一次的"实时"显示，下一次刷新继续尝试
-            return
-        # 截图成功，重置失败计数
-        self._preview_fail_count = 0
-        data = result.get("base64")
-        image_data: Optional[bytes] = None
-        if data:
-            try:
-                import base64
-
-                image_data = base64.b64decode(data)
-            except Exception as exc:
-                self._logger.warning(LogCategory.GUI, "base64 解码失败", error=str(exc))
+        # 确保 reader 已启动
+        if self._frame_reader is None:
+            import time
+            if time.time() < self._reader_retry_after:
                 return
-        else:
-            path = result.get("path")
-            if path:
-                try:
-                    image_data = Path(path).read_bytes()
-                except Exception as exc:
-                    self._logger.warning(LogCategory.GUI, "读取预览图片文件失败", path=path, error=str(exc))
-                    return
-            else:
-                self._logger.debug(LogCategory.GUI, "预览退出: 无 base64 且无 path")
+            serial = self._resolve_preview_serial()
+            if not serial:
                 return
-        pixmap = QPixmap()
-        loaded = pixmap.loadFromData(image_data)
-        self._logger.debug(LogCategory.GUI, "QPixmap 加载", loaded=loaded, image_size=len(image_data))
-        if loaded:
+            self._frame_reader = ScrcpyFrameReader(serial)
+            if not self._frame_reader.start():
+                self._frame_reader = None
+                self._reader_retry_after = time.time() + 2.0
+                return
+            self._logger.info(LogCategory.GUI, "scrcpy frame reader 已启动", serial=serial)
+        # 读取最新帧
+        img = self._frame_reader.read_frame()
+        if img is not None:
+            pixmap = QPixmap.fromImage(img)
             self._preview_widget.set_pixmap(pixmap)
             self._preview_widget.set_status(locale.tr("preview_status_live", "● 实时"), _STATUS_COLOR_LIVE)
-            self._logger.debug(LogCategory.GUI, "预览图像已上屏")
+        else:
+            if self._frame_reader.is_stale(max_age=5.0):
+                self._logger.warning(LogCategory.GUI, "frame reader 过期，重启")
+                self._stop_frame_reader()
+                self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
     def _resize_navigation_list(self) -> None:
         if self._navigation_list is None:
@@ -455,12 +432,17 @@ class MainWindow(QMainWindow):
         total_height = frame + (row_height * self._navigation_list.count()) + 8
         self._navigation_list.setFixedHeight(total_height)
 
-    def _preview_interval_ms(self) -> int:
+    def _resolve_preview_serial(self) -> Optional[str]:
         try:
             config = json.loads((get_project_root() / "config" / "client_config.json").read_text(encoding="utf-8"))
-            return int(config.get("preview_interval_ms", 1500))
+            return ((config.get("device") or {}).get("last_connected")) or ((config.get("device") or {}).get("serial"))
         except Exception:
-            return 1500
+            return None
+
+    def _stop_frame_reader(self) -> None:
+        if self._frame_reader is not None:
+            self._frame_reader.stop()
+            self._frame_reader = None
 
     def bridge(self) -> CLIBridge:
         return self._bridge

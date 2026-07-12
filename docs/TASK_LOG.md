@@ -2468,3 +2468,20 @@
   - reports/incidents/2026-07-13_pipeline_load_failure_duplicate_keys.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: JSON 有效性确认（OpenGame.json 仍是合法 JSON）；全 pipeline 目录扫描确认 0 重复 key；待 GUI 运行时验证连接恢复正常（执行 `system connect` 后应看到 "Pipeline 资源加载成功"）。
+
+## 2026-07-13 02:30 (scrcpy 视频流直连预览·持久 mmap 帧通道)
+
+- **User Request**: 预览只能够正确显示单帧画面，我期望scrcpy的视频流直接接到预览上，使得预览极为顺畅。
+- **Outcome**: 将 GUI 预览从"定时截图 RPC"（1500ms/帧，全链路序列化 2-4s/帧）升级为"scrcpy 视频流直连 mmap 零拷贝读取"（30fps 轮询，仅 header 命中新帧时才读像素）。
+  1. **daemon 侧**（android_runtime.py `_Daemon`）：预分配持久 mmap（32B header + 1280×720×3 像素 = 2,764,832 字节），写 info 文件（pid/created_ts/mmap 路径/大小）。scrcpy 解码线程的 `_on_frame` 回调每帧写入 mmap（先像素后 header，header 含递增 frame_count）。startScrcpy 和 screenshot fallback 两条路径均设置回调。stop 时关闭 mmap 并删除文件。
+  2. **`_ScrcpySession._cleanup` 不修改**：该回调在 session 重建循环中反复调用，若置空 `_on_frame` 会导致重建后回调丢失。回调生命周期绑定 `_ScrcpySession` 对象。
+  3. **GUI 侧**（新建 scrcpy_frame_reader.py）：`ScrcpyFrameReader` 读 info 文件 → 打开 mmap READONLY → `read_frame()` 读 header，frame_count 变化时读像素 → BGR→RGB → `QImage.copy()`。
+  4. **main_window.py 集成**：定时器从 1500ms 降到 33ms（30fps）；`_refresh_preview` 重写用 reader 替代 `_sync_execute("screenshot")`；reader 生命周期（connect 启动/disconnect 停止/2s 重试/5s 过期检测）；执行期间不停止预览（mmap 读取不与 MaaEnd screencap 竞争）；closeEvent 清理 reader；删除 `_preview_interval_ms` 方法。
+  5. **mmap header 格式**：`<4siiiQI` = magic(4) + w(4) + h(4) + stride(4) + fmt(4) + ts(8) + count(4) = 32 字节。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py（`_Daemon.__init__`/`start`/`stop`/`_init_frame_mmap`/`_on_scrcpy_frame`/`_dispatch` startScrcpy+screenshot 分支；`_ScrcpySession.__init__`/`_decode_loop` 的 `_on_frame` 回调为前序遗留修改）
+  - src/gui/pyqt6/scrcpy_frame_reader.py（新增·ScrcpyFrameReader 类）
+  - src/gui/pyqt6/main_window.py（import、定时器 33ms、`_refresh_preview` 重写、`_resolve_preview_serial`/`_stop_frame_reader` 新增、`_on_bridge_command_finished`/`_on_execution_state_changed`/`closeEvent` 生命周期、删除 `_preview_interval_ms`）
+  - reports/incidents/2026-07-13_scrcpy_frame_stream_preview.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 三文件全部通过；待 GUI 运行时验证预览流畅度（连接设备后预览应 1-2s 内开始显示实时画面，状态显示"● 实时"，30fps 轮询动态场景流畅）。
