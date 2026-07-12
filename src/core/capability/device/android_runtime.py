@@ -204,16 +204,6 @@ class _ScrcpySession:
         except Exception:
             pass
         self._ensure_device_online()
-        # POWER-02: 网络ADB下 stay_awake 仅USB有效，屏幕自动关闭后 MediaCodec 不产生帧。
-        # 设置 screen_off_timeout 为 30 分钟 + power_on + keyevent 224 三重保险。
-        try:
-            self._host_shell("settings put system screen_off_timeout 1800000")
-        except Exception:
-            pass
-        try:
-            self._host_shell("input keyevent 224")
-        except Exception:
-            pass
         server_cmd = (
             f"CLASSPATH=/data/local/tmp/scrcpy-server.jar "
             "app_process /system/bin com.genymobile.scrcpy.Server "
@@ -221,7 +211,11 @@ class _ScrcpySession:
             "video=true control=false show_touches=false stay_awake=true "
             "power_on=true send_dummy_byte=true send_device_meta=true "
             "send_frame_meta=true "
-            f"max_size={max_size} video_bit_rate={bit_rate}"
+            f"max_size={max_size} video_bit_rate={bit_rate} "
+            # ENCODER-01: 模拟器软件编码器 c2.android.avc.encoder 不实现
+            # KEY_REPEAT_PREVIOUS_FRAME_AFTER，静态画面下仅按 KEY_I_FRAME_INTERVAL
+            # (默认 10s) 产出关键帧。将 i-frame-interval 压到 2s 保证帧流不中断。
+            "video_codec_options=i-frame-interval:int=2"
         )
         adb = str(self._adb_manager._resolve_adb_path())
         cmd = [adb, "-s", self._serial or "", "shell", server_cmd]
@@ -312,13 +306,14 @@ class _ScrcpySession:
                 port=self._local_port,
             )
 
-            sock.settimeout(10.0)
+            sock.settimeout(15.0)
             first_frame_logged = False
             frame_counter = 0
             try:
                 while not self._stop_event.is_set():
-                    # KEEPALIVE-01: 帧超时检测；若超过 10s 未收到新帧，视为通道异常，主动退出以便重建
-                    if self._last_frame_ts and (time.time() - self._last_frame_ts) > 10.0:
+                    # KEEPALIVE-01: 帧超时检测；模拟器编码器可能仅在关键帧间隔(2s)产出帧，
+                    # 给 15s 余量避免误判。若超过 15s 未收到新帧，视为通道异常，主动退出以便重建
+                    if self._last_frame_ts and (time.time() - self._last_frame_ts) > 15.0:
                         self._logger.warning("scrcpy 帧接收超时，准备重建会话", frames_received=frame_counter)
                         break
                     # SERVER-01: server 进程存活检测；进程退出后 socket read 会阻塞至超时，提前退出加速重建
