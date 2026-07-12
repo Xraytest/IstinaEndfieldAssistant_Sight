@@ -2330,3 +2330,17 @@
   - src/core/capability/device/android_runtime.py
   - reports/incidents/2026-07-12_scrcpy_no_frame_diagnosis.md（更新根因分析）
   - docs/TASK_LOG.md（本文件）
+
+## 2026-07-12 12:25 (scrcpy 任务执行期间循环推送 jar 修复)
+
+- **User Request**: "开始执行队列后又开始循环推送" — 任务执行期间 scrcpy 每次重连都重新推送 scrcpy-server.jar
+- **Outcome**: 通过日志分析和诊断插桩定位三个问题并修复：
+  1. **CLEANUP-01**（_start_server）：添加 cleanup=false，阻止 scrcpy server 退出时通过 CleanUp.unlinkSelf() 删除 /data/local/tmp/scrcpy-server.jar。根因：scrcpy 默认 cleanup=true 在 server 退出时删除 jar，导致每次重连都需重新推送。**验证：第二次连接起无 jar 推送日志。**
+  2. **PKILL-01**（_start_server / _cleanup）：用精确终止 self._server_proc 替换 pkill -f com.genymobile.scrcpy.Server，避免杀死其他会话的 server 进程。_cleanup 中也移除 pkill，添加 wait(timeout=2) 防止僵尸进程。
+  3. **STALL-01**（诊断日志）：在 socket 断开和 TimeoutError 处理中记录 server_alive 和 server_returncode。验证发现任务执行期间 server_alive=True，编码器停滞非 server 崩溃。
+- **验证**: 12:20-12:22 运行 VisitFriends 任务，任务执行成功。重连期间无 jar 推送（cleanup=false 生效）。任务执行期间编码器仍有 ~16s 停滞超时，但此为模拟器 SurfaceEncoder 与 MaaEnd screencap 资源竞争，不影响任务执行。
+- **遗留**: 任务执行期间编码器停滞（STALL-01）未完全修复，仅影响预览画面连续性，不影响任务成功率。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py（cleanup=false + pkill 移除 + 诊断日志）
+  - reports/incidents/2026-07-12_scrcpy_no_frame_diagnosis.md（更新影响面和日志证据）
+  - docs/TASK_LOG.md（本文件）
