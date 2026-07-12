@@ -2454,3 +2454,17 @@
   - reports/incidents/2026-07-12_android_open_game_cn_undefined.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: JSON 有效性已验证；py_compile 不适用（无 Python 修改）；待运行时验证队列执行不再退出到登入页面。
+
+## 2026-07-13 00:50 (Pipeline 资源加载失败·撤销 OpenGame.json 重复 key)
+
+- **User Request**: 阅读最新的日志，修改使得软件无法正确连接到设备。
+- **Outcome**: 定位到 `logs/main.log` L13431 的 "Pipeline 资源加载失败" 错误。根因为上一轮（2026-07-12 16:32）在 `3rd-part/maaend/resource/pipeline/OpenGame.json` 中添加的 4 个空对象定义（`AndroidOpenGame_CN` / `_Bilibili` / `_Global` / `_VN`）与 `3rd-part/maaend/resource/pipeline/GameSwitch/AndroidOpenGame.json` 中早已存在的同名定义产生 "key already exists" 冲突，导致 MaaFW `Resource.post_bundle()` 整体失败，`load_resource()` 返回 False，连接流程中断。
+  - **时间线证据**: 15:56:15 最后一次加载成功 → 16:32:17 OpenGame.json 被修改 → 16:44:32 加载失败。
+  - **修复**: 从 `OpenGame.json` 中移除 4 个重复 key 定义，恢复为 `AndroidOpenGame` 后直接是 `PCOpenGame`。`GameSwitch/AndroidOpenGame.json` 中的 4 个变体定义保持不变（单一来源）。
+  - **全面扫描验证**: 用 Python 脚本扫描 `3rd-part/maaend/resource/pipeline/` 全目录 300 个 JSON 文件、3929 个 key，重复 key 数为 0；`AndroidOpenGame_*` 4 个变体 key 现在仅在 `GameSwitch/AndroidOpenGame.json` 中定义。
+  - **更正上一轮结论**: 上一轮报告 `reports/incidents/2026-07-12_android_open_game_cn_undefined.md` 断言 `AndroidOpenGame_CN` 在所有 pipeline JSON 中未定义——该结论错误，未检查 `GameSwitch/AndroidOpenGame.json`。`AndroidOpenGame_CN` 一直有定义（空对象），MaaFW 执行空对象节点直接成功结束，不会回退到 `OpenGame` pipeline。"退出到登入页面"的真正根因待重新调查。
+- **Files Modified**:
+  - 3rd-part/maaend/resource/pipeline/OpenGame.json（移除 4 个重复 key 定义·gitignored 运行时文件）
+  - reports/incidents/2026-07-13_pipeline_load_failure_duplicate_keys.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: JSON 有效性确认（OpenGame.json 仍是合法 JSON）；全 pipeline 目录扫描确认 0 重复 key；待 GUI 运行时验证连接恢复正常（执行 `system connect` 后应看到 "Pipeline 资源加载成功"）。
