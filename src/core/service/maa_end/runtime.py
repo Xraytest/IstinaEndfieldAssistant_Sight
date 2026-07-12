@@ -186,8 +186,7 @@ class MaaEndRuntime:
     def load_interface(self) -> Dict[str, Any]:
         path = self._resolve_asset_path("interface.json")
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                self._interface = json.load(f)
+            self._interface = _load_json_file(path)
         except Exception as e:
             self.logger.warning(LogCategory.MAIN, "加载 interface.json 失败", path=str(path), error=str(e))
             self._interface = {}
@@ -202,8 +201,7 @@ class MaaEndRuntime:
                 if json_path.name == "nodes.json":
                     continue
                 try:
-                    with open(json_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
+                    data = _load_json_file(json_path)
                     # 提取全局 option 定义（每个 JSON 文件顶层可能有 option 字典）
                     global_options = data.get("option")
                     if isinstance(global_options, dict):
@@ -230,8 +228,7 @@ class MaaEndRuntime:
                 return self._presets
             for json_path in preset_root.glob("*.json"):
                 try:
-                    with open(json_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
+                    data = _load_json_file(json_path)
                     preset_list = data.get("preset", [])
                     for preset in preset_list:
                         name = preset.get("name")

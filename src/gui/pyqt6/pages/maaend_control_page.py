@@ -94,13 +94,14 @@ NAME_ZH = {
     "AutoSell": "💰售卖弹性物资",
     "EnvironmentMonitoring": "🌿环境监测",
     "GearAssembly": "🔧装备制造",
-    "Weapon": "🔫升级武器",
+    "WeaponUpgrade": "🔫升级武器",
     "BatchUseDetector": "🧭批量探测器",
     "EssenceFilter": "🔒基质筛选锁定",
     "ResourceRecycleStation": "🦉资源回收站",
     "AutoCollect": "🧺自动采集",
     "AutoEcoFarm": "🌾生态农场",
     "PuzzleSolver": "🧩解拼图",
+    "SwitchTeam": "👥切换编队",
     "ImportBluePrints": "📐一键导入蓝图",
     "AutoUseSpMedication": "💊应急理智加强剂",
     "AutoEssence": "🎱基质刷取",
@@ -572,6 +573,9 @@ class MaaEndControlPage(QWidget):
         self._queue_list.setMinimumHeight(60)
         self._queue_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._queue_list.setAcceptDrops(True)
+        self._queue_list.setDragEnabled(True)
+        self._queue_list.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self._queue_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self._queue_list.setDropIndicatorShown(True)
         self._queue_list.installEventFilter(self)
         self._queue_list.selectionModel().currentChanged.connect(lambda current, previous: self._on_queue_focus_changed(current.row()))
@@ -600,6 +604,10 @@ class MaaEndControlPage(QWidget):
         self._queue_down_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_down_btn.clicked.connect(self._queue_move_down)
         queue_move_row.addWidget(self._queue_down_btn)
+        self._queue_delete_btn = QPushButton(locale.tr("btn_delete", "Delete"))
+        self._queue_delete_btn.setStyleSheet(BTN_DEFAULT)
+        self._queue_delete_btn.clicked.connect(self._queue_delete_selected)
+        queue_move_row.addWidget(self._queue_delete_btn)
         self._queue_clear_btn = QPushButton(locale.tr("btn_clear", "Clear"))
         self._queue_clear_btn.setStyleSheet(BTN_DEFAULT)
         self._queue_clear_btn.clicked.connect(self._queue_clear)
@@ -691,6 +699,7 @@ class MaaEndControlPage(QWidget):
             self._run_queue_btn,
             self._queue_up_btn,
             self._queue_down_btn,
+            self._queue_delete_btn,
             self._queue_clear_btn,
             self._clear_log_btn,
             self._log_text,
@@ -875,6 +884,71 @@ class MaaEndControlPage(QWidget):
         self._queue_state.set_queue_items(items)
         self._restore_queue_ui()
         self._queue_list.setCurrentCell(row + 1, 0)
+        self._queue_state.persist()
+
+    def _queue_delete_selected(self):
+        """删除队列中当前选中的任务条目。"""
+        if self._is_executing:
+            return
+        row = self._queue_list.currentRow()
+        items = self._queue_state.queue_items
+        if row < 0 or row >= len(items):
+            return
+        removed = items.pop(row)
+        self._queue_state.set_queue_items(items)
+        # 清理已删除条目的实例选项（共享 task_options 保留，其他实例可能引用）
+        name = removed.get("name")
+        if name and not any(e.get("name") == name for e in items):
+            self._queue_state.clear_saved_options(name)
+        self._focused_queue_index = None
+        self._restore_queue_ui()
+        # 选中相邻行以保持编辑上下文
+        if items:
+            new_row = min(row, len(items) - 1)
+            self._queue_list.setCurrentCell(new_row, 0)
+        self._queue_state.persist()
+
+    def _add_to_queue_at(self, target_row: Optional[int]) -> None:
+        """将当前选中的任务插入到队列的指定位置（None 或越界则追加到末尾）。"""
+        if self._is_executing or not self._selected_task:
+            return
+        name = self._selected_task
+        options = self._collect_options()
+        entry = {"name": name, "display_name": name, "type": "task", "options": dict(options)}
+        items = list(self._queue_state.queue_items)
+        if target_row is None or target_row < 0 or target_row >= len(items):
+            items.append(entry)
+            insert_index = len(items) - 1
+        else:
+            items.insert(target_row, entry)
+            insert_index = target_row
+        self._queue_state.set_queue_items(items)
+        self._queue_state.save_options(name, options)
+        self._restore_queue_ui()
+        self._queue_list.setCurrentCell(insert_index, 0)
+        self._queue_state.persist()
+        self._append_log("队列", locale.tr("btn_add", "Added {name}").format(name=_zh(name)))
+
+    def _reorder_queue(self, source_row: int, target_row: int) -> None:
+        """通过拖拽重排队列：将 source_row 移动到 target_row 之前。"""
+        if self._is_executing:
+            return
+        items = list(self._queue_state.queue_items)
+        if source_row < 0 or source_row >= len(items):
+            return
+        if target_row < 0 or target_row > len(items):
+            target_row = len(items)
+        if source_row == target_row or source_row + 1 == target_row:
+            return  # 无变化
+        item = items.pop(source_row)
+        # 移除 source 后，target 索引可能偏移
+        if source_row < target_row:
+            target_row -= 1
+        target_row = max(0, min(target_row, len(items)))
+        items.insert(target_row, item)
+        self._queue_state.set_queue_items(items)
+        self._restore_queue_ui()
+        self._queue_list.setCurrentCell(target_row, 0)
         self._queue_state.persist()
 
     def _queue_clear(self):
@@ -1219,22 +1293,42 @@ class MaaEndControlPage(QWidget):
 
     def eventFilter(self, obj, event):
         if obj is self._queue_list:
+            source = event.source() if hasattr(event, "source") else None
+            is_valid_source = source is self._task_list or source is self._queue_list
             if event.type() == QEvent.Type.DragEnter:
-                if event.source() is self._task_list:
-                    event.accept()
+                if is_valid_source:
+                    event.acceptProposedAction()
+                    return True
+            elif event.type() == QEvent.Type.DragMove:
+                if is_valid_source:
+                    event.acceptProposedAction()
                     return True
             elif event.type() == QEvent.Type.Drop:
-                if event.source() is self._task_list:
+                if not is_valid_source:
+                    return super().eventFilter(obj, event)
+                target_row = self._drop_row_from_event(event)
+                if source is self._task_list:
                     current = self._task_list.currentItem()
                     if current:
                         task_name = current.data(0, Qt.ItemDataRole.UserRole)
-                        if task_name:
+                        if task_name and not self._is_executing:
                             self._selected_task = task_name
-                            if not self._is_executing:
-                                self._add_to_queue()
-                    event.accept()
-                    return True
+                            self._add_to_queue_at(target_row)
+                elif source is self._queue_list:
+                    if not self._is_executing:
+                        source_row = self._queue_list.currentRow()
+                        self._reorder_queue(source_row, target_row)
+                event.acceptProposedAction()
+                return True
         return super().eventFilter(obj, event)
+
+    def _drop_row_from_event(self, event) -> int:
+        """根据 Drop 事件的 y 坐标计算目标行号。返回 len(queue) 表示追加到末尾。"""
+        pos = event.position().toPoint() if hasattr(event, "position") else event.pos()
+        row = self._queue_list.rowAt(pos.y())
+        if row < 0:
+            return self._queue_list.rowCount()
+        return row
 
     def _sync_layout_geometry(self) -> None:
         splitter = getattr(self, "_splitter", None)
@@ -1612,17 +1706,27 @@ class MaaEndControlPage(QWidget):
             return True
         try:
             from core.foundation.paths import get_project_root
-            preset_root = Path(get_project_root()) / "3rd-part" / "maaend" / "tasks" / "preset"
+            tasks_root = Path(get_project_root()) / "3rd-part" / "maaend" / "tasks"
         except Exception:
             return False
-        if not preset_root.is_dir():
+        if not tasks_root.is_dir():
             return False
-        for json_file in preset_root.glob("*.json"):
+        # 检查任务定义文件（tasks/*.json）
+        for json_file in tasks_root.glob("*.json"):
             try:
                 if json_file.stat().st_mtime > cache_mtime:
                     return True
             except OSError:
                 continue
+        # 检查预设文件（tasks/preset/*.json）
+        preset_root = tasks_root / "preset"
+        if preset_root.is_dir():
+            for json_file in preset_root.glob("*.json"):
+                try:
+                    if json_file.stat().st_mtime > cache_mtime:
+                        return True
+                except OSError:
+                    continue
         return False
 
     def _persist_metadata_cache(self) -> None:
@@ -1934,6 +2038,7 @@ class MaaEndControlPage(QWidget):
         self._add_queue_btn.setEnabled(not self._is_executing)
         self._queue_up_btn.setEnabled(not self._is_executing)
         self._queue_down_btn.setEnabled(not self._is_executing)
+        self._queue_delete_btn.setEnabled(not self._is_executing)
         self._queue_clear_btn.setEnabled(not self._is_executing)
         self._stop_btn.setEnabled(self._is_executing)
         self._retry_btn.setEnabled(not self._is_executing)

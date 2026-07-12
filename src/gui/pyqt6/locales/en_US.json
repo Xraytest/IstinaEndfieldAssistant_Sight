@@ -78,6 +78,7 @@
   "btn_clear": "Clear",
   "btn_up": "Move Up",
   "btn_down": "Move Down",
+  "btn_delete": "Delete",
   "btn_save": "Save Settings",
   "btn_reload": "Reload",
   "btn_refresh": "Refresh",
