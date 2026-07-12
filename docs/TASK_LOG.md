@@ -2344,3 +2344,18 @@
   - src/core/capability/device/android_runtime.py（cleanup=false + pkill 移除 + 诊断日志）
   - reports/incidents/2026-07-12_scrcpy_no_frame_diagnosis.md（更新影响面和日志证据）
   - docs/TASK_LOG.md（本文件）
+
+## 2026-07-12 14:30 (scrcpy 重连死循环最终修复 — fileobj poisoned OSError)
+
+- **User Request**: "依然持续处于重连状态，（参考MaaEnd的设计有助于问题分析（./MaaEnd）），你需要在修改后确认有效性：执行队列来验证" — 12:25 修复后仍持续重连，要求参考 MaaEnd 设计分析并验证
+- **Outcome**: 定位重连死循环的最终根因（FILEOBJ-01）并修复，经 40s 监控 + 任务执行验证死循环消除：
+  1. **RECV-01**（commit 1c9ba2c，`_recv_exact` 新增）：处理 `fileobj.read(n)` 的 partial read（`buffering=0` 时 `read(n)` 仅做一次 `recv()`，对大帧返回 < n 字节）。循环读取直到收齐 n 字节，`socket.timeout` 时检查 server 存活：存活则继续等待，已退出则返回 None。
+  2. **FILEOBJ-01**（commit 4b286d6，最终修复）：移除 `sock.makefile("rb", buffering=0)` 创建的 file object，所有读取改用 `sock.recv()`。根因：file object 在 `socket.timeout` 后进入 poisoned 状态，后续 `read()` 抛出 `OSError("cannot read from timed out object")` 而非 `socket.timeout`，`_recv_exact` 只捕获 `socket.timeout`，`OSError` 未被捕获，传播至 `_run` 的 `except Exception`，触发完整会话重建。`sock.recv()` 始终抛出 `socket.timeout`，可被正确捕获。
+  3. **MaaEnd 设计参考**：确认上游 MaaEnd（Go/TS/MaaFW）不使用 scrcpy/视频串流，仅用 ADB screencap。scrcpy + MaaEnd screencap 并发竞争是本项目独有问题。MaaEnd 的 `_kill_adb`（`adb kill-server` + `taskkill /F /IM adb.exe`）在重连循环中未被触发，非根因。
+- **验证**: `scripts/verify_scrcpy_fix.py` 连接设备 → 40s 监控（每 2s 截图）→ 执行 VisitFriends 任务。结果：20/20 截图成功（0 失败），日志显示 "socket 等待数据中（server 存活，不重建）" 而非 "会话异常，2s 后重试"。编码器停滞时会话保持连接，不再重建。
+- **根因推翻**: 12:25 条目将任务执行期间重连归为"编码器停滞（STALL-01）未完全修复"。实际根因为 file object poisoned 后 `OSError` 未被捕获，与编码器停滞无关。编码器停滞仅导致暂时无帧，`_recv_exact` 正确处理后会话保持连接。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py（移除 fileobj，改用 sock.recv()）
+  - scripts/verify_scrcpy_fix.py（新增验证脚本）
+  - reports/incidents/2026-07-12_scrcpy_no_frame_diagnosis.md（新增 FILEOBJ-01/RECV-01 根因和验证 section 6）
+  - docs/TASK_LOG.md（本文件）
