@@ -100,9 +100,11 @@ class _ScrcpySession:
         self._close_codec()
         self._cleanup()
 
-    def get_latest_frame(self) -> Optional[np.ndarray]:
+    def get_latest_frame(self, max_age: float = 30.0) -> Optional[np.ndarray]:
         with self._lock:
             if self._latest_frame is None:
+                return None
+            if self._last_frame_ts > 0 and (time.time() - self._last_frame_ts) > max_age:
                 return None
             return self._latest_frame
 
@@ -261,6 +263,7 @@ class _ScrcpySession:
         """
         data = bytearray()
         stall_count = 0
+        max_stalls = 3  # 3 × 30s socket timeout = 90s 无数据后强制重建会话
         while len(data) < n:
             if self._stop_event.is_set():
                 return None
@@ -280,6 +283,13 @@ class _ScrcpySession:
                         "scrcpy socket 等待数据中（server 存活，不重建）",
                         bytes_read=len(data), bytes_expected=n,
                     )
+                elif stall_count >= max_stalls:
+                    self._logger.warning(
+                        "scrcpy socket 连续 %d 次超时（server 存活但编码器停滞），强制重建会话"
+                        % stall_count,
+                        bytes_read=len(data), bytes_expected=n,
+                    )
+                    return None
                 continue
             if not chunk:
                 _srv_alive = self._server_proc is not None and self._server_proc.poll() is None
@@ -455,6 +465,8 @@ class _ScrcpySession:
     def _cleanup(self) -> None:
         self._close_codec()
         self._last_frame_ts = 0.0
+        with self._lock:
+            self._latest_frame = None
         try:
             if self._local_port:
                 self._adb_manager.run_adb(
@@ -683,9 +695,16 @@ class _Daemon:
                         self._logger.debug("daemon screenshot 使用 scrcpy 帧", serial=serial, frame_shape=frame.shape if hasattr(frame, 'shape') else None)
                         _, buf = cv2.imencode(".png", frame)
                         return self._encode_binary(buf.tobytes())
-                    # H-01: 不再回退到 ADB 截图，scrcpy 无帧即视为未就绪
-                    self._logger.error("daemon screenshot scrcpy 无帧", serial=serial)
-                    return {"error": "scrcpy not ready"}
+                    # PREVIEW-01: scrcpy 无帧/帧过期（编码器停滞），回退 ADB screencap 确保预览显示真实画面
+                    self._logger.info("daemon screenshot scrcpy 无帧/帧过期，回退 ADB screencap", serial=serial)
+                    try:
+                        png_data = self._adb_manager.screencap(serial)
+                        if png_data and len(png_data) > 4 and png_data[:4] == b"\x89PNG":
+                            return self._encode_binary(png_data)
+                        self._logger.warning("ADB screencap 回退返回无效 PNG", serial=serial, size=len(png_data) if png_data else 0)
+                    except Exception as exc:
+                        self._logger.error("ADB screencap 回退失败", serial=serial, error=str(exc))
+                    return {"error": "screenshot failed: scrcpy 无帧且 ADB 回退失败"}
                 if method == "tap":
                     self._touch.tap(int(params.get("x", 0)), int(params.get("y", 0)), serial=params.get("serial", self._serial))
                     return {"result": True}

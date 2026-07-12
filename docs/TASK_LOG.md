@@ -2425,3 +2425,19 @@
   - docs/TASK_LOG.md（本文件）
 - **验证**: `scripts/verify_locale_keys.py` 报告 "all locale.tr() keys exist in zh_CN.json"；json.load 确认两文件均为合法 JSON（223 键含 _meta）。
 - **Commits**: 7f07236（补 24 个 locale 键 + verify_locale_keys.py 校验脚本）
+
+## 2026-07-12 23:50 (预览未正确更新设备真实画面·PREVIEW-01)
+
+- **User Request**: 预览未正确更新设备的真实画面。
+- **Outcome**: 日志确认 scrcpy server 存活但编码器零输出（`bytes_read=0 bytes_expected=12`，30s 周期持续 2min+）。根因为 3 个叠加缺陷：
+  1. **[PREVIEW-01A]** `_recv_exact` 编码器停滞时无限等待：`stall_count` 仅用于日志去重，从不触发重建。server 存活即 `continue`，decode loop 永远卡住。
+  2. **[PREVIEW-01B]** `_cleanup` 未清除 `_latest_frame`：会话重建后仍返回上一会话过时帧。
+  3. **[PREVIEW-01C]** `get_latest_frame` 无新鲜度检查：不检查 `_last_frame_ts`，只要 `_latest_frame` 非 None 就返回。
+  4. **[PREVIEW-01D]** daemon 截图处理器无 ADB 回退：scrcpy 无帧时直接返回 error（H-01 策略），预览显示冻结画面而非真实屏幕。
+  - 修复 4 处（均在 `android_runtime.py`）：`_recv_exact` 添加 `max_stalls=3`（90s 强制重建）；`_cleanup` 清除 `_latest_frame`；`get_latest_frame` 添加 30s 新鲜度检查；daemon 截图处理器添加 ADB screencap 回退。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py（4 处修复）
+  - reports/incidents/2026-07-12_preview_stale_frame.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 通过；待 GUI 运行时验证预览实时性（需连接设备后观察预览是否随屏幕变化更新，日志应显示"回退 ADB screencap"而非"scrcpy socket 等待数据中"循环）。
+- **Commits**: 待提交
