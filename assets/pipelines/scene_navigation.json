@@ -13,6 +13,12 @@
       "[JumpBack]__ScenePrivateWorldStorySkip",
       "[JumpBack]__ScenePrivateLoggedOutConfirm",
       "[JumpBack]SceneWaitLoadingExit",
+      "[JumpBack]ClickContinue",
+      "[JumpBack]CheckIn",
+      "[JumpBack]CollectRewards",
+      "[JumpBack]MonthlyCard",
+      "[JumpBack]WaitBlackScreen",
+      "[JumpBack]WaitLoadingIcon",
       "[JumpBack]__ScenePrivateAnyExit"
     ],
     "post_delay": 0,

@@ -2638,3 +2638,23 @@
   - reports/incidents/2026-07-13_enter_game_no_post_delay.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: 两份 JSON 通过 json.load 校验；待运行时验证 — 连接设备执行队列，AndroidOpenGame 成功后 VisitFriends 应能正常进入大世界而非触发 ESC 循环。
+
+
+## 2026-07-13 14:00 (SceneAnyEnterWorld 缺少弹窗处理器 + GUI 超时不足·POPUP-01 + TIMEOUT-01)
+
+- **User Request**: 阅读当前的队列，分析："在完成应用启动并进入主世界后直接尝试退出到登入页并提交第二个任务错误"，明晰原因并修正，并通过执行当前这个队列进行测试
+- **Outcome**:
+  - **背景**: POSTDELAY-01（commit f56f82e）为 `EnterGame` 添加 `post_delay: 3000` 后，测试 3（180s 超时）显示 AndroidOpenGame 成功（42s），但 VisitFriends 仍在 10s 内失败，ESC 循环仍触发。
+  - **根因**（POPUP-01）: `post_delay: 3000` 给了弹窗出现的时间窗口，但 `SceneAnyEnterWorld.next` 缺少弹窗 JumpBack 处理器。`OpenGame` 的 `next` 有 `ClickContinue`/`CheckIn`/`CollectRewards`/`MonthlyCard`/`WaitBlackScreen`/`WaitLoadingIcon` 等处理器，但 `SceneAnyEnterWorld` 没有。弹窗出现后遮挡 `InWorld` 模板 → `__ScenePrivateAnyEnterWorldSuccess` 不匹配 → fallback 到 `[JumpBack]__ScenePrivateAnyExit`（ESC，DirectMatch 永远匹配）→ ESC 循环退出游戏到登录页。
+  - **修复**: 在 `SceneAnyEnterWorld.next` 的 `[JumpBack]__ScenePrivateAnyExit` 之前添加 6 个弹窗/加载画面 JumpBack 处理器（`ClickContinue`/`CheckIn`/`CollectRewards`/`MonthlyCard`/`WaitBlackScreen`/`WaitLoadingIcon`），与 `OpenGame` 的 `next` 列表保持一致。三份文件同步修改：运行时副本（`3rd-part/maaend/`）、上游源（`MaaEnd/assets/`）、git 跟踪 IEA PipelineLoader 源（`assets/pipelines/scene_navigation.json`）。
+  - **GUI 超时**（TIMEOUT-01）: `maaend_control_page.py` 第 1039 行 `_sync_execute` 的 `timeout` 从 90 改为 120，容纳 AndroidOpenGame 加载（~88s）+ EnterGame post_delay（3s）+ 余量。
+  - **测试脚本**: 新增 `scripts/run_current_queue.py`，读取 `config/maaend_task_state.json` 中的当前队列并执行（CLI `queue run` 不读取状态文件，需此脚本桥接）。
+- **Files Modified**:
+  - 3rd-part/maaend/resource/pipeline/Interface/Scene.json（运行时副本·SceneAnyEnterWorld.next 添加 6 个弹窗 JumpBack）
+  - MaaEnd/assets/resource/pipeline/Interface/Scene.json（上游源·同步修改）
+  - assets/pipelines/scene_navigation.json（git 跟踪·IEA PipelineLoader 源·同步修改）
+  - src/gui/pyqt6/pages/maaend_control_page.py（_sync_execute timeout 90→120）
+  - scripts/run_current_queue.py（新增·队列执行测试脚本）
+  - reports/incidents/2026-07-13_enter_game_no_post_delay.md（修订·补充 POPUP-01 四阶段分析）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: 三份 Scene.json 通过 JSON 校验；py_compile maaend_control_page.py 通过；待运行时验证 — 连接设备执行队列，AndroidOpenGame 成功后 VisitFriends 应能正常进入大世界（弹窗被 JumpBack 处理器自动处理而非触发 ESC 循环）。
