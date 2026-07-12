@@ -100,11 +100,15 @@ class ScrcpyFrameReader:
         except Exception:
             return None
 
-    def is_stale(self, max_age: float = 10.0) -> bool:
+    def is_stale(self, max_age: float = 30.0) -> bool:
         """超过 max_age 秒未读到新帧视为过期（基于 GUI 时钟，非 daemon 时钟）。
 
         使用 GUI 时钟而非 daemon 写入的 ts，因为 daemon 的 ts 是 int(time.time())
         秒级截断，且编码器停滞时 ts 不更新，导致 is_stale 误判。
+
+        max_age=30s 覆盖 daemon 的 scrcpy 会话重建周期：编码器停滞后 daemon 在
+        15s（3×5s socket timeout）后重建会话，重建 + 首帧约需 5-10s，总计
+        ~20-25s。30s 阈值确保正常重建期间不误显示"已断开"。
         """
         if self._last_new_frame_gui_ts <= 0:
             return True

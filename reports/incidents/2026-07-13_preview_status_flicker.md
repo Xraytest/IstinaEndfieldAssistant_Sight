@@ -82,3 +82,32 @@ t=99ms  read_frame (count==N, None) → is_stale(True) → "已断开" + stop re
 
 3. **`_reader_retry_after` 不再在 stale 路径设置**：该字段仅用于 `start()` 失败时
    的 2s 重试延迟，stale 路径不再 stop/restart 所以不需要。
+
+---
+
+## 追加修复 — STALE-02 + CRASH-01（2026-07-13 03:30）
+
+### 问题
+STALE-01 修复后用户反馈"依然存在断开问题"。日志 logs/main.log L13770-13771 显示：
+- 20:36:43: scrcpy 首帧接收成功
+- 20:37:16: 1st socket timeout（33s 后编码器停滞）
+- 20:37:26: 3rd timeout → daemon 重建会话（15s = 3×5s socket timeout）
+
+socket 超时实际为 5s（非 30s，L396 `sock.settimeout(5.0)`），daemon 重建周期
+= 15s 停滞 + 5-10s 重建 = ~20-25s。STALE-01 的 `max_age=10s` 阈值在重建期间
+触发"已断开"。
+
+### STALE-02: is_stale 阈值过短
+**根因**: `is_stale(max_age=10.0)` < daemon 重建周期（~20-25s），导致重建期间
+误显示"已断开"。
+**修复**: `max_age` 从 10s 提升到 30s，覆盖完整重建周期。
+**影响**: 真实断连检测延迟从 10s 增加到 30s，可接受（用户可手动重新连接）。
+
+### CRASH-01: CLI 崩溃未停止 frame reader
+**根因**: CLIBridge 在 CLI 崩溃时发射 `processCrashed` 信号并自动重启（1s 后），
+但 main_window 仅连接了 `commandFinished`，未连接 `processCrashed`。崩溃后
+旧 daemon 的 mmap 不再更新，reader 持续读取过期帧，30s 后才显示"已断开"。
+**修复**: 连接 `processCrashed` → `_on_cli_crashed`：停止 reader、标记断开、
+设 `_reader_retry_after = time.time() + 5.0` 防止新 CLI 启动前误重建。
+**影响**: CLI 崩溃后立即显示"已断开"，用户需手动重新 connect（新 CLI 不会
+自动重连设备）。

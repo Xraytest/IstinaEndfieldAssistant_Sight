@@ -284,6 +284,7 @@ class MainWindow(QMainWindow):
             self._page_stack.addWidget(page)
 
         self._bridge.commandFinished.connect(self._on_bridge_command_finished)
+        self._bridge.processCrashed.connect(self._on_cli_crashed)
         self._maaend_page.execution_state_changed.connect(self._on_execution_state_changed)
 
         self._resize_navigation_list()
@@ -366,6 +367,22 @@ class MainWindow(QMainWindow):
             if self._preview_widget is not None:
                 self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
+    def _on_cli_crashed(self, crash_count: int) -> None:
+        """CLI 进程崩溃时停止 frame reader 并标记断开。
+
+        CRASH-01: CLI 崩溃后旧 daemon 的 mmap 不再更新，reader 会持续读取
+        过期帧。停止 reader 后，新 CLI 进程启动（1s 后自动重启）但不会自动
+        重新连接设备，用户需手动重新 connect。_reader_retry_after 设为未来
+        5s 防止 reader 在新 CLI 启动前尝试读取不存在的 info 文件。
+        """
+        self._logger.warning(LogCategory.GUI, "CLI 崩溃，停止 frame reader", crash_count=crash_count)
+        self._maaend_page.set_connected(False)
+        self._stop_frame_reader()
+        import time
+        self._reader_retry_after = time.time() + 5.0
+        if self._preview_widget is not None:
+            self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
+
     def _on_execution_state_changed(self, is_executing: bool) -> None:
         self._is_executing = is_executing
         if is_executing:
@@ -425,7 +442,10 @@ class MainWindow(QMainWindow):
             # 显示"实时"，33ms 后 is_stale 再次 True → "已断开" → 停止 → 重建，
             # 形成 66ms 周期的高频闪烁循环。保持 reader 存活可保留 _last_frame_count，
             # 编码器恢复后自动读到真正的新帧。
-            if self._frame_reader.is_stale(max_age=10.0):
+            #
+            # STALE-02: max_age=30s 覆盖 daemon scrcpy 会话重建周期（15s 停滞检测
+            # + 5-10s 重建 + 首帧）。10s 阈值会在重建期间误显示"已断开"。
+            if self._frame_reader.is_stale(max_age=30.0):
                 self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
     def _resize_navigation_list(self) -> None:

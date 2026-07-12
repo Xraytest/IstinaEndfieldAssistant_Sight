@@ -2512,3 +2512,16 @@
   - reports/incidents/2026-07-13_preview_status_flicker.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 两文件通过；待 GUI 运行时验证 — 预览状态应稳定显示"● 实时"，仅在编码器停滞 >10s 时短暂显示"已断开"并自动恢复。
+
+## 2026-07-13 03:30 (预览断开状态持续出现·STALE-02 + CRASH-01)
+
+- **User Request**: 阅读日志，当前依然存在断开问题
+- **Outcome**: STALE-01 修复后预览仍频繁显示"已断开"。日志分析发现两个问题：
+  - **STALE-02**: daemon 的 socket 超时为 5s（非 30s），3×5s=15s 后重建会话，加上重建+首帧约 20-25s。STALE-01 的 `is_stale(max_age=10s)` 阈值在重建期间误触发"已断开"。修复：`max_age` 从 10s 提升到 30s。
+  - **CRASH-01**: CLI 崩溃时 CLIBridge 发射 `processCrashed` 信号并自动重启，但 main_window 仅连接 `commandFinished` 未连接 `processCrashed`。崩溃后旧 daemon mmap 不再更新，reader 持续读取过期帧。修复：连接 `processCrashed` → `_on_cli_crashed`，停止 reader 并标记断开。
+- **Files Modified**:
+  - src/gui/pyqt6/scrcpy_frame_reader.py（`is_stale` 默认 `max_age` 10→30s + 文档说明）
+  - src/gui/pyqt6/main_window.py（`_refresh_preview` `max_age` 10→30s + 新增 `_on_cli_crashed` handler + 连接 `processCrashed` 信号）
+  - reports/incidents/2026-07-13_preview_status_flicker.md（追加 STALE-02 + CRASH-01 分析）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 两文件通过；待 GUI 运行时验证 — 编码器停滞重建期间（~20-25s）应持续显示"● 实时"，仅超过 30s 无新帧或 CLI 崩溃时显示"已断开"。
