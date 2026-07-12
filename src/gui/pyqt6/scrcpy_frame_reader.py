@@ -100,19 +100,69 @@ class ScrcpyFrameReader:
         except Exception:
             return None
 
-    def is_stale(self, max_age: float = 30.0) -> bool:
+    def is_stale(self, max_age: float = 10.0) -> bool:
         """超过 max_age 秒未读到新帧视为过期（基于 GUI 时钟，非 daemon 时钟）。
 
         使用 GUI 时钟而非 daemon 写入的 ts，因为 daemon 的 ts 是 int(time.time())
         秒级截断，且编码器停滞时 ts 不更新，导致 is_stale 误判。
 
-        max_age=30s 覆盖 daemon 的 scrcpy 会话重建周期：编码器停滞后 daemon 在
-        15s（3×5s socket timeout）后重建会话，重建 + 首帧约需 5-10s，总计
-        ~20-25s。30s 阈值确保正常重建期间不误显示"已断开"。
+        max_age=10s：CLI 崩溃后 auto-reconnect 在 1.5s 发起 system connect，
+        新 daemon 启动 scrcpy 并写入首帧约需 5-8s，总计 ~6-10s。10s 阈值在
+        多数场景下不会误显示"已断开"；即便短暂显示，refresh() 检测到新 daemon
+        后立即恢复。daemon 自身的 scrcpy 会话重建（编码器停滞）由 _recv_exact
+        的 max_stalls=3 处理，通常 <15s 内恢复。
         """
         if self._last_new_frame_gui_ts <= 0:
             return True
         return (time.time() - self._last_new_frame_gui_ts) > max_age
+
+    def refresh(self) -> bool:
+        """重新读取 info 文件，如果 daemon 已重启（新 mmap 路径）则切换到新 mmap。
+
+        CLI 崩溃后 CLIBridge 自动重启 CLI 进程，新 daemon 写入同一个 info 文件
+        （按 serial 命名），但 mmap 路径不同。本方法检测到路径变化后关闭旧 mmap
+        并打开新 mmap，使 reader 无缝跟随 daemon 重启。
+
+        Returns:
+            True  — 检测到新 mmap 并成功切换
+            False — info 文件不存在、打开失败、或路径未变化（daemon 未重启）
+        """
+        try:
+            info = json.loads(Path(self._info_path).read_text(encoding="utf-8"))
+            new_path = info.get("frame_mmap_path", "")
+            new_size = int(info.get("frame_mmap_size", 0))
+        except Exception:
+            return False
+        if not new_path or new_size <= 0:
+            return False
+        if new_path == self._frame_mmap_path and new_size == self._mmap_size:
+            return False
+        old_mm = self._mm
+        old_fd = self._fd
+        self._frame_mmap_path = new_path
+        self._mmap_size = new_size
+        self._last_frame_count = -1
+        self._last_new_frame_gui_ts = 0.0
+        try:
+            flags = os.O_RDONLY
+            if hasattr(os, "O_BINARY"):
+                flags |= os.O_BINARY
+            self._fd = os.open(self._frame_mmap_path, flags)
+            self._mm = mmap.mmap(self._fd, self._mmap_size, access=mmap.ACCESS_READ)
+            if old_mm is not None:
+                try:
+                    old_mm.close()
+                except Exception:
+                    pass
+            if old_fd is not None:
+                try:
+                    os.close(old_fd)
+                except Exception:
+                    pass
+            return True
+        except Exception:
+            self.stop()
+            return False
 
     def stop(self) -> None:
         if self._mm is not None:

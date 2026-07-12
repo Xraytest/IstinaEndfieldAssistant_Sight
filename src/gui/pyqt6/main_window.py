@@ -195,6 +195,19 @@ class MainWindow(QMainWindow):
             self._stop_frame_reader()
             super().closeEvent(event)
 
+    def hideEvent(self, event) -> None:
+        super().hideEvent(event)
+        # 托盘最小化时保持运行状态不变：preview_timer 持续触发、frame_reader
+        # 持续读取 mmap、CLI 进程不受影响。scrcpy 持续传输，正在执行的任务不中断。
+        self._logger.info(LogCategory.GUI, "窗口隐藏（最小化到托盘），运行状态保持不变")
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # 窗口恢复时确保 preview_timer 运行（防御性：托盘期间若因其他逻辑停止）
+        if hasattr(self, "_maaend_page") and self._maaend_page._connected:
+            if hasattr(self, "_preview_timer") and not self._preview_timer.isActive():
+                self._preview_timer.start()
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._update_responsive_mode()
@@ -368,20 +381,31 @@ class MainWindow(QMainWindow):
                 self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
     def _on_cli_crashed(self, crash_count: int) -> None:
-        """CLI 进程崩溃时停止 frame reader 并标记断开。
+        """CLI 进程崩溃时保持运行状态，自动重连设备。
 
-        CRASH-01: CLI 崩溃后旧 daemon 的 mmap 不再更新，reader 会持续读取
-        过期帧。停止 reader 后，新 CLI 进程启动（1s 后自动重启）但不会自动
-        重新连接设备，用户需手动重新 connect。_reader_retry_after 设为未来
-        5s 防止 reader 在新 CLI 启动前尝试读取不存在的 info 文件。
+        不标记断开、不停止 frame reader。CLIBridge 在 1s 后自动重启 CLI 进程，
+        本方法在 1.5s 后（留 0.5s 给新进程初始化）自动重新发起 system connect，
+        使新 daemon 启动 scrcpy 会话并写入新的 mmap 帧。reader 通过 refresh()
+        检测到新 daemon 后无缝切换到新 mmap，实现 scrcpy 持续传输。
         """
-        self._logger.warning(LogCategory.GUI, "CLI 崩溃，停止 frame reader", crash_count=crash_count)
-        self._maaend_page.set_connected(False)
-        self._stop_frame_reader()
-        import time
-        self._reader_retry_after = time.time() + 5.0
-        if self._preview_widget is not None:
-            self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
+        self._logger.warning(LogCategory.GUI, "CLI 崩溃，保持运行状态并计划自动重连", crash_count=crash_count)
+        if not self._maaend_page._connected:
+            return
+        QTimer.singleShot(1500, self._auto_reconnect_after_crash)
+
+    def _auto_reconnect_after_crash(self) -> None:
+        """CLI 崩溃重启后自动重新连接设备，恢复 scrcpy 传输。"""
+        if not self._maaend_page._connected:
+            return
+        params = self._maaend_page._resolve_connect_params()
+        serial = params.get("serial") if params else None
+        if not serial:
+            serial = self._resolve_preview_serial()
+            if not serial:
+                return
+            params = {"serial": serial}
+        self._logger.info(LogCategory.GUI, "CLI 崩溃后自动重连设备", serial=serial)
+        self._bridge.execute("system connect", params)
 
     def _on_execution_state_changed(self, is_executing: bool) -> None:
         self._is_executing = is_executing
@@ -443,10 +467,14 @@ class MainWindow(QMainWindow):
             # 形成 66ms 周期的高频闪烁循环。保持 reader 存活可保留 _last_frame_count，
             # 编码器恢复后自动读到真正的新帧。
             #
-            # STALE-02: max_age=30s 覆盖 daemon scrcpy 会话重建周期（15s 停滞检测
-            # + 5-10s 重建 + 首帧）。10s 阈值会在重建期间误显示"已断开"。
-            if self._frame_reader.is_stale(max_age=30.0):
-                self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
+            # CLI 崩溃后 _on_cli_crashed 自动发起 system connect（1.5s 后），
+            # 新 daemon 启动后写入新 mmap。此处先尝试 refresh() 切换到新 mmap，
+            # 成功则下次 read_frame 即可读到新帧恢复"实时"，无需显示"已断开"。
+            if self._frame_reader.is_stale(max_age=10.0):
+                if self._frame_reader.refresh():
+                    self._logger.info(LogCategory.GUI, "frame reader 切换到新 daemon mmap")
+                else:
+                    self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
     def _resize_navigation_list(self) -> None:
         if self._navigation_list is None:
