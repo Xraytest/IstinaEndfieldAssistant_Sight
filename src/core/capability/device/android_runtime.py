@@ -695,16 +695,11 @@ class _Daemon:
                         self._logger.debug("daemon screenshot 使用 scrcpy 帧", serial=serial, frame_shape=frame.shape if hasattr(frame, 'shape') else None)
                         _, buf = cv2.imencode(".png", frame)
                         return self._encode_binary(buf.tobytes())
-                    # PREVIEW-01: scrcpy 无帧/帧过期（编码器停滞），回退 ADB screencap 确保预览显示真实画面
-                    self._logger.info("daemon screenshot scrcpy 无帧/帧过期，回退 ADB screencap", serial=serial)
-                    try:
-                        png_data = self._adb_manager.screencap(serial)
-                        if png_data and len(png_data) > 4 and png_data[:4] == b"\x89PNG":
-                            return self._encode_binary(png_data)
-                        self._logger.warning("ADB screencap 回退返回无效 PNG", serial=serial, size=len(png_data) if png_data else 0)
-                    except Exception as exc:
-                        self._logger.error("ADB screencap 回退失败", serial=serial, error=str(exc))
-                    return {"error": "screenshot failed: scrcpy 无帧且 ADB 回退失败"}
+                    # 图像传输只走 scrcpy，禁止回退 ADB screencap。
+                    # scrcpy 无帧/帧过期时返回错误，依赖 _recv_exact 的 max_stalls 机制
+                    # （90s 无数据强制重建会话）自动恢复。
+                    self._logger.debug("daemon screenshot scrcpy 无帧/帧过期，等待会话自动恢复", serial=serial)
+                    return {"error": "screenshot failed: scrcpy not ready"}
                 if method == "tap":
                     self._touch.tap(int(params.get("x", 0)), int(params.get("y", 0)), serial=params.get("serial", self._serial))
                     return {"result": True}

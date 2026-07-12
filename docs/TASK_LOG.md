@@ -2441,3 +2441,16 @@
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 通过；待 GUI 运行时验证预览实时性（需连接设备后观察预览是否随屏幕变化更新，日志应显示"回退 ADB screencap"而非"scrcpy socket 等待数据中"循环）。
 - **Commits**: 3645f82（PREVIEW-01 4 处修复 + 四阶段分析报告）
+
+## 2026-07-12 (撤销 ADB 回退 + AndroidOpenGame_CN 未定义修复)
+
+- **User Request**: 严禁回退ADB screenshot，图像传输必须走scrcpy。执行队列时卡在游戏的仪表盘然后持续尝试退出到登入页面，检查相关代码。
+- **Outcome**: 两处修复：
+  1. **撤销 PREVIEW-01D 的 ADB screencap 回退** — 将 daemon 截图处理器中的 ADB 回退替换为纯 scrcpy error 返回 `{"error": "screenshot failed: scrcpy not ready"}`。图像传输只走 scrcpy，依赖 `_recv_exact` 的 `max_stalls=3`（90s 无数据强制重建会话）机制自动恢复。
+  2. **定义 AndroidOpenGame_CN 及变体** — `assets/tasks/AndroidOpenGame.json` 的 CN/Bilibili/Global/VN override 引用 `AndroidOpenGame_CN` 等变体，但对应 pipeline JSON 中完全未定义（对比 `CloseGame_CN: {}` 已定义）。MaaFW 对未定义 task 行为不一致（日志证据：有时 1s 成功，有时 180s 超时，有时 20-40s 失败）。当 MaaFW 回退到原始 `next: ["OpenGame"]` 时，`OpenGame` pipeline 的 `CloseButton` 分支在仪表盘上误匹配并点击关闭按钮 → 退出到登入页面。修复：在 `OpenGame.json` 中添加 `AndroidOpenGame_CN: {}` / `_Bilibili` / `_Global` / `_VN` 空对象定义，匹配 `CloseGame_CN: {}` 模式，使 override 指向明确定义的空节点（始终 <1s 成功 no-op）。
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py（撤销 ADB 回退）
+  - 3rd-part/maaend/resource/pipeline/OpenGame.json（添加 4 个空节点定义）
+  - reports/incidents/2026-07-12_android_open_game_cn_undefined.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: JSON 有效性已验证；py_compile 不适用（无 Python 修改）；待运行时验证队列执行不再退出到登入页面。
