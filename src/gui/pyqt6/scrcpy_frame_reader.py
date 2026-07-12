@@ -20,7 +20,7 @@ from PyQt6.QtGui import QImage
 
 from core.foundation.paths import get_cache_subdir
 
-_HEADER_FORMAT = "<4siiiQI"  # magic(4) + w(4) + h(4) + stride(4) + fmt(4) + ts(8) + count(4) = 32
+_HEADER_FORMAT = "<4siiiiQI"  # magic(4) + w(4) + h(4) + stride(4) + fmt(4) + ts(8) + count(4) = 32
 _HEADER_SIZE = 32
 _MAGIC = b"SCF1"
 

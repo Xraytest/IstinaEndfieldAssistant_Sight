@@ -606,7 +606,7 @@ class _Daemon:
             os.ftruncate(fd, self._frame_mmap_size)
             self._frame_mmap = mmap.mmap(fd, self._frame_mmap_size, access=mmap.ACCESS_WRITE)
             os.close(fd)
-            struct.pack_into("<4siiiQI", self._frame_mmap, 0,
+            struct.pack_into("<4siiiiQI", self._frame_mmap, 0,
                              b"SCF1", 0, 0, 0, 0, 0, 0)
         except Exception:
             self._logger.exception("frame mmap 预分配失败", path=self._frame_mmap_path)
@@ -810,7 +810,7 @@ class _Daemon:
                 return
             self._frame_mmap[32:32 + pixel_size] = img.tobytes()
             self._frame_count += 1
-            struct.pack_into("<4siiiQI", self._frame_mmap, 0,
+            struct.pack_into("<4siiiiQI", self._frame_mmap, 0,
                              b"SCF1", w, h, stride, 0, int(time.time()), self._frame_count)
         except Exception as e:
             self._logger.warning("frame mmap 写入失败", error=str(e))
