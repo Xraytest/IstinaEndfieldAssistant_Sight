@@ -309,6 +309,7 @@ class MaaEndControlPage(QWidget):
         # 选项树：{ option_name: { "row": QWidget, "widget": QWidget, "sub_container": QWidget, "children": {...} } }
         self._option_tree: Dict[str, Dict[str, Any]] = {}
         self._is_executing = False
+        self._is_building_editor = False  # 渲染期间阻止 _save_options 覆盖已保存选项
         self._user_stopped = False  # MAAEND-01: 标记用户主动停止，阻止 _on_execution_finished 自动重试
         self._worker: Optional[TaskRunWorker] = None
         self._failed_indices: list[int] = []
@@ -1056,33 +1057,39 @@ class MaaEndControlPage(QWidget):
     # option editor
     # ------------------------------------------------------------------
     def _build_option_editor(self, queue_index: Optional[int] = None) -> None:
-        while self._option_form.count():
-            item = self._option_form.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
-        self._option_widgets.clear()
-        self._option_tree.clear()
-        if not self._selected_task:
-            hint = QLabel(locale.tr("select_task_first", "Please select a task first to edit options."))
-            hint.setStyleSheet(INFO_STYLE)
-            self._option_form.addWidget(hint)
-            return
-        task = self._tasks_cache.get(self._selected_task)
-        if not task:
-            return
-        option_names = task.get("option", [])
-        if not option_names:
-            hint = QLabel(locale.tr("no_editable_options", "This task has no editable options."))
-            hint.setStyleSheet(INFO_STYLE)
-            self._option_form.addWidget(hint)
-            return
-        option_defs = self._resolve_option_defs(task)
-        # 递归渲染选项（含子选项），level=0 为顶层
-        for name in option_names:
-            self._render_option_row(name, option_defs, self._option_form, level=0)
-        self._option_form.addStretch()
-        self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
+        self._is_building_editor = True
+        try:
+            while self._option_form.count():
+                item = self._option_form.takeAt(0)
+                widget = item.widget()
+                if widget:
+                    widget.deleteLater()
+            self._option_widgets.clear()
+            self._option_tree.clear()
+            if not self._selected_task:
+                hint = QLabel(locale.tr("select_task_first", "Please select a task first to edit options."))
+                hint.setStyleSheet(INFO_STYLE)
+                self._option_form.addWidget(hint)
+                return
+            task = self._tasks_cache.get(self._selected_task)
+            if not task:
+                return
+            option_names = task.get("option", [])
+            if not option_names:
+                hint = QLabel(locale.tr("no_editable_options", "This task has no editable options."))
+                hint.setStyleSheet(INFO_STYLE)
+                self._option_form.addWidget(hint)
+                return
+            option_defs = self._resolve_option_defs(task)
+            # 递归渲染选项（含子选项），level=0 为顶层
+            for name in option_names:
+                self._render_option_row(name, option_defs, self._option_form, level=0)
+            self._option_form.addStretch()
+            self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
+        finally:
+            self._is_building_editor = False
+        # 渲染+恢复完成，保存一次恢复后的值（确保队列实例 options 与 UI 一致）
+        self._save_options()
 
     def _resolve_option_defs(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """解析任务的选项定义，优先使用任务内联 _option_defs，回退到全局 _task_option_defs。"""
@@ -1516,6 +1523,8 @@ class MaaEndControlPage(QWidget):
         return "; ".join(parts)
 
     def _save_options(self):
+        if self._is_building_editor:
+            return
         if not self._selected_task:
             return
         options = self._collect_options()
