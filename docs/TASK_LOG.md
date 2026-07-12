@@ -2559,3 +2559,17 @@
   - reports/incidents/2026-07-12_task_callback_false_success.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 两文件通过；待运行时验证 — 连接设备启动 GUI 执行队列，跳过的任务应不再报"成功"，日志出现"任务被跳过"和"任务节点轨迹"。
+
+## 2026-07-13 05:40 (任务 default_case 未应用 + checkbox 浅合并·DEFAULT-01 + MERGE-01)
+
+- **User Request**: 修正这个任务的任务设置以解决上述问题。同时检查其他任务的设置是否完善。
+- **Outcome**: 修复 *Schedule 任务（SellProduct、AutoStockStaple、AutoCollect、ProtocolSpace）attach weekday 全 false 导致走跳过分支的问题。两个缺陷：
+  1. **DEFAULT-01·build_pipeline_override 未应用 default_case**：`build_pipeline_override`（runtime.py:568-573）在 `options.get(opt_name)` 返回 None 时直接 `continue`，跳过整个选项，`default_case` 从未被应用。GUI 选项编辑器正确用 default_case 预选 checkbox，但仅在用户打开编辑器时才保存；直接应用预设或 CLI 未传选项时 default_case 不生效。修复：`value is None` 时检查 `opt_def.get("default_case")`，有则用作 value，无则 continue。
+  2. **MERGE-01·checkbox 多 case 浅合并丢失选项**：`_apply_option` checkbox 分支（runtime.py:609-611）用 `result.update()` 做浅合并，每个 weekday case 的 `pipeline_override` 都有相同的顶层 key `SellProductScheduleEnabled`，`dict.update()` 完全覆盖前一个，处理 7 个 weekday 后仅保留最后一个（sunday）。此缺陷预先存在但被 DEFAULT-01 掩盖（default_case 从未触发此路径）。修复：`result.update()` → `result = self._merge_overrides(result, ...)` 递归深合并。
+  - **验证脚本结果**：4 个 Schedule 任务无选项时全部 7 weekday enabled=True；用户部分选择（Mon+Wed）仅对应 weekday=True。
+  - **其他任务检查**：所有 checkbox 选项均有 default_case（无遗漏）；14 个 switch/select 选项无 default_case（DailyRewards 5个、ProtocolSpace 2个、RealTimeTask 7个），属上游 opt-in 设计，无需修改。
+- **Files Modified**:
+  - src/core/service/maa_end/runtime.py（`build_pipeline_override` default_case 回退 + `_apply_option` checkbox 深合并）
+  - reports/incidents/2026-07-12_task_default_case_not_applied.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 通过；验证脚本确认 4 个 Schedule 任务无选项时全部 weekday enabled=True，用户部分选择正常工作；待运行时验证 — 连接设备执行队列，*Schedule 任务应真正执行业务而非走跳过分支。

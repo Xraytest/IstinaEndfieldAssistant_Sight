@@ -567,9 +567,12 @@ class MaaEndRuntime:
             option_defs = self._option_defs
         for opt_name in task_options:
             value = options.get(opt_name)
-            if value is None:
-                continue
             opt_def = option_defs.get(opt_name, {})
+            if value is None:
+                default_case = opt_def.get("default_case")
+                if default_case is None:
+                    continue
+                value = default_case
             override.update(self._apply_option(opt_def, value))
         base_override = task.get("pipeline_override") or {}
         merged = self._merge_overrides(base_override, override)
@@ -605,7 +608,7 @@ class MaaEndRuntime:
             active_cases = selected if selected else default_case
             for case in cases:
                 if case.get("name") in active_cases:
-                    result.update(case.get("pipeline_override") or {})
+                    result = self._merge_overrides(result, case.get("pipeline_override") or {})
             return result
         if opt_type == "select":
             case_name = str(value)
