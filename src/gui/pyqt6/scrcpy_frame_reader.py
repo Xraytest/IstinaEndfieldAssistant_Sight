@@ -44,6 +44,9 @@ class ScrcpyFrameReader:
         self._mmap_size: int = 0
         self._last_frame_count: int = -1
         self._last_frame_ts: float = 0.0
+        # GUI 进程时钟：上次成功读到新帧的时刻。is_stale 基于此判断，而非
+        # daemon 写入的 ts（int 截断 + 编码器停滞时 ts 不更新，会导致误判）。
+        self._last_new_frame_gui_ts: float = 0.0
 
     def start(self) -> bool:
         """读 info 文件，打开 frame mmap。成功返回 True。"""
@@ -86,6 +89,7 @@ class ScrcpyFrameReader:
             return None
         self._last_frame_count = count
         self._last_frame_ts = float(ts)
+        self._last_new_frame_gui_ts = time.time()
         pixel_size = h * stride
         try:
             raw = self._mm[32:32 + pixel_size]
@@ -96,11 +100,15 @@ class ScrcpyFrameReader:
         except Exception:
             return None
 
-    def is_stale(self, max_age: float = 5.0) -> bool:
-        """frame 超过 max_age 秒未更新视为过期。"""
-        if self._last_frame_ts <= 0:
+    def is_stale(self, max_age: float = 10.0) -> bool:
+        """超过 max_age 秒未读到新帧视为过期（基于 GUI 时钟，非 daemon 时钟）。
+
+        使用 GUI 时钟而非 daemon 写入的 ts，因为 daemon 的 ts 是 int(time.time())
+        秒级截断，且编码器停滞时 ts 不更新，导致 is_stale 误判。
+        """
+        if self._last_new_frame_gui_ts <= 0:
             return True
-        return (time.time() - self._last_frame_ts) > max_age
+        return (time.time() - self._last_new_frame_gui_ts) > max_age
 
     def stop(self) -> None:
         if self._mm is not None:
@@ -117,3 +125,4 @@ class ScrcpyFrameReader:
             self._fd = None
         self._last_frame_count = -1
         self._last_frame_ts = 0.0
+        self._last_new_frame_gui_ts = 0.0

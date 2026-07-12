@@ -419,9 +419,13 @@ class MainWindow(QMainWindow):
             self._preview_widget.set_pixmap(pixmap)
             self._preview_widget.set_status(locale.tr("preview_status_live", "● 实时"), _STATUS_COLOR_LIVE)
         else:
-            if self._frame_reader.is_stale(max_age=5.0):
-                self._logger.warning(LogCategory.GUI, "frame reader 过期，重启")
-                self._stop_frame_reader()
+            # 无新帧时仅标记断开状态，不停止 reader。
+            # STALE-01: 停止 reader 会重置 _last_frame_count=-1，下次轮询重建
+            # reader 后同一旧帧被当作新帧读取（count 从 -1 变为当前值），立即
+            # 显示"实时"，33ms 后 is_stale 再次 True → "已断开" → 停止 → 重建，
+            # 形成 66ms 周期的高频闪烁循环。保持 reader 存活可保留 _last_frame_count，
+            # 编码器恢复后自动读到真正的新帧。
+            if self._frame_reader.is_stale(max_age=10.0):
                 self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
     def _resize_navigation_list(self) -> None:

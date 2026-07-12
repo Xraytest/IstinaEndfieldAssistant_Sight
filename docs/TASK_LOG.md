@@ -2499,3 +2499,16 @@
   - docs/TASK_LOG.md（本文件 + 修正 02:30 条目的格式字符串记录）
 - **Commit**: 44f955f
 - **验证**: 待 GUI 运行时验证 — 重启 GUI 连接设备后应不再出现 `frame mmap 预分配失败`，预览应在 1-2s 内显示实时画面。
+
+## 2026-07-13 03:00 (预览状态高频闪烁·STALE-01)
+
+- **User Request**: 实时与断开不时反复快速切换，并且画面正确
+- **Outcome**: 修复预览状态指示器在"● 实时"和"已断开"之间以 ~66ms 周期高频闪烁的问题。日志 logs/main.log L13620-13679 显示 3 秒内数十次 "reader 已启动"→"过期，重启" 循环。
+  - **根因**: `_refresh_preview` 在 `is_stale()` 返回 True 时调用 `_stop_frame_reader()`，重置 `_last_frame_count=-1`。下次 33ms 轮询重建 reader 后，同一旧帧被当作新帧读取（count 从 -1 变为当前值）→ "实时" → 33ms 后 is_stale 再次 True → "已断开" → 停止 → 重建 → 66ms 周期循环。叠加 `is_stale` 使用 daemon 的 `int(time.time())` 秒级截断时间戳，编码器停滞时 ts 不更新导致误判。
+  - **修复**: 1) `scrcpy_frame_reader.py` 新增 `_last_new_frame_gui_ts`（GUI 时钟），`is_stale()` 改用此字段、`max_age` 从 5.0 提升到 10.0；2) `main_window.py` `_refresh_preview` 在 is_stale 时仅更新状态指示器，不停止 reader（保留 `_last_frame_count`，打破闪烁循环）。
+- **Files Modified**:
+  - src/gui/pyqt6/scrcpy_frame_reader.py（新增 `_last_new_frame_gui_ts` 字段 + `is_stale` 改用 GUI 时钟 + `max_age` 10s）
+  - src/gui/pyqt6/main_window.py（`_refresh_preview` stale 分支移除 `_stop_frame_reader()` + 注释 STALE-01）
+  - reports/incidents/2026-07-13_preview_status_flicker.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 两文件通过；待 GUI 运行时验证 — 预览状态应稳定显示"● 实时"，仅在编码器停滞 >10s 时短暂显示"已断开"并自动恢复。
