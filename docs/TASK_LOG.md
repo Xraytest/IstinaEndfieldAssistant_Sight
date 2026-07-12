@@ -2359,3 +2359,16 @@
   - scripts/verify_scrcpy_fix.py（新增验证脚本）
   - reports/incidents/2026-07-12_scrcpy_no_frame_diagnosis.md（新增 FILEOBJ-01/RECV-01 根因和验证 section 6）
   - docs/TASK_LOG.md（本文件）
+
+## 2026-07-12 22:40 (GUI 队列执行无效果 + 停止按钮无法终止修复)
+
+- **User Request**: GUI 启动队列执行后设备未产生任何变化，并且点击停止无法有效结束执行中的队列，分析修正这些问题，并在完成修正提交后推送
+- **Outcome**: 定位三个确凿的代码问题并修复：
+  1. **`_sync_execute` 不连接 `commandError` 信号**（`maaend_control_page.py:365`）：CLI 交互进程崩溃时（`cli_bridge.py:216-231` interactive 模式崩溃分支）bridge emit `commandError` 但不 emit `commandFinished`，`_sync_execute` 的 `loop.exec()` 等 300s 超时，期间设备无变化且 UI 显示"运行中"。修复：新增 `_on_error` 回调，连接 `commandError` 信号，CLI 崩溃或业务错误时立即退出 loop。
+  2. **`_stop_execution` 不取消自动重试定时器**（MAAEND-01，批次83 已确认）：`_on_execution_finished` 在执行失败时无条件安排 `QTimer.singleShot(2000ms, _retry_failed)`，`_stop_execution` 不标记用户主动停止。用户点击停止后 2s 自动重试触发，队列恢复执行。修复：`_stop_execution` 设置 `_user_stopped = True`，`_on_execution_finished` 读取并检查该标志，跳过自动重试。
+  3. **`_sync_execute` 不响应停止标志**：`_runtime_queue_runner` 只在每个任务开始前检查 `_worker._stopped`，当前任务在 `loop.exec()` 中阻塞时停止无效。修复：`_sync_execute` 新增 200ms 间隔的 `stop_check_timer`，检测到 `_worker._stopped` 时主动退出 loop。
+- **Files Modified**:
+  - src/gui/pyqt6/pages/maaend_control_page.py（`__init__` 新增 `_user_stopped` + `_sync_execute` 连接 `commandError` + 停止检查定时器 + `_stop_execution` 设置 `_user_stopped` + `_on_execution_finished` 检查 `_user_stopped`）
+  - reports/incidents/2026-07-12_queue_stop_and_no_effect.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: `py_compile` 通过；逻辑验证三项修改相互独立、可单独回退；`_sync_execute` 在预览/自动连接路径（主线程、`_worker` 为 None）不受停止检查影响。

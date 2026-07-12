@@ -308,6 +308,7 @@ class MaaEndControlPage(QWidget):
         # 选项树：{ option_name: { "row": QWidget, "widget": QWidget, "sub_container": QWidget, "children": {...} } }
         self._option_tree: Dict[str, Dict[str, Any]] = {}
         self._is_executing = False
+        self._user_stopped = False  # MAAEND-01: 标记用户主动停止，阻止 _on_execution_finished 自动重试
         self._worker: Optional[TaskRunWorker] = None
         self._failed_indices: list[int] = []
         self._failed_indices_lock = threading.Lock()  # H-12: 保护跨线程访问
@@ -387,10 +388,26 @@ class MaaEndControlPage(QWidget):
                 result = res
                 loop.quit()
 
+        def _on_error(cmd: str, msg: str):
+            nonlocal result
+            # CLI 崩溃或业务错误时立即退出，避免等满超时（300s）才返回
+            if cmd.split()[: len(expected)] == expected:
+                result = {"status": "error", "message": msg}
+                loop.quit()
+
         # DirectConnection：回调在发出 commandFinished 的线程（主线程）执行，
         # 调用 loop.quit() 跨线程安全，避免 QueuedConnection 在事件循环
         # 被阻塞时永远无法投递。
         self._bridge.commandFinished.connect(_on_finished, Qt.ConnectionType.DirectConnection)
+        self._bridge.commandError.connect(_on_error, Qt.ConnectionType.DirectConnection)
+        # 停止检查：执行期间定期检查 worker 停止标志，避免长任务阻塞停止操作
+        stop_check_timer = QTimer()
+        stop_check_timer.setInterval(200)
+        def _check_stop():
+            worker = self._worker
+            if worker is not None and getattr(worker, '_stopped', False):
+                loop.quit()
+        stop_check_timer.timeout.connect(_check_stop)
         try:
             if self._bridge.thread() is QThread.currentThread():
                 # 同线程（主线程）直接调用，避免同线程 BlockingQueuedConnection 死锁/失败。
@@ -403,9 +420,12 @@ class MaaEndControlPage(QWidget):
                 )
         finally:
             QTimer.singleShot(timeout_ms, loop.quit)
+            stop_check_timer.start()
             loop.exec()
+            stop_check_timer.stop()
             timed_out = result is None
             self._bridge.commandFinished.disconnect(_on_finished)
+            self._bridge.commandError.disconnect(_on_error)
         self._logger.debug(LogCategory.GUI, "_sync_execute 结束", command=command, timed_out=timed_out, result_type=type(result).__name__)
         return result
 
@@ -1846,18 +1866,24 @@ class MaaEndControlPage(QWidget):
         self._worker.start()
 
     def _stop_execution(self):
+        # MAAEND-01: 标记用户主动停止，_on_execution_finished 据此跳过自动重试
+        self._user_stopped = True
         if self._worker:
             self._worker.stop()
         self._append_log("系统", locale.tr("execution_stop_requested", "Stop requested"))
 
     def _on_execution_finished(self, success: bool):
         self._is_executing = False
+        # 读取并重置 _user_stopped，确保不影响后续手动执行
+        user_stopped = self._user_stopped
+        self._user_stopped = False
         if hasattr(self, '_status_pulse_animation'):
             self._status_pulse_animation.stop()
             del self._status_pulse_animation
         self._update_execution_ui()
         self._append_log("系统", locale.tr("execution_finished", "Execution finished: {success}").format(success=success))
-        if not success and self._failed_indices and self._auto_retry_enabled and self._retry_count < self._max_retries:
+        # MAAEND-01: 用户主动停止后不再安排自动重试，避免停止后队列恢复执行
+        if not success and not user_stopped and self._failed_indices and self._auto_retry_enabled and self._retry_count < self._max_retries:
             self._append_log("系统", locale.tr("auto_retry_scheduled", "Auto-retry in {delay}s...").format(delay=self._retry_delay_ms / 1000))
             QTimer.singleShot(self._retry_delay_ms, self._retry_failed)
         self.execution_state_changed.emit(False)
