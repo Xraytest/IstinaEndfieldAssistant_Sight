@@ -6,6 +6,12 @@
             "description": "$preset.RealtimeAssist.description",
             "task": [
                 {
+                    "name": "AndroidOpenGame",
+                    "option": {
+                        "ClientVersion": "CN"
+                    }
+                },
+                {
                     "name": "RealTimeTask",
                     "option": {
                         "AutoSkip": "Yes",
