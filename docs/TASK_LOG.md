@@ -2477,7 +2477,7 @@
   2. **`_ScrcpySession._cleanup` 不修改**：该回调在 session 重建循环中反复调用，若置空 `_on_frame` 会导致重建后回调丢失。回调生命周期绑定 `_ScrcpySession` 对象。
   3. **GUI 侧**（新建 scrcpy_frame_reader.py）：`ScrcpyFrameReader` 读 info 文件 → 打开 mmap READONLY → `read_frame()` 读 header，frame_count 变化时读像素 → BGR→RGB → `QImage.copy()`。
   4. **main_window.py 集成**：定时器从 1500ms 降到 33ms（30fps）；`_refresh_preview` 重写用 reader 替代 `_sync_execute("screenshot")`；reader 生命周期（connect 启动/disconnect 停止/2s 重试/5s 过期检测）；执行期间不停止预览（mmap 读取不与 MaaEnd screencap 竞争）；closeEvent 清理 reader；删除 `_preview_interval_ms` 方法。
-  5. **mmap header 格式**：`<4siiiQI` = magic(4) + w(4) + h(4) + stride(4) + fmt(4) + ts(8) + count(4) = 32 字节。
+  5. **mmap header 格式**：`<4siiiiQI` = magic(4) + w(4) + h(4) + stride(4) + fmt(4) + ts(8) + count(4) = 32 字节（7 项）。
 - **Files Modified**:
   - src/core/capability/device/android_runtime.py（`_Daemon.__init__`/`start`/`stop`/`_init_frame_mmap`/`_on_scrcpy_frame`/`_dispatch` startScrcpy+screenshot 分支；`_ScrcpySession.__init__`/`_decode_loop` 的 `_on_frame` 回调为前序遗留修改）
   - src/gui/pyqt6/scrcpy_frame_reader.py（新增·ScrcpyFrameReader 类）
@@ -2485,3 +2485,17 @@
   - reports/incidents/2026-07-13_scrcpy_frame_stream_preview.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 三文件全部通过；待 GUI 运行时验证预览流畅度（连接设备后预览应 1-2s 内开始显示实时画面，状态显示"● 实时"，30fps 轮询动态场景流畅）。
+
+## 2026-07-13 02:45 (scrcpy 帧通道 struct 格式修复·STRUCT-01)
+
+- **User Request**: 产出error，阅读日志并解决
+- **Outcome**: 修复 scrcpy 帧通道 mmap header 的 struct 格式字符串错误。日志 logs/main.log L13497-13501 显示 `frame mmap 预分配失败` + `struct.error: pack_into expected 6 items for packing (got 7)`，导致 daemon 启动时 mmap 分配失败、CLI 子进程随后崩溃（exit_code=-1073741510）。
+  - **根因**: 格式字符串 `<4siiiQI` 只有 3 个 `i`（6 项：4s+i+i+i+Q+I），但实际传入 7 个值（magic, w, h, stride, fmt, ts, count），缺少一个 `i` 对应 format 字段。
+  - **修复**: `<4siiiQI` → `<4siiiiQI`（4 个 `i`，7 项），修改 3 处：android_runtime.py `_init_frame_mmap` L609、`_on_scrcpy_frame` L813、scrcpy_frame_reader.py `_HEADER_FORMAT` L23。
+  - **验证**: py_compile 通过；`struct.calcsize("<4siiiiQI")` = 32 字节；`len(struct.unpack(...))` = 7 项 ✓
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py（2 处格式字符串）
+  - src/gui/pyqt6/scrcpy_frame_reader.py（1 处格式字符串）
+  - docs/TASK_LOG.md（本文件 + 修正 02:30 条目的格式字符串记录）
+- **Commit**: 44f955f
+- **验证**: 待 GUI 运行时验证 — 重启 GUI 连接设备后应不再出现 `frame mmap 预分配失败`，预览应在 1-2s 内显示实时画面。
