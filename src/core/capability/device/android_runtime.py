@@ -297,7 +297,9 @@ class _ScrcpySession:
             self._codec.height = h
             self._codec.pix_fmt = "yuv420p"
             self._codec.flags |= 1 << 19
-            self._codec.open()
+            # CONFIG-01: 不显式 open()，让首次 decode() 自动打开。
+            # scrcpy 2.7 的 config packet 是 AVCC 格式 SPS/PPS，需在 open 前设为 extradata
+            # 才能被 ffmpeg 正确解析。显式 open() 后 extradata 不生效，导致 config 解码失败。
             self._logger.info(
                 "scrcpy 握手成功",
                 device=self._device_name,
@@ -342,10 +344,13 @@ class _ScrcpySession:
 
                     if is_config:
                         self._logger.info("scrcpy 收到 config packet", size=pkt_size)
+                        # CONFIG-01: scrcpy 2.7 config packet 是 AVCC 格式 SPS/PPS，
+                        # 设为 extradata 让 ffmpeg 在首次 decode 自动 open 时解析。
+                        # 不直接 decode()，因为 AVCC 格式不是 Annex-B，decode 会报 Invalid data。
                         try:
-                            self._codec.decode(av.Packet(data))
+                            self._codec.extradata = bytes(data)
                         except Exception as e:
-                            self._logger.warning("scrcpy config 解码失败", error=str(e))
+                            self._logger.warning("scrcpy config extradata 设置失败", error=str(e))
                         continue
 
                     try:
