@@ -1594,6 +1594,35 @@ class MaaEndControlPage(QWidget):
             self._task_option_defs = data.get("task_option_defs") or {}
         except Exception:
             pass
+        if self._is_metadata_cache_stale():
+            self._logger.info(LogCategory.GUI, "元数据缓存已过期，将在下次刷新时重新获取", cache_path=str(path))
+            self._tasks_cache = {}
+            self._presets_cache = {}
+            self._task_option_defs = {}
+
+    def _is_metadata_cache_stale(self) -> bool:
+        """检查预设/任务文件是否在缓存创建后被修改过。"""
+        cache_path = self._metadata_cache_path
+        if not cache_path.is_file():
+            return True
+        try:
+            cache_mtime = cache_path.stat().st_mtime
+        except OSError:
+            return True
+        try:
+            from core.foundation.paths import get_project_root
+            preset_root = Path(get_project_root()) / "3rd-part" / "maaend" / "tasks" / "preset"
+        except Exception:
+            return False
+        if not preset_root.is_dir():
+            return False
+        for json_file in preset_root.glob("*.json"):
+            try:
+                if json_file.stat().st_mtime > cache_mtime:
+                    return True
+            except OSError:
+                continue
+        return False
 
     def _persist_metadata_cache(self) -> None:
         try:
