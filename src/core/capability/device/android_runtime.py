@@ -123,7 +123,13 @@ class _ScrcpySession:
                     continue
                 self._decode_loop()
             except TimeoutError:
-                self._logger.warning("scrcpy socket 读取超时，2s 后重建会话")
+                # DIAG-01: 记录 server 进程状态，区分"server 被杀"vs"ADB 隧道断开"vs"编码器停滞"
+                _srv_alive = self._server_proc is not None and self._server_proc.poll() is None
+                _srv_rc = self._server_proc.returncode if self._server_proc is not None and self._server_proc.poll() is not None else None
+                self._logger.warning(
+                    "scrcpy socket 读取超时，2s 后重建会话",
+                    server_alive=_srv_alive, server_returncode=_srv_rc,
+                )
             except Exception:
                 self._logger.exception("scrcpy 会话异常，2s 后重试")
             finally:
