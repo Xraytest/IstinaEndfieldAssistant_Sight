@@ -2424,4 +2424,4 @@
   - scripts/verify_locale_keys.py（新增·locale 键完整性校验脚本）
   - docs/TASK_LOG.md（本文件）
 - **验证**: `scripts/verify_locale_keys.py` 报告 "all locale.tr() keys exist in zh_CN.json"；json.load 确认两文件均为合法 JSON（223 键含 _meta）。
-- **Commits**: 待提交
+- **Commits**: 7f07236（补 24 个 locale 键 + verify_locale_keys.py 校验脚本）
