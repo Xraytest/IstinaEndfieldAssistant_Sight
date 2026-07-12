@@ -2388,3 +2388,24 @@
   - reports/incidents/2026-07-12_cli_crash_silent_restart.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: `py_compile` 通过。待用户运行 GUI 验证：启动队列执行，观察 logs/main.log 中 `_sync_execute 收到 commandError` 或 `_sync_execute 检测到停止标志` 日志。
+
+## 2026-07-12 15:35 (CLI 队列超时根因定位 + 预览状态简化)
+
+- **User Request**: 设备依然无法正确被控制，需要通过CLI执行队列并校验中间OCR结果以确认任务运作正确。预览状态只应当分为实时和已断开。
+- **Outcome**:
+  1. **CLI 队列执行验证**: preset run DailyFullSkippingVisitFriends --serial 192.168.1.12:16512 --timeout 90 执行完成，8 个任务全部失败：
+     - 6 个任务（DijiangRewards, SellProduct, AutoStockStaple, EnvironmentMonitoring, DailyRewards, AutoCollect）在 90s 超时
+     - 2 个任务（CreditShoppingN2, DeliveryJobs）未定义 — 预设配置错误（35 个已定义任务中不包含这两个）
+  2. **OCR/场景识别校验**: 通过 scripts/verify_scene_identify.py 使用本地截图验证 scene.identify 功能正常。识别当前场景为 "gameplay"（confidence=0.7, 13 个元素），非主界面。检测到 SceneManager/LoginDialogConfirm、SceneManager/WorldSpaceExit、SceneManager/WordMenuBackpack2 等元素。
+  3. **根因定位**: 设备处于 "gameplay" 场景而非主界面，日常任务均假设从主界面启动，pipeline 找不到预期 UI 元素导致超时。非代码 bug，是场景状态问题。
+  4. **附带发现**: CLI screenshot/device screenshot 在全新进程中失败（scrcpy not ready），_prepare_screen 缺少 MaaEnd 回退（runtime.py:794 直接调用 ndroid.screenshot() 而非 _screenshot()）。待后续修复。
+  5. **预览状态简化**: 按用户要求将 5 种预览状态简化为 2 种（实时/已断开）。移除"执行中"、"重连中"、"未连接"状态；失败阈值从 5 降至 3。
+- **Files Modified**:
+  - src/gui/pyqt6/main_window.py（预览状态简化）
+  - src/gui/pyqt6/locales/zh_CN.json（移除未使用状态键）
+  - src/gui/pyqt6/locales/en_US.json（移除未使用状态键）
+  - scripts/verify_scene_identify.py（新增·OCR 验证脚本）
+  - reports/incidents/2026-07-12_cli_queue_timeout_scene_mismatch.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 通过；CLI 队列执行日志确认所有任务超时；scene identify 确认场景识别功能正常；预览状态简化待 GUI 运行时验证。
+- **Commits**: faf7974（预览状态简化）
