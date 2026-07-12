@@ -2623,3 +2623,18 @@
   - reports/incidents/2026-07-13_options_not_saved.md（四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 通过；commit 92a0df5 已推送。待运行时验证：切换队列条目后选项应保持用户设置。
+
+
+## 2026-07-13 13:30 (EnterGame 缺少 post_delay 导致 VisitFriends 失败·POSTDELAY-01)
+
+- **User Request**: 阅读当前的队列，分析："在完成应用启动并进入主世界后直接尝试退出到登入页并提交第二个任务错误"，明晰原因并修正，并通过执行当前这个队列进行测试
+- **Outcome**:
+  - **根因**：`OpenGame.json` 中 `EnterGame` 节点（`InWorld` 识别成功后的终止节点）没有 `post_delay`，`InWorld` 模板命中后任务立即成功返回，但此时游戏 UI 仍处于过渡状态（登录后初始动画、菜单异步加载）。VisitFriends 立即启动，其 `action` 调用 `SubTask: ["SceneAnyEnterWorld"]`，`__ScenePrivateAnyEnterWorldSuccess` 在 `pre_wait_freezes` 2000ms 超时内无法匹配 `InWorld`（UI 抖动），fallback 到 `[JumpBack]__ScenePrivateAnyExit`（DirectMatch，永远匹配），每 1500ms 一次 ESC，11s 内约 7 次 ESC 将游戏从主世界退到登录页。VisitFriends 最终超时失败。
+  - **关键澄清**：`AndroidOpenGame_CN: {}` 空 `{}` 不是根因。节点轨迹证明 `OpenGame` 确实执行了，因 `pipeline_override` 对 `next` 字段是**前置合并**而非替换，`AndroidOpenGame_CN`（空 no-op）后正常进入 `OpenGame`。不应给 `AndroidOpenGame_CN` 加 `next: ["OpenGame"]`，那会导致 `OpenGame` 执行两次。
+  - **修复**：为 `EnterGame` 添加 `post_delay: 3000`，让 `InWorld` 命中后等待 3s 再结束 AndroidOpenGame，覆盖 `__ScenePrivateAnyEnterWorldSuccess.pre_wait_freezes` 的 2000ms 窗口，确保下个任务启动时 `InWorld` 模板能稳定匹配。
+- **Files Modified**:
+  - 3rd-part/maaend/resource/pipeline/OpenGame.json（运行时副本·EnterGame 添加 post_delay: 3000）
+  - MaaEnd/assets/resource/pipeline/OpenGame.json（git 跟踪源文件·同步修改）
+  - reports/incidents/2026-07-13_enter_game_no_post_delay.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: 两份 JSON 通过 json.load 校验；待运行时验证 — 连接设备执行队列，AndroidOpenGame 成功后 VisitFriends 应能正常进入大世界而非触发 ESC 循环。
