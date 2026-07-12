@@ -2409,3 +2409,19 @@
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 通过；CLI 队列执行日志确认所有任务超时；scene identify 确认场景识别功能正常；预览状态简化待 GUI 运行时验证。
 - **Commits**: faf7974（预览状态简化）
+
+## 2026-07-12 23:50 (CHS 语言套件完整性检查与补全)
+
+- **User Request**: 检查 CHS 语言套件是否完全。
+- **Outcome**: 编写 `scripts/verify_locale_keys.py` 自动比对 zh_CN/en_US 键集与代码中 `locale.tr()` 引用。发现 zh_CN.json 与 en_US.json 键集一致（198 键），但代码中引用了 24 个未定义的键，导致 CHS 用户回退看到英文：
+  1. **22 个 scripting_* 键**（`scripting_page.py` 脚本录制页全页文本）：title/subtitle/scripts/record/stop_record/play/delete/status_stopped/status_recording/record_hint/saved/playing/playing_info/no_selection/no_selection_msg/error/play_error/confirm_delete/confirm_delete_msg/delete_error/finished/stopped。
+  2. **2 个 settings_save_failed* 键**（`settings_page.py` 保存失败提示）：settings_save_failed/settings_save_failed_msg。
+  3. 已向 zh_CN.json 与 en_US.json 同步补全 24 键（zh 222 键 / en 222 键，键集一致），所有 `locale.tr()` 调用现在都有对应翻译。
+  4. **附带观察（未修复）**：`main_window.py:270-276/287` 导航项标签→locale 键映射与初始选中行比较使用硬编码中文（"标准推理"等），切换到英文 UI 时会失效；`main_window.py:136/242` 用字面字符串 `setAccessibleDescription("status_bar_desc")` 而非 `locale.tr()`，无障碍描述显示键名而非翻译。这两项属 i18n 缺陷而非 CHS 键缺失，待后续修复。
+- **Files Modified**:
+  - src/gui/pyqt6/locales/zh_CN.json（补 24 键）
+  - src/gui/pyqt6/locales/en_US.json（补 24 键，保持键集一致）
+  - scripts/verify_locale_keys.py（新增·locale 键完整性校验脚本）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: `scripts/verify_locale_keys.py` 报告 "all locale.tr() keys exist in zh_CN.json"；json.load 确认两文件均为合法 JSON（223 键含 _meta）。
+- **Commits**: 待提交
