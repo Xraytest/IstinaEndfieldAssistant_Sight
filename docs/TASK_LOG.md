@@ -2440,4 +2440,4 @@
   - reports/incidents/2026-07-12_preview_stale_frame.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 通过；待 GUI 运行时验证预览实时性（需连接设备后观察预览是否随屏幕变化更新，日志应显示"回退 ADB screencap"而非"scrcpy socket 等待数据中"循环）。
-- **Commits**: 待提交
+- **Commits**: 3645f82（PREVIEW-01 4 处修复 + 四阶段分析报告）
