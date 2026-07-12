@@ -2573,3 +2573,20 @@
   - reports/incidents/2026-07-12_task_default_case_not_applied.md（新增·四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 通过；验证脚本确认 4 个 Schedule 任务无选项时全部 weekday enabled=True，用户部分选择正常工作；待运行时验证 — 连接设备执行队列，*Schedule 任务应真正执行业务而非走跳过分支。
+
+## 2026-07-13 06:20 (scrcpy 图像管线持续连接·PERSIST-01)
+
+- **User Request**: 依然存在一定时间后scrcpy图像管线自动断开问题，你必须确保在scrcpy链接成功建立后GUI进程终止之前持续链接不得断开并且预览实时展示无延迟无抽帧。你需要有效测试确认问题无误
+- **Outcome**: 修复 scrcpy 图像管线在编码器停滞 15s 后自动断开的问题。根因：`_recv_exact` 的 `max_stalls=3` 机制（3×5s=15s）在编码器短暂停滞时强制返回 None 触发会话重建，导致帧流中断 5-10s，GUI 显示"已断开"。scrcpy 配置 `power_on=true` + `stay_awake=true` + `i-frame-interval=2` 已确保编码器持续产出帧，`max_stalls` 机制是多余且有害的。修复：
+  1. `android_runtime.py` `_recv_exact`：移除 `max_stalls` 限制，server 存活时 `continue` 持续等待，仅 server 退出或 EOF 时返回 None
+  2. `main_window.py` `_refresh_preview`：reader 存活但 stale 时不再显示"已断开"，仅尝试 `refresh()` 检测 daemon 重启
+  3. `scrcpy_frame_reader.py` `is_stale`：更新文档说明现仅用于触发 `refresh()`
+  4. 新增 `scripts/verify_scrcpy_persistent.py` 验证脚本：监控 mmap frame_count 变化 120s，检测停滞周期和日志重建记录
+- **Files Modified**:
+  - src/core/capability/device/android_runtime.py（`_recv_exact` 移除 max_stalls + `_decode_loop` 注释更新）
+  - src/gui/pyqt6/main_window.py（`_refresh_preview` 移除"已断开"显示）
+  - src/gui/pyqt6/scrcpy_frame_reader.py（`is_stale` 文档更新）
+  - scripts/verify_scrcpy_persistent.py（新增·验证脚本）
+  - reports/incidents/2026-07-13_scrcpy_persistent_connection.md（新增·四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 三文件通过；待运行时验证 — `3rd-part/python/python.exe scripts/verify_scrcpy_persistent.py --serial <serial> --duration 120` 应显示 frame_count 持续增长、无 >15s 停滞、无"强制重建会话"日志。

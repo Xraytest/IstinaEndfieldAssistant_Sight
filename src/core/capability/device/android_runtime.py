@@ -264,10 +264,14 @@ class _ScrcpySession:
         是 TCP 正常的 partial read（非 EOF），本方法循环读取直到收齐 n 字节。
         socket.timeout 时检查 server 进程：存活则继续等待，已退出则返回 None。
         recv 返回空（真 EOF）也返回 None。
+
+        PERSIST-01: 移除 max_stalls 限制。server 存活时持续等待不重建会话，
+        确保 scrcpy 连接成功建立后在 GUI 进程终止前持续不断开。scrcpy 配置
+        power_on=true + stay_awake=true + i-frame-interval=2s 确保编码器持续
+        产出帧；编码器短暂停滞时 sock.recv() 超时后继续等待，下一帧到达后
+        自动恢复。仅在 server 进程退出或 socket EOF（真断开）时返回 None。
         """
         data = bytearray()
-        stall_count = 0
-        max_stalls = 3  # 3 × 30s socket timeout = 90s 无数据后强制重建会话
         while len(data) < n:
             if self._stop_event.is_set():
                 return None
@@ -281,19 +285,6 @@ class _ScrcpySession:
                         server_returncode=self._server_proc.returncode,
                     )
                     return None
-                stall_count += 1
-                if stall_count == 1:
-                    self._logger.info(
-                        "scrcpy socket 等待数据中（server 存活，不重建）",
-                        bytes_read=len(data), bytes_expected=n,
-                    )
-                elif stall_count >= max_stalls:
-                    self._logger.warning(
-                        "scrcpy socket 连续 %d 次超时（server 存活但编码器停滞），强制重建会话"
-                        % stall_count,
-                        bytes_read=len(data), bytes_expected=n,
-                    )
-                    return None
                 continue
             if not chunk:
                 _srv_alive = self._server_proc is not None and self._server_proc.poll() is None
@@ -304,7 +295,6 @@ class _ScrcpySession:
                 )
                 return None
             data.extend(chunk)
-            stall_count = 0
         return bytes(data)
 
     def _decode_loop(self) -> None:
@@ -391,8 +381,7 @@ class _ScrcpySession:
             )
 
             # RECV-01: socket 超时设为 5s。_recv_exact 内部捕获 socket.timeout，
-            # server 存活时继续等待，不触发重建。这消除了「大帧 partial read 被误判
-            # 为断开」和「编码器暂时停滞触发重建」两个根因导致的重连死循环。
+            # server 存活时持续等待不重建（PERSIST-01），仅 server 退出或 EOF 时返回 None。
             sock.settimeout(5.0)
             first_frame_logged = False
             frame_counter = 0

@@ -106,11 +106,11 @@ class ScrcpyFrameReader:
         使用 GUI 时钟而非 daemon 写入的 ts，因为 daemon 的 ts 是 int(time.time())
         秒级截断，且编码器停滞时 ts 不更新，导致 is_stale 误判。
 
-        max_age=10s：CLI 崩溃后 auto-reconnect 在 1.5s 发起 system connect，
-        新 daemon 启动 scrcpy 并写入首帧约需 5-8s，总计 ~6-10s。10s 阈值在
-        多数场景下不会误显示"已断开"；即便短暂显示，refresh() 检测到新 daemon
-        后立即恢复。daemon 自身的 scrcpy 会话重建（编码器停滞）由 _recv_exact
-        的 max_stalls=3 处理，通常 <15s 内恢复。
+        PERSIST-01: is_stale 现仅用于触发 refresh() 检测 daemon 重启（CLI 崩溃后
+        新 mmap），不再用于显示"已断开"。daemon 的 _recv_exact 已移除 max_stalls
+        限制，server 存活时持续等待不重建会话，连接不会因编码器停滞而断开。
+        max_age=10s 足以覆盖 CLI 崩溃后 auto-reconnect（1.5s）+ 新 daemon 启动
+        + scrcpy 首帧（~5-8s）的周期。
         """
         if self._last_new_frame_gui_ts <= 0:
             return True

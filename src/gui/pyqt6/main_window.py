@@ -460,21 +460,14 @@ class MainWindow(QMainWindow):
             self._preview_widget.set_pixmap(pixmap)
             self._preview_widget.set_status(locale.tr("preview_status_live", "● 实时"), _STATUS_COLOR_LIVE)
         else:
-            # 无新帧时仅标记断开状态，不停止 reader。
-            # STALE-01: 停止 reader 会重置 _last_frame_count=-1，下次轮询重建
-            # reader 后同一旧帧被当作新帧读取（count 从 -1 变为当前值），立即
-            # 显示"实时"，33ms 后 is_stale 再次 True → "已断开" → 停止 → 重建，
-            # 形成 66ms 周期的高频闪烁循环。保持 reader 存活可保留 _last_frame_count，
-            # 编码器恢复后自动读到真正的新帧。
-            #
-            # CLI 崩溃后 _on_cli_crashed 自动发起 system connect（1.5s 后），
-            # 新 daemon 启动后写入新 mmap。此处先尝试 refresh() 切换到新 mmap，
-            # 成功则下次 read_frame 即可读到新帧恢复"实时"，无需显示"已断开"。
+            # PERSIST-01: 无新帧时不显示"已断开"，保持上一帧和"● 实时"状态。
+            # daemon 的 _recv_exact 已移除 max_stalls 限制，server 存活时持续等待
+            # 不重建会话，连接不会因编码器停滞而断开。mmap 保留上一帧供 GUI 持续显示。
+            # 仅尝试 refresh() 检测 daemon 重启（CLI 崩溃后新 mmap），成功则下次
+            # read_frame 即可读到新帧恢复实时画面。
             if self._frame_reader.is_stale(max_age=10.0):
                 if self._frame_reader.refresh():
                     self._logger.info(LogCategory.GUI, "frame reader 切换到新 daemon mmap")
-                else:
-                    self._preview_widget.set_status(locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST)
 
     def _resize_navigation_list(self) -> None:
         if self._navigation_list is None:
