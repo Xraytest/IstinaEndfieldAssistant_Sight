@@ -2609,3 +2609,17 @@
   - src/gui/pyqt6/locales/en_US.json
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 两文件通过；verify_locale_keys.py 键集对称（223/223）；_load_json_file 解析全部 41 个任务 JSON 文件成功；commit c894094 已推送。
+
+
+## 2026-07-13 13:15 (修复选择性/数值选项无法保存 — SAVE-01)
+
+- **User Request**: 选择性选项与数值选项难以被保存，修正。
+- **Outcome**:
+  - **根因**：_build_option_editor 渲染选项控件期间，_render_option_row → _refresh_sub_options → _save_options() 被调用。此时 _focused_queue_index 已指向新队列行，_save_options 将默认值写入队列实例 options，覆盖用户保存的值。随后 _apply_saved_option_values 从同一实例读取时已是默认值，恢复无效。
+  - **修复**：新增 _is_building_editor 标志。_build_option_editor 渲染前设 True（finally 中设回 False），_save_options 开头检查该标志为 True 时直接返回。渲染+恢复完成后调用一次 _save_options() 保存恢复后的值。
+  - **影响**：所有选项类型（switch/select/checkbox/input）不再被重置为默认值。select 和 input 受影响最明显（默认值分别为第一项和空字符串）。
+- **Files Modified**:
+  - src/gui/pyqt6/pages/maaend_control_page.py（_is_building_editor 标志 + _build_option_editor + _save_options）
+  - reports/incidents/2026-07-13_options_not_saved.md（四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 通过；commit 92a0df5 已推送。待运行时验证：切换队列条目后选项应保持用户设置。
