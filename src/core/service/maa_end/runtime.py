@@ -148,6 +148,9 @@ class MaaEndRuntime:
         # 队列：唯一可执行单元。预设只是任务列表，应用预设 = 用其任务覆盖队列。
         self._queue: List[Dict[str, Any]] = []
         self._load_lock = threading.Lock()  # N11: 保护 load_tasks/load_presets 并发调用
+        # 集中式异常恢复：任何任务失败时执行 CloseGame → AndroidOpenGame → 重试
+        self._recovering = False
+        self._client_version = "CN"
 
     def _default_maaend_root(self) -> Path:
         return get_project_root() / "3rd-part" / "maaend"
@@ -716,6 +719,8 @@ class MaaEndRuntime:
             merged_options = dict(inline_options)
             merged_options.update(options)
             options = merged_options
+        if options.get("ClientVersion"):
+            self._client_version = options["ClientVersion"]
         override = self.build_pipeline_override(task_name, options)
         entry = task.get("entry", task_name)
         self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
@@ -723,10 +728,9 @@ class MaaEndRuntime:
             job = self._tasker.post_task(entry, override if override else {})
             succeeded = self._wait_job(job, timeout)
         except Exception as e:
-            # 仅真正的执行异常才视为连接断开并尝试恢复
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "任务执行异常", task=task_name, error=str(e))
-            if self._try_recover(task_name):
+            if not self._recovering and self._try_recover(task_name):
                 return self._retry_task(task_name, options, entry, timeout)
             return False
         if succeeded:
@@ -735,9 +739,11 @@ class MaaEndRuntime:
                 return False
             self.logger.info(LogCategory.MAIN, "任务执行成功", task=task_name)
             return True
-        # 识别未命中等「正常失败」：仅上报失败，不污染连接态、不重启应用
         self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
-        return False
+        if self._recovering:
+            self.logger.warning(LogCategory.MAIN, "恢复任务失败，不递归", task=task_name)
+            return False
+        return self._recover_and_retry(task_name, options, timeout)
 
     def _detect_task_skipped(self, job: Any, task_name: str) -> bool:
         """检测任务是否走了跳过分支（未真正执行业务）。
@@ -866,6 +872,37 @@ class MaaEndRuntime:
             except Exception:
                 return base, {"_inline": payload}
         return base, {"_inline": payload}
+
+    def _recover_and_retry(self, task_name: str, options: Dict[str, Any], timeout: Optional[float]) -> bool:
+        """集中式异常恢复：关闭游戏 → 启动游戏 → 从头重试失败任务。
+
+        任何任务失败（识别未命中、超时等）时调用此方法。通过 _recovering 标志
+        防止恢复任务自身失败时递归。仅重试一次，避免无限循环。
+        """
+        self.logger.info(
+            LogCategory.MAIN,
+            "异常恢复开始：关闭游戏 → 启动游戏 → 重试任务",
+            task=task_name,
+            client_version=self._client_version,
+        )
+        self._recovering = True
+        try:
+            self.logger.info(LogCategory.MAIN, "异常恢复步骤1/3：关闭游戏")
+            self.run_task("CloseGame", {"ClientVersion": self._client_version}, 60)
+            if not self._connected:
+                self.logger.error(LogCategory.MAIN, "异常恢复中止：连接断开")
+                return False
+
+            self.logger.info(LogCategory.MAIN, "异常恢复步骤2/3：启动游戏")
+            open_ok = self.run_task("AndroidOpenGame", {"ClientVersion": self._client_version}, 180)
+            if not open_ok:
+                self.logger.error(LogCategory.MAIN, "异常恢复失败：启动游戏失败")
+                return False
+
+            self.logger.info(LogCategory.MAIN, "异常恢复步骤3/3：重试失败任务", task=task_name)
+            return self.run_task(task_name, options, timeout)
+        finally:
+            self._recovering = False
 
     def _try_recover(self, task_name: str) -> bool:
         """尝试恢复连接/设备状态，失败则重启应用。"""

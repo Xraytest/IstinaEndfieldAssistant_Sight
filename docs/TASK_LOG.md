@@ -2673,3 +2673,21 @@
   - reports/incidents/2026-07-13_enter_game_no_post_delay.md（追加 LOGOUT-01 四阶段分析）
   - docs/TASK_LOG.md（本文件）
 - **验证**: 三份 JSON 通过 json.load 校验；MaaFW log 证据确认 OCR 文本在 handler 的 ROI 内且 expected 列表包含 "自动登出"（"长时间没有操作自动登出" 的子串）；待运行时验证 — 重新连接设备（`system connect`）后执行 AndroidOpenGame，自动登出弹窗应被自动处理。
+
+## 2026-07-13 17:00 (集中式异常恢复模块·RECOVERY-01)
+
+- **User Request**: "异常处理设计为直接重启游戏。异常处理应该是每一个模块遇到错误时都能够转到的模块" + "应该为关闭游戏后执行启动游戏，然后从头执行异常任务"
+- **Outcome**: 实现集中式异常恢复模块，替代之前的逐任务 JumpBack 方案：
+  - **设计**: 任何任务失败（识别未命中/超时等）时，自动执行恢复流程：`CloseGame` → `AndroidOpenGame` → 从头重试失败任务。仅重试一次，避免无限循环。
+  - **实现**:
+    - `runtime.py` 新增 `_recovering` 标志（防止恢复任务自身失败时递归）和 `_client_version` 缓存（从 AndroidOpenGame 选项中提取，供恢复任务的 CloseGame/AndroidOpenGame 使用）
+    - `run_task()` 在任务失败时调用 `_recover_and_retry()`（跳过任务和恢复任务不触发）
+    - 新增 `_recover_and_retry()` 方法：CloseGame(60s) → AndroidOpenGame(180s) → 重试失败任务(原 timeout)
+    - GUI `timeout_ms` 从 300000 提升至 600000，容纳恢复流程总时长（~360s + 原任务 timeout）
+  - **防递归机制**: `_recovering` 标志在恢复期间为 True，恢复任务（CloseGame/AndroidOpenGame/重试任务）失败时不触发恢复
+  - **不影响**: 连接级异常仍走 `_try_recover()`（ADB screencap → app restart → reconnect）；跳过任务（ScheduleRecognition 未命中）不触发恢复
+- **Files Modified**:
+  - src/core/service/maa_end/runtime.py（`__init__` 新增 `_recovering`/`_client_version`；`run_task` 改为失败时触发恢复；新增 `_recover_and_retry` 方法）
+  - src/gui/pyqt6/pages/maaend_control_page.py（`timeout_ms` 300000 → 600000）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile runtime.py + maaend_control_page.py 通过；待运行时验证 — 任务失败后应自动执行 CloseGame → AndroidOpenGame → 重试，日志中可见"异常恢复开始：关闭游戏 → 启动游戏 → 重试任务"。
