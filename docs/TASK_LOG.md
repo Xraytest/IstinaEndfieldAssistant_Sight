@@ -2658,3 +2658,18 @@
   - reports/incidents/2026-07-13_enter_game_no_post_delay.md（修订·补充 POPUP-01 四阶段分析）
   - docs/TASK_LOG.md（本文件）
 - **验证**: 三份 Scene.json 通过 JSON 校验；py_compile maaend_control_page.py 通过；待运行时验证 — 连接设备执行队列，AndroidOpenGame 成功后 VisitFriends 应能正常进入大世界（弹窗被 JumpBack 处理器自动处理而非触发 ESC 循环）。
+
+## 2026-07-13 16:30 (OpenGame 缺少自动登出 JumpBack 处理器·LOGOUT-01)
+
+- **User Request**: "异常处理模块的触发与执行存在问题，当前设备处于'长时间未操作自动登出'提示页面，执行器直接卡在这里了。参考MaaEnd的做法"
+- **Outcome**: 通过 MaaFW debug log 分析定位执行器在自动登出弹窗页面卡死的根因并修复：
+  - **根因**: `OpenGame.next` 有 12 个 JumpBack 处理器但不包含 `[JumpBack]__ScenePrivateLoggedOutConfirm`。`SceneAnyEnterWorld.next` 已包含此处理器。MaaFW log 证据：OCR 检测到 "长时间没有操作自动登出"（score=0.999, box=[507,344,264,26]）但无处理器匹配；`WaitBlackScreen` 误匹配小黑块 [705,128,65,15]（count=626）导致死循环（DoNothing → loop back → 重复）。此外，pipeline 在 08:18:06 加载，文件在 08:26:14 修改，运行中不热重载。
+  - **修复**: 在 `OpenGame.next` 的 `EnterGame` 之后、`[JumpBack]ClickContinue` 之前添加 `[JumpBack]__ScenePrivateLoggedOutConfirm`。三份文件同步修改：运行时副本（`3rd-part/maaend/`）、上游源（`MaaEnd/assets/`）、git 跟踪 IEA PipelineLoader 源（`assets/pipelines/open_game.json`）。
+  - **参考 MaaEnd 做法**: MaaEnd 无全局 JumpBack 机制，每个需要处理自动登出的 task 必须各自在 `next` 中包含 `[JumpBack]__ScenePrivateLoggedOutConfirm`。`SceneAnyEnterWorld.next` 已有此处理器，本次使 `OpenGame.next` 与其保持一致。
+- **Files Modified**:
+  - 3rd-part/maaend/resource/pipeline/OpenGame.json（运行时副本·新增 JumpBack 条目）
+  - MaaEnd/assets/resource/pipeline/OpenGame.json（上游源·同步修改）
+  - assets/pipelines/open_game.json（git 跟踪·同步修改）
+  - reports/incidents/2026-07-13_enter_game_no_post_delay.md（追加 LOGOUT-01 四阶段分析）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: 三份 JSON 通过 json.load 校验；MaaFW log 证据确认 OCR 文本在 handler 的 ROI 内且 expected 列表包含 "自动登出"（"长时间没有操作自动登出" 的子串）；待运行时验证 — 重新连接设备（`system connect`）后执行 AndroidOpenGame，自动登出弹窗应被自动处理。

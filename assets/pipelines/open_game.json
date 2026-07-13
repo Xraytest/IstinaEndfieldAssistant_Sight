@@ -2,6 +2,7 @@
   "OpenGame": {
     "next": [
       "EnterGame",
+      "[JumpBack]__ScenePrivateLoggedOutConfirm",
       "[JumpBack]ClickContinue",
       "[JumpBack]CheckIn",
       "[JumpBack]CollectRewards",
