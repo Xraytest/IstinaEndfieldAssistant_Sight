@@ -2705,3 +2705,22 @@
   - reports/incidents/2026-07-13_visit_friends_image_check_abort.md（新增·IMGCHK-01 四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: 两份 JSON 通过 json.load 校验；待运行时验证 — 重新连接设备（`system connect`，MaaFW 不热重载）后执行 VisitFriends，应能正常进入菜单列表 → 好友列表，maafw.log 中不应再出现 `__SceneImageCheck*` / `__SceneCheckAbortPipeline` / `need_to_stop [node.name=VisitFriendsMain]` 记录。
+
+## 2026-07-13 23:40 (DailyFull 队列执行·6/12 任务失败·TOUCH-01)
+
+- **User Request**: 执行每日全套任务，录制屏幕录像，与标准行为对比，修正错误直至所有任务正确完成
+- **Outcome**: 执行 DailyFull 队列（13 任务），6 个任务成功，6 个失败，1 个未执行。已修复触摸输入根因，其余模板匹配问题已记录待处理：
+  - **成功任务**: AndroidOpenGame, DijiangRewards, CreditShoppingN2, DeliveryJobs, SellProduct, AutoStockStaple
+  - **失败任务及根因**:
+    - **EnvironmentMonitoring** (TOUCH-01, 已修复): input_methods=1 (仅 AdbShell) 不支持 	ouch_down/move/up 的 contact 参数，虚拟摇杆全部失败 → __ScenePrivateMapWulingJingyuValleyEnterWorldWulingJingyuValley2 20s 超时。修复：input_methods 改为 AdbShell | Maatouch (值 5)，commit 9b0d558
+    - **VisitFriends** (TMPL-01, 待修复): __ScenePrivateMenuFriendsEnterMenuFriendsAnchor 模板匹配 20s 超时，on_error 截图显示已在好友列表界面但锚点模板未匹配，推测游戏 UI 更新导致模板过期
+    - **AutoStockpile** (TMPL-02, 待修复): AutoStockpileGotoElasticGoods (0.37) 和 AutoStockpileCheckInStore (0.47) 模板匹配分数远低于 0.8 阈值
+    - **AutoSell** (TMPL-03, 待修复): AutoSellScanValleyIVSwitchTab 模板匹配 0.71 未达 0.9 阈值
+    - **DailyRewards** (NAV-01, 待修复): __ScenePrivateMenuListEnterMenuProtocolPass 导航 20s 超时
+    - **SeizeDeliveryJobs** (TIMEOUT-01, 待修复): MaaFW 正常运行但 Python 端 120s 超时先触发，恢复流程因 MaaFW 忙碌而卡死
+  - **共性问题**: 3 个任务模板匹配失败，推测游戏 UI 更新导致模板图像过期，需系统性更新
+- **Files Modified**:
+  - src/core/service/maa_end/runtime.py（input_methods: AdbShell → AdbShell | Maatouch）
+  - reports/incidents/2026-07-13_daily_full_queue_failures.md（新增·6 个失败任务的四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: Maatouch 连接测试通过（AdbController.post_connection() 成功）；待运行时验证 — 重新连接设备后执行 EnvironmentMonitoring，确认 AdbShellInput not supports [contact=0] 错误不再出现，虚拟摇杆操作正常。
