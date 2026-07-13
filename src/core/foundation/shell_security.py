@@ -20,6 +20,7 @@ ALLOWED_SHELL_PREFIXES: tuple[str, ...] = (
     "am force-stop ",
     "wm ",
     "svc ",
+    "pidof ",
 )
 
 # 拒绝的注入字符（含反斜杠，防止 `$(...)` 通过 `\` 转义绕过黑名单）
