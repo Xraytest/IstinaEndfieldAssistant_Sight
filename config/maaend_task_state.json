@@ -1,13 +1,21 @@
 {
-  "selected_task": "CreditShoppingN2",
+  "selected_task": "AndroidOpenGame",
   "selected_preset": "DailyFull",
   "queue_items": [
+    {
+      "name": "AndroidOpenGame",
+      "display_name": "AndroidOpenGame",
+      "type": "task",
+      "options": {
+        "ClientVersion": "CN"
+      }
+    },
     {
       "name": "VisitFriends",
       "display_name": "VisitFriends",
       "type": "task",
       "options": {
-        "VisitFriendsRemark": "Yes",
+        "VisitFriendsRemark": "No",
         "ProductionAssistControl": [
           "ProductionAssistControlNexus",
           "ProductionAssistMFGCabin",
@@ -91,7 +99,7 @@
         },
         "AutoStockBuyDailyGoodsValleyIV": [],
         "AutoStockBuyDailyGoodsValleyIVEngravingPermitLimit": {
-          "ValleyEngravingPermitLimit": "20"
+          "ValleyEngravingPermitLimit": "2"
         },
         "AutoStockBuyDailyGoodsValleyIVFoodAndBuffLimit": {
           "ValleyFoodAndBuffLimit": "20"
@@ -101,47 +109,44 @@
           "KeenValleyCompass"
         ],
         "AutoStockBuyStockFactoryGoodsValleyIVDetectorCompassLimit": {
-          "ValleyDetectorCompassLimit": "20"
+          "ValleyDetectorCompassLimit": "2000"
         },
-        "AutoStockBuyCulturalGoodsValleyIV": [],
-        "AutoStockBuyCulturalGoodsValleyIVGiftLimit": {
-          "ValleyGiftLimit": "20"
-        },
-        "AutoStockUseDiscountsValleyIV": "50",
-        "AutoStockStapleWuling": "Yes",
-        "AutoStockReserveWuling": {
-          "ReserveWuling": "240000"
-        },
-        "AutoStockBuyDailyGoodsWuling": [],
-        "AutoStockBuyDailyGoodsWulingEngravingPermitLimit": {
-          "WulingEngravingPermitLimit": "20"
-        },
-        "AutoStockBuyDailyGoodsWulingFoodAndBuffLimit": {
-          "WulingFoodAndBuffLimit": "20"
-        },
-        "AutoStockBuyStockFactoryGoodsWuling": [
-          "WulingArtificingCatalyst",
-          "KeenWulingDetector",
-          "KeenWulingCompass"
+        "AutoStockBuyCulturalGoodsValleyIV": [
+          "BreezeOfKjersch",
+          "TidestoneSpecimen",
+          "SimonchShawl",
+          "FrontiersWatch",
+          "AuryleneCamera",
+          "CosmicGatePuzzle",
+          "SurfingFestivalTicket"
         ],
-        "AutoStockBuyStockFactoryGoodsWulingArtificingCatalystLimit": {
-          "WulingArtificingCatalystLimit": "20"
+        "AutoStockBuyCulturalGoodsValleyIVGiftLimit": {
+          "ValleyGiftLimit": "200"
         },
-        "AutoStockBuyStockFactoryGoodsWulingDetectorCompassLimit": {
-          "WulingDetectorCompassLimit": "20"
-        },
-        "AutoStockBuyCulturalGoodsWuling": [],
-        "AutoStockBuyCulturalGoodsWulingGiftLimit": {
-          "WulingGiftLimit": "20"
-        },
-        "AutoStockUseDiscountsWuling": "50"
+        "AutoStockUseDiscountsValleyIV": "Any",
+        "AutoStockStapleWuling": "No"
       }
     },
     {
       "name": "AutoSell",
       "display_name": "AutoSell",
       "type": "task",
-      "options": {}
+      "options": {
+        "AutoSellValleyIV": "Yes",
+        "AutoSellTicketOverflowValleyIV": {
+          "AutoSellTicketOverflowValleyIVValue": "30000000"
+        },
+        "AutoSellWuling": "Yes",
+        "AutoSellTicketOverflowWuling": {
+          "AutoSellTicketOverflowWulingValue": "30000000"
+        },
+        "AutoSellPriceType": "AutoSellPriceTypePerCategory",
+        "AutoSellPricePerCategory": {
+          "AutoSellPricePerCategoryModeratePriceVolatilityValue": "4600",
+          "AutoSellPricePerCategoryLargePriceVolatilityValue": "5000",
+          "AutoSellPricePerCategoryMassivePriceVolatilityValue": "5300"
+        }
+      }
     },
     {
       "name": "EnvironmentMonitoring",
@@ -155,9 +160,16 @@
       "type": "task",
       "options": {
         "DailyEmailRewards": "Yes",
-        "DailyEventRewards": "Yes",
         "DailyTaskRewards": "Yes",
+        "DailyTaskUpgradeWeapon": "No",
+        "DailyTaskCreation": "No",
+        "DailyTaskAssemble": "No",
+        "DailyTaskLevelUpOperator": "Yes",
+        "LevelUpOperatorMaxLevelThreshold": {
+          "MaxLevelThreshold": "80"
+        },
         "DailyClaimDeliveryJobsRewards": "Yes",
+        "DailyEventRewards": "Yes",
         "DailyProtocolPassRewards": "Yes"
       }
     },
@@ -172,70 +184,46 @@
       "display_name": "AutoCollect",
       "type": "task",
       "options": {
+        "AutoCollectSchedule": [
+          "AutoCollectScheduleMonday",
+          "AutoCollectScheduleTuesday",
+          "AutoCollectScheduleWednesday",
+          "AutoCollectScheduleThursday",
+          "AutoCollectScheduleFriday",
+          "AutoCollectScheduleSaturday",
+          "AutoCollectScheduleSunday"
+        ],
         "AutoCollectRoutes": [
           "Route1",
           "Route2",
           "Route3",
           "Route4",
-          "Route5"
-        ]
+          "Route5",
+          "Route6",
+          "Route7",
+          "Route8",
+          "Route9",
+          "Route10",
+          "Route11",
+          "Route12",
+          "Route13",
+          "Route14"
+        ],
+        "AutoCollectCommonRoutes": [
+          "CommonRoute1",
+          "CommonRoute2",
+          "CommonRoute3",
+          "CommonRoute4",
+          "CommonRoute5",
+          "CommonRoute6",
+          "CommonRoute7",
+          "CommonRoute8"
+        ],
+        "AutoCollectStashBackpackSubTask": "Yes"
       }
     }
   ],
   "task_options": {
-    "VisitFriends": {
-      "ProductionAssistControl": [
-        "ProductionAssistControlNexus",
-        "ProductionAssistMFGCabin",
-        "ProductionAssistGrowthChamber"
-      ]
-    },
-    "DijiangRewards": {
-      "AutoStartExchange": "No",
-      "StageTaskSetting": "No",
-      "ClueSetting": "No",
-      "SelectToGrow": "Any"
-    },
-    "CreditShoppingN2": {
-      "CreditShoppingReserve": {
-        "ReserveCreditThreshold": "300"
-      },
-      "CreditShoppingClueSend": {
-        "MaxClueSendWhenInsufficient": "1"
-      },
-      "CreditShoppingClueStockLimit": "2",
-      "CreditShoppingPriority1": "Yes",
-      "CreditShoppingPriority2": "Yes",
-      "CreditShoppingPriority3": "No",
-      "CreditShoppingForce": "Refresh",
-      "CreditShoppingKeepShelfRecord": "Yes"
-    },
-    "DeliveryJobs": {
-      "ValleyIV": "Yes",
-      "Wuling": "Yes"
-    },
-    "SellProduct": {},
-    "AutoStockpile": {},
-    "AutoStockStaple": {},
-    "AutoSell": {},
-    "EnvironmentMonitoring": {},
-    "DailyRewards": {
-      "DailyEmailRewards": "Yes",
-      "DailyEventRewards": "Yes",
-      "DailyTaskRewards": "Yes",
-      "DailyClaimDeliveryJobsRewards": "Yes",
-      "DailyProtocolPassRewards": "Yes"
-    },
-    "SeizeDeliveryJobs": {},
-    "AutoCollect": {
-      "AutoCollectRoutes": [
-        "Route1",
-        "Route2",
-        "Route3",
-        "Route4",
-        "Route5"
-      ]
-    },
     "ProtocolSpace": {
       "ProtocolSpaceSchedule": [
         "ProtocolSpaceScheduleMonday",
@@ -252,6 +240,120 @@
       "ProtocolSpaceSuccessCount": "ProtocolSpaceSuccessCountUnlimited",
       "ProtocolSpaceFailedCount": "ProtocolSpaceFailedCount3",
       "ProtocolSpaceTab": "OperatorProgression"
+    },
+    "AndroidOpenGame": {
+      "ClientVersion": "CN"
+    },
+    "VisitFriends": {
+      "ProductionAssistControl": [
+        "ProductionAssistControlNexus",
+        "ProductionAssistMFGCabin",
+        "ProductionAssistGrowthChamber"
+      ]
+    },
+    "DijiangRewards": {
+      "AutoStartExchange": "Yes",
+      "StageTaskSetting": "No",
+      "ClueStockLimit": "2"
+    },
+    "CreditShoppingN2": {
+      "CreditShoppingForce": "Refresh",
+      "CreditShoppingReserve": {
+        "ReserveCreditThreshold": "300"
+      },
+      "CreditShoppingPriority1": "Yes",
+      "CreditShoppingPriority1Items": [
+        "ArsenalTicket",
+        "Oroberyl"
+      ],
+      "CreditShoppingPriority1DiscountValue": "Any",
+      "CreditShoppingPriority2": "Yes",
+      "CreditShoppingPriority2Items": [
+        "ArsenalTicket",
+        "Oroberyl",
+        "TCreds",
+        "ElementaryCognitiveCarrier",
+        "ElementaryCombatRecord",
+        "IntermediateCombatRecord",
+        "ArmsInspector",
+        "ArmsINSPKit",
+        "CastDie",
+        "HeavyCastDie",
+        "Protodisk",
+        "Protoset",
+        "Protoprism",
+        "Protohedron"
+      ],
+      "CreditShoppingPriority2DiscountValue": "-75%",
+      "CreditShoppingPriority3": "No"
+    },
+    "DeliveryJobs": {
+      "ValleyIV": "Yes",
+      "Wuling": "Yes"
+    },
+    "SellProduct": {
+      "SellProductSchedule": [
+        "SellProductScheduleMonday",
+        "SellProductScheduleTuesday",
+        "SellProductScheduleWednesday",
+        "SellProductScheduleThursday",
+        "SellProductScheduleFriday",
+        "SellProductScheduleSaturday",
+        "SellProductScheduleSunday"
+      ],
+      "SellBeyondAidQuota": "No",
+      "ValleyIVSell": "Yes",
+      "WulingSell": "Yes"
+    },
+    "AutoStockpile": {},
+    "AutoStockStaple": {},
+    "AutoSell": {},
+    "EnvironmentMonitoring": {},
+    "DailyRewards": {
+      "DailyEmailRewards": "Yes",
+      "DailyEventRewards": "Yes",
+      "DailyTaskRewards": "Yes",
+      "DailyClaimDeliveryJobsRewards": "Yes",
+      "DailyProtocolPassRewards": "Yes"
+    },
+    "SeizeDeliveryJobs": {},
+    "AutoCollect": {
+      "AutoCollectSchedule": [
+        "AutoCollectScheduleMonday",
+        "AutoCollectScheduleTuesday",
+        "AutoCollectScheduleWednesday",
+        "AutoCollectScheduleThursday",
+        "AutoCollectScheduleFriday",
+        "AutoCollectScheduleSaturday",
+        "AutoCollectScheduleSunday"
+      ],
+      "AutoCollectRoutes": [
+        "Route1",
+        "Route2",
+        "Route3",
+        "Route4",
+        "Route5",
+        "Route6",
+        "Route7",
+        "Route8",
+        "Route9",
+        "Route10",
+        "Route11",
+        "Route12",
+        "Route13",
+        "Route14"
+      ],
+      "AutoCollectCommonRoutes": [
+        "CommonRoute1",
+        "CommonRoute2",
+        "CommonRoute3",
+        "CommonRoute4",
+        "CommonRoute5",
+        "CommonRoute6",
+        "CommonRoute7",
+        "CommonRoute8"
+      ],
+      "AutoCollectStashBackpackSubTask": "Yes"
     }
   }
 }
