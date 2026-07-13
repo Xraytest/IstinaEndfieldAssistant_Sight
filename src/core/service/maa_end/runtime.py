@@ -286,7 +286,7 @@ class MaaEndRuntime:
 
     def _connect_once(self) -> bool:
         self._resource = Resource()
-        input_methods = int(MaaAdbInputMethodEnum.AdbShell if MaaAdbInputMethodEnum else 1)
+        input_methods = int((MaaAdbInputMethodEnum.AdbShell | MaaAdbInputMethodEnum.Maatouch) if MaaAdbInputMethodEnum else 1)
         screencap_methods = int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0)
         self._controller = AdbController(
             adb_path=Path(self._adb_path),
