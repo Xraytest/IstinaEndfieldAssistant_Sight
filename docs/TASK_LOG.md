@@ -2691,3 +2691,17 @@
   - src/gui/pyqt6/pages/maaend_control_page.py（`timeout_ms` 300000 → 600000）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile runtime.py + maaend_control_page.py 通过；待运行时验证 — 任务失败后应自动执行 CloseGame → AndroidOpenGame → 重试，日志中可见"异常恢复开始：关闭游戏 → 启动游戏 → 重试任务"。
+
+## 2026-07-13 17:30 (VisitFriends 进菜单即退出并失败·IMGCHK-01)
+
+- **User Request**: 访问好友任务在开始后仅打开 dashboard 然后就尝试退出并反馈失败，分析原因并解决
+- **Outcome**: 通过 MaaFW debug log 完整追踪 VisitFriendsMain task_id=200000002 失败链路，定位根因为 `__SceneImageCheck` 特性误中止任务并修复：
+  - **根因**: `SceneMenu.json` 中 `__ScenePrivateWorldEnterMenuList.next = ["__SceneImageCheck", "__ScenePrivateAnyEnterMenuListSuccess"]`。VisitFriends 进菜单列表时先尝试 `__SceneImageCheck`：`ImageCheckNotPassedRecognition`（未配置基线）默认返回"未通过" → 点击左下角退出按钮（target [30,-60,10,10]） → 触发"是否退出至登录界面？"对话框 → `__SceneImageCheckAICPlanColorSuccess` 要求 `CancelButton`（X 关闭按钮模板）+ `YellowConfirmButtonType1`，但登出对话框只有"取消"/"确定"文本按钮，X 模板分数 0.303~0.455 远低于阈值 → FAILED → `__SceneImageCheckAICPlanColorFailedFinish` → `__SceneCheckAbortPipeline`（PostStop）→ `Tasker.post_stop()` 终止整个 VisitFriendsMain 任务。MaaFW 报告 `ret=true`（Tasker.Task.Succeeded），但实际是中止。
+  - **修复**: 为 `__SceneImageCheck` 节点添加 `"enabled": false`，禁用整个图像检查特性。MaaFW 跳过该节点，直接执行 `next` 列表第二项 `__ScenePrivateAnyEnterMenuListSuccess`（InMenuList 匹配），菜单列表打开即确认成功，不再点击退出按钮、不触发登出对话框、不中止任务。选择禁用而非修复 CancelButton 模板的原因：特性本质是"通过退出再取消来检查画面"的反直觉设计，本项目从未配置基线，禁用是更彻底的修复。
+  - **影响**: 所有经过 `__ScenePrivateWorldEnterMenuList` 的任务（VisitFriends / SceneEnterMenuOperator / SceneEnterMenuRegionalDevelopment 等）不再触发图像检查流程。`__SceneImageCheckDialogIn` 等子节点成为死代码（定义保留）。RECOVERY-01 恢复模块不再因 VisitFriends 失败被错误触发（之前 PostStop 导致 Tasker 停止状态，恢复任务立即失败的现象也随之消失）。
+- **Files Modified**:
+  - 3rd-part/maaend/resource/pipeline/SceneManager/SceneImageCheck.json（运行时副本·`__SceneImageCheck` 添加 `enabled: false` + 更新 desc）
+  - MaaEnd/assets/resource/pipeline/SceneManager/SceneImageCheck.json（上游源·同步修改）
+  - reports/incidents/2026-07-13_visit_friends_image_check_abort.md（新增·IMGCHK-01 四阶段分析报告）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: 两份 JSON 通过 json.load 校验；待运行时验证 — 重新连接设备（`system connect`，MaaFW 不热重载）后执行 VisitFriends，应能正常进入菜单列表 → 好友列表，maafw.log 中不应再出现 `__SceneImageCheck*` / `__SceneCheckAbortPipeline` / `need_to_stop [node.name=VisitFriendsMain]` 记录。
