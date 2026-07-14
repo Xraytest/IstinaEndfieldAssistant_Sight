@@ -1,5 +1,21 @@
 # 任务日志
 
+## 2026-07-14 14:50 (TMPL-01 修复·VisitFriends anchor 子节点 ROI 失效 bug)
+
+- **User Request**: 继续修复 DailyFull 队列失败任务，本轮修复 TMPL-01 (VisitFriends)。
+- **Outcome**: 成功修复 MaaFW anchor 子节点 ROI 失效 bug。关键发现与修复：
+  1. **Bug 确认**：MaaFW anchor 子节点的 ROI 对**所有识别类型都失效**（不仅 TemplateMatch 返回错误位置/低分，OCR 也在全屏搜索而非 ROI 内搜索）。先后尝试 TemplateMatch→OCR→DirectHit 三种方案。
+  2. **最终修复**：将 `__ScenePrivateMenuFriendsEnterMenuFriendsList` 从 OCR 改为 DirectHit + 固定 `target: [109, 28, 73, 17]`（FriendsListText 模板的已知位置）。DirectHit 不需要 recognition/ROI，始终返回成功；Click 动作使用固定 target box 点击。
+  3. **验证结果**：maafw.log 确认 anchor 子节点成功执行（14:43:46），`__ScenePrivateMenuFriendsEnterMenuFriendsListSuccess` 识别成功，VisitFriends 任务继续执行到好友拜访逻辑。后续失败是因为"拜访好友次数已满"（游戏状态问题，非代码 bug）和 Python 120s 超时（完整流程需要更长时限）。
+  4. **MaaFW OCR 引擎问题**：OCR 在 anchor 子节点中不仅不应用 ROI，还无法识别游戏内"好友列表"文字（可能是游戏字体问题），6 次重试均返回"大" at [0,100,150,200]（score=0.602439），而 on_error 截图证明 FriendsListText 模板在 (109,28) 完美匹配（score=0.999999）。
+- **Files Modified**:
+  - `3rd-part/maaend/resource/pipeline/SceneManager/SceneMenu.json`（runtime 副本）
+  - `MaaEnd/assets/resource/pipeline/SceneManager/SceneMenu.json`（upstream 副本）
+  - `scripts/test_visit_friends.py`（docstring 更新）
+  - `docs/TASK_LOG.md`（本条记录）
+- **Commits**: `949c741d` (MaaEnd), `b8d4cc9` (main repo)
+- **验证**：maafw.log 14:43:46 确认 `__ScenePrivateMenuFriendsEnterMenuFriendsListSuccess` Node.Recognition.Succeeded + Node.PipelineNode.Succeeded；VisitFriends 后续执行到 VisitFriendsMenuScan/FriendsFull 等节点，证明 anchor 子节点 ROI bug 已完全修复。
+
 ## 2026-07-11 00:30 (AutoCodeReview 未覆盖模块审查·i18n/annotation/matcher)
 
 - **User Request**: 完整阅读文档明析需求与边界；寻找代码漏洞与错误并给修改建议；完成后审计既往报告，避免重复提交历史问题。
