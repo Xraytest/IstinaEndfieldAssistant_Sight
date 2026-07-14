@@ -155,8 +155,11 @@ _HIDDEN_TASK_NAMES = {"GameSetting"}
 
 # Per-task timeout override (seconds); default is 120s.
 # SeizeDeliveryJobs needs navigation + order grabbing, 120s insufficient (TIMEOUT-01).
+# VisitFriends needs ~344s for 5 friend visits (enter ship → terminal → assist
+# → exit → scroll); 240s CLI default triggers false failure (TIMEOUT-02).
 _TASK_TIMEOUTS: Dict[str, int] = {
     "SeizeDeliveryJobs": 240,
+    "VisitFriends": 480,
 }
 
 # Group display order

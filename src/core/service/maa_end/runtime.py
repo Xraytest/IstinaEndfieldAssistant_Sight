@@ -151,6 +151,15 @@ class MaaEndRuntime:
         # 集中式异常恢复：任何任务失败时执行 CloseGame → AndroidOpenGame → 重试
         self._recovering = False
         self._client_version = "CN"
+        # Per-task timeout override (seconds). Some tasks need longer than the
+        # default (e.g. VisitFriends needs ~344s for 5 friend visits: enter
+        # ship → terminal → assist → exit → scroll). Without this, the default
+        # 240s CLI timeout triggers a false failure and unnecessary recovery
+        # (TIMEOUT-02).
+        self._task_timeouts: Dict[str, int] = {
+            "VisitFriends": 480,
+            "SeizeDeliveryJobs": 240,
+        }
 
     def _default_maaend_root(self) -> Path:
         return get_project_root() / "3rd-part" / "maaend"
@@ -829,7 +838,10 @@ class MaaEndRuntime:
             options = item.get("options") or {}
             if not name:
                 continue
-            if not self.run_task(name, options, timeout):
+            # Per-task timeout override (TIMEOUT-02): use task-specific timeout
+            # when available, otherwise fall back to the passed-in default.
+            task_timeout = self._task_timeouts.get(name, timeout)
+            if not self.run_task(name, options, task_timeout):
                 failures.append(name)
                 self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name)
                 # 若连接已真正断开，继续也无意义，及时中止剩余任务
