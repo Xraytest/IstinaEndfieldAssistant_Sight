@@ -707,6 +707,23 @@ class MaaEndRuntime:
                     # in the daemon thread returns and MaaFW is ready for new
                     # tasks.
                     worker.join(5.0)
+                    # STOP-01 race: the timeout may fire just as the task is
+                    # about to complete naturally. post_stop() is async; by
+                    # the time we join(5.0) the daemon thread may have already
+                    # finished and written result["ok"]. In that case return
+                    # the actual outcome instead of forcing False — otherwise
+                    # a task that actually succeeded is reported as failed,
+                    # triggering unnecessary recovery, and MaaFW ends up in
+                    # the "stopping" state which rejects subsequent post_task
+                    # calls ("stopping, ignore new post").
+                    if not worker.is_alive():
+                        actual = result.get("ok", False)
+                        self.logger.info(
+                            LogCategory.MAIN,
+                            "任务在超时后实际完成",
+                            succeeded=actual,
+                        )
+                        return actual
                 except Exception as exc:
                     self.logger.warning(LogCategory.MAIN, "post_stop 失败", error=str(exc))
             return False
