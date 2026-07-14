@@ -689,6 +689,20 @@ class MaaEndRuntime:
         worker.join(float(timeout))
         if worker.is_alive():
             self.logger.warning(LogCategory.MAIN, "任务执行超时", timeout=timeout)
+            # STOP-01: Stop the MaaFW task to prevent deadlock. Without this,
+            # the MaaFW task keeps running in the background, blocking all
+            # subsequent post_task calls (CloseGame, AndroidOpenGame, etc.)
+            # because MaaFW Tasker is single-tasked. post_stop() interrupts
+            # the running task, allowing recovery tasks to start.
+            if self._tasker is not None:
+                try:
+                    self._tasker.post_stop()
+                    # Wait briefly for the stop to take effect so job.wait()
+                    # in the daemon thread returns and MaaFW is ready for new
+                    # tasks.
+                    worker.join(5.0)
+                except Exception as exc:
+                    self.logger.warning(LogCategory.MAIN, "post_stop 失败", error=str(exc))
             return False
         return result.get("ok", False)
 
