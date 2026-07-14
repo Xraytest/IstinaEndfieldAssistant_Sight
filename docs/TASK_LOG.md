@@ -1,5 +1,19 @@
 # 任务日志
 
+## 2026-07-14 20:50 (NAV-01 修复·DailyRewards 协议通行证导航失败)
+
+- **User Request**: 继续修复 DailyFull 队列失败任务，本轮修复 NAV-01 (DailyRewards)。
+- **Outcome**: 成功定位并修复协议通行证导航失败。关键发现与修复：
+  1. **根因定位**：通过 easyocr 分析 on_error 截图（`2026.07.13-23.34.49.653___ScenePrivateMenuListEnterMenuProtocolPass.png`），发现画面**已经在通行证界面**（包含"协议通行证"、"通行证奖励"、"通行证任务"文字），但 `InProtocolPass` 识别器仍报告未识别到。
+  2. **模板匹配分析**：`InProtocolPass` 使用 TemplateMatch 在 ROI `[0,0,100,100]` 搜索 `MenuPassRewardsChoose.png`（43x37），threshold=0.9。OpenCV 分析显示模板在 (51,18) 处最高匹配分仅 0.7065，远低于 0.9 阈值。模板图像已过时（游戏 UI 更新后按钮样式变化）。
+  3. **修复方案**：将 `InProtocolPass` 从 TemplateMatch 改为 OCR 识别"通行证奖励"文字。ROI 扩大到 `[0,0,500,100]`，覆盖"通行证奖励"(110-210,22-48) 和"通行证任务"(350-450,24-50) 位置。OCR 不受 UI 样式变化影响，更可靠。
+  4. **影响面**：仅影响 `DailyProtocolPassInMenu` 节点（检测是否在通行证界面），其他节点不受影响。
+- **Files Modified**:
+  - `3rd-part/maaend/resource/pipeline/Interface/InScene/ProtocolPass.json`（runtime 副本）
+  - `MaaEnd/assets/resource/pipeline/Interface/InScene/ProtocolPass.json`（upstream 副本）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**：待队列执行验证。easyocr 确认"通行证奖励"文字在 ROI 区域内识别率 0.991。
+
 ## 2026-07-14 20:30 (TIMEOUT-01 修复·SeizeDeliveryJobs Python 超时)
 
 - **User Request**: 继续修复 DailyFull 队列失败任务，本轮修复 TIMEOUT-01 (SeizeDeliveryJobs)。
