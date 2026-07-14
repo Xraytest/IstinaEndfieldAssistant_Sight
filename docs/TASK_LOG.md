@@ -1,5 +1,17 @@
 # 任务日志
 
+## 2026-07-14 20:30 (TIMEOUT-01 修复·SeizeDeliveryJobs Python 超时)
+
+- **User Request**: 继续修复 DailyFull 队列失败任务，本轮修复 TIMEOUT-01 (SeizeDeliveryJobs)。
+- **Outcome**: 为 SeizeDeliveryJobs 任务添加 per-task timeout 覆盖，从默认 120s 提高到 240s。
+  1. **根因**：SeizeDeliveryJobs 需要导航到区域发展界面 + 抢订单，MaaFW 端正常运行但 Python 端 120s 超时先触发。超时后 MaaFW 任务仍在后台运行，导致恢复流程（CloseGame → AndroidOpenGame）因 MaaFW 忙碌而全部超时卡死。
+  2. **修复方案**：在 `maaend_control_page.py` 添加 `_TASK_TIMEOUTS` 映射表，`_runtime_queue_runner` 根据 `clean_name` 查找 per-task timeout，未匹配则用默认 120s。SeizeDeliveryJobs 设为 240s。
+  3. **影响面**：仅 SeizeDeliveryJobs 任务超时从 120s 提升到 240s，其他任务保持 120s 不变。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/maaend_control_page.py`（添加 `_TASK_TIMEOUTS` 常量 + `_runtime_queue_runner` 使用 per-task timeout）
+  - `docs/TASK_LOG.md`（本条记录）
+- **备注**：长期方案（在 `_wait_job` 超时后主动取消 MaaFW 任务）未实现，因 240s 超时应足以让 SeizeDeliveryJobs 正常完成，不再触发超时恢复流程。
+
 ## 2026-07-14 14:50 (TMPL-01 修复·VisitFriends anchor 子节点 ROI 失效 bug)
 
 - **User Request**: 继续修复 DailyFull 队列失败任务，本轮修复 TMPL-01 (VisitFriends)。
