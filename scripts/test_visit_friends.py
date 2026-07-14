@@ -1,4 +1,4 @@
-"""Test VisitFriends with OCR fix for FriendsListText (bypass MaaFW anchor child TemplateMatch bug)."""
+"""Test VisitFriends with DirectHit + fixed target fix (bypass MaaFW anchor child ROI failure for both TemplateMatch and OCR)."""
 import sys
 import json
 import time
