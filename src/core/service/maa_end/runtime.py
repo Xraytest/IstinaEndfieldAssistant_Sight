@@ -321,6 +321,12 @@ class MaaEndRuntime:
             self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
             self._cleanup_partial()
             return False
+        # ERRSCREEN-01: Enable on_error screenshot saving so failed recognition
+        # nodes save a screenshot to config/debug/on_error/ for analysis.
+        try:
+            self._tasker.set_save_on_error(True)
+        except Exception:
+            pass
         # Start Agent after Tasker is ready so it can register sinks correctly.
         self._start_agent()
         if self._agent_client is None or self._agent_process is None:
