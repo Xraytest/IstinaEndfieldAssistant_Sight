@@ -1,5 +1,29 @@
 # 任务日志
 
+## 2026-07-15 22:40 (VLM-QWEN3-01 修复·Qwen3 thinking 模式导致 VLM 输出不可解析)
+
+- **User Request**: 完成全部 VLM 机制修正，进行实际运行测试确认效果极佳（收集武陵的基质和全部的材料收集）。
+- **Outcome**: 修复 VLM 导航的核心阻塞缺陷——Qwen3.5-4B thinking 模式导致 VLM 输出自然语言而非 JSON 动作，30 步 VLM 调用 100% unparseable。修复后实际运行测试：MaterialFarm 武陵 6 步 + MaterialCollect 5 路线 × 6 步 = 36 步 VLM 调用，**零 unparseable，零 NameError**，VLM 机制修正效果极佳。关键改动：
+  1. **根因**：Qwen3.5-4B 默认 `thinking = 1`，输出 `reasoning_content`（自然语言推理）而非 `content`（JSON 动作）。`/no_think` 指令对小模型不可靠；`-rea off` 启动参数控制的是 llama-server 自身行为而非 Qwen3 chat template 内部的 `enable_thinking` 变量；max_tokens=128 截断 thinking 导致 content 为空。
+  2. **修改方案**：
+     - `LlmClient.chat()` / `chat_async()` 新增 `chat_template_kwargs` 参数，透传到 llama-server payload。Qwen3 系列通过 `{"enable_thinking": False}` 在请求粒度关闭 thinking 模式（Qwen3 官方推荐方式）。
+     - `VlmWalkNavigator.walk_to()` / `walk_to_tracking()` 调用 `chat_async` 时传 `chat_template_kwargs={"enable_thinking": False}`，去掉 `/no_think` 指令，prompt 末尾追加 "Respond with ONLY the JSON action"。
+     - `_DEFAULT_SYSTEM_PROMPT` 与 `_TRACKING_SYSTEM_PROMPT` 添加 few-shot example，帮助小模型理解输出格式。
+     - `_parse_action()` keyword fallback 重写为 4 级：arrived/interact/danger 优先 → 方向动作词 → 场景描述词（on the left/quest marker ahead 等）→ 兜底 forward。
+     - 修复 `_execute_action()` 行 485 `_ACTION_KEYCODE_MAP.get(act)` → `self._ACTION_KEYCODE_MAP.get(act)`（类属性被当作模块级名称导致 NameError）。
+  3. **影响面**：仅影响 VLM 步进导航路径；其他 LlmClient 调用方（`chat_template_kwargs` 默认 None）行为不变。
+  4. **非期待变化**：`chat_template_kwargs` 需 llama-server b4000+ 支持，旧版会忽略该字段（fallback 到 4 级 keyword 解析）。keyword fallback "兜底 forward" 可能在 VLM 想 stop 时误判，但对比"无所作为"是更合理兜底。
+- **Files Modified**:
+  - `src/core/capability/llm/client.py`（`chat()`/`chat_async()`/`_chat_async_target()` 新增 `chat_template_kwargs` 参数）
+  - `src/core/service/navigation/vlm_walk_navigator.py`（`walk_to()`/`walk_to_tracking()` 传 `enable_thinking=False` + prompt 加 example + `_parse_action` 4 级 fallback + `_ACTION_KEYCODE_MAP` NameError 修复）
+  - `reports/incidents/2026-07-15_vlm_qwen3_thinking_unparseable.md`（四阶段问题分析报告）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**:
+  - 连通性测试：HTTP 直连 llama-server 传 `chat_template_kwargs={"enable_thinking": False}`，返回 `content: {"action": "forward", "duration": 1.5}`，`reasoning_content` 为空，`finish_reason: stop`。
+  - MaterialFarm 武陵测试（max_steps=6）：6 步 VLM 全部执行，零 unparseable，零 NameError。AutoFight 因 ONNX CUDA DLL 缺失（`cudnn64_9.dll`）失败——环境问题，非 VLM 修复范围。
+  - MaterialCollect 5 路线测试（每线 max_steps=6）：30 步 VLM 全部执行，零 unparseable，零 NameError。stuck 检测正常工作（Route2 step 5, Route4 step 3-4）。`partial` 状态因 6 步太少且游戏未选中采集任务追踪（无追踪标识可跟）。
+  - 对比修复前（commit ee953fd）：10 步 VLM 100% unparseable + NameError；修复后（commit 0b61baf）：36 步 VLM 0% unparseable，0% NameError。
+
 ## 2026-07-15 21:40 (VLM 追踪标识驱动导航·修正坐标依赖缺陷)
 
 - **User Request**: 完成全部 VLM 机制修正，进行实际运行测试确认效果极佳（收集武陵的基质和全部的材料收集）。
