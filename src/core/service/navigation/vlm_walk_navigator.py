@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -267,7 +268,7 @@ class VlmWalkNavigator:
             )
             try:
                 handle = self._llm.chat_async(
-                    prompt=f"Look at the screenshot and decide the next action.\n\n{context}",
+                    prompt=f"/no_think\nLook at the screenshot and decide the next action.\n\n{context}",
                     system=self._system_prompt,
                     temperature=self._config.vlm_temperature,
                     max_tokens=self._config.vlm_max_tokens,
@@ -406,6 +407,7 @@ class VlmWalkNavigator:
             try:
                 handle = self._llm.chat_async(
                     prompt=(
+                        "/no_think\n"
                         "Look at the screenshot. Find the quest tracking marker "
                         "and decide the next action.\n\n" + context
                     ),
@@ -532,19 +534,73 @@ class VlmWalkNavigator:
         return spread < threshold
 
     def _parse_action(self, reply: str) -> Optional[Dict[str, Any]]:
-        """Parse JSON action from VLM reply."""
+        """Parse JSON action from VLM reply.
+
+        Handles Qwen3 thinking mode (<think>...</think> blocks), markdown
+        code fences, and natural language responses by extracting the first
+        JSON object or falling back to keyword matching.
+        """
         cleaned = reply.strip()
-        if cleaned.startswith("```") and cleaned.endswith("```"):
-            cleaned = cleaned.strip("`").strip()
-            if cleaned.lower().startswith("json"):
-                cleaned = cleaned[4:].strip()
+
+        # 1. Strip Qwen3 thinking blocks (</think> blocks), markdown
+        cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL).strip()
+
+        # 2. Strip markdown code fences
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            # Remove first line (```json or ```) and last line (```)
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
+
+        # 3. Try direct JSON parse
         try:
             obj = json.loads(cleaned)
+            if isinstance(obj, dict) and "action" in obj:
+                return obj
         except json.JSONDecodeError:
-            return None
-        if not isinstance(obj, dict) or "action" not in obj:
-            return None
-        return obj
+            pass
+
+        # 4. Extract first JSON object from text (find first { and last })
+        first_brace = cleaned.find("{")
+        last_brace = cleaned.rfind("}")
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            json_str = cleaned[first_brace:last_brace + 1]
+            try:
+                obj = json.loads(json_str)
+                if isinstance(obj, dict) and "action" in obj:
+                    return obj
+            except json.JSONDecodeError:
+                pass
+
+        # 5. Keyword-based fallback: scan for action keywords in the reply
+        reply_lower = reply.lower()
+        keyword_map = {
+            "arrived": "arrived",
+            "forward": "forward",
+            "move forward": "forward",
+            "walk forward": "forward",
+            "go forward": "forward",
+            "strafe left": "left",
+            "turn left": "turn_left",
+            "strafe right": "right",
+            "turn right": "turn_right",
+            "backward": "backward",
+            "go back": "backward",
+            "interact": "interact",
+            "press f": "interact",
+            "stop": "stop",
+        }
+        for keyword, action_name in keyword_map.items():
+            if keyword in reply_lower:
+                result: Dict[str, Any] = {"action": action_name}
+                if action_name in ("forward", "left", "right", "backward"):
+                    result["duration"] = 1.5
+                return result
+
+        return None
 
     @property
     def config(self) -> VlmWalkConfig:
