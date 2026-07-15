@@ -20,6 +20,7 @@ from cli.handlers import (
     _handle_explore,
     _handle_harvest,
     _handle_material,
+    _handle_readtask,
 )
 from core.foundation.logger import get_logger
 from core.foundation.paths import ensure_src_path
@@ -34,6 +35,7 @@ __all__ = [
     "_handle_analyze",
     "_handle_explore",
     "_handle_material",
+    "_handle_readtask",
 ]
 
 ensure_src_path(__file__)
@@ -79,6 +81,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_mat_collect = p_material_sub.add_parser("collect", help="material collection (VLM walk + interact)")
     p_mat_collect.add_argument("--options", default="{}", help="JSON options")
     p_mat_collect.add_argument("--serial", default=None, help="device serial")
+
+    p_readtask = sub.add_parser("readtask", help="read task list (enter Baker -> click task icon -> OCR -> cache)")
+    p_readtask_sub = p_readtask.add_subparsers(dest="action")
+    p_readtask_run = p_readtask_sub.add_parser("run", help="run read-all-tasks flow")
+    p_readtask_run.add_argument("--options", default="{}", help="JSON options")
+    p_readtask_run.add_argument("--serial", default=None, help="device serial")
 
     p_ss = sub.add_parser("screenshot", help="take screenshot")
     p_ss.add_argument("--out", default=None, help="output file path")

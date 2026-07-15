@@ -107,6 +107,7 @@ NAME_ZH = {
     "AutoEssence": "🎱基质刷取",
     "MaterialFarm": "🧱材料刷取",
     "MaterialCollect": "🧺材料收取",
+    "ReadAllTasks": "📋读取全部任务列表",
     "ProtocolSpace": "⚔️协议空间",
     "DijiangRewards": "🎁基建任务",
     "VisitFriends": "🤝拜访好友",
@@ -1014,6 +1015,9 @@ class MaaEndControlPage(QWidget):
         except Exception as exc:
             QMessageBox.warning(self, locale.tr("import_failed", "Import Failed"), str(exc))
 
+    # VLM 驱动的任务列表，队列结束后需要显式停止 llama-server
+    _VLM_DRIVEN_TASKS = frozenset({"MaterialFarm", "MaterialCollect"})
+
     def _runtime_queue_runner(self, retry_indices: Optional[list[int]] = None) -> bool:
         items = list(self._queue_state.queue_items)
         if not items:
@@ -1021,6 +1025,7 @@ class MaaEndControlPage(QWidget):
         total = len(items)
         failed: list[int] = []
         indices = range(total) if retry_indices is None else retry_indices
+        has_vlm_task = False
         for idx in indices:
             if idx < 0 or idx >= total:
                 continue
@@ -1038,6 +1043,9 @@ class MaaEndControlPage(QWidget):
                 options = {**options, **inline_options}
             self.log_message.emit("队列", locale.tr("executing_task", "Executing {name} ({idx}/{total})").format(name=_zh(name), idx=idx + 1, total=total))
             clean_name, inline_options = self._parse_inline_task_name(name)
+            # 检查是否为 VLM 驱动的任务
+            if clean_name in self._VLM_DRIVEN_TASKS:
+                has_vlm_task = True
             merged_options = dict(inline_options)
             merged_options.update(options)
             # name 是 argparse 位置参数，嵌入命令字符串；options 通过 params 传递
@@ -1052,11 +1060,23 @@ class MaaEndControlPage(QWidget):
                 failed.append(idx)
         with self._failed_indices_lock:
             self._failed_indices = failed
+        # 队列执行完成后，如果包含 VLM 驱动的任务，显式停止 llama-server
+        if has_vlm_task:
+            self._stop_llama_server_after_queue()
         if failed:
             self.progress_changed.emit(100, locale.tr("execution_failed", "Failed"))
             return False
         self.progress_changed.emit(100, locale.tr("execution_completed", "Completed"))
         return True
+
+    def _stop_llama_server_after_queue(self) -> None:
+        """队列执行完成后显式停止 llama-server，防止孤儿进程残留。"""
+        try:
+            self.log_message.emit("队列", "VLM 任务完成，正在停止 llama-server...")
+            self._sync_execute("llm stop", {}, timeout_ms=10000)
+            self.log_message.emit("队列", "llama-server 已停止")
+        except Exception as exc:
+            self.log_message.emit("队列", f"停止 llama-server 异常: {exc}")
 
 
     # ------------------------------------------------------------------

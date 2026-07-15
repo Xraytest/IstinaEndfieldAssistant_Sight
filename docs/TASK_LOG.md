@@ -1,5 +1,62 @@
 # 任务日志
 
+## 2026-07-15 20:00 (读取全部任务列表·端到端测试与 OCR 后端关键修复)
+
+- **User Request**: 在 192.168.1.12:16512 上完整测试"读取全部任务列表"任务并对任务页内容有效格式化缓存。
+- **Outcome**: 端到端测试通过（`raw_ocr_count=21`，`formatted_line_count=9`，缓存写入 `cache/task_list/task_list_cache.json`）。测试中发现并修复两个阻断性缺陷：
+  1. **Baker 入口 Alt+Click 误触模式切换（OCR-ENTER）**：`__ScenePrivateWorldEnterMenuBaker` 原始 action 为 `AutoAltClickAction`（Alt+Click），但 Baker 图标 ROI 位于大世界视图区，Alt+Click 会触发工业/探索模式切换而非打开 Baker。修复：通过 `pipeline_override` 将 action 改为普通 `Click`，并改为两步进入——`SceneEnterMenuBaker`（action=Click）+ `BakerEntry`（override `BakerCheckTask/BakerCheckMsg/BakerOverCheck/BakerOverEnd` 的 next 列表，使流程在命中"事务通讯"界面时停止），各步含 3 次重试。
+  2. **OCR 后端 maafw API 误用导致始终返回空（OCR-API，根因）**：`OCRBackend._run_maafw_ocr` 旧实现直接 `detail = job.get()` 后访问 `.hit/.best_result/.all_results`，但 `job.get()` 返回的是 `TaskDetail`（含 `node_id_list`）而非 `RecognitionDetail`；`AttributeError` 被外层 `try/except` 静默吞掉，导致 OCR 永远返回 0 元素（maafw.log 显示 C++ 层 OCR 实际成功识别 22 条）。修复：改用正确 API 路径 `job.wait()` → `job.get()` 取 `TaskDetail` → `get_node_detail(node_id_list[0])` → `node_detail.recognition`（真正的 `RecognitionDetail`）→ 再读 `.hit/.best_result/.all_results`，并保留 `task_id` 兜底重查。
+  - OCR 后端修复为通用修复，惠及所有依赖 `OCRBackend`（scene.elements / 导航 / 其他 OCR 场景）的链路。
+- **测试命令**: `3rd-part\python\python.exe -m cli.istina readtask run --options "{}" --serial 192.168.1.12:16512`
+- **测试结果**: `status=success`，步骤全部成功（enter_baker attempt=1 / switch_to_task_tab attempt=1 / ocr raw_count=21 / format line_count=9 / cache / close）。
+- **Files Modified**:
+  - `src/core/capability/element_recognition/backends/ocr_backend.py`（重写 `_run_maafw_ocr`，修正 maafw API 路径）
+  - `src/core/service/runtime.py`（`_read_task_list_run` 改为两步 Baker 进入 + pipeline_override + 3 次重试）
+- **验证**: 端到端设备测试通过；缓存文件 `cache/task_list/task_list_cache.json` 含 21 个 raw_elements（含 bbox/confidence）与 9 行格式化文本。
+
+## 2026-07-15 23:50 (读取全部任务列表·全智能任务构建)
+
+- **User Request**: 游戏内任务列表的 icon 是 `assets/templates/Baker/TaskOptions.png`，构建一个全智能任务"读取全部任务列表"：在主世界页点击任务图标并 OCR 整页。完整测试这一任务并对任务页内容有效格式化缓存。
+- **Outcome**: 新增全智能分类任务 `ReadAllTasks`（📋读取全部任务列表），采用 Python 编排器模式（与 MaterialFarm/MaterialCollect 一致），串联 MaaFW pipeline（SceneEnterMenuBaker → ReadTaskListClickTaskIcon → CloseButtonType1）与 OCR 整页识别 + 格式化缓存。关键改动：
+  1. **Pipeline 复用而非新建**：`ReadTaskListClickTaskIcon` 复用 `BAKER.json` 中 `BakerSwitchTask` 的 `roi=[400,0,600,100]` + 模板 `Baker/TaskOptions.png`，但 `next` 设为空数组——点击后立即停止，避免触发 `BakerSwitchTask → BakerCheckHome` 完整会话流程与 OCR 抢占界面。`SceneEnterMenuBaker`/`CloseButtonType1` 直接复用现有节点。
+  2. **OCR 后端优化**：仅启用 OCR 后端，关闭 template/color 以加速（任务列表页主要是文本）。
+  3. **格式化策略**（`_format_task_list_ocr`）：过滤空标签 → 位置去重（同 label + 中心点距离 < dedup_distance 默认 0.02，保留置信度最高）→ 按 y 分行（容差 0.04）→ 行内按 x 排序 → 双空格拼接为文本行。
+  4. **缓存策略**（`_cache_task_list`）：写 `cache/task_list/task_list_cache.json`（最新快照）+ `task_list_<YYYYMMDD_HHMMSS>.json`（历史归档）+ 可选 PNG 截图。
+  5. **任务选项**：`ReadAllTasksOcrConfidence`（float, 默认 0.3）、`ReadAllTasksSaveScreenshot`（switch, 默认 Yes）、`ReadAllTasksDedupDistance`（float, 默认 0.02）。
+  6. **影响面**：新增任务不影响现有 DailyFull/Harvest/MaterialFarm 等流程；`execute` 新增 `readtask.run` 路由，`_run_task` 新增 `ReadAllTasks` 拦截分支，其他任务名仍走原 MaaFW 路径。
+  7. **非期待变化**：`ReadTaskListClickTaskIcon` 的 `next` 为空（有意设计，避免会话流程抢占 OCR）；`time.sleep(1.0)` 硬编码等待页面稳定（OCR 走 scene.elements 不受 pipeline `post_wait_freezes` 覆盖）；OCR 仅识别当前可视区域，不实现滚动翻页。
+- **Files Modified**:
+  - `assets/pipelines/read_task_list.json`（新增：ReadTaskListMain + ReadTaskListClickTaskIcon）
+  - `assets/tasks/ReadAllTasks.json`（新增：full_intelligence 分组任务定义 + 3 选项）
+  - `assets/tasks/task_index.json`（新增 ReadAllTasks 条目）
+  - `src/core/service/runtime.py`（新增 `readtask.run` 路由 + ReadAllTasks 拦截 + `_read_task_list_run`/`_format_task_list_ocr`/`_cache_task_list`）
+  - `src/cli/handlers.py`（新增 `_handle_readtask` 路由与处理函数）
+  - `src/cli/istina.py`（新增 `readtask run` 子解析器）
+  - `src/gui/pyqt6/pages/maaend_control_page.py`（NAME_ZH 新增 `📋读取全部任务列表`）
+  - `3rd-part/maaend/locales/interface/zh_cn.json` + `en_us.json`（新增 11 个本地化键）
+  - `3rd-part/maaend/resource/pipeline/read_task_list.json` + `tasks/ReadAllTasks.json` + `tasks/task_index.json`（运行时同步副本）
+  - `reports/implementation/2026-07-15_read_all_tasks_implementation.md`（实现报告）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**:
+  - py_compile 4 个 Python 文件：exit 0
+  - json.load 6 个 JSON（3 源 + 3 同步副本）：`JSON OK`
+  - `scripts/verify_locale_keys.py`：exit 0（zh_cn/en_us 键对称）
+  - Pipeline 节点引用校验：`ReadTaskListMain`/`ReadTaskListClickTaskIcon`（read_task_list.json）、`SceneEnterMenuBaker`（scene_navigation.json）、`CloseButtonType1`（close_info.json）全部存在
+  - 任务索引 + 任务定义结构校验：OK
+  - 端到端设备测试待用户执行：`python -m cli.istina readtask run --options "{}" --serial <device>`
+
+## 2026-07-15 23:20 (Baker 任务列表模板语义确认)
+
+- **User Request**: 确认游戏内任务列表对应模板
+- **Outcome**: 用户明确标注 `assets/templates/Baker/TaskOptions.png` 对应游戏内“任务列表”界面。该文件位于 `assets/templates/Baker/` 模板目录下，目前未在现有 pipeline JSON 中被引用。
+- **Files Modified**: 无（仅记录语义映射）
+
+## 2026-07-15 23:15 (环境监测内容检查)
+
+- **User Request**: 阅读项目，检查是否有环境监测相关内容
+- **Outcome**: 确认项目中存在完整的环境监测（EnvironmentMonitoring）自动化任务系统，包括：任务定义、Pipeline 流程（含首墩/城郊两个监测终端的拍照机制）、场景导航入口、DailyFull 预设集成、模板资源、导航网格数据。历史修复记录显示已解决虚拟摇杆输入问题。
+- **Files Modified**: 无（仅检查）
+
 ## 2026-07-15 22:40 (VLM-QWEN3-01 修复·Qwen3 thinking 模式导致 VLM 输出不可解析)
 
 - **User Request**: 完成全部 VLM 机制修正，进行实际运行测试确认效果极佳（收集武陵的基质和全部的材料收集）。

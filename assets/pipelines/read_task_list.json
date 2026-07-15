@@ -1,0 +1,33 @@
+{
+  "ReadTaskListMain": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "读取全部任务列表主入口（Python 编排器拦截 task.run ReadAllTasks，不会作为单一 MaaFW 任务执行；此节点仅供任务元数据 entry 一致性使用）"
+  },
+
+  "ReadTaskListClickTaskIcon": {
+    "recognition": "TemplateMatch",
+    "template": "Baker/TaskOptions.png",
+    "roi": [
+      400,
+      0,
+      600,
+      100
+    ],
+    "threshold": 0.7,
+    "action": "Click",
+    "pre_delay": 500,
+    "post_wait_freezes": {
+      "target": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "time": 80
+    },
+    "next": [],
+    "desc": "点击任务列表图标（事务通讯页签），切换到任务列表界面。复用 BAKER.json 中 BakerSwitchTask 的 roi 与模板 Baker/TaskOptions.png；threshold 0.7 与原版 BakerSwitchTask 默认值对齐；pre_delay 500ms 等待 SceneEnterMenuBaker 后画面稳定；next 为空，点击后立即停止，避免触发 BakerSwitchTask 原有的 BakerCheckHome 完整会话流程"
+  }
+}

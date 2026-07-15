@@ -117,6 +117,10 @@
       "path": "PuzzleSolver.json"
     },
     {
+      "name": "ReadAllTasks",
+      "path": "ReadAllTasks.json"
+    },
+    {
       "name": "ReadAllWiki",
       "path": "ReadAllWiki.json"
     },

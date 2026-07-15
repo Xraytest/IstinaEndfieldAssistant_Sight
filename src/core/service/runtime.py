@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 
 from core.foundation.logger import LogCategory, get_logger
-from core.foundation.paths import get_project_root
+from core.foundation.paths import get_cache_subdir, get_project_root
 
 if TYPE_CHECKING:
     pass
@@ -340,6 +340,8 @@ class IstinaRuntime:
             return self._material_farm_run(params)
         if domain == "material" and action == "collect":
             return self._material_collect_run(params)
+        if domain == "readtask" and action == "run":
+            return self._read_task_list_run(params)
         if domain == "nav" and action == "to":
             return self._nav_to(params)
         if domain == "nav2" and action == "to_coords":
@@ -413,6 +415,9 @@ class IstinaRuntime:
             return bool(result.get("status") == "success")
         if name == "MaterialCollect":
             result = self._material_collect_run(params)
+            return bool(result.get("status") == "success")
+        if name == "ReadAllTasks":
+            result = self._read_task_list_run(params)
             return bool(result.get("status") == "success")
         options = params.get("options") or {}
         serial = params.get("serial")
@@ -1133,6 +1138,297 @@ class IstinaRuntime:
             "results": results,
             "maaend_connected": self.connected,
         }
+
+    def _read_task_list_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """读取全部任务列表编排器：进入 Baker 界面 → 点击任务列表图标 → OCR 整页 → 格式化缓存。
+
+        全智能分类任务：在主世界页通过 SceneEnterMenuBaker 进入 Baker 界面，
+        点击 Baker/TaskOptions.png 任务列表图标切换到事务通讯页签，OCR 整页
+        识别任务文本，按阅读顺序格式化并缓存到 cache/task_list/。
+        """
+        options = params.get("options") or {}
+        client_version = options.get("ClientVersion", "CN")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "readtask.run",
+                "flow": "read_task_list",
+                "options": options,
+                "maaend_connected": False,
+            }
+        if not self._ensure_game_in_world(runtime, serial, client_version):
+            return {
+                "status": "error",
+                "command": "readtask.run",
+                "flow": "read_task_list",
+                "options": options,
+                "maaend_connected": self.connected,
+                "message": "启动游戏或等待进入大世界失败",
+            }
+
+        # 启动 scrcpy 图像通道供 OCR 截图使用
+        try:
+            result = self.android(serial).start_scrcpy(serial=serial)
+            if isinstance(result, dict) and result.get("error"):
+                self._logger.warning(LogCategory.MAIN, "scrcpy 启动失败，OCR 截图将不可用", error=result["error"], serial=serial)
+            else:
+                self._logger.info(LogCategory.MAIN, "scrcpy 图像通道已就绪", serial=serial)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "scrcpy 启动异常", error=str(exc), serial=serial)
+
+        # 解析选项
+        try:
+            ocr_confidence = float(options.get("ReadAllTasksOcrConfidenceValue", 0.3))
+        except (TypeError, ValueError):
+            ocr_confidence = 0.3
+        save_screenshot = options.get("ReadAllTasksSaveScreenshot", "Yes") != "No"
+        try:
+            dedup_distance = float(options.get("ReadAllTasksDedupDistanceValue", 0.02))
+        except (TypeError, ValueError):
+            dedup_distance = 0.02
+
+        self._logger.info(
+            LogCategory.MAIN, "读取全部任务列表开始",
+            ocr_confidence=ocr_confidence, save_screenshot=save_screenshot,
+            dedup_distance=dedup_distance,
+        )
+
+        steps: List[Dict[str, Any]] = []
+
+        # 1. 从主世界进入 Baker 界面
+        # 修复：__ScenePrivateWorldEnterMenuBaker 原始 action 是 AutoAltClickAction
+        # （Alt+Click），但 Baker 图标 ROI [168,113,101,95] 位于顶栏下方的大世界视图区，
+        # Alt+Click 会触发工业/探索模式切换而非打开 Baker。通过 pipeline_override
+        # 将 action 改为普通 Click，真正点击 Baker 图标。
+        self._logger.info(LogCategory.MAIN, "进入 Baker 界面")
+        enter_baker_ok = False
+        for attempt in range(3):
+            try:
+                override_enter = {
+                    "__ScenePrivateWorldEnterMenuBaker": {"action": "Click"},
+                }
+                ok = runtime.run_pipeline("SceneEnterMenuBaker", override_enter)
+                if ok:
+                    enter_baker_ok = True
+                    steps.append({"step": "enter_baker", "status": "success", "attempt": attempt + 1})
+                    break
+                self._logger.warning(LogCategory.MAIN, "进入 Baker 界面失败", attempt=attempt + 1)
+            except Exception as exc:
+                self._logger.error(LogCategory.MAIN, "进入 Baker 界面异常", error=str(exc), attempt=attempt + 1)
+            if attempt < 2:
+                time.sleep(2.0)
+        if not enter_baker_ok:
+            steps.append({"step": "enter_baker", "status": "failed"})
+
+        # 2. 切换到事务通讯页签（复用原始 BakerEntry 流程 + pipeline_override）
+        # 通过 override 让流程在检测到"事务通讯"界面时停止：
+        #   - BakerCheckTask.next = []  : 已在事务通讯界面 → 停止 ✓
+        #   - BakerCheckMsg.next = [BakerSwitchTask]  : 在会话消息界面 → 点 TaskOptions 切换
+        #   - BakerOverCheck.next = [BakerSwitchTask]  : 当前无会话 → 点 TaskOptions 切换（不走 BakerOverEnd 退出）
+        #   - BakerOverEnd.next = []  : 双重保险，防止退出 Baker
+        # BakerEntry 流程会自动处理：检测主界面 → 检测当前页签 →
+        # 若不在事务通讯则点 TaskOptions 切换 → 循环直到命中事务通讯界面。
+        self._logger.info(LogCategory.MAIN, "切换到事务通讯页签")
+        switch_ok = False
+        for attempt in range(3):
+            try:
+                override_switch = {
+                    "BakerCheckTask": {"next": []},
+                    "BakerCheckMsg": {"next": ["BakerSwitchTask"]},
+                    "BakerOverCheck": {"next": ["BakerSwitchTask"]},
+                    "BakerOverEnd": {"next": []},
+                }
+                ok = runtime.run_pipeline("BakerEntry", override_switch)
+                if ok:
+                    switch_ok = True
+                    steps.append({"step": "switch_to_task_tab", "status": "success", "attempt": attempt + 1})
+                    break
+                self._logger.warning(LogCategory.MAIN, "切换到事务通讯页签失败", attempt=attempt + 1)
+            except Exception as exc:
+                self._logger.error(LogCategory.MAIN, "切换到事务通讯页签异常", error=str(exc), attempt=attempt + 1)
+            if attempt < 2:
+                time.sleep(2.0)
+        if not switch_ok:
+            steps.append({"step": "switch_to_task_tab", "status": "failed"})
+
+        # 3. 等待任务列表页稳定
+        time.sleep(1.0)
+
+        # 4. OCR 整页识别（仅启用 OCR 后端，关闭模板/颜色以加速）
+        self._logger.info(LogCategory.MAIN, "OCR 整页识别任务列表")
+        ocr_result = self.execute(
+            "scene.elements",
+            {
+                "serial": serial,
+                "enable_ocr": True,
+                "enable_template": False,
+                "enable_color": False,
+            },
+        )
+
+        # 5. 格式化 OCR 结果
+        raw_elements: List[Dict[str, Any]] = []
+        if isinstance(ocr_result, dict) and ocr_result.get("status") == "success":
+            raw_elements = [
+                e for e in ocr_result.get("elements", [])
+                if e.get("source") == "ocr" and e.get("confidence", 0.0) >= ocr_confidence
+            ]
+        else:
+            self._logger.warning(
+                LogCategory.MAIN, "OCR 识别未返回有效结果",
+                status=ocr_result.get("status") if isinstance(ocr_result, dict) else "invalid",
+            )
+        steps.append({"step": "ocr", "status": "success", "raw_count": len(raw_elements)})
+
+        formatted = self._format_task_list_ocr(raw_elements, dedup_distance=dedup_distance)
+        steps.append({"step": "format", "status": "success", "line_count": len(formatted["lines"])})
+
+        # 6. 缓存格式化结果 + 可选保存截图
+        cache_path = self._cache_task_list(formatted, raw_elements, serial, save_screenshot, serial_param=serial)
+        steps.append({"step": "cache", "status": "success", "path": str(cache_path)})
+
+        # 7. 关闭任务列表界面，返回大世界
+        self._logger.info(LogCategory.MAIN, "关闭任务列表界面")
+        try:
+            ok = runtime.run_pipeline("CloseButtonType1", {})
+            steps.append({"step": "close", "status": "success" if ok else "failed"})
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "关闭任务列表界面异常", error=str(exc))
+            steps.append({"step": "close", "status": "error", "error": str(exc)})
+
+        self._logger.info(
+            LogCategory.MAIN, "读取全部任务列表完成",
+            raw_count=len(raw_elements), line_count=len(formatted["lines"]),
+            cache_path=str(cache_path),
+        )
+
+        return {
+            "status": "success",
+            "command": "readtask.run",
+            "flow": "read_task_list",
+            "options": options,
+            "raw_ocr_count": len(raw_elements),
+            "formatted_line_count": len(formatted["lines"]),
+            "formatted_lines": formatted["lines"],
+            "cache_path": str(cache_path),
+            "steps": steps,
+            "maaend_connected": self.connected,
+        }
+
+    @staticmethod
+    def _format_task_list_ocr(
+        elements: List[Dict[str, Any]], dedup_distance: float = 0.02,
+    ) -> Dict[str, Any]:
+        """将 OCR 元素列表格式化为按阅读顺序排列的文本行。
+
+        格式化策略：
+        1. 过滤空标签
+        2. 按位置去重：中心点距离小于 dedup_distance（归一化坐标）的同标签元素只保留置信度最高的
+        3. 按阅读顺序排序：先按 y 分行（行容差 0.04），行内按 x 排序
+        4. 同行元素用空格连接为一条文本行
+        """
+        # 过滤空标签
+        candidates = [e for e in elements if e.get("label") and str(e["label"]).strip()]
+        # 去重：同标签 + 位置相近 → 保留置信度最高
+        deduped: List[Dict[str, Any]] = []
+        for elem in candidates:
+            center = elem.get("center") or [0.5, 0.5]
+            cx, cy = float(center[0]), float(center[1])
+            label = str(elem["label"]).strip()
+            conf = float(elem.get("confidence", 0.5))
+            replaced = False
+            for existing in deduped:
+                ec = existing.get("center") or [0.5, 0.5]
+                if (
+                    str(existing["label"]).strip() == label
+                    and abs(cx - float(ec[0])) < dedup_distance
+                    and abs(cy - float(ec[1])) < dedup_distance
+                ):
+                    if conf > float(existing.get("confidence", 0.5)):
+                        deduped.remove(existing)
+                        deduped.append(elem)
+                    replaced = True
+                    break
+            if not replaced:
+                deduped.append(elem)
+
+        # 按阅读顺序排序：y 分行（容差 0.04），行内按 x
+        row_tolerance = 0.04
+        sorted_elems = sorted(deduped, key=lambda e: (float((e.get("center") or [0.5, 0.5])[1]), float((e.get("center") or [0.5, 0.5])[0])))
+        rows: List[List[Dict[str, Any]]] = []
+        for elem in sorted_elems:
+            cy = float((elem.get("center") or [0.5, 0.5])[1])
+            placed = False
+            for row in rows:
+                row_y = float((row[0].get("center") or [0.5, 0.5])[1])
+                if abs(cy - row_y) < row_tolerance:
+                    row.append(elem)
+                    placed = True
+                    break
+            if not placed:
+                rows.append([elem])
+
+        lines: List[str] = []
+        for row in rows:
+            row_sorted = sorted(row, key=lambda e: float((e.get("center") or [0.5, 0.5])[0]))
+            line_text = "  ".join(str(e["label"]).strip() for e in row_sorted)
+            lines.append(line_text)
+
+        return {
+            "lines": lines,
+            "element_count": len(deduped),
+            "row_count": len(rows),
+        }
+
+    def _cache_task_list(
+        self,
+        formatted: Dict[str, Any],
+        raw_elements: List[Dict[str, Any]],
+        serial: Optional[str],
+        save_screenshot: bool,
+        serial_param: Optional[str] = None,
+    ) -> Path:
+        """将格式化后的任务列表缓存到 cache/task_list/ 目录。
+
+        写入 task_list_cache.json（最新快照）+ task_list_<timestamp>.json（历史归档）。
+        若 save_screenshot=True，额外保存当前截图到同目录。
+        """
+        from datetime import datetime
+        cache_dir = get_cache_subdir("task_list")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        ts_file = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        cache_data = {
+            "timestamp": timestamp,
+            "task": "ReadAllTasks",
+            "status": "success",
+            "serial": serial,
+            "element_count": formatted["element_count"],
+            "row_count": formatted["row_count"],
+            "formatted_lines": formatted["lines"],
+            "raw_elements": raw_elements,
+        }
+
+        latest_path = cache_dir / "task_list_cache.json"
+        latest_path.write_text(json.dumps(cache_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        history_path = cache_dir / f"task_list_{ts_file}.json"
+        history_path.write_text(json.dumps(cache_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        if save_screenshot:
+            try:
+                image_bytes = self.execute("screenshot", {"serial": serial_param})
+                if image_bytes:
+                    shot_path = cache_dir / f"task_list_{ts_file}.png"
+                    shot_path.write_bytes(image_bytes)
+            except Exception as exc:
+                self._logger.warning(LogCategory.MAIN, "保存任务列表截图失败", error=str(exc))
+
+        return latest_path
 
     def _nav_to(self, params: Dict[str, Any]) -> Dict[str, Any]:
         target = params.get("target")

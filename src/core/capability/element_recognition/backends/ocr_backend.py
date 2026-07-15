@@ -112,8 +112,19 @@ class OCRBackend:
     def _run_maafw_ocr(
         self, screen: np.ndarray, roi: Optional[List[int]], expected: Optional[List[str]]
     ) -> List[ElementInfo]:
-        """使用 maafw 内置 OCR 引擎识别文字。"""
-        results = []
+        """使用 maafw 内置 OCR 引擎识别文字。
+
+        maafw Python 绑定 API 路径：
+          tasker.post_recognition(...) -> TaskJob
+          job.wait()                   -> 阻塞至完成
+          job.get()                    -> TaskDetail (含 node_id_list)
+          tasker.get_node_detail(id)   -> NodeDetail (.recognition 即 RecognitionDetail)
+
+        RecognitionDetail.hit / .best_result / .all_results 才是 OCR 详情字段。
+        旧实现误把 TaskDetail 当 RecognitionDetail 使用，导致 AttributeError 静默吞掉，
+        OCR 始终返回空列表。
+        """
+        results: List[ElementInfo] = []
         h, w = screen.shape[:2]
 
         if roi:
@@ -132,7 +143,27 @@ class OCRBackend:
             ocr_param,
             screen,
         )
-        detail = job.get()
+        # 必须显式 wait，否则 get() 拿到的 TaskDetail.node_id_list 为空
+        job.wait()
+        task_detail = job.get()
+        if not task_detail:
+            return results
+
+        # 通过 node_id 取 NodeDetail，其 .recognition 才是 RecognitionDetail
+        node_id_list = getattr(task_detail, "node_id_list", None) or []
+        if not node_id_list:
+            # 兜底：通过 task_id 重新查询一次
+            td2 = self._maa_tasker.get_task_detail(task_detail.task_id)
+            if td2 is None:
+                return results
+            node_id_list = td2.node_id_list or []
+        if not node_id_list:
+            return results
+
+        node_detail = self._maa_tasker.get_node_detail(node_id_list[0])
+        if node_detail is None or node_detail.recognition is None:
+            return results
+        detail = node_detail.recognition
 
         if not detail or not detail.hit:
             return results

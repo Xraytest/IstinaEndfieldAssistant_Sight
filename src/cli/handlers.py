@@ -76,6 +76,8 @@ class CLIDispatch:
             return self._handle_explore(args)
         if args.command == "material":
             return self._handle_material(args)
+        if args.command == "readtask":
+            return self._handle_readtask(args)
         if args.command == "screenshot":
             return self._handle_screenshot(args)
         if args.command == "task":
@@ -260,6 +262,9 @@ class CLIDispatch:
     def _handle_material(self, args: argparse.Namespace) -> Dict[str, Any]:
         return _handle_material(self._runtime, args)
 
+    def _handle_readtask(self, args: argparse.Namespace) -> Dict[str, Any]:
+        return _handle_readtask(self._runtime, args)
+
     def _handle_screenshot(self, args: argparse.Namespace) -> Dict[str, Any]:
         return _handle_screenshot(self._runtime, args)
 
@@ -327,6 +332,23 @@ def _handle_material(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
     if action == "collect":
         return runtime.execute("material.collect", params)
     return {"status": "error", "message": f"unknown material action: {action}"}
+
+
+def _handle_readtask(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    """读取全部任务列表 CLI 处理器：readtask run --options JSON --serial."""
+    action = getattr(args, "action", None)
+    if action != "run":
+        return {"status": "error", "message": f"unknown readtask action: {action}"}
+    try:
+        options = json.loads(getattr(args, "options", "{}") or "{}")
+    except json.JSONDecodeError as exc:
+        return {"status": "error", "message": f"options JSON 解析失败: {exc}"}
+    params: Dict[str, Any] = {"options": options}
+    serial = getattr(args, "serial", None)
+    if serial:
+        params["serial"] = serial
+    return runtime.execute("readtask.run", params)
+
 
 
 def _handle_screenshot(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:

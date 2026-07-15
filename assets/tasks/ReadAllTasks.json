@@ -1,0 +1,69 @@
+{
+    "task": [
+        {
+            "name": "ReadAllTasks",
+            "label": "$task.ReadAllTasks.label",
+            "entry": "ReadTaskListMain",
+            "description": "$task.ReadAllTasks.description",
+            "controller": [
+                "ADB",
+                "Win32-Front",
+                "Wlroots"
+            ],
+            "group": [
+                "full_intelligence"
+            ],
+            "option": [
+                "ReadAllTasksOcrConfidence",
+                "ReadAllTasksSaveScreenshot",
+                "ReadAllTasksDedupDistance"
+            ]
+        }
+    ],
+    "option": {
+        "ReadAllTasksOcrConfidence": {
+            "type": "input",
+            "label": "$option.ReadAllTasksOcrConfidence.label",
+            "description": "$option.ReadAllTasksOcrConfidence.description",
+            "inputs": [
+                {
+                    "name": "ReadAllTasksOcrConfidenceValue",
+                    "label": "$option.ReadAllTasksOcrConfidence.inputs.ReadAllTasksOcrConfidenceValue.label",
+                    "description": "$option.ReadAllTasksOcrConfidence.inputs.ReadAllTasksOcrConfidenceValue.description",
+                    "pipeline_type": "float",
+                    "verify": "^(0\\.[0-9]+|1\\.0|1)$",
+                    "default": "0.3"
+                }
+            ]
+        },
+        "ReadAllTasksSaveScreenshot": {
+            "type": "switch",
+            "label": "$option.ReadAllTasksSaveScreenshot.label",
+            "description": "$option.ReadAllTasksSaveScreenshot.description",
+            "default_case": "Yes",
+            "cases": [
+                {
+                    "name": "Yes"
+                },
+                {
+                    "name": "No"
+                }
+            ]
+        },
+        "ReadAllTasksDedupDistance": {
+            "type": "input",
+            "label": "$option.ReadAllTasksDedupDistance.label",
+            "description": "$option.ReadAllTasksDedupDistance.description",
+            "inputs": [
+                {
+                    "name": "ReadAllTasksDedupDistanceValue",
+                    "label": "$option.ReadAllTasksDedupDistance.inputs.ReadAllTasksDedupDistanceValue.label",
+                    "description": "$option.ReadAllTasksDedupDistance.inputs.ReadAllTasksDedupDistanceValue.description",
+                    "pipeline_type": "float",
+                    "verify": "^(0|0\\.[0-9]+|[1-9]\\d*)$",
+                    "default": "0.02"
+                }
+            ]
+        }
+    }
+}
