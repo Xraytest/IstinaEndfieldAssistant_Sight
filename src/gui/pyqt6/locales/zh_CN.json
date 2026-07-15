@@ -135,6 +135,7 @@
   "crash_dialog_title": "CLI 进程连续崩溃",
   "crash_dialog_msg": "CLI 子进程已连续崩溃 {count} 次，请检查环境或重试。",
   "log_file_path": "日志文件：{path}",
+  "log_loading": "(加载中...)",
   "model_path": "模型路径",
   "mmproj_path": "MMProj 路径",
   "port": "端口",

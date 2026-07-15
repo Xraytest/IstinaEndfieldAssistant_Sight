@@ -137,6 +137,7 @@
   "crash_dialog_title": "CLI process crashed repeatedly",
   "crash_dialog_msg": "CLI subprocess crashed {count} times consecutively. Please check the environment and retry.",
   "log_file_path": "Log file: {path}",
+  "log_loading": "(loading...)",
   "model_path": "Model Path",
   "mmproj_path": "MMProj Path",
   "port": "Port",

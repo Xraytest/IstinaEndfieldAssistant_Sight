@@ -1,5 +1,25 @@
 # 任务日志
 
+## 2026-07-15 (GUI 日志页改为渐进式加载·先展示首段再后台续载)
+
+- **User Request**: 阅读 GUI 日志页设计，修改为先加载一定长度日志并展示页面，并在不阻塞浏览页面的前提下持续加载直至完整日志加载完成。
+- **Outcome**: 将日志页从「同步一次性读取整份文件」改为「首段同步展示 + 后台分块续载」。关键改动：
+  1. **根因**：原 `_load_selected_log` 用 `log_path.read_text()` 一次性读入整份日志并对全部行做正则高亮，大日志文件会长时间阻塞 GUI 主线程，页面无法及时出现、加载期间也无法滚动浏览。
+  2. **修改方案**：
+     - 提取模块级 `_highlight_line(line)` 单行高亮函数（`_highlight_log` 改为委托调用，保持向后兼容）。
+     - 新增 `_LogLoaderWorker(QThread)`：后台分块读取剩余日志并高亮，通过 `chunk_loaded`/`loading_done`/`error_occurred` 信号回传 GUI 线程。文件读取与正则高亮均在后台线程完成，GUI 线程仅做小段 HTML 追加。
+     - `_load_selected_log` 先同步读取前 `_INITIAL_LINES`(200) 行并 `setHtml` 立即展示；若文件更长则启动后台 worker 从第 201 行起以 `_CHUNK_LINES`(500) 行为一批持续追加。
+     - 追加时保存并恢复滚动条位置与光标，不抢占用户浏览焦点；路径标签在加载中显示 `(loading...)` 后缀。
+     - 切换文件/刷新时通过 `_cancel_loader` + `_load_token` 代际令牌取消旧 worker 并丢弃残留信号，避免旧日志混入新内容；retired worker 保留引用至 `finished` 后 `deleteLater`，避免运行中 QThread 被 GC。
+  3. **影响面**：仅 `LogPage`（`src/gui/pyqt6/pages/log_page.py`）行为变化；新增 i18n key `log_loading`。`_highlight_log` 签名与返回值不变，高亮测试不受影响。小文件（≤200 行）走纯同步路径，行为与原先一致。
+  4. **非期待变化**：原先加载完成后 `moveCursor(End)` 跳到末行；现首段即定位到已加载内容末尾，后台续载期间不再自动滚动（保持用户滚动位置），用户需手动下滚查看后续加载内容。大日志的 `insertHtml` 追加在文档极大时仍有 QTextEdit 固有开销，但分块追加保证单次阻塞极短。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/log_page.py`（渐进式加载重构）
+  - `src/gui/pyqt6/locales/zh_CN.json`（新增 `log_loading`）
+  - `src/gui/pyqt6/locales/en_US.json`（新增 `log_loading`）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**：`tests/gui/pyqt6/test_gui_log_viewer.py` 10 项全部通过；额外用 600 行临时日志验证：首段 200 行立即展示且 `loading=True`，事件循环泵完后 600 行齐全且 `loading=False`。
+
 ## 2026-07-14 20:50 (NAV-01 修复·DailyRewards 协议通行证导航失败)
 
 - **User Request**: 继续修复 DailyFull 队列失败任务，本轮修复 NAV-01 (DailyRewards)。
