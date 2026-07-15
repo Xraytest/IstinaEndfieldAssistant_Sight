@@ -339,6 +339,54 @@ class Navigator:
             if result.get("status") == "success":
                 return result
         return {"status": "error", "message": f"failed to reach '{entity_name}' via VLM"}
+
+    def to_tracking_vlm(
+        self,
+        llm_client: Optional[LlmClient] = None,
+        max_steps: int = 40,
+        keyevent_fn: Optional[callable] = None,
+        step_timeout: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """Navigate by following on-screen quest tracking markers using VLM.
+
+        Unlike ``to_coords_vlm``, this does NOT require target coordinates —
+        the VLM reads the quest tracking indicator (arrows / path trail /
+        minimap marker / destination beam) and navigates autonomously.
+
+        Args:
+            step_timeout: 单次 VLM 推理超时（秒），None 则使用默认值。
+        """
+        self._logger.info("nav-vlm tracking mode (no target coords)")
+
+        if llm_client is None:
+            self._logger.warning("no LLM client supplied, cannot do tracking walk")
+            return {"status": "error", "message": "no LLM client for tracking walk"}
+
+        frame = self._get_frame()
+        if frame is None:
+            return {"status": "error", "message": "no screenshot available"}
+
+        def default_input(key: str, duration: Optional[float]) -> None:
+            self._logger.info("[vlm-input] key=%s duration=%s (no keyevent_fn provided)", key, duration)
+
+        input_fn = keyevent_fn or default_input
+
+        cfg_kwargs: Dict[str, Any] = {"max_steps": max_steps}
+        if step_timeout is not None:
+            cfg_kwargs["vlm_call_timeout_s"] = float(step_timeout)
+            cfg_kwargs["step_timeout_s"] = float(step_timeout)
+        walk_cfg = VlmWalkConfig(**cfg_kwargs)
+        walker = VlmWalkNavigator(
+            llm_client=llm_client,
+            screenshot_fn=self._screenshot_fn,
+            input_fn=input_fn,
+            locator=self._locator,
+            data_loader=self._data,
+            config=walk_cfg,
+        )
+
+        return walker.walk_to_tracking(max_steps=max_steps)
+
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------

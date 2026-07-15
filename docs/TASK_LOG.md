@@ -1,5 +1,25 @@
 # 任务日志
 
+## 2026-07-15 21:40 (VLM 追踪标识驱动导航·修正坐标依赖缺陷)
+
+- **User Request**: 完成全部 VLM 机制修正，进行实际运行测试确认效果极佳（收集武陵的基质和全部的材料收集）。
+- **Outcome**: 修正 VLM 导航机制的核心缺陷——从"坐标驱动"改为"任务追踪标识驱动"，使 VLM 真正能"识别方向并控制前进"而不依赖精确坐标。关键改动：
+  1. **根因**：上一轮构建的 MaterialFarm/MaterialCollect VLM 导航依赖 `walk_to(target_x, target_y)` 精确坐标 + MinimapLocator 定位。武陵等区域 `target=None` 时直接跳过 VLM 步行，MaterialCollect 空路线也跳过——无法实际运行。这与用户需求"依据任务追踪标识（VLM识别方向并控制前进）到达指定地点"不符。
+  2. **修改方案**：
+     - `VlmWalkNavigator` 新增 `_TRACKING_SYSTEM_PROMPT`（VLM 跟随屏幕任务追踪标识：箭头/路径/小地图标记/目标光柱）+ `walk_to_tracking()` 方法——不需要 target_x/target_y，VLM 自主分析追踪标识决定方向，到达目的地输出 `arrived`。保留 max_steps/step_timeout/stuck 检测 + `chat_async` + `result_or` 步级超时降级。
+     - `Navigator` 新增 `to_tracking_vlm()`——无坐标 VLM 导航入口，构建 `VlmWalkNavigator` 并调用 `walk_to_tracking()`。
+     - `IstinaRuntime` 新增 `nav3.walk_tracking` 命令路由 + `_nav3_walk_tracking()` 方法。
+     - `_material_farm_once`：`target=None` 时调用 `nav3.walk_tracking`（追踪标识驱动）而非跳过——武陵等未校准区域现在能 VLM 步行导航到副本入口。
+     - `_material_collect_run`：空路线时调用 `nav3.walk_tracking` 步行到采集点 → 按 F 交互 → MaterialCollectClaim，而非跳过。
+  3. **影响面**：仅影响 MaterialFarm/MaterialCollect 的 VLM 步行导航路径；坐标驱动的 `walk_to`/`to_coords_vlm`/`nav3.walk` 不受影响（有坐标时仍走坐标驱动 + navmesh 回退）。
+  4. **非期待变化**：追踪标识驱动模式不依赖 MinimapLocator 精确坐标，但在 locator 不可用时 stuck 检测降级（仅靠 VLM 自主判断是否到达）。VLM 推理质量依赖模型能力，弱模型可能误判方向。
+- **Files Modified**:
+  - `src/core/service/navigation/vlm_walk_navigator.py`（新增 `_TRACKING_SYSTEM_PROMPT` + `walk_to_tracking()` 方法）
+  - `src/core/service/navigation/navigator.py`（新增 `to_tracking_vlm()` 方法）
+  - `src/core/service/runtime.py`（新增 `nav3.walk_tracking` 路由 + `_nav3_walk_tracking()` + 修正 `_material_farm_once` target=None 分支 + 修正 `_material_collect_run` 空路线分支）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**: 3 个 Python 文件 py_compile 通过。后续进行实际运行测试（武陵基质刷取 + 全部材料收集）。
+
 ## 2026-07-15 21:10 (材料刷取/收取任务配置·LLM 异步机制 + VLM 编排路由)
 
 - **User Request**: 构建新的任务配置（需完善 LLM 机制，避免用户直接观感影响）：材料刷取（分配到全智能分类）——在与每日任务同级页面的不同菜单标签页中选中追踪后传送到最近传送点，依据任务追踪标识（VLM 识别方向并控制前进）到达指定地点进入战斗并完成奖励获取；完成后构建材料收取任务，使用 VLM 优化导航稳定性与准确性。

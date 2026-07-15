@@ -354,6 +354,8 @@ class IstinaRuntime:
             return self._nav2_list_maps(params)
         if domain == "nav3" and action == "walk":
             return self._nav3_walk(params)
+        if domain == "nav3" and action == "walk_tracking":
+            return self._nav3_walk_tracking(params)
         if domain == "nav3" and action == "to_entity":
             return self._nav3_to_entity(params)
         if domain == "nav3" and action == "status":
@@ -896,10 +898,30 @@ class IstinaRuntime:
             except Exception as exc:
                 self._logger.warning(LogCategory.MAIN, "VLM 步行导航异常，继续战斗", region=region, error=str(exc))
         elif vlm_enabled and target is None:
-            self._logger.warning(
-                LogCategory.MAIN, "区域 VLM 目标坐标待校准，跳过步行导航",
+            # 区域无校准坐标：改用任务追踪标识驱动导航（VLM 识别屏幕追踪
+            # 标识自主决定方向），不依赖精确坐标即可到达副本入口。
+            self._logger.info(
+                LogCategory.MAIN, "区域无校准坐标，改用任务追踪标识驱动 VLM 步行",
                 region=region,
             )
+            try:
+                walk_result = self.execute(
+                    "nav3.walk_tracking",
+                    {
+                        "max_steps": vlm_max_steps,
+                        "step_timeout": vlm_step_timeout,
+                        "serial": serial,
+                    },
+                )
+                if isinstance(walk_result, dict):
+                    self._logger.info(
+                        LogCategory.MAIN, "VLM 追踪标识步行结束",
+                        region=region, status=walk_result.get("status"),
+                    )
+                else:
+                    self._logger.warning(LogCategory.MAIN, "VLM 追踪标识步行无结果", region=region)
+            except Exception as exc:
+                self._logger.warning(LogCategory.MAIN, "VLM 追踪标识步行异常，继续战斗", region=region, error=str(exc))
 
         # 4. 战斗阶段：委托 AutoFight 自动战斗
         self._logger.info(LogCategory.MAIN, "进入战斗阶段", region=region)
@@ -980,13 +1002,52 @@ class IstinaRuntime:
                 LogCategory.MAIN, "材料收取路线", route=route, points=len(points),
             )
             if not points:
-                # TODO[路线校准]: 路线采集点坐标待配置，依赖 VLM 读任务追踪标识步行
-                self._logger.warning(
-                    LogCategory.MAIN, "路线采集点待校准，依赖 VLM 任务追踪标识步行",
+                # 路线无校准坐标：改用任务追踪标识驱动 VLM 步行到采集点
+                self._logger.info(
+                    LogCategory.MAIN, "路线无校准坐标，改用任务追踪标识驱动 VLM 步行",
                     route=route,
                 )
-                results.append({"route": route, "status": "skipped", "reason": "route_not_calibrated"})
-                overall_ok = False
+                point_ok = True
+                try:
+                    walk_result = self.execute(
+                        "nav3.walk_tracking",
+                        {
+                            "max_steps": vlm_max_steps,
+                            "step_timeout": vlm_step_timeout,
+                            "serial": serial,
+                        },
+                    )
+                    if not (isinstance(walk_result, dict) and walk_result.get("status") == "success"):
+                        self._logger.warning(
+                            LogCategory.MAIN, "VLM 追踪步行未到达采集点",
+                            route=route,
+                        )
+                        point_ok = False
+                except Exception as exc:
+                    self._logger.error(
+                        LogCategory.MAIN, "VLM 追踪步行异常",
+                        route=route, error=str(exc),
+                    )
+                    point_ok = False
+                if point_ok:
+                    # 交互收取：按 F
+                    try:
+                        self.android(serial).keyevent("KEYCODE_F")
+                        time.sleep(1.0)
+                    except Exception as exc:
+                        self._logger.warning(LogCategory.MAIN, "交互收取异常", error=str(exc))
+                    # 领取/确认面板
+                    try:
+                        runtime.run_pipeline("MaterialCollectClaim", {})
+                    except Exception as exc:
+                        self._logger.warning(LogCategory.MAIN, "MaterialCollectClaim 异常", error=str(exc))
+                results.append({
+                    "route": route,
+                    "status": "success" if point_ok else "partial",
+                    "points": 0,
+                })
+                if not point_ok:
+                    overall_ok = False
                 continue
             route_ok = True
             for idx, point in enumerate(points):
@@ -1135,6 +1196,21 @@ class IstinaRuntime:
             keyevent_fn=self._vlm_keyevent,
             step_timeout=float(step_timeout) if step_timeout is not None else None,
             target_radius=float(target_radius) if target_radius is not None else None,
+        )
+
+    def _nav3_walk_tracking(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """VLM 任务追踪标识驱动步行导航（不需要目标坐标）。
+
+        VLM 通过识别屏幕上的任务追踪标识（箭头/路径/小地图标记/目标光柱）
+        自主决定方向并控制前进，到达目的地后输出 arrived。
+        """
+        nav = self.navigator()
+        step_timeout = params.get("step_timeout")
+        return nav.to_tracking_vlm(
+            llm_client=self._llm_client_instance,
+            max_steps=int(params.get("max_steps", 40)),
+            keyevent_fn=self._vlm_keyevent,
+            step_timeout=float(step_timeout) if step_timeout is not None else None,
         )
 
     def _nav3_to_entity(self, params: Dict[str, Any]) -> Dict[str, Any]:

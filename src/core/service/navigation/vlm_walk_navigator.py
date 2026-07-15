@@ -89,6 +89,46 @@ Rules:
 - Output ONLY the JSON, no extra text.\
 """
 
+# 任务追踪标识驱动导航的系统提示。
+# 与坐标驱动不同：VLM 通过识别屏幕上的任务追踪标识（箭头/路径/小地图标记/
+# 目标光柱）自主决定方向，不需要精确目标坐标。这正是用户需求的"依据任务
+# 追踪标识（VLM识别方向并控制前进）到达指定地点"。
+_TRACKING_SYSTEM_PROMPT = """\
+You are controlling a character in a 3D open-world game.
+You receive a screenshot of the game screen.
+
+Your goal: follow the on-screen quest tracking marker to reach the destination.
+
+Quest tracking markers may appear as:
+- A glowing path/trail on the ground leading to the destination
+- An arrow/chevron icon pointing toward the destination
+- A minimap marker (yellow/blue icon) showing destination direction
+- A floating beam/pillar of light in the distance marking the target
+- A highlighted area or entrance (dungeon portal, collection node)
+
+You must respond with a JSON object containing exactly one action.
+Available actions:
+{"action": "forward", "duration": 1.5}  — walk forward (1-5 seconds)
+{"action": "left", "duration": 1.5}     — strafe left
+{"action": "right", "duration": 1.5}    — strafe right
+{"action": "backward", "duration": 1.5} — walk back
+{"action": "turn_left"}                  — rotate camera ~45° left
+{"action": "turn_right"}                — rotate camera ~45° right
+{"action": "interact"}                  — press interact key (F)
+{"action": "stop"}                       — stop and observe
+{"action": "arrived"}                    — I have reached the destination (dungeon entrance, collection point, battle trigger, etc.)
+
+Rules:
+- Look at the screenshot. Find the quest tracking marker.
+- Orient toward the marker and move forward.
+- Use short movements (1-2s) and re-check the marker each step.
+- If the marker leads through a narrow path, adjust course carefully.
+- If you see the destination (dungeon portal, collection node, battle trigger), use "arrived".
+- If you see obstacles/a cliff/danger, adjust course.
+- If you cannot see the marker, turn to search for it.
+- Output ONLY the JSON, no extra text.\
+"""
+
 
 class VlmWalkNavigator:
     """VLM-driven walking controller for the open world."""
@@ -293,6 +333,131 @@ class VlmWalkNavigator:
             "target_x": target_x,
             "target_y": target_y,
             "history": history[-15:],  # last 15 actions for review
+        }
+
+    def walk_to_tracking(
+        self,
+        max_steps: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Walk toward the destination by following on-screen quest tracking markers.
+
+        Unlike ``walk_to``, this does NOT require a target coordinate — the VLM
+        reads the in-game quest tracking indicator (arrows / path trail / minimap
+        marker / destination beam) and decides movement direction autonomously.
+        This is the key difference from MaaEnd's coordinate-driven blind-walk:
+        the VLM "识别方向并控制前进" based on visual tracking markers.
+
+        Args:
+            max_steps: override max VLM decision steps
+
+        Returns:
+            result dict with status, steps taken, actions history
+        """
+        steps = max_steps or self._config.max_steps
+        self._last_positions.clear()
+        history: List[Dict[str, Any]] = []
+        step_idx = -1
+
+        loop_deadline = time.monotonic() + (self._config.step_timeout_s * max(steps, 1))
+
+        frame = self._grab_frame()
+        if frame is None:
+            return {"status": "error", "message": "no screenshot available"}
+
+        for step_idx in range(steps):
+            step_start = time.monotonic()
+            if step_start > loop_deadline:
+                self._logger.warning("walk_to_tracking exceeded total budget, aborting at step %d", step_idx)
+                break
+
+            frame = self._grab_frame()
+            if frame is None:
+                history.append({"step": step_idx, "action": "error", "detail": "screenshot_failed"})
+                break
+
+            # 辅助定位（可选）：用于 stuck 检测，不依赖精确坐标
+            current_pos = self._locator.locate(frame)
+            pos_info = ""
+            if current_pos:
+                cx, cy = current_pos.center_x, current_pos.center_y
+                pos_info = (
+                    f"Current Position: ({cx:.1f}, {cy:.1f}) on {current_pos.map_id}\n"
+                )
+                if self._is_stuck(cx, cy):
+                    self._logger.warning("stuck detected (tracking) at step %d", step_idx)
+                    pos_info += (
+                        "WARNING: You appear to be stuck. Try turning to find "
+                        "the quest marker.\n"
+                    )
+            else:
+                # locator 不可用时清空历史避免误判 stuck
+                self._last_positions.clear()
+
+            img_b64 = self._frame_to_base64(frame)
+            last_action = history[-1]["action"] if history else "none"
+            context = (
+                f"{pos_info}"
+                f"Last Action: {last_action}\n"
+                f"Step Count: {step_idx + 1}/{steps}\n"
+                f"Follow the quest tracking marker to reach the destination."
+            )
+
+            self._logger.info("VLM tracking step %d/%d", step_idx + 1, steps)
+            try:
+                handle = self._llm.chat_async(
+                    prompt=(
+                        "Look at the screenshot. Find the quest tracking marker "
+                        "and decide the next action.\n\n" + context
+                    ),
+                    system=_TRACKING_SYSTEM_PROMPT,
+                    temperature=self._config.vlm_temperature,
+                    max_tokens=self._config.vlm_max_tokens,
+                    image=img_b64,
+                    timeout=self._config.vlm_call_timeout_s,
+                )
+                reply = handle.result_or(
+                    default="",
+                    timeout=self._config.vlm_call_timeout_s,
+                )
+            except Exception as exc:
+                self._logger.error("VLM tracking call failed at step %d: %s", step_idx, exc)
+                history.append({"step": step_idx, "action": "vlm_error", "detail": str(exc)})
+                continue
+
+            if not reply:
+                self._logger.warning("VLM tracking step %d returned empty/timed out, skipping", step_idx)
+                history.append({"step": step_idx, "action": "vlm_timeout"})
+                continue
+
+            action = self._parse_action(reply)
+            if action is None:
+                self._logger.warning("unparseable VLM tracking reply at step %d: %s", step_idx, reply[:200])
+                history.append({"step": step_idx, "action": "parse_error", "raw": reply[:120]})
+                continue
+
+            if action["action"] == "arrived":
+                history.append({"step": step_idx, "action": "arrived"})
+                self._logger.info("VLM tracking arrived at step %d", step_idx)
+                break
+
+            self._execute_action(action)
+            history.append({**action, "step": step_idx})
+            time.sleep(0.3)
+
+            step_elapsed = time.monotonic() - step_start
+            if step_elapsed > self._config.step_timeout_s:
+                self._logger.warning(
+                    "tracking step %d took %.1fs (> step_timeout_s %.1fs)",
+                    step_idx, step_elapsed, self._config.step_timeout_s,
+                )
+
+        arrived = any(h.get("action") == "arrived" for h in history)
+        return {
+            "status": "success" if arrived else "partial",
+            "action": "vlm_walk_tracking",
+            "steps_taken": len([h for h in history if "step" in h]),
+            "total_decisions": max(0, step_idx + 1),
+            "history": history[-15:],
         }
 
     # ------------------------------------------------------------------
