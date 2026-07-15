@@ -153,14 +153,7 @@ GROUP_ZH = {
 # Tasks that should not appear in the standard task list (internal/preliminary)
 _HIDDEN_TASK_NAMES = {"GameSetting"}
 
-# Per-task timeout override (seconds); default is 120s.
-# SeizeDeliveryJobs needs navigation + order grabbing, 120s insufficient (TIMEOUT-01).
-# VisitFriends needs ~344s for 5 friend visits (enter ship → terminal → assist
-# → exit → scroll); 240s CLI default triggers false failure (TIMEOUT-02).
-_TASK_TIMEOUTS: Dict[str, int] = {
-    "SeizeDeliveryJobs": 240,
-    "VisitFriends": 480,
-}
+
 
 # Group display order
 _GROUP_ORDER = [
@@ -1044,11 +1037,8 @@ class MaaEndControlPage(QWidget):
             merged_options = dict(inline_options)
             merged_options.update(options)
             # name 是 argparse 位置参数，嵌入命令字符串；options 通过 params 传递
-            # timeout=120 容纳 AndroidOpenGame 加载(~88s)+EnterGame post_delay(3s)+余量
-            # timeout_ms=600000 容纳异常恢复（CloseGame 60s + AndroidOpenGame 180s + 重试 120s）
-            # Per-task timeout override for tasks that need longer execution (TIMEOUT-01)
-            task_timeout = _TASK_TIMEOUTS.get(clean_name, 120)
-            result = self._sync_execute(f"task run {clean_name}", {"options": merged_options, "timeout": task_timeout}, timeout_ms=600000)
+            # timeout_ms=600000 容纳异常恢复（CloseGame + AndroidOpenGame + 重试）
+            result = self._sync_execute(f"task run {clean_name}", {"options": merged_options}, timeout_ms=600000)
 
             ok = bool(result and result.get("status") == "success")
             self._queue_state.update_queue_item_status(idx, "success" if ok else "failed")

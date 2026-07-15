@@ -78,7 +78,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_task_run.add_argument("name", help="task name")
     p_task_run.add_argument("--options", default="{}", help="JSON options")
     p_task_run.add_argument("--serial", default=None, help="device serial")
-    p_task_run.add_argument("--timeout", type=float, default=None, help="task timeout in seconds")
+    p_task_run.add_argument("--timeout", type=float, default=None, help="task timeout in seconds (manual, for testing)")
+
     p_task_list = p_task_sub.add_parser("list", help="list tasks")
     p_task_list.add_argument("--serial", default=None, help="device serial")
 
@@ -87,7 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_preset_run = p_preset_sub.add_parser("run", help="apply preset to queue and run queue")
     p_preset_run.add_argument("name", help="preset name")
     p_preset_run.add_argument("--serial", default=None, help="device serial")
-    p_preset_run.add_argument("--timeout", type=float, default=None, help="task timeout in seconds")
+    p_preset_run.add_argument("--timeout", type=float, default=None, help="task timeout in seconds (manual, for testing)")
+
     p_preset_apply = p_preset_sub.add_parser("apply", help="apply preset to queue (overwrites queue)")
     p_preset_apply.add_argument("name", help="preset name")
     p_preset_apply.add_argument("--serial", default=None, help="device serial")
@@ -98,7 +100,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_queue_sub = p_queue.add_subparsers(dest="action")
     p_queue_run = p_queue_sub.add_parser("run", help="run queue")
     p_queue_run.add_argument("--serial", default=None, help="device serial")
-    p_queue_run.add_argument("--timeout", type=float, default=None, help="task timeout in seconds")
+    p_queue_run.add_argument("--timeout", type=float, default=None, help="task timeout in seconds (manual, for testing)")
+
     p_queue_list = p_queue_sub.add_parser("list", help="list queue")
     p_queue_list.add_argument("--serial", default=None, help="device serial")
     p_queue_clear = p_queue_sub.add_parser("clear", help="clear queue")
