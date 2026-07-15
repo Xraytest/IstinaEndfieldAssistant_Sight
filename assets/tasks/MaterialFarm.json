@@ -1,0 +1,188 @@
+{
+    "task": [
+        {
+            "name": "MaterialFarm",
+            "label": "$task.MaterialFarm.label",
+            "entry": "MaterialFarmMain",
+            "description": "$task.MaterialFarm.description",
+            "controller": [
+                "ADB",
+                "Win32-Front",
+                "Wlroots"
+            ],
+            "group": [
+                "full_intelligence"
+            ],
+            "option": [
+                "MaterialFarmChooseLocation",
+                "MaterialFarmRepeatCount",
+                "MaterialFarmVlmNavigation",
+                "MaterialFarmVlmMaxSteps",
+                "MaterialFarmVlmStepTimeout",
+                "AutoFightSettingFull"
+            ]
+        }
+    ],
+    "option": {
+        "MaterialFarmChooseLocation": {
+            "type": "checkbox",
+            "label": "$option.MaterialFarmChooseLocation.label",
+            "description": "$option.MaterialFarmChooseLocation.description",
+            "default_case": [
+                "VFTheHub"
+            ],
+            "cases": [
+                {
+                    "name": "VFTheHub",
+                    "label": "$global.region.TheHub",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_VFTheHub": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "VFOriginiumSciencePark",
+                    "label": "$global.region.OriginiumSciencePark",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_VFOriginiumSciencePark": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "VFOriginLodespring",
+                    "label": "$global.region.OriginLodespring",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_VFOriginLodespring": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "VFPowerPlateau",
+                    "label": "$global.region.PowerPlateau",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_VFPowerPlateau": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "WLWulingCity",
+                    "label": "$global.region.Wulingcity",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_WLWulingCity": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "WLQingboStockade",
+                    "label": "$global.region.QingboStockade",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_WLQingboStockade": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "WLMarkerStone",
+                    "label": "$global.region.MarkerStone",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_WLMarkerStone": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "WLTestArea",
+                    "label": "$global.region.TestArea",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_WLTestArea": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "WLSwordVaultDale",
+                    "label": "$global.region.SwordVaultDale",
+                    "pipeline_override": {
+                        "MaterialFarmGotoAnchor_WLSwordVaultDale": {
+                            "enabled": true
+                        }
+                    }
+                }
+            ]
+        },
+        "MaterialFarmRepeatCount": {
+            "type": "input",
+            "label": "$option.MaterialFarmRepeatCount.label",
+            "description": "$option.MaterialFarmRepeatCount.description",
+            "inputs": [
+                {
+                    "name": "MaterialFarmRepeatCountValue",
+                    "label": "$option.MaterialFarmRepeatCount.inputs.MaterialFarmRepeatCountValue.label",
+                    "description": "$option.MaterialFarmRepeatCount.inputs.MaterialFarmRepeatCountValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^(([1-9])|([1-9][0-9])|(1[0-9][0-9]))$",
+                    "default": "1"
+                }
+            ]
+        },
+        "MaterialFarmVlmNavigation": {
+            "type": "switch",
+            "label": "$option.MaterialFarmVlmNavigation.label",
+            "description": "$option.MaterialFarmVlmNavigation.description",
+            "default_case": "Yes",
+            "cases": [
+                {
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "MaterialFarmVlmWalk": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "No",
+                    "pipeline_override": {
+                        "MaterialFarmVlmWalk": {
+                            "enabled": false
+                        }
+                    }
+                }
+            ]
+        },
+        "MaterialFarmVlmMaxSteps": {
+            "type": "input",
+            "label": "$option.MaterialFarmVlmMaxSteps.label",
+            "description": "$option.MaterialFarmVlmMaxSteps.description",
+            "inputs": [
+                {
+                    "name": "MaterialFarmVlmMaxStepsValue",
+                    "label": "$option.MaterialFarmVlmMaxSteps.inputs.MaterialFarmVlmMaxStepsValue.label",
+                    "description": "$option.MaterialFarmVlmMaxSteps.inputs.MaterialFarmVlmMaxStepsValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([5-9]|[1-9][0-9]|1[0-9][0-9]|200)$",
+                    "default": "40"
+                }
+            ]
+        },
+        "MaterialFarmVlmStepTimeout": {
+            "type": "input",
+            "label": "$option.MaterialFarmVlmStepTimeout.label",
+            "description": "$option.MaterialFarmVlmStepTimeout.description",
+            "inputs": [
+                {
+                    "name": "MaterialFarmVlmStepTimeoutValue",
+                    "label": "$option.MaterialFarmVlmStepTimeout.inputs.MaterialFarmVlmStepTimeoutValue.label",
+                    "description": "$option.MaterialFarmVlmStepTimeout.inputs.MaterialFarmVlmStepTimeoutValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([5-9]|[1-9][0-9]|1[0-9][0-9])$",
+                    "default": "30"
+                }
+            ]
+        }
+    }
+}

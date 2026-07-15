@@ -236,10 +236,16 @@ class Navigator:
         llm_client: Optional[LlmClient] = None,
         max_steps: int = 40,
         keyevent_fn: Optional[callable] = None,
+        step_timeout: Optional[float] = None,
+        target_radius: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Navigate to (x, y) using VLM-driven walking instead of blind-walk waypoints.
 
         Falls back to NAVMESH if VLM client is unavailable or stuck detected.
+
+        Args:
+            step_timeout: 单次 VLM 推理超时（秒），None 则使用 VlmWalkConfig 默认值。
+            target_radius: 到达判定半径，None 则使用 VlmWalkConfig 默认值。
         """
         self._logger.info("nav-vlm to coords: map=%s x=%.1f y=%.1f", map_name, x, y)
 
@@ -266,7 +272,13 @@ class Navigator:
 
         input_fn = keyevent_fn or default_input
 
-        walk_cfg = VlmWalkConfig(max_steps=max_steps)
+        cfg_kwargs: Dict[str, Any] = {"max_steps": max_steps}
+        if step_timeout is not None:
+            cfg_kwargs["vlm_call_timeout_s"] = float(step_timeout)
+            cfg_kwargs["step_timeout_s"] = float(step_timeout)
+        if target_radius is not None:
+            cfg_kwargs["target_radius"] = float(target_radius)
+        walk_cfg = VlmWalkConfig(**cfg_kwargs)
         walker = VlmWalkNavigator(
             llm_client=llm_client,
             screenshot_fn=self._screenshot_fn,
@@ -303,6 +315,8 @@ class Navigator:
         max_steps: int = 40,
         keyevent_fn: Optional[callable] = None,
         limit: int = 10,
+        step_timeout: Optional[float] = None,
+        target_radius: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Navigate to a named entity using VLM-driven walking."""
         matches = self._entities.find_by_name(entity_name, exact=False, limit=limit)
@@ -319,6 +333,8 @@ class Navigator:
                 llm_client=llm_client,
                 max_steps=max_steps,
                 keyevent_fn=keyevent_fn,
+                step_timeout=step_timeout,
+                target_radius=target_radius,
             )
             if result.get("status") == "success":
                 return result

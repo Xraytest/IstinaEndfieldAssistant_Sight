@@ -49,6 +49,10 @@ class VlmWalkConfig:
     step_timeout_s: float = 30.0      # max real time per step
     vlm_temperature: float = 0.2
     vlm_max_tokens: int = 128
+    # 单次 VLM 推理超时（秒）。超过即跳过该步并继续循环，避免单步卡死拖累
+    # 整条导航——这正是"避免用户直接观感影响"的关键：界面/预览不会因某一步
+    # 推理停滞而长时间无响应。
+    vlm_call_timeout_s: float = 30.0
     stuck_threshold: int = 4          # consecutive no-movement steps before fallback
     fallback_to_navmesh: bool = True
     turn_key_duration_ms: int = 200   # ms for a camera turn tap
@@ -213,18 +217,35 @@ class VlmWalkNavigator:
                 f"Step Count: {step_idx + 1}"
             )
 
-            # Query VLM
+            # Query VLM — 使用异步调用 + 步级超时，单步推理卡死不会拖垮整条
+            # 导航循环，也不会阻塞调用方线程（GUI 预览/任务线程继续运转）。
+            self._logger.info(
+                "VLM step %d/%d: dist=%.1f pos=(%.1f,%.1f) target=(%.1f,%.1f)",
+                step_idx + 1, steps, dist,
+                current_context.center_x, current_context.center_y,
+                target_x, target_y,
+            )
             try:
-                reply = self._llm.chat(
+                handle = self._llm.chat_async(
                     prompt=f"Look at the screenshot and decide the next action.\n\n{context}",
                     system=self._system_prompt,
                     temperature=self._config.vlm_temperature,
                     max_tokens=self._config.vlm_max_tokens,
                     image=img_b64,
+                    timeout=self._config.vlm_call_timeout_s,
+                )
+                reply = handle.result_or(
+                    default="",
+                    timeout=self._config.vlm_call_timeout_s,
                 )
             except Exception as exc:
                 self._logger.error("VLM call failed at step %d: %s", step_idx, exc)
                 history.append({"step": step_idx, "action": "vlm_error", "detail": str(exc)})
+                continue
+
+            if not reply:
+                self._logger.warning("VLM step %d returned empty/timed out, skipping", step_idx)
+                history.append({"step": step_idx, "action": "vlm_timeout"})
                 continue
 
             # Parse VLM response

@@ -1,5 +1,37 @@
 # 任务日志
 
+## 2026-07-15 21:10 (材料刷取/收取任务配置·LLM 异步机制 + VLM 编排路由)
+
+- **User Request**: 构建新的任务配置（需完善 LLM 机制，避免用户直接观感影响）：材料刷取（分配到全智能分类）——在与每日任务同级页面的不同菜单标签页中选中追踪后传送到最近传送点，依据任务追踪标识（VLM 识别方向并控制前进）到达指定地点进入战斗并完成奖励获取；完成后构建材料收取任务，使用 VLM 优化导航稳定性与准确性。
+- **Outcome**: 新增 MaterialFarm（材料刷取）与 MaterialCollect（材料收取）两个全智能分类任务，完善 LLM 异步调用机制，通过 Python 编排器串联 MaaFW pipeline（UI/传送/战斗）与 VLM 步行导航。关键改动：
+  1. **LLM 异步机制完善**（避免用户直接观感影响）：`LlmClient` 新增 `chat(timeout=...)` 可配置超时参数、`chat_async()` 异步方法与 `LlmAsyncHandle` 句柄类。`LlmAsyncHandle.result_or(default, timeout)` 实现步级降级——单步 VLM 推理超时后返回空字符串继续循环，不会因单步卡死拖垮整条导航。原同步 `chat()` 硬编码 120s 超时改为可配置，默认值 `DEFAULT_TIMEOUT_S = 120.0` 保持兼容。
+  2. **VLM 导航参数透传**：`Navigator.to_coords_vlm` / `to_entity_vlm` 新增 `step_timeout` 与 `target_radius` 参数，通过 `VlmWalkConfig` 传递给 `VlmWalkNavigator`。`VlmWalkConfig` 新增 `vlm_call_timeout_s` 字段，walk 循环中 `chat` 改为 `chat_async` + `result_or` + 进度日志。
+  3. **Python 编排混合流程**（类似 `daily.run`）：Go agent 是 gitignored 无法注册 custom action，故采用 Python 编排器串联 MaaFW pipeline + VLM 导航。`IstinaRuntime._run_task` 拦截 `MaterialFarm`/`MaterialCollect` 走编排器；`execute()` 新增 `material.farm`/`material.collect` 命令路由。`_material_farm_run` 解析选项 → ensure_game_in_world → 循环 `_material_farm_once`（Prepare → 传送 → VLM 步行 → AutoFight → Rewards）；`_material_collect_run` 解析路线 → VLM 步行到采集点 → keyevent F → Claim。
+  4. **任务配置与分组**：新建 `MaterialFarm.json`（9 区域选择/重复次数/VLM 开关/最大步数/单步超时/AutoFight 详细设置）、`MaterialCollect.json`（5 路线/VLM 参数/到达半径）、预设 `MaterialFarmFull.json`。GUI 新增 `full_intelligence`（全智能）分组，`_GROUP_ORDER` 追加该分组。CLI 新增 `material farm/collect` 子命令。
+  5. **Pipeline 节点**：`material_farm.json`（27 节点：Main/Prepare/OpenDungeonTab/SelectStage/SelectTracking/ConfirmTracking/9 对 GotoAnchor+Teleport/VlmWalk/Combat/Rewards）、`material_collect.json`（8 节点：Main/Route1-5/Interact/Claim），均登记到 `pipeline_index.json`。
+  6. **i18n**：zh_cn/en_us 新增 MaterialFarm/MaterialCollect 全部 option 键与 MaterialFarmFull 预设键，`verify_locale_keys.py` 通过。
+  7. **区域坐标校准策略**：`_MATERIAL_REGION_INFO` 9 区域中仅 VFTheHub 有校准坐标 (385.0, 496.0)，其余 target=None 时跳过 VLM 步行直接进入战斗（日志告警）。`_MATERIAL_COLLECT_ROUTES` 5 条路线标记为 TODO[路线校准]。
+  8. **影响面**：新增任务不影响现有 DailyFull/Harvest 等流程；LLM 异步机制向后兼容（默认超时不变）；GUI 新增分组不影响现有分组展示顺序。
+  9. **非期待变化**：MaterialFarmPrepare/Rewards 模板、8 个区域 VLM 目标坐标、5 条 MaterialCollect 路线采集点坐标需后续校准（标记为 TODO），校准前这些区域/路线会跳过 VLM 步行导航。
+- **Files Modified**:
+  - `src/core/capability/llm/client.py`（新增 `LlmClientTimeout`/`DEFAULT_TIMEOUT_S`/`chat(timeout)`/`chat_async()`/`LlmAsyncHandle`）
+  - `src/core/capability/llm/__init__.py`（导出 `LlmAsyncHandle`/`LlmClientError`/`LlmClientTimeout`）
+  - `src/core/service/navigation/vlm_walk_navigator.py`（`VlmWalkConfig.vlm_call_timeout_s` + walk 循环改 `chat_async`+`result_or`）
+  - `src/core/service/navigation/navigator.py`（`to_coords_vlm`/`to_entity_vlm` 新增 `step_timeout`/`target_radius` 透传）
+  - `src/core/service/runtime.py`（新增 `material.farm`/`material.collect` 路由 + `_material_farm_run`/`_material_collect_run`/`_material_farm_once` + `_MATERIAL_REGION_INFO`/`_MATERIAL_COLLECT_ROUTES`）
+  - `src/gui/pyqt6/pages/maaend_control_page.py`（NAME_ZH/GROUP_ZH/_GROUP_ORDER 新增全智能分类）
+  - `src/cli/handlers.py`（新增 `_handle_material` + CLIDispatch 路由）
+  - `src/cli/istina.py`（新增 `material` 子解析器 farm/collect）
+  - `assets/pipelines/material_farm.json`（新建，27 节点）
+  - `assets/pipelines/material_collect.json`（新建，8 节点）
+  - `assets/pipelines/pipeline_index.json`（登记 material_farm/material_collect）
+  - `assets/tasks/MaterialFarm.json`（新建）
+  - `assets/tasks/MaterialCollect.json`（新建）
+  - `assets/tasks/preset/MaterialFarmFull.json`（新建）
+  - `assets/tasks/task_index.json`（登记 MaterialFarm/MaterialCollect/MaterialFarmFull）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**: 7 个 Python 文件 py_compile 通过；9 个 JSON 文件 json.load 通过；`verify_locale_keys.py` EXIT=0；3rd-part 运行时副本已同步（locales/pipeline/tasks/preset）。后续校准项：MaterialFarmPrepare/Rewards 模板、8 区域 VLM 目标坐标、5 条 MaterialCollect 路线。
+
 ## 2026-07-15 (OCR 噪声过滤·MaaFW OCR 内部警告不再污染任务运行页日志)
 
 - **User Request**: OCR结果尺寸不匹配不应该在任务运行页日志GUI内展示，修正这一问题。

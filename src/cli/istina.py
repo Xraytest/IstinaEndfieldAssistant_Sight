@@ -19,6 +19,7 @@ from cli.handlers import (
     _handle_daily,
     _handle_explore,
     _handle_harvest,
+    _handle_material,
 )
 from core.foundation.logger import get_logger
 from core.foundation.paths import ensure_src_path
@@ -32,6 +33,7 @@ __all__ = [
     "_handle_harvest",
     "_handle_analyze",
     "_handle_explore",
+    "_handle_material",
 ]
 
 ensure_src_path(__file__)
@@ -68,6 +70,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_explore = sub.add_parser("explore", help="explore flow")
     p_explore.add_argument("--options", default="{}", help="JSON options")
     p_explore.add_argument("--serial", default=None, help="device serial")
+
+    p_material = sub.add_parser("material", help="material farm/collect flow (VLM-driven)")
+    p_material_sub = p_material.add_subparsers(dest="action")
+    p_mat_farm = p_material_sub.add_parser("farm", help="material farming (teleport + VLM walk + AutoFight)")
+    p_mat_farm.add_argument("--options", default="{}", help="JSON options")
+    p_mat_farm.add_argument("--serial", default=None, help="device serial")
+    p_mat_collect = p_material_sub.add_parser("collect", help="material collection (VLM walk + interact)")
+    p_mat_collect.add_argument("--options", default="{}", help="JSON options")
+    p_mat_collect.add_argument("--serial", default=None, help="device serial")
 
     p_ss = sub.add_parser("screenshot", help="take screenshot")
     p_ss.add_argument("--out", default=None, help="output file path")

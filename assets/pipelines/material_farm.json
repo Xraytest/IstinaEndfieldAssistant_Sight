@@ -1,0 +1,174 @@
+{
+  "MaterialFarmMain": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "材料刷取主入口（Python 编排器拦截 task.run MaterialFarm，不会作为单一 MaaFW 任务执行；此节点仅供任务元数据 entry 一致性使用）"
+  },
+
+  "MaterialFarmPrepare": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [
+      "MaterialFarmOpenDungeonTab",
+      "MaterialFarmSelectMaterialStage",
+      "MaterialFarmSelectTracking",
+      "MaterialFarmConfirmTracking"
+    ],
+    "desc": "材料刷取准备阶段：打开副本/材料标签页 → 选择材料副本 → 选中追踪 → 确认追踪。子节点需结合设备端模板校准（参见 desc）"
+  },
+
+  "MaterialFarmOpenDungeonTab": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "TODO[模板校准]: 打开与每日任务同级页面的另一个标签页（副本菜单），定位到材料/基质刷取分类。需补充 OCR/模板识别该标签页入口"
+  },
+
+  "MaterialFarmSelectMaterialStage": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "TODO[模板校准]: 在材料分类下选择目标材料副本。需按 MaterialFarmChooseLocation 选项路由到对应区域节点"
+  },
+
+  "MaterialFarmSelectTracking": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "TODO[模板校准]: 选中副本追踪（任务追踪标识），使大世界出现追踪导引"
+  },
+
+  "MaterialFarmConfirmTracking": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "TODO[模板校准]: 确认追踪并关闭面板，返回大世界"
+  },
+
+  "MaterialFarmGotoAnchor_VFTheHub": {
+    "enabled": false,
+    "pre_delay": 0,
+    "post_delay": 0,
+    "next": [
+      "MaterialFarmTeleport_VFTheHub"
+    ],
+    "focus": {
+      "Node.Action.Starting": "📌材料刷取目标地点：枢纽区"
+    },
+    "desc": "区域锚点开关：由 MaterialFarmChooseLocation 选项启用。启用后 Python 编排器据此选择传送目标与 VLM 导航终点"
+  },
+  "MaterialFarmTeleport_VFTheHub": {
+    "max_hit": 1,
+    "pre_delay": 0,
+    "post_delay": 0,
+    "next": [
+      "SceneEnterWorldValleyIVTheHub1"
+    ],
+    "desc": "传送到枢纽区最近锚点；复用 AutoEssence 的 SceneEnterWorldValleyIVTheHub1 场景节点"
+  },
+
+  "MaterialFarmGotoAnchor_VFOriginiumSciencePark": {
+    "enabled": false,
+    "next": ["MaterialFarmTeleport_VFOriginiumSciencePark"],
+    "focus": { "Node.Action.Starting": "📌材料刷取目标地点：源石科学园区" }
+  },
+  "MaterialFarmTeleport_VFOriginiumSciencePark": {
+    "max_hit": 1,
+    "next": ["SceneEnterWorldValleyIVOriginiumSciencePark1"]
+  },
+
+  "MaterialFarmGotoAnchor_VFOriginLodespring": {
+    "enabled": false,
+    "next": ["MaterialFarmTeleport_VFOriginLodespring"],
+    "focus": { "Node.Action.Starting": "📌材料刷取目标地点：源石矿泉" }
+  },
+  "MaterialFarmTeleport_VFOriginLodespring": {
+    "max_hit": 1,
+    "next": ["SceneEnterWorldValleyIVOriginLodespring1"]
+  },
+
+  "MaterialFarmGotoAnchor_VFPowerPlateau": {
+    "enabled": false,
+    "next": ["MaterialFarmTeleport_VFPowerPlateau"],
+    "focus": { "Node.Action.Starting": "📌材料刷取目标地点：动力高原" }
+  },
+  "MaterialFarmTeleport_VFPowerPlateau": {
+    "max_hit": 1,
+    "next": ["SceneEnterWorldValleyIVPowerPlateau1"]
+  },
+
+  "MaterialFarmGotoAnchor_WLWulingCity": {
+    "enabled": false,
+    "next": ["MaterialFarmTeleport_WLWulingCity"],
+    "focus": { "Node.Action.Starting": "📌材料刷取目标地点：武陵城" }
+  },
+  "MaterialFarmTeleport_WLWulingCity": {
+    "max_hit": 1,
+    "next": ["SceneEnterWorldWulingWulingCity1"]
+  },
+
+  "MaterialFarmGotoAnchor_WLQingboStockade": {
+    "enabled": false,
+    "next": ["MaterialFarmTeleport_WLQingboStockade"],
+    "focus": { "Node.Action.Starting": "📌材料刷取目标地点：青泊寨" }
+  },
+  "MaterialFarmTeleport_WLQingboStockade": {
+    "max_hit": 1,
+    "next": ["SceneEnterWorldWulingQingboStockade1"]
+  },
+
+  "MaterialFarmGotoAnchor_WLMarkerStone": {
+    "enabled": false,
+    "next": ["MaterialFarmTeleport_WLMarkerStone"],
+    "focus": { "Node.Action.Starting": "📌材料刷取目标地点：界碑" }
+  },
+  "MaterialFarmTeleport_WLMarkerStone": {
+    "max_hit": 1,
+    "next": ["SceneEnterWorldWulingMarkerStone1"]
+  },
+
+  "MaterialFarmGotoAnchor_WLTestArea": {
+    "enabled": false,
+    "next": ["MaterialFarmTeleport_WLTestArea"],
+    "focus": { "Node.Action.Starting": "📌材料刷取目标地点：试验区" }
+  },
+  "MaterialFarmTeleport_WLTestArea": {
+    "max_hit": 1,
+    "next": ["SceneEnterWorldWulingTestArea1"]
+  },
+
+  "MaterialFarmGotoAnchor_WLSwordVaultDale": {
+    "enabled": false,
+    "next": ["MaterialFarmTeleport_WLSwordVaultDale"],
+    "focus": { "Node.Action.Starting": "📌材料刷取目标地点：剑窖谷" }
+  },
+  "MaterialFarmTeleport_WLSwordVaultDale": {
+    "max_hit": 1,
+    "next": ["SceneEnterWorldWulingSwordVaultDale1"]
+  },
+
+  "MaterialFarmVlmWalk": {
+    "enabled": true,
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "VLM 目的地导航占位节点：实际步行由 Python 编排器调用 nav.to_coords_vlm 完成（VLM 识别任务追踪标识方向并控制前进）。此处仅作 pipeline_override 开关用"
+  },
+
+  "MaterialFarmCombat": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [
+      "AutoFight"
+    ],
+    "desc": "战斗阶段：VLM 导航到达后进入战斗，委托 AutoFight 自动战斗节点（复用 Go agent autofight）"
+  },
+
+  "MaterialFarmRewards": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "奖励领取阶段：TODO[模板校准] 战斗结束后领取奖励。需补充战斗结算面板识别与领取按钮模板"
+  }
+}

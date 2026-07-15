@@ -74,6 +74,8 @@ class CLIDispatch:
             return self._handle_analyze(args)
         if args.command == "explore":
             return self._handle_explore(args)
+        if args.command == "material":
+            return self._handle_material(args)
         if args.command == "screenshot":
             return self._handle_screenshot(args)
         if args.command == "task":
@@ -255,6 +257,9 @@ class CLIDispatch:
     def _handle_explore(self, args: argparse.Namespace) -> Dict[str, Any]:
         return _handle_explore(self._runtime, args)
 
+    def _handle_material(self, args: argparse.Namespace) -> Dict[str, Any]:
+        return _handle_material(self._runtime, args)
+
     def _handle_screenshot(self, args: argparse.Namespace) -> Dict[str, Any]:
         return _handle_screenshot(self._runtime, args)
 
@@ -304,6 +309,24 @@ def _handle_explore(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[st
     except json.JSONDecodeError as exc:
         return {"status": "error", "message": f"options JSON 解析失败: {exc}"}
     return runtime.execute("explore.run", {"options": options})
+
+
+def _handle_material(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    """材料刷取/收取 CLI 处理器：material farm | collect --options JSON --serial."""
+    action = getattr(args, "action", None)
+    try:
+        options = json.loads(args.options)
+    except json.JSONDecodeError as exc:
+        return {"status": "error", "message": f"options JSON 解析失败: {exc}"}
+    params: Dict[str, Any] = {"options": options}
+    serial = getattr(args, "serial", None)
+    if serial:
+        params["serial"] = serial
+    if action == "farm":
+        return runtime.execute("material.farm", params)
+    if action == "collect":
+        return runtime.execute("material.collect", params)
+    return {"status": "error", "message": f"unknown material action: {action}"}
 
 
 def _handle_screenshot(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:

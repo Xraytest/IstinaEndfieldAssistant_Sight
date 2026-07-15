@@ -1,0 +1,44 @@
+{
+    "preset": [
+        {
+            "name": "MaterialFarmFull",
+            "label": "$preset.MaterialFarmFull.label",
+            "description": "$preset.MaterialFarmFull.description",
+            "task": [
+                {
+                    "name": "AndroidOpenGame",
+                    "option": {
+                        "ClientVersion": "CN"
+                    }
+                },
+                {
+                    "name": "MaterialFarm",
+                    "option": {
+                        "MaterialFarmChooseLocation": [
+                            "VFTheHub"
+                        ],
+                        "MaterialFarmRepeatCount": "1",
+                        "MaterialFarmVlmNavigation": "Yes",
+                        "MaterialFarmVlmMaxSteps": "40",
+                        "MaterialFarmVlmStepTimeout": "30"
+                    }
+                },
+                {
+                    "name": "MaterialCollect",
+                    "option": {
+                        "MaterialCollectRoute": [
+                            "Route1",
+                            "Route2",
+                            "Route3",
+                            "Route4",
+                            "Route5"
+                        ],
+                        "MaterialCollectVlmMaxSteps": "40",
+                        "MaterialCollectVlmStepTimeout": "30",
+                        "MaterialCollectArrivedRadius": "10"
+                    }
+                }
+            ]
+        }
+    ]
+}

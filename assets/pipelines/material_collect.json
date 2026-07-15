@@ -1,0 +1,63 @@
+{
+  "MaterialCollectMain": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "材料收取主入口（Python 编排器拦截 task.run MaterialCollect；此节点仅供任务元数据 entry 一致性使用）"
+  },
+
+  "MaterialCollectRoute1": {
+    "enabled": false,
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "材料收取路线1开关：由 MaterialCollectRoute 选项启用。Python 编排器据此选择传送目标与 VLM 导航终点列表"
+  },
+  "MaterialCollectRoute2": {
+    "enabled": false,
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "材料收取路线2开关"
+  },
+  "MaterialCollectRoute3": {
+    "enabled": false,
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "材料收取路线3开关"
+  },
+  "MaterialCollectRoute4": {
+    "enabled": false,
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "材料收取路线4开关"
+  },
+  "MaterialCollectRoute5": {
+    "enabled": false,
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "材料收取路线5开关"
+  },
+
+  "MaterialCollectInteract": {
+    "recognition": "DirectHit",
+    "action": {
+      "type": "Key",
+      "param": {
+        "key": "KEYCODE_F"
+      }
+    },
+    "next": [],
+    "desc": "到达采集点后按 F 交互收取。实际收取由 Python 编排器在 VLM 导航到达后通过 keyevent 发送，此节点供 pipeline 一致性参考"
+  },
+
+  "MaterialCollectClaim": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "TODO[模板校准]: 采集完成后的领取/确认面板处理。需补充采集结算面板模板"
+  }
+}

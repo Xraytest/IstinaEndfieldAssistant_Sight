@@ -93,6 +93,14 @@
       "path": "ImportBluePrints.json"
     },
     {
+      "name": "MaterialCollect",
+      "path": "MaterialCollect.json"
+    },
+    {
+      "name": "MaterialFarm",
+      "path": "MaterialFarm.json"
+    },
+    {
       "name": "ItemTransfer",
       "path": "ItemTransfer.json"
     },
@@ -161,6 +169,10 @@
     {
       "name": "DailyFull",
       "path": "preset\\DailyFull.json"
+    },
+    {
+      "name": "MaterialFarmFull",
+      "path": "preset\\MaterialFarmFull.json"
     },
     {
       "name": "QuickDaily",

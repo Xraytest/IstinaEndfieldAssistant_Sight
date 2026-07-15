@@ -9,7 +9,7 @@ import json
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 
 import cv2
@@ -336,6 +336,10 @@ class IstinaRuntime:
             return self._analyze_run(params)
         if domain == "explore" and action == "run":
             return self._explore_run(params)
+        if domain == "material" and action == "farm":
+            return self._material_farm_run(params)
+        if domain == "material" and action == "collect":
+            return self._material_collect_run(params)
         if domain == "nav" and action == "to":
             return self._nav_to(params)
         if domain == "nav2" and action == "to_coords":
@@ -400,6 +404,14 @@ class IstinaRuntime:
 
     def _run_task(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")
+        # 全智能分类任务由 Python 编排器接管：MaaFW pipeline 仅承担 UI/传送/战斗，
+        # VLM 步行导航与多阶段串联在编排器内完成，避免 MaaEnd 盲走 navmesh。
+        if name == "MaterialFarm":
+            result = self._material_farm_run(params)
+            return bool(result.get("status") == "success")
+        if name == "MaterialCollect":
+            result = self._material_collect_run(params)
+            return bool(result.get("status") == "success")
         options = params.get("options") or {}
         serial = params.get("serial")
         runtime = self.maaend(serial)
@@ -655,6 +667,390 @@ class IstinaRuntime:
             "maaend_connected": self.connected,
         }
 
+    # ------------------------------------------------------------------
+    # 全智能分类：材料刷取 / 材料收取
+    #
+    # 这两个任务采用 Python 编排混合流程（类似 daily.run）：
+    #   - MaaFW pipeline 负责 UI 导航 / 传送 / 战斗 / 奖励
+    #   - Python 编排器在传送后调用 nav.to_coords_vlm 完成 VLM 步行导航
+    #   - LLM 机制已完善（chat_async + 步级超时），单步卡死不会拖垮整条
+    #     导航循环，避免用户长时间观感无响应
+    # ------------------------------------------------------------------
+
+    # 区域 → 传送场景节点 + VLM 导航目标坐标。
+    # 坐标需结合设备端校准；只有 VFTheHub 当前有近似坐标（复用 AutoEssence
+    # RegionNodes/VFTheHub.json 的锚点）。其他区域 target=None 表示待校准，
+    # 编排器将跳过 VLM 步行、直接进入战斗阶段。
+    _MATERIAL_REGION_INFO: Dict[str, Dict[str, Any]] = {
+        "VFTheHub": {
+            "teleport_node": "SceneEnterWorldValleyIVTheHub1",
+            "map_name": "map01_lv001",
+            "target": (385.0, 496.0),
+            "level_id": "lv001",
+        },
+        "VFOriginiumSciencePark": {
+            "teleport_node": "SceneEnterWorldValleyIVOriginiumSciencePark1",
+            "map_name": "map01_lv001",
+            "target": None,
+            "level_id": "lv001",
+        },
+        "VFOriginLodespring": {
+            "teleport_node": "SceneEnterWorldValleyIVOriginLodespring1",
+            "map_name": "map01_lv001",
+            "target": None,
+            "level_id": "lv001",
+        },
+        "VFPowerPlateau": {
+            "teleport_node": "SceneEnterWorldValleyIVPowerPlateau1",
+            "map_name": "map01_lv001",
+            "target": None,
+            "level_id": "lv001",
+        },
+        "WLWulingCity": {
+            "teleport_node": "SceneEnterWorldWulingWulingCity1",
+            "map_name": "map02_lv001",
+            "target": None,
+            "level_id": "lv001",
+        },
+        "WLQingboStockade": {
+            "teleport_node": "SceneEnterWorldWulingQingboStockade1",
+            "map_name": "map02_lv001",
+            "target": None,
+            "level_id": "lv001",
+        },
+        "WLMarkerStone": {
+            "teleport_node": "SceneEnterWorldWulingMarkerStone1",
+            "map_name": "map02_lv001",
+            "target": None,
+            "level_id": "lv001",
+        },
+        "WLTestArea": {
+            "teleport_node": "SceneEnterWorldWulingTestArea1",
+            "map_name": "map02_lv001",
+            "target": None,
+            "level_id": "lv001",
+        },
+        "WLSwordVaultDale": {
+            "teleport_node": "SceneEnterWorldWulingSwordVaultDale1",
+            "map_name": "map02_lv001",
+            "target": None,
+            "level_id": "lv001",
+        },
+    }
+
+    # 材料收取路线 → 采集点列表（map_name, x, y, level_id）。
+    # 坐标需结合设备端校准；当前全部为 None，编排器将依赖 VLM 读取任务追踪
+    # 标识步行，到达后按 F 交互收取。
+    _MATERIAL_COLLECT_ROUTES: Dict[str, List[Dict[str, Any]]] = {
+        "Route1": [],
+        "Route2": [],
+        "Route3": [],
+        "Route4": [],
+        "Route5": [],
+    }
+
+    def _material_farm_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """材料刷取编排器：传送 → VLM 步行导航 → 自动战斗 → 奖励领取。"""
+        options = params.get("options") or {}
+        client_version = options.get("ClientVersion", "CN")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "material.farm",
+                "flow": "material_farm",
+                "options": options,
+                "maaend_connected": False,
+            }
+        if not self._ensure_game_in_world(runtime, serial, client_version):
+            return {
+                "status": "error",
+                "command": "material.farm",
+                "flow": "material_farm",
+                "options": options,
+                "maaend_connected": self.connected,
+                "message": "启动游戏或等待进入大世界失败",
+            }
+
+        # 解析选项
+        locations = options.get("MaterialFarmChooseLocation", ["VFTheHub"])
+        if isinstance(locations, str):
+            locations = [locations]
+        if not locations:
+            locations = ["VFTheHub"]
+        try:
+            repeat_count = int(options.get("MaterialFarmRepeatCountValue", 1))
+        except (TypeError, ValueError):
+            repeat_count = 1
+        repeat_count = max(1, min(repeat_count, 199))
+        vlm_enabled = options.get("MaterialFarmVlmNavigation", "Yes") != "No"
+        try:
+            vlm_max_steps = int(options.get("MaterialFarmVlmMaxStepsValue", 40))
+        except (TypeError, ValueError):
+            vlm_max_steps = 40
+        try:
+            vlm_step_timeout = float(options.get("MaterialFarmVlmStepTimeoutValue", 30))
+        except (TypeError, ValueError):
+            vlm_step_timeout = 30.0
+
+        self._logger.info(
+            LogCategory.MAIN, "材料刷取开始",
+            locations=locations, repeat=repeat_count,
+            vlm=vlm_enabled, max_steps=vlm_max_steps, step_timeout=vlm_step_timeout,
+        )
+
+        results: List[Dict[str, Any]] = []
+        overall_ok = True
+        for region in locations:
+            info = self._MATERIAL_REGION_INFO.get(region)
+            if info is None:
+                self._logger.warning(LogCategory.MAIN, "未知材料刷取区域，跳过", region=region)
+                results.append({"region": region, "status": "skipped", "reason": "unknown_region"})
+                continue
+            for attempt in range(repeat_count):
+                self._logger.info(
+                    LogCategory.MAIN, "材料刷取 region=%s attempt=%d/%d",
+                    region, attempt + 1, repeat_count,
+                )
+                step_status = self._material_farm_once(
+                    runtime, region, info, vlm_enabled,
+                    vlm_max_steps, vlm_step_timeout, options, serial,
+                )
+                results.append({
+                    "region": region,
+                    "attempt": attempt + 1,
+                    "status": step_status,
+                })
+                if step_status != "success":
+                    overall_ok = False
+
+        return {
+            "status": "success" if overall_ok else "error",
+            "command": "material.farm",
+            "flow": "material_farm",
+            "options": options,
+            "results": results,
+            "maaend_connected": self.connected,
+        }
+
+    def _material_farm_once(
+        self,
+        runtime: Any,
+        region: str,
+        info: Dict[str, Any],
+        vlm_enabled: bool,
+        vlm_max_steps: int,
+        vlm_step_timeout: float,
+        options: Dict[str, Any],
+        serial: Optional[str],
+    ) -> str:
+        """单次材料刷取：准备 → 传送 → VLM 步行 → 战斗 → 奖励。"""
+        # 1. 准备阶段：打开副本标签页、选择材料副本、选中追踪、确认追踪。
+        #    TODO[模板校准]: 这些 pipeline 节点尚未配置 OCR/模板识别，暂跳过。
+        self._logger.info(LogCategory.MAIN, "材料刷取准备阶段（TODO 模板校准，跳过）", region=region)
+        try:
+            runtime.run_pipeline("MaterialFarmPrepare", {})
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "MaterialFarmPrepare 异常", error=str(exc))
+
+        # 2. 传送到最近锚点
+        teleport_node = info.get("teleport_node")
+        if teleport_node:
+            self._logger.info(LogCategory.MAIN, "传送到区域锚点", region=region, node=teleport_node)
+            try:
+                if not runtime.run_pipeline(teleport_node, {}):
+                    self._logger.warning(LogCategory.MAIN, "传送失败", region=region)
+                    return "teleport_failed"
+            except Exception as exc:
+                self._logger.error(LogCategory.MAIN, "传送异常", region=region, error=str(exc))
+                return "teleport_error"
+
+        # 3. VLM 步行导航：VLM 识别任务追踪标识方向并控制前进
+        target = info.get("target")
+        if vlm_enabled and target is not None:
+            self._logger.info(
+                LogCategory.MAIN, "VLM 步行导航开始",
+                region=region, map=info.get("map_name"), target=target,
+            )
+            try:
+                walk_result = self.execute(
+                    "nav3.walk",
+                    {
+                        "map_name": info.get("map_name", ""),
+                        "x": target[0],
+                        "y": target[1],
+                        "level_id": info.get("level_id"),
+                        "max_steps": vlm_max_steps,
+                        "step_timeout": vlm_step_timeout,
+                        "serial": serial,
+                    },
+                )
+                if isinstance(walk_result, dict):
+                    self._logger.info(
+                        LogCategory.MAIN, "VLM 步行导航结束",
+                        region=region, status=walk_result.get("status"),
+                    )
+                else:
+                    self._logger.warning(LogCategory.MAIN, "VLM 步行导航无结果", region=region)
+            except Exception as exc:
+                self._logger.warning(LogCategory.MAIN, "VLM 步行导航异常，继续战斗", region=region, error=str(exc))
+        elif vlm_enabled and target is None:
+            self._logger.warning(
+                LogCategory.MAIN, "区域 VLM 目标坐标待校准，跳过步行导航",
+                region=region,
+            )
+
+        # 4. 战斗阶段：委托 AutoFight 自动战斗
+        self._logger.info(LogCategory.MAIN, "进入战斗阶段", region=region)
+        try:
+            if not runtime.run_pipeline("AutoFight", {}):
+                self._logger.warning(LogCategory.MAIN, "AutoFight 执行失败", region=region)
+                return "combat_failed"
+        except Exception as exc:
+            self._logger.error(LogCategory.MAIN, "AutoFight 异常", region=region, error=str(exc))
+            return "combat_error"
+
+        # 5. 奖励领取：TODO[模板校准] 战斗结算面板识别与领取按钮模板
+        self._logger.info(LogCategory.MAIN, "奖励领取阶段（TODO 模板校准）", region=region)
+        try:
+            runtime.run_pipeline("MaterialFarmRewards", {})
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "MaterialFarmRewards 异常", error=str(exc))
+
+        return "success"
+
+    def _material_collect_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """材料收取编排器：VLM 导航到采集点 → 交互收取 → 领取奖励。
+
+        使用 VLM 优化导航稳定性与准确性：每一步通过 chat_async + 步级超时
+        决策，单步推理卡死不会拖垮整条路线。
+        """
+        options = params.get("options") or {}
+        client_version = options.get("ClientVersion", "CN")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "material.collect",
+                "flow": "material_collect",
+                "options": options,
+                "maaend_connected": False,
+            }
+        if not self._ensure_game_in_world(runtime, serial, client_version):
+            return {
+                "status": "error",
+                "command": "material.collect",
+                "flow": "material_collect",
+                "options": options,
+                "maaend_connected": self.connected,
+                "message": "启动游戏或等待进入大世界失败",
+            }
+
+        routes = options.get("MaterialCollectRoute", ["Route1"])
+        if isinstance(routes, str):
+            routes = [routes]
+        if not routes:
+            routes = ["Route1"]
+        try:
+            vlm_max_steps = int(options.get("MaterialCollectVlmMaxStepsValue", 40))
+        except (TypeError, ValueError):
+            vlm_max_steps = 40
+        try:
+            vlm_step_timeout = float(options.get("MaterialCollectVlmStepTimeoutValue", 30))
+        except (TypeError, ValueError):
+            vlm_step_timeout = 30.0
+        try:
+            arrived_radius = float(options.get("MaterialCollectArrivedRadiusValue", 10))
+        except (TypeError, ValueError):
+            arrived_radius = 10.0
+
+        self._logger.info(
+            LogCategory.MAIN, "材料收取开始",
+            routes=routes, max_steps=vlm_max_steps,
+            step_timeout=vlm_step_timeout, arrived_radius=arrived_radius,
+        )
+
+        results: List[Dict[str, Any]] = []
+        overall_ok = True
+        for route in routes:
+            points = self._MATERIAL_COLLECT_ROUTES.get(route, [])
+            self._logger.info(
+                LogCategory.MAIN, "材料收取路线", route=route, points=len(points),
+            )
+            if not points:
+                # TODO[路线校准]: 路线采集点坐标待配置，依赖 VLM 读任务追踪标识步行
+                self._logger.warning(
+                    LogCategory.MAIN, "路线采集点待校准，依赖 VLM 任务追踪标识步行",
+                    route=route,
+                )
+                results.append({"route": route, "status": "skipped", "reason": "route_not_calibrated"})
+                overall_ok = False
+                continue
+            route_ok = True
+            for idx, point in enumerate(points):
+                self._logger.info(
+                    LogCategory.MAIN, "材料收取 route=%s point=%d/%d",
+                    route, idx + 1, len(points),
+                )
+                # VLM 步行到采集点
+                try:
+                    walk_result = self.execute(
+                        "nav3.walk",
+                        {
+                            "map_name": point.get("map_name", ""),
+                            "x": float(point.get("x", 0)),
+                            "y": float(point.get("y", 0)),
+                            "level_id": point.get("level_id"),
+                            "max_steps": vlm_max_steps,
+                            "step_timeout": vlm_step_timeout,
+                            "target_radius": arrived_radius,
+                            "serial": serial,
+                        },
+                    )
+                    if not (isinstance(walk_result, dict) and walk_result.get("status") == "success"):
+                        self._logger.warning(
+                            LogCategory.MAIN, "VLM 步行未到达采集点",
+                            route=route, point=idx + 1,
+                        )
+                        route_ok = False
+                        continue
+                except Exception as exc:
+                    self._logger.error(
+                        LogCategory.MAIN, "VLM 步行异常",
+                        route=route, point=idx + 1, error=str(exc),
+                    )
+                    route_ok = False
+                    continue
+                # 交互收取：按 F
+                try:
+                    self.android(serial).keyevent("KEYCODE_F")
+                    time.sleep(1.0)
+                except Exception as exc:
+                    self._logger.warning(LogCategory.MAIN, "交互收取异常", error=str(exc))
+                # 领取/确认面板
+                try:
+                    runtime.run_pipeline("MaterialCollectClaim", {})
+                except Exception as exc:
+                    self._logger.warning(LogCategory.MAIN, "MaterialCollectClaim 异常", error=str(exc))
+            results.append({
+                "route": route,
+                "status": "success" if route_ok else "partial",
+                "points": len(points),
+            })
+            if not route_ok:
+                overall_ok = False
+
+        return {
+            "status": "success" if overall_ok else "error",
+            "command": "material.collect",
+            "flow": "material_collect",
+            "options": options,
+            "results": results,
+            "maaend_connected": self.connected,
+        }
+
     def _nav_to(self, params: Dict[str, Any]) -> Dict[str, Any]:
         target = params.get("target")
         options = params.get("options") or {}
@@ -726,6 +1122,8 @@ class IstinaRuntime:
 
     def _nav3_walk(self, params: Dict[str, Any]) -> Dict[str, Any]:
         nav = self.navigator()
+        step_timeout = params.get("step_timeout")
+        target_radius = params.get("target_radius")
         return nav.to_coords_vlm(
             map_name=params.get("map_name", ""),
             x=float(params.get("x", 0)),
@@ -735,16 +1133,22 @@ class IstinaRuntime:
             llm_client=self._llm_client_instance,
             max_steps=int(params.get("max_steps", 40)),
             keyevent_fn=self._vlm_keyevent,
+            step_timeout=float(step_timeout) if step_timeout is not None else None,
+            target_radius=float(target_radius) if target_radius is not None else None,
         )
 
     def _nav3_to_entity(self, params: Dict[str, Any]) -> Dict[str, Any]:
         nav = self.navigator()
+        step_timeout = params.get("step_timeout")
+        target_radius = params.get("target_radius")
         return nav.to_entity_vlm(
             entity_name=params.get("name", ""),
             llm_client=self._llm_client_instance,
             max_steps=int(params.get("max_steps", 40)),
             keyevent_fn=self._vlm_keyevent,
             limit=int(params.get("limit", 10)),
+            step_timeout=float(step_timeout) if step_timeout is not None else None,
+            target_radius=float(target_radius) if target_radius is not None else None,
         )
 
     def _vlm_keyevent(self, key: str, duration: Optional[float]) -> None:

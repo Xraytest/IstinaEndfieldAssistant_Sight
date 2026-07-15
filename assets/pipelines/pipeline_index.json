@@ -64,6 +64,16 @@
       "name": "puzzle_solver",
       "path": "assets\\pipelines\\puzzle_solver.json",
       "node_count": 13
+    },
+    {
+      "name": "material_farm",
+      "path": "assets\\pipelines\\material_farm.json",
+      "node_count": 27
+    },
+    {
+      "name": "material_collect",
+      "path": "assets\\pipelines\\material_collect.json",
+      "node_count": 8
     }
   ]
 }

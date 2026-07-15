@@ -1,0 +1,126 @@
+{
+    "task": [
+        {
+            "name": "MaterialCollect",
+            "label": "$task.MaterialCollect.label",
+            "entry": "MaterialCollectMain",
+            "description": "$task.MaterialCollect.description",
+            "controller": [
+                "ADB",
+                "Win32-Front",
+                "Wlroots"
+            ],
+            "group": [
+                "full_intelligence"
+            ],
+            "option": [
+                "MaterialCollectRoute",
+                "MaterialCollectVlmMaxSteps",
+                "MaterialCollectVlmStepTimeout",
+                "MaterialCollectArrivedRadius"
+            ]
+        }
+    ],
+    "option": {
+        "MaterialCollectRoute": {
+            "type": "checkbox",
+            "label": "$option.MaterialCollectRoute.label",
+            "description": "$option.MaterialCollectRoute.description",
+            "default_case": [
+                "Route1"
+            ],
+            "cases": [
+                {
+                    "name": "Route1",
+                    "label": "$option.MaterialCollectRoute.cases.Route1.label",
+                    "pipeline_override": {
+                        "MaterialCollectRoute1": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "Route2",
+                    "label": "$option.MaterialCollectRoute.cases.Route2.label",
+                    "pipeline_override": {
+                        "MaterialCollectRoute2": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "Route3",
+                    "label": "$option.MaterialCollectRoute.cases.Route3.label",
+                    "pipeline_override": {
+                        "MaterialCollectRoute3": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "Route4",
+                    "label": "$option.MaterialCollectRoute.cases.Route4.label",
+                    "pipeline_override": {
+                        "MaterialCollectRoute4": {
+                            "enabled": true
+                        }
+                    }
+                },
+                {
+                    "name": "Route5",
+                    "label": "$option.MaterialCollectRoute.cases.Route5.label",
+                    "pipeline_override": {
+                        "MaterialCollectRoute5": {
+                            "enabled": true
+                        }
+                    }
+                }
+            ]
+        },
+        "MaterialCollectVlmMaxSteps": {
+            "type": "input",
+            "label": "$option.MaterialCollectVlmMaxSteps.label",
+            "description": "$option.MaterialCollectVlmMaxSteps.description",
+            "inputs": [
+                {
+                    "name": "MaterialCollectVlmMaxStepsValue",
+                    "label": "$option.MaterialCollectVlmMaxSteps.inputs.MaterialCollectVlmMaxStepsValue.label",
+                    "description": "$option.MaterialCollectVlmMaxSteps.inputs.MaterialCollectVlmMaxStepsValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([5-9]|[1-9][0-9]|1[0-9][0-9]|200)$",
+                    "default": "40"
+                }
+            ]
+        },
+        "MaterialCollectVlmStepTimeout": {
+            "type": "input",
+            "label": "$option.MaterialCollectVlmStepTimeout.label",
+            "description": "$option.MaterialCollectVlmStepTimeout.description",
+            "inputs": [
+                {
+                    "name": "MaterialCollectVlmStepTimeoutValue",
+                    "label": "$option.MaterialCollectVlmStepTimeout.inputs.MaterialCollectVlmStepTimeoutValue.label",
+                    "description": "$option.MaterialCollectVlmStepTimeout.inputs.MaterialCollectVlmStepTimeoutValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([5-9]|[1-9][0-9]|1[0-9][0-9])$",
+                    "default": "30"
+                }
+            ]
+        },
+        "MaterialCollectArrivedRadius": {
+            "type": "input",
+            "label": "$option.MaterialCollectArrivedRadius.label",
+            "description": "$option.MaterialCollectArrivedRadius.description",
+            "inputs": [
+                {
+                    "name": "MaterialCollectArrivedRadiusValue",
+                    "label": "$option.MaterialCollectArrivedRadius.inputs.MaterialCollectArrivedRadiusValue.label",
+                    "description": "$option.MaterialCollectArrivedRadius.inputs.MaterialCollectArrivedRadiusValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([3-9]|[1-9][0-9])$",
+                    "default": "10"
+                }
+            ]
+        }
+    }
+}
