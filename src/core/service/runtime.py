@@ -775,6 +775,17 @@ class IstinaRuntime:
                 "message": "启动游戏或等待进入大世界失败",
             }
 
+        # 启动 scrcpy 图像通道（默认 wait_first_frame=True，等待首帧就绪）
+        # 每次 CLI 调用新建 daemon 进程，需显式启动 scrcpy 供 VLM 步行/MaaFW 截图使用
+        try:
+            result = self.android(serial).start_scrcpy(serial=serial)
+            if isinstance(result, dict) and result.get("error"):
+                self._logger.warning(LogCategory.MAIN, "scrcpy 启动失败，VLM 步行/截图将不可用", error=result["error"], serial=serial)
+            else:
+                self._logger.info(LogCategory.MAIN, "scrcpy 图像通道已就绪", serial=serial)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "scrcpy 启动异常", error=str(exc), serial=serial)
+
         # 解析选项
         locations = options.get("MaterialFarmChooseLocation", ["VFTheHub"])
         if isinstance(locations, str):
@@ -969,6 +980,17 @@ class IstinaRuntime:
                 "maaend_connected": self.connected,
                 "message": "启动游戏或等待进入大世界失败",
             }
+
+        # 启动 scrcpy 图像通道（默认 wait_first_frame=True，等待首帧就绪）
+        # 每次 CLI 调用新建 daemon 进程，需显式启动 scrcpy 供 VLM 步行/MaaFW 截图使用
+        try:
+            result = self.android(serial).start_scrcpy(serial=serial)
+            if isinstance(result, dict) and result.get("error"):
+                self._logger.warning(LogCategory.MAIN, "scrcpy 启动失败，VLM 步行/截图将不可用", error=result["error"], serial=serial)
+            else:
+                self._logger.info(LogCategory.MAIN, "scrcpy 图像通道已就绪", serial=serial)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "scrcpy 启动异常", error=str(exc), serial=serial)
 
         routes = options.get("MaterialCollectRoute", ["Route1"])
         if isinstance(routes, str):
