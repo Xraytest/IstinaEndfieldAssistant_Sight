@@ -32,6 +32,10 @@ _ADB_RE = re.compile(
     r"more than one device|adb\.exe|adb kill-server|adb start-server"
 )
 _QT_RE = re.compile(r"(?i)\bqt\b|qpa|qt\.|qfont|qcairo|qopengl|qt\.qpa")
+# MaaFW 内部 OCR 警告：属于引擎自行处理的瞬态噪声，对用户无操作价值
+_MAAFW_OCR_NOISE_RE = re.compile(
+    r"(?i)Wrong ocr_result size|cache is empty"
+)
 
 
 def _classify_stderr_line(line: str) -> Optional[str]:
@@ -40,13 +44,16 @@ def _classify_stderr_line(line: str) -> Optional[str]:
     Returns:
         "ADB"  -> 设备连接页（ADB 诊断）
         "MES"  -> 标准推理页（MaaFW/MES 框架与通用 CLI 输出）
-        None   -> 丢弃（Qt 框架噪声已由 qt_log_filter 写入 qt.log）
+        None   -> 丢弃（Qt 框架噪声 / MaaFW OCR 内部警告）
     """
     if not line:
         return None
     # Qt 噪声：GUI 进程的 Qt 日志已被 qt_log_filter 重定向到 qt.log；
     # 子进程若带 Qt 标签也一并丢弃，避免污染两个 GUI 日志面板。
     if _QT_RE.search(line):
+        return None
+    # MaaFW OCR 内部警告：引擎自行处理的瞬态噪声，不进 GUI 日志面板
+    if _MAAFW_OCR_NOISE_RE.search(line):
         return None
     if _ADB_RE.search(line):
         return "ADB"

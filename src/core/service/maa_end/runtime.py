@@ -661,74 +661,23 @@ class MaaEndRuntime:
                 merged[key] = value
         return merged
 
-    def _wait_job(self, job: Any, timeout: Optional[float]) -> bool:
-        """等待任务完成，支持超时（秒）。
-
-        timeout 为 None 或 <=0 时使用框架默认（无限等待）；否则在后台线程中
-        job.wait() 并 join timeout 秒，超时返回 False，避免整个 CLI 子进程卡死。
+    def _wait_job(self, job: Any) -> bool:
+        """等待任务完成。
 
         注意：job.wait() 返回 Job 对象自身（truthy），不是任务成功与否的布尔值。
         必须用 job.succeeded 检查任务的真实状态。
         """
-        if timeout is None or timeout <= 0:
-            job.wait()
-            return job.succeeded
-        result: Dict[str, Any] = {}
+        job.wait()
+        return job.succeeded
 
-        def _target() -> None:
-            try:
-                job.wait()
-                result["ok"] = job.succeeded
-            except Exception:
-                result["ok"] = False
-
-        worker = threading.Thread(target=_target, daemon=True)
-        worker.start()
-        worker.join(float(timeout))
-        if worker.is_alive():
-            self.logger.warning(LogCategory.MAIN, "任务执行超时", timeout=timeout)
-            # STOP-01: Stop the MaaFW task to prevent deadlock. Without this,
-            # the MaaFW task keeps running in the background, blocking all
-            # subsequent post_task calls (CloseGame, AndroidOpenGame, etc.)
-            # because MaaFW Tasker is single-tasked. post_stop() interrupts
-            # the running task, allowing recovery tasks to start.
-            if self._tasker is not None:
-                try:
-                    self._tasker.post_stop()
-                    # Wait briefly for the stop to take effect so job.wait()
-                    # in the daemon thread returns and MaaFW is ready for new
-                    # tasks.
-                    worker.join(5.0)
-                    # STOP-01 race: the timeout may fire just as the task is
-                    # about to complete naturally. post_stop() is async; by
-                    # the time we join(5.0) the daemon thread may have already
-                    # finished and written result["ok"]. In that case return
-                    # the actual outcome instead of forcing False — otherwise
-                    # a task that actually succeeded is reported as failed,
-                    # triggering unnecessary recovery, and MaaFW ends up in
-                    # the "stopping" state which rejects subsequent post_task
-                    # calls ("stopping, ignore new post").
-                    if not worker.is_alive():
-                        actual = result.get("ok", False)
-                        self.logger.info(
-                            LogCategory.MAIN,
-                            "任务在超时后实际完成",
-                            succeeded=actual,
-                        )
-                        return actual
-                except Exception as exc:
-                    self.logger.warning(LogCategory.MAIN, "post_stop 失败", error=str(exc))
-            return False
-        return result.get("ok", False)
-
-    def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any], timeout: Optional[float] = None) -> bool:
+    def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any]) -> bool:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行管道")
             return False
         self.logger.info(LogCategory.MAIN, "开始执行自定义管道", entry=entry)
         try:
             job = self._tasker.post_task(entry, pipeline_override if pipeline_override else {})
-            succeeded = self._wait_job(job, timeout)
+            succeeded = self._wait_job(job)
         except Exception as e:
             # 仅真正的执行异常才视为连接断开
             self._connected = False
@@ -741,7 +690,7 @@ class MaaEndRuntime:
         self.logger.warning(LogCategory.MAIN, "自定义管道执行失败", entry=entry)
         return False
 
-    def run_task(self, task_name: str, options: Optional[Dict[str, Any]] = None, timeout: Optional[float] = None) -> bool:
+    def run_task(self, task_name: str, options: Optional[Dict[str, Any]] = None) -> bool:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行任务", task=task_name)
             return False
@@ -764,12 +713,12 @@ class MaaEndRuntime:
         self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
         try:
             job = self._tasker.post_task(entry, override if override else {})
-            succeeded = self._wait_job(job, timeout)
+            succeeded = self._wait_job(job)
         except Exception as e:
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "任务执行异常", task=task_name, error=str(e))
             if not self._recovering and self._try_recover(task_name):
-                return self._retry_task(task_name, options, entry, timeout)
+                return self._retry_task(task_name, options, entry)
             return False
         if succeeded:
             if self._detect_task_skipped(job, task_name):
@@ -781,7 +730,7 @@ class MaaEndRuntime:
         if self._recovering:
             self.logger.warning(LogCategory.MAIN, "恢复任务失败，不递归", task=task_name)
             return False
-        return self._recover_and_retry(task_name, options, timeout)
+        return self._recover_and_retry(task_name, options)
 
     def _detect_task_skipped(self, job: Any, task_name: str) -> bool:
         """检测任务是否走了跳过分支（未真正执行业务）。
@@ -851,7 +800,7 @@ class MaaEndRuntime:
         """返回当前队列的副本。"""
         return [dict(item) for item in self._queue]
 
-    def run_queue(self, timeout: Optional[float] = None) -> bool:
+    def run_queue(self) -> bool:
         """执行队列（唯一的可执行单元）。
 
         单个任务识别未命中等「正常失败」不影响后续任务；仅当连接真正断开时
@@ -867,7 +816,7 @@ class MaaEndRuntime:
             options = item.get("options") or {}
             if not name:
                 continue
-            if not self.run_task(name, options, timeout):
+            if not self.run_task(name, options):
                 failures.append(name)
                 self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name)
                 # 若连接已真正断开，继续也无意义，及时中止剩余任务
@@ -880,7 +829,7 @@ class MaaEndRuntime:
         self.logger.info(LogCategory.MAIN, "队列执行完成")
         return True
 
-    def run_preset(self, preset_name: str, timeout: Optional[float] = None) -> bool:
+    def run_preset(self, preset_name: str) -> bool:
         """应用预设到队列并执行队列（便捷封装）。
 
         预设本身不可直接执行，故等价于 apply_preset + run_queue。
@@ -891,7 +840,7 @@ class MaaEndRuntime:
             # 空预设：无可执行任务，视为成功（与旧行为一致）
             self.logger.info(LogCategory.MAIN, "预设任务列表为空，无需执行", preset=preset_name)
             return True
-        return self.run_queue(timeout)
+        return self.run_queue()
 
     def _normalize_task_name(self, task_name: str) -> tuple[str, Dict[str, Any]]:
         name = str(task_name or "").strip()
@@ -911,10 +860,10 @@ class MaaEndRuntime:
                 return base, {"_inline": payload}
         return base, {"_inline": payload}
 
-    def _recover_and_retry(self, task_name: str, options: Dict[str, Any], timeout: Optional[float]) -> bool:
+    def _recover_and_retry(self, task_name: str, options: Dict[str, Any]) -> bool:
         """集中式异常恢复：关闭游戏 → 启动游戏 → 从头重试失败任务。
 
-        任何任务失败（识别未命中、超时等）时调用此方法。通过 _recovering 标志
+        任何任务失败（识别未命中等）时调用此方法。通过 _recovering 标志
         防止恢复任务自身失败时递归。仅重试一次，避免无限循环。
         """
         self.logger.info(
@@ -938,7 +887,7 @@ class MaaEndRuntime:
                 return False
 
             self.logger.info(LogCategory.MAIN, "异常恢复步骤3/3：重试失败任务", task=task_name)
-            return self.run_task(task_name, options, timeout)
+            return self.run_task(task_name, options)
         finally:
             self._recovering = False
 
@@ -968,14 +917,14 @@ class MaaEndRuntime:
             self.logger.error(LogCategory.MAIN, "恢复失败", task=task_name, error=str(exc))
         return False
 
-    def _retry_task(self, task_name: str, options: Dict[str, Any], entry: str, timeout: Optional[float] = None) -> bool:
+    def _retry_task(self, task_name: str, options: Dict[str, Any], entry: str) -> bool:
         """恢复后重试当前任务一次。"""
         if not self._connected or self._tasker is None:
             return False
         self.logger.info(LogCategory.MAIN, "重试任务", task=task_name)
         try:
             job = self._tasker.post_task(entry, self.build_pipeline_override(task_name, options) or {})
-            succeeded = self._wait_job(job, timeout)
+            succeeded = self._wait_job(job)
         except Exception as exc:
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "重试异常", task=task_name, error=str(exc))

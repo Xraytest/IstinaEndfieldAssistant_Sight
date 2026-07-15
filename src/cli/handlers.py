@@ -324,8 +324,6 @@ def _handle_task_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
         "options": options,
         "serial": getattr(args, "serial", None),
     }
-    if hasattr(args, "timeout") and args.timeout is not None:
-        params["timeout"] = args.timeout
     ok = runtime.execute("task.run", params)
     return {"status": "success" if ok else "error", "task": args.name}
 
@@ -348,8 +346,6 @@ def _handle_task_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[
 
 def _handle_preset_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     params = {"name": args.name, "serial": getattr(args, "serial", None)}
-    if hasattr(args, "timeout") and args.timeout is not None:
-        params["timeout"] = args.timeout
     ok = runtime.execute("preset.run", params)
     return {"status": "success" if ok else "error", "preset": args.name}
 
@@ -361,8 +357,6 @@ def _handle_preset_apply(runtime: IstinaRuntime, args: argparse.Namespace) -> Di
 
 def _handle_queue_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
     params: Dict[str, Any] = {"serial": getattr(args, "serial", None)}
-    if hasattr(args, "timeout") and args.timeout is not None:
-        params["timeout"] = args.timeout
     ok = runtime.execute("queue.run", params)
     return {"status": "success" if ok else "error", "command": "queue.run"}
 

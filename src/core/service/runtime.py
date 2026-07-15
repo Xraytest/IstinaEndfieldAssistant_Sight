@@ -402,20 +402,18 @@ class IstinaRuntime:
         name = params.get("name")
         options = params.get("options") or {}
         serial = params.get("serial")
-        timeout = params.get("timeout")
         runtime = self.maaend(serial)
         if not self._ensure_maaend_ready(runtime):
             return False
-        return bool(runtime.run_task(name, options, timeout))
+        return bool(runtime.run_task(name, options))
 
     def _run_preset(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")
         serial = params.get("serial")
-        timeout = params.get("timeout")
         runtime = self.maaend(serial)
         if not self._ensure_maaend_ready(runtime):
             return False
-        return bool(runtime.run_preset(name, timeout))
+        return bool(runtime.run_preset(name))
 
     def _apply_preset(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")
@@ -427,11 +425,10 @@ class IstinaRuntime:
 
     def _run_queue(self, params: Dict[str, Any]) -> bool:
         serial = params.get("serial")
-        timeout = params.get("timeout")
         runtime = self.maaend(serial)
         if not self._ensure_maaend_ready(runtime):
             return False
-        return bool(runtime.run_queue(timeout))
+        return bool(runtime.run_queue())
 
     def _list_queue(self, params: Dict[str, Any]) -> Dict[str, Any]:
         serial = params.get("serial")
