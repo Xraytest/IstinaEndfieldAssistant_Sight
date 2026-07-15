@@ -567,12 +567,11 @@ class IstinaRuntime:
             return False
 
         # 额外等待大世界稳定，防止部分加载界面导致后续任务误判
-        return self._wait_for_in_world(runtime, timeout=120, interval=2)
+        return self._wait_for_in_world(runtime, interval=2)
 
-    def _wait_for_in_world(self, runtime: Any, timeout: int = 120, interval: int = 2) -> bool:
-        """循环检测是否已进入大世界，最多等待 timeout 秒。"""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
+    def _wait_for_in_world(self, runtime: Any, interval: int = 2) -> bool:
+        """循环检测是否已进入大世界，无限等待直到成功。"""
+        while True:
             try:
                 if runtime.run_pipeline("EnterGame", {}):
                     self._logger.info(LogCategory.MAIN, "已进入大世界")
@@ -580,8 +579,6 @@ class IstinaRuntime:
             except Exception as exc:
                 self._logger.warning(LogCategory.MAIN, "进入大世界检测异常", error=str(exc))
             time.sleep(interval)
-        self._logger.warning(LogCategory.MAIN, "等待进入大世界超时")
-        return False
 
 
     def _harvest_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
