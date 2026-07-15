@@ -1,5 +1,30 @@
 # 任务日志
 
+## 2026-07-15 (OCR 噪声过滤·MaaFW OCR 内部警告不再污染任务运行页日志)
+
+- **User Request**: OCR结果尺寸不匹配不应该在任务运行页日志GUI内展示，修正这一问题。
+- **Outcome**: 在 CLIBridge 的 stderr 分类层过滤 MaaFW OCR 内部警告，阻止其进入 GUI 日志面板。
+  1. **根因**：MaaFW 引擎在 OCR 识别过程中产生的 `Wrong ocr_result size`、`cache is empty`、`ocr size mismatch` 等内部警告，通过 CLI 子进程 stderr 输出，经 CLIBridge 分类后被路由到任务运行页日志面板（MES 区域）。这些警告属于引擎自行处理的瞬态噪声，对用户无操作价值。
+  2. **修改方案**：在 `cli_bridge.py` 新增模块级正则 `_MAAFW_OCR_NOISE_RE`，匹配 `Wrong ocr_result size`、`cache is empty`、`ocr.*size.*mismatch` 三种模式。在 `_classify_stderr_line` 函数中，匹配到该正则的行返回 `None`（丢弃），不再路由到任何 GUI 日志面板。
+  3. **影响面**：仅影响 CLI 子进程 stderr 中被归类为 MaaFW OCR 噪声的行；其他日志（ADB 诊断、MaaFW/MES 框架日志）不受影响。maafw.log 仍保留完整日志。
+  4. **非期待变化**：无。过滤仅作用于 GUI 展示层，不影响 MaaFW 自身的日志文件和调试能力。
+- **Files Modified**:
+  - `src/gui/pyqt6/cli_bridge.py`（新增 `_MAAFW_OCR_NOISE_RE` + `_classify_stderr_line` 过滤逻辑）
+  - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-07-15 (VisitFriends 简化·仅保留线索交换与总控中枢助力)
+
+- **User Request**: 简化好友终端操作，仅保留线索交换和总控中枢助力，完成后停留在终端界面。
+- **Outcome**: 修改 VisitFriends 任务流程，移除制造舱/培养舱助力和退出终端流程。
+  1. **根因**：原任务流程包含线索交换、总控中枢助力、制造舱助力、培养舱助力、退出终端等多个步骤，用户仅需保留前两项。
+  2. **修改方案**：修改 `VisitFriendsEnterMenuTerminalSuccess` 节点的 `custom_action_param.sub` 列表，仅保留 `VisitFriendsMenuClueExchangeEntry` 和 `VisitFriendsMenuAssistControlNexusEntry`。移除 `next` 字段中的 `VisitFriendsMenuTerminalExitToWorldShip`，使任务完成后停留在好友终端界面。
+  3. **影响面**：仅影响 VisitFriends 任务的执行流程；制造舱/培养舱助力的节点定义仍保留在 JSON 中（未被删除），可供其他任务引用。
+  4. **非期待变化**：任务完成后不再自动退出好友终端，用户需手动退出。
+- **注**：pipeline 修改仅在 runtime 副本（`3rd-part/maaend/resource/pipeline/VisitFriends/Exectue.json`）本地生效，该文件已被 `.gitignore` 忽略、从 git 跟踪中移除，不提交推送。上游 MaaEnd 仓库的对应文件保持原样。
+- **Files Modified**:
+  - `3rd-part/maaend/resource/pipeline/VisitFriends/Exectue.json`（runtime 副本本地修改：简化 SubTask 列表 + 移除退出流程，不提交）
+  - `docs/TASK_LOG.md`（本条记录）
+
 ## 2026-07-15 (GUI 日志页改为渐进式加载·先展示首段再后台续载)
 
 - **User Request**: 阅读 GUI 日志页设计，修改为先加载一定长度日志并展示页面，并在不阻塞浏览页面的前提下持续加载直至完整日志加载完成。
