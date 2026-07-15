@@ -44,14 +44,9 @@
 
   "MaterialCollectInteract": {
     "recognition": "DirectHit",
-    "action": {
-      "type": "Key",
-      "param": {
-        "key": "KEYCODE_F"
-      }
-    },
+    "action": "DoNothing",
     "next": [],
-    "desc": "到达采集点后按 F 交互收取。实际收取由 Python 编排器在 VLM 导航到达后通过 keyevent 发送，此节点供 pipeline 一致性参考"
+    "desc": "到达采集点后按 F 交互收取。实际收取由 Python 编排器在 VLM 导航到达后通过 keyevent 发送，此节点仅供 pipeline 一致性参考（MaaFW Key action 格式不兼容，改用 DoNothing 占位）"
   },
 
   "MaterialCollectClaim": {

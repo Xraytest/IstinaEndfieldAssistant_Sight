@@ -85,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_task = sub.add_parser("task", help="task commands")
     p_task_sub = p_task.add_subparsers(dest="action")
-    p_task_run = sub.add_parser("run", help="run task")
+    p_task_run = p_task_sub.add_parser("run", help="run task")
     p_task_run.add_argument("name", help="task name")
     p_task_run.add_argument("--options", default="{}", help="JSON options")
     p_task_run.add_argument("--serial", default=None, help="device serial")
@@ -95,7 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_preset = sub.add_parser("preset", help="preset commands")
     p_preset_sub = p_preset.add_subparsers(dest="action")
-    p_preset_run = sub.add_parser("run", help="apply preset to queue and run queue")
+    p_preset_run = p_preset_sub.add_parser("run", help="apply preset to queue and run queue")
     p_preset_run.add_argument("name", help="preset name")
     p_preset_run.add_argument("--serial", default=None, help="device serial")
 
@@ -107,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_queue = sub.add_parser("queue", help="task queue commands")
     p_queue_sub = p_queue.add_subparsers(dest="action")
-    p_queue_run = sub.add_parser("run", help="run queue")
+    p_queue_run = p_queue_sub.add_parser("run", help="run queue")
     p_queue_run.add_argument("--serial", default=None, help="device serial")
 
     p_queue_list = p_queue_sub.add_parser("list", help="list queue")
