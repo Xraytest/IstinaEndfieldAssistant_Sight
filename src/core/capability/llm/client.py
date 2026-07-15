@@ -69,10 +69,11 @@ class LlmClient:
             raise LlmClientError("LLM returned empty result: " + str(data))
         message = choices[0].get("message") or {}
         content = message.get("content")
+        # 彻底丢弃 reasoning_content，不回退到 thinking 段。
+        # 即使模型输出了 thinking，也只使用 content 字段作为正式输出。
+        # 如果 content 为空，说明模型未生成有效输出，应抛出错误。
         if not content:
-            content = message.get("reasoning_content")
-        if not content:
-            raise LlmClientError("LLM returned empty content: " + str(message))
+            raise LlmClientError("LLM returned empty content (thinking discarded): " + str(message))
         return str(content)
 
     def chat_async(
