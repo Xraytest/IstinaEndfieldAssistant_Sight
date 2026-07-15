@@ -34,7 +34,7 @@ _ADB_RE = re.compile(
 _QT_RE = re.compile(r"(?i)\bqt\b|qpa|qt\.|qfont|qcairo|qopengl|qt\.qpa")
 # MaaFW 内部 OCR 警告：属于引擎自行处理的瞬态噪声，对用户无操作价值
 _MAAFW_OCR_NOISE_RE = re.compile(
-    r"(?i)Wrong ocr_result size|cache is empty"
+    r"(?i)Wrong ocr_result size|cache is empty|ocr.*size.*mismatch"
 )
 
 
