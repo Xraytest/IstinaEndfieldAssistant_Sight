@@ -42,12 +42,17 @@ class LlmClient:
         image: Optional[str] = None,
         image_mime_type: str = "image/png",
         timeout: Optional[float] = None,
+        chat_template_kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Call /v1/chat/completions and return assistant content.
 
         Args:
             timeout: 单次请求超时（秒）。None 则使用 DEFAULT_TIMEOUT_S。
                      VLM 步进导航建议 20-40s，避免单步卡死拖累整条循环。
+            chat_template_kwargs: 透传给 llama-server 的 chat template 渲染参数。
+                                  Qwen3 系列模型通过 ``{"enable_thinking": False}``
+                                  可在请求粒度关闭 thinking 模式，避免输出冗长
+                                  reasoning_content 拖垮 VLM 步进循环。
         """
         messages = self._build_messages(prompt, system, image, image_mime_type)
         payload: Dict[str, Any] = {"model": "local", "messages": messages}
@@ -55,6 +60,8 @@ class LlmClient:
             payload["temperature"] = float(temperature)
         if max_tokens is not None:
             payload["max_tokens"] = int(max_tokens)
+        if chat_template_kwargs is not None:
+            payload["chat_template_kwargs"] = chat_template_kwargs
 
         data = self._post("/chat/completions", payload, timeout=timeout)
         choices = data.get("choices") or []
@@ -78,6 +85,7 @@ class LlmClient:
         image: Optional[str] = None,
         image_mime_type: str = "image/png",
         timeout: Optional[float] = None,
+        chat_template_kwargs: Optional[Dict[str, Any]] = None,
     ) -> "LlmAsyncHandle":
         """非阻塞版本的 ``chat()``。
 
@@ -89,7 +97,7 @@ class LlmClient:
         handle = LlmAsyncHandle()
         target = self._chat_async_target(
             handle, prompt, system, temperature, max_tokens,
-            image, image_mime_type, timeout,
+            image, image_mime_type, timeout, chat_template_kwargs,
         )
         thread = threading.Thread(target=target, daemon=True, name="llm-chat-async")
         handle._bind_thread(thread)
@@ -135,6 +143,7 @@ class LlmClient:
         image: Optional[str],
         image_mime_type: str,
         timeout: Optional[float],
+        chat_template_kwargs: Optional[Dict[str, Any]],
     ) -> None:
         try:
             result = self.chat(
@@ -145,6 +154,7 @@ class LlmClient:
                 image=image,
                 image_mime_type=image_mime_type,
                 timeout=timeout,
+                chat_template_kwargs=chat_template_kwargs,
             )
             handle._set_result(result)
         except Exception as exc:  # noqa: BLE001 — 后台线程需捕获一切异常

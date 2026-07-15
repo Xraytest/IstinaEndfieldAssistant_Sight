@@ -87,7 +87,10 @@ Rules:
 - Use short movements (1-2s) and look at the minimap to see progress.
 - If you see obstacles/a cliff/danger, adjust course.
 - Only use "arrived" if clearly at the destination.
-- Output ONLY the JSON, no extra text.\
+- Output ONLY the JSON, no extra text.
+
+Example output:
+{"action": "forward", "duration": 1.5}\
 """
 
 # 任务追踪标识驱动导航的系统提示。
@@ -127,7 +130,16 @@ Rules:
 - If you see the destination (dungeon portal, collection node, battle trigger), use "arrived".
 - If you see obstacles/a cliff/danger, adjust course.
 - If you cannot see the marker, turn to search for it.
-- Output ONLY the JSON, no extra text.\
+- Output ONLY the JSON, no extra text.
+
+Example — if the marker is visible ahead:
+{"action": "forward", "duration": 1.5}
+
+Example — if the marker is to the left of the screen:
+{"action": "turn_left"}
+
+Example — if you have reached a dungeon portal/collection node:
+{"action": "arrived"}\
 """
 
 
@@ -268,12 +280,17 @@ class VlmWalkNavigator:
             )
             try:
                 handle = self._llm.chat_async(
-                    prompt=f"/no_think\nLook at the screenshot and decide the next action.\n\n{context}",
+                    prompt=f"Look at the screenshot and decide the next action.\n\n{context}\n\nRespond with ONLY the JSON action, nothing else.",
                     system=self._system_prompt,
                     temperature=self._config.vlm_temperature,
                     max_tokens=self._config.vlm_max_tokens,
                     image=img_b64,
                     timeout=self._config.vlm_call_timeout_s,
+                    # Qwen3 thinking 模式默认开启，会返回自然语言推理而非 JSON。
+                    # 通过 chat_template_kwargs.enable_thinking=False 在请求粒度关闭
+                    # thinking，让模型直接输出 JSON 动作。这是 VLM 步进循环可解析
+                    # 的关键依赖——/no_think 指令对小模型不可靠。
+                    chat_template_kwargs={"enable_thinking": False},
                 )
                 reply = handle.result_or(
                     default="",
@@ -407,15 +424,20 @@ class VlmWalkNavigator:
             try:
                 handle = self._llm.chat_async(
                     prompt=(
-                        "/no_think\n"
                         "Look at the screenshot. Find the quest tracking marker "
                         "and decide the next action.\n\n" + context
+                        + "\n\nRespond with ONLY the JSON action, nothing else."
                     ),
                     system=_TRACKING_SYSTEM_PROMPT,
                     temperature=self._config.vlm_temperature,
                     max_tokens=self._config.vlm_max_tokens,
                     image=img_b64,
                     timeout=self._config.vlm_call_timeout_s,
+                    # Qwen3 thinking 模式默认开启，会返回自然语言推理而非 JSON。
+                    # 通过 chat_template_kwargs.enable_thinking=False 在请求粒度关闭
+                    # thinking，让模型直接输出 JSON 动作。这是 VLM 步进循环可解析
+                    # 的关键依赖——/no_think 指令对小模型不可靠。
+                    chat_template_kwargs={"enable_thinking": False},
                 )
                 reply = handle.result_or(
                     default="",
@@ -482,7 +504,7 @@ class VlmWalkNavigator:
 
     def _execute_action(self, action: Dict[str, Any]) -> None:
         act = action["action"]
-        keycode = _ACTION_KEYCODE_MAP.get(act)
+        keycode = self._ACTION_KEYCODE_MAP.get(act)
         if keycode is None:
             # "stop"/"arrived" (and any unknown action) => just settle
             if act == "stop":
@@ -575,30 +597,77 @@ class VlmWalkNavigator:
             except json.JSONDecodeError:
                 pass
 
-        # 5. Keyword-based fallback: scan for action keywords in the reply
+        # 5. Keyword-based fallback: scan for action keywords in the reply.
+        # 同时识别动作词（forward/turn left）和场景描述词（on the left/quest
+        # marker ahead），覆盖小模型在 thinking 模式被关闭失败时返回自然语言
+        # 描述的情况。顺序很重要：arrived/danger/interact 优先于方向词，避免
+        # "I should turn left to reach the marker" 误判为 arrived。
         reply_lower = reply.lower()
-        keyword_map = {
-            "arrived": "arrived",
-            "forward": "forward",
-            "move forward": "forward",
-            "walk forward": "forward",
-            "go forward": "forward",
-            "strafe left": "left",
-            "turn left": "turn_left",
-            "strafe right": "right",
-            "turn right": "turn_right",
-            "backward": "backward",
-            "go back": "backward",
-            "interact": "interact",
-            "press f": "interact",
-            "stop": "stop",
-        }
-        for keyword, action_name in keyword_map.items():
-            if keyword in reply_lower:
-                result: Dict[str, Any] = {"action": action_name}
-                if action_name in ("forward", "left", "right", "backward"):
-                    result["duration"] = 1.5
-                return result
+
+        # 5a. 优先级最高：到达 / 交互 / 危险
+        if any(kw in reply_lower for kw in (
+            "arrived", "reached the", "at the destination", "at the target",
+            "destination reached", "i am at", "i'm at", "have reached",
+            "reached destination", "dungeon portal", "collection node",
+        )):
+            return {"action": "arrived"}
+        if any(kw in reply_lower for kw in (
+            "press f", "interact", "press the f", "press key f", "f key",
+            "press f to", "use f to",
+        )):
+            return {"action": "interact"}
+        if any(kw in reply_lower for kw in (
+            "obstacle", "cliff", "danger", "wall ahead", "blocked",
+            "cannot pass", "can't pass", "dead end", "dead-end",
+        )):
+            return {"action": "stop"}
+
+        # 5b. 方向动作词（动作短语优先于单字匹配）
+        direction_map = [
+            (("turn left", "rotate left", "turn to the left", "rotate to the left",
+              "camera left"), "turn_left"),
+            (("turn right", "rotate right", "turn to the right", "rotate to the right",
+              "camera right"), "turn_right"),
+            (("move forward", "walk forward", "go forward", "move ahead",
+              "walk ahead", "go ahead", "forward", "straight ahead",
+              "ahead of", "in front"), "forward"),
+            (("strafe left", "move left", "walk left", "go left"), "left"),
+            (("strafe right", "move right", "walk right", "go right"), "right"),
+            (("backward", "go back", "walk back", "move back", "back up"), "backward"),
+        ]
+        for keywords, action_name in direction_map:
+            for kw in keywords:
+                if kw in reply_lower:
+                    result: Dict[str, Any] = {"action": action_name}
+                    if action_name in ("forward", "left", "right", "backward"):
+                        result["duration"] = 1.5
+                    return result
+
+        # 5c. 场景描述（VLM 描述了追踪标识相对位置但未明确动作词）
+        # 例: "The quest marker is on the left of the screen"
+        if any(kw in reply_lower for kw in (
+            "on the left", "to the left", "on my left", "on your left",
+            "left side of", "left of the screen", "left of screen",
+            "marker is left", "marker is to the left",
+        )):
+            return {"action": "turn_left"}
+        if any(kw in reply_lower for kw in (
+            "on the right", "to the right", "on my right", "on your right",
+            "right side of", "right of the screen", "right of screen",
+            "marker is right", "marker is to the right",
+        )):
+            return {"action": "turn_right"}
+        if any(kw in reply_lower for kw in (
+            "quest marker", "tracking marker", "marker ahead",
+            "marker is ahead", "marker in front", "marker visible",
+            "follow the path", "follow the trail", "path ahead",
+            "marker is visible",
+        )):
+            return {"action": "forward", "duration": 1.5}
+
+        # 5d. 兜底：找不到具体方向时优先 forward（VLM 决策不应无所作为）
+        if any(kw in reply_lower for kw in ("move", "walk", "go")):
+            return {"action": "forward", "duration": 1.5}
 
         return None
 
