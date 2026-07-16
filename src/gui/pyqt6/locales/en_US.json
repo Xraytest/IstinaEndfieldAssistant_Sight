@@ -227,5 +227,12 @@
   "scripting_finished": "Playback finished.",
   "scripting_stopped": "Playback stopped.",
   "settings_save_failed": "Save Failed",
-  "settings_save_failed_msg": "Failed to save settings: {exc}"
+  "settings_save_failed_msg": "Failed to save settings: {exc}",
+  "btn_read_task_list_categorized": "Read by Category",
+  "btn_run_selected_tasks": "Run Selected",
+  "no_selected_tasks": "No Task Selected",
+  "no_selected_tasks_hint": "Please read the task list by category first and check the tasks to execute",
+  "selected_tasks_partial": "Partial Failure",
+  "selected_tasks_done": "Done",
+  "selected_tasks_failed": "Run Failed"
 }

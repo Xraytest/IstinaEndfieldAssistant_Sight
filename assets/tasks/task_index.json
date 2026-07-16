@@ -157,6 +157,10 @@
       "path": "TrialOfSwordmancy.json"
     },
     {
+      "name": "TaskExecute",
+      "path": "TaskExecute.json"
+    },
+    {
       "name": "VisitFriends",
       "path": "VisitFriends.json"
     },

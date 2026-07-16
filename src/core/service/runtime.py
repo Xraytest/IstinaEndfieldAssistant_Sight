@@ -342,6 +342,14 @@ class IstinaRuntime:
             return self._material_collect_run(params)
         if domain == "readtask" and action == "run":
             return self._read_task_list_run(params)
+        if domain == "readtask" and action == "run_blue":
+            return self._run_category_tasks(params)
+        if domain == "readtask" and action == "run_category":
+            return self._run_category_tasks(params)
+        if domain == "readtask" and action == "list_categorized":
+            return self._list_categorized_tasks(params)
+        if domain == "readtask" and action == "list_blue":
+            return self._list_blue_tasks(params)
         if domain == "nav" and action == "to":
             return self._nav_to(params)
         if domain == "nav2" and action == "to_coords":
@@ -418,6 +426,9 @@ class IstinaRuntime:
             return bool(result.get("status") == "success")
         if name == "ReadAllTasks":
             result = self._read_task_list_run(params)
+            return bool(result.get("status") == "success")
+        if name == "TaskExecute":
+            result = self._run_category_tasks(params)
             return bool(result.get("status") == "success")
         options = params.get("options") or {}
         serial = params.get("serial")
@@ -1139,12 +1150,31 @@ class IstinaRuntime:
             "maaend_connected": self.connected,
         }
 
-    def _read_task_list_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """读取全部任务列表编排器：进入 Baker 界面 → 点击任务列表图标 → OCR 整页 → 格式化缓存。
+    def _is_task_list_page(self, serial: Optional[str]) -> bool:
+        """检查当前画面是否为任务列表页（左上角出现 '//任务' 标题）。"""
+        ocr_check = self.execute(
+            "scene.elements",
+            {
+                "serial": serial,
+                "enable_ocr": True,
+                "enable_template": False,
+                "enable_color": False,
+            },
+        )
+        check_elements = []
+        if isinstance(ocr_check, dict) and ocr_check.get("status") == "success":
+            check_elements = ocr_check.get("elements", [])
+        check_text = "".join(
+            e.get("label", "") for e in check_elements if isinstance(e, dict)
+        )
+        return "//任务" in check_text
 
-        全智能分类任务：在主世界页通过 SceneEnterMenuBaker 进入 Baker 界面，
-        点击 Baker/TaskOptions.png 任务列表图标切换到事务通讯页签，OCR 整页
-        识别任务文本，按阅读顺序格式化并缓存到 cache/task_list/。
+    def _read_task_list_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """读取全部任务列表编排器：主世界点击任务图标 → OCR 整页 → 格式化缓存。
+
+        全智能分类任务：确保游戏在主世界后，直接点击 Baker/TaskOptions.png
+        任务列表图标（主世界页面上的任务入口，非 Baker 内部的页签切换），
+        OCR 整页识别任务文本，按阅读顺序格式化并缓存到 cache/task_list/。
         """
         options = params.get("options") or {}
         client_version = options.get("ClientVersion", "CN")
@@ -1158,25 +1188,23 @@ class IstinaRuntime:
                 "options": options,
                 "maaend_connected": False,
             }
-        if not self._ensure_game_in_world(runtime, serial, client_version):
-            return {
-                "status": "error",
-                "command": "readtask.run",
-                "flow": "read_task_list",
-                "options": options,
-                "maaend_connected": self.connected,
-                "message": "启动游戏或等待进入大世界失败",
-            }
 
-        # 启动 scrcpy 图像通道供 OCR 截图使用
-        try:
-            result = self.android(serial).start_scrcpy(serial=serial)
-            if isinstance(result, dict) and result.get("error"):
-                self._logger.warning(LogCategory.MAIN, "scrcpy 启动失败，OCR 截图将不可用", error=result["error"], serial=serial)
-            else:
-                self._logger.info(LogCategory.MAIN, "scrcpy 图像通道已就绪", serial=serial)
-        except Exception as exc:
-            self._logger.warning(LogCategory.MAIN, "scrcpy 启动异常", error=str(exc), serial=serial)
+        # 若已在任务列表页，直接读取；否则确保在大世界
+        if not self._is_task_list_page(serial):
+            # 快速检测是否已在大世界，避免重复执行耗时的 AndroidOpenGame
+            try:
+                already_in_world = runtime.run_pipeline("InWorld", {})
+            except Exception:
+                already_in_world = False
+            if not already_in_world and not self._ensure_game_in_world(runtime, serial, client_version):
+                return {
+                    "status": "error",
+                    "command": "readtask.run",
+                    "flow": "read_task_list",
+                    "options": options,
+                    "maaend_connected": self.connected,
+                    "message": "启动游戏或等待进入大世界失败",
+                }
 
         # 解析选项
         try:
@@ -1197,110 +1225,87 @@ class IstinaRuntime:
 
         steps: List[Dict[str, Any]] = []
 
-        # 1. 从主世界进入 Baker 界面
-        # 修复：__ScenePrivateWorldEnterMenuBaker 原始 action 是 AutoAltClickAction
-        # （Alt+Click），但 Baker 图标 ROI [168,113,101,95] 位于顶栏下方的大世界视图区，
-        # Alt+Click 会触发工业/探索模式切换而非打开 Baker。通过 pipeline_override
-        # 将 action 改为普通 Click，真正点击 Baker 图标。
-        self._logger.info(LogCategory.MAIN, "进入 Baker 界面")
-        enter_baker_ok = False
+        # 1. 在主世界页面直接点击任务列表图标（Baker/TaskOptions.png）
+        # 注意：TaskOptions.png 是主世界页面上的任务入口图标，不是 Baker 内部的页签切换。
+        # 不进入 Baker 界面，直接在主世界全屏匹配并点击。
+        self._logger.info(LogCategory.MAIN, "点击主世界任务列表图标")
+        click_ok = False
         for attempt in range(3):
             try:
-                override_enter = {
-                    "__ScenePrivateWorldEnterMenuBaker": {"action": "Click"},
-                }
-                ok = runtime.run_pipeline("SceneEnterMenuBaker", override_enter)
+                ok = runtime.run_pipeline("ReadTaskListClickTaskIcon", {})
                 if ok:
-                    enter_baker_ok = True
-                    steps.append({"step": "enter_baker", "status": "success", "attempt": attempt + 1})
+                    click_ok = True
+                    steps.append({"step": "click_task_icon", "status": "success", "attempt": attempt + 1})
                     break
-                self._logger.warning(LogCategory.MAIN, "进入 Baker 界面失败", attempt=attempt + 1)
+                self._logger.warning(LogCategory.MAIN, "点击任务列表图标失败", attempt=attempt + 1)
             except Exception as exc:
-                self._logger.error(LogCategory.MAIN, "进入 Baker 界面异常", error=str(exc), attempt=attempt + 1)
+                self._logger.error(LogCategory.MAIN, "点击任务列表图标异常", error=str(exc), attempt=attempt + 1)
             if attempt < 2:
                 time.sleep(2.0)
-        if not enter_baker_ok:
-            steps.append({"step": "enter_baker", "status": "failed"})
 
-        # 2. 切换到事务通讯页签（复用原始 BakerEntry 流程 + pipeline_override）
-        # 通过 override 让流程在检测到"事务通讯"界面时停止：
-        #   - BakerCheckTask.next = []  : 已在事务通讯界面 → 停止 ✓
-        #   - BakerCheckMsg.next = [BakerSwitchTask]  : 在会话消息界面 → 点 TaskOptions 切换
-        #   - BakerOverCheck.next = [BakerSwitchTask]  : 当前无会话 → 点 TaskOptions 切换（不走 BakerOverEnd 退出）
-        #   - BakerOverEnd.next = []  : 双重保险，防止退出 Baker
-        # BakerEntry 流程会自动处理：检测主界面 → 检测当前页签 →
-        # 若不在事务通讯则点 TaskOptions 切换 → 循环直到命中事务通讯界面。
-        self._logger.info(LogCategory.MAIN, "切换到事务通讯页签")
-        switch_ok = False
-        for attempt in range(3):
+        # 1.5 模板匹配失败时使用已知坐标兜底点击
+        # 经实际屏幕扫描验证，任务列表入口按钮位于主世界左上角小地图左下角，
+        # 在 1280x720 分辨率下坐标约为 (35, 155)。
+        if not click_ok:
+            self._logger.warning(LogCategory.MAIN, "模板匹配点击失败，使用固定坐标兜底点击任务图标")
             try:
-                override_switch = {
-                    "BakerCheckTask": {"next": []},
-                    "BakerCheckMsg": {"next": ["BakerSwitchTask"]},
-                    "BakerOverCheck": {"next": ["BakerSwitchTask"]},
-                    "BakerOverEnd": {"next": []},
-                }
-                ok = runtime.run_pipeline("BakerEntry", override_switch)
-                if ok:
-                    switch_ok = True
-                    steps.append({"step": "switch_to_task_tab", "status": "success", "attempt": attempt + 1})
-                    break
-                self._logger.warning(LogCategory.MAIN, "切换到事务通讯页签失败", attempt=attempt + 1)
+                android = self.android(serial)
+                android.tap(35, 155)
+                time.sleep(1.5)
+                click_ok = True
+                steps.append({"step": "click_task_icon", "status": "success", "attempt": "fallback_coord"})
             except Exception as exc:
-                self._logger.error(LogCategory.MAIN, "切换到事务通讯页签异常", error=str(exc), attempt=attempt + 1)
-            if attempt < 2:
-                time.sleep(2.0)
-        if not switch_ok:
-            steps.append({"step": "switch_to_task_tab", "status": "failed"})
+                self._logger.error(LogCategory.MAIN, "兜底点击任务图标异常", error=str(exc))
 
-        # 3. 等待任务列表页稳定
-        time.sleep(1.0)
+        if not click_ok:
+            steps.append({"step": "click_task_icon", "status": "failed"})
 
-        # 4. OCR 整页识别（仅启用 OCR 后端，关闭模板/颜色以加速）
-        self._logger.info(LogCategory.MAIN, "OCR 整页识别任务列表")
-        ocr_result = self.execute(
-            "scene.elements",
-            {
-                "serial": serial,
-                "enable_ocr": True,
-                "enable_template": False,
-                "enable_color": False,
-            },
+        # 2. 等待任务列表页稳定
+        time.sleep(2.0)
+
+        # 2.5 页面校验：任务列表页必须有 "//任务" 标题，否则重试一次点击
+        if not self._is_task_list_page(serial):
+            self._logger.warning(LogCategory.MAIN, "首次点击后未识别到任务列表标题，重试一次")
+            time.sleep(1.0)
+            ok_retry = runtime.run_pipeline("ReadTaskListClickTaskIcon", {})
+            if ok_retry:
+                click_ok = True
+                steps.append({"step": "click_task_icon", "status": "success", "attempt": "retry"})
+            time.sleep(2.0)
+            if not self._is_task_list_page(serial):
+                self._logger.error(LogCategory.MAIN, "重试后仍未进入任务列表页，放弃读取")
+                return {
+                    "status": "error",
+                    "command": "readtask.run",
+                    "flow": "read_task_list",
+                    "options": options,
+                    "message": "未能进入任务列表页",
+                    "steps": steps,
+                    "maaend_connected": self.connected,
+                }
+
+        # 3. 滚动读取任务列表
+        self._logger.info(LogCategory.MAIN, "开始滚动读取任务列表")
+        android = self.android(serial)
+        # 任务列表滚动区域：左侧面板（列表可滚动区域）
+        scroll_region = [80, 160, 420, 520]
+        swipe_distance = 280
+
+        page_result = self._read_task_list_page(
+            android, serial, scroll_region=scroll_region, swipe_distance=swipe_distance,
+            wait_seconds=0.5, ocr_confidence=ocr_confidence, dedup_distance=dedup_distance
         )
+        all_elements = page_result["all_elements"]
+        formatted = page_result["formatted"]
+        steps.extend(page_result["steps"])
 
-        # 5. 格式化 OCR 结果
-        raw_elements: List[Dict[str, Any]] = []
-        if isinstance(ocr_result, dict) and ocr_result.get("status") == "success":
-            raw_elements = [
-                e for e in ocr_result.get("elements", [])
-                if e.get("source") == "ocr" and e.get("confidence", 0.0) >= ocr_confidence
-            ]
-        else:
-            self._logger.warning(
-                LogCategory.MAIN, "OCR 识别未返回有效结果",
-                status=ocr_result.get("status") if isinstance(ocr_result, dict) else "invalid",
-            )
-        steps.append({"step": "ocr", "status": "success", "raw_count": len(raw_elements)})
-
-        formatted = self._format_task_list_ocr(raw_elements, dedup_distance=dedup_distance)
-        steps.append({"step": "format", "status": "success", "line_count": len(formatted["lines"])})
-
-        # 6. 缓存格式化结果 + 可选保存截图
-        cache_path = self._cache_task_list(formatted, raw_elements, serial, save_screenshot, serial_param=serial)
+        # 4. 缓存格式化结果 + 可选保存截图
+        cache_path = self._cache_task_list(formatted, all_elements, serial, save_screenshot, serial_param=serial)
         steps.append({"step": "cache", "status": "success", "path": str(cache_path)})
-
-        # 7. 关闭任务列表界面，返回大世界
-        self._logger.info(LogCategory.MAIN, "关闭任务列表界面")
-        try:
-            ok = runtime.run_pipeline("CloseButtonType1", {})
-            steps.append({"step": "close", "status": "success" if ok else "failed"})
-        except Exception as exc:
-            self._logger.warning(LogCategory.MAIN, "关闭任务列表界面异常", error=str(exc))
-            steps.append({"step": "close", "status": "error", "error": str(exc)})
 
         self._logger.info(
             LogCategory.MAIN, "读取全部任务列表完成",
-            raw_count=len(raw_elements), line_count=len(formatted["lines"]),
+            raw_count=len(all_elements), line_count=len(formatted["lines"]),
             cache_path=str(cache_path),
         )
 
@@ -1309,7 +1314,7 @@ class IstinaRuntime:
             "command": "readtask.run",
             "flow": "read_task_list",
             "options": options,
-            "raw_ocr_count": len(raw_elements),
+            "raw_ocr_count": len(all_elements),
             "formatted_line_count": len(formatted["lines"]),
             "formatted_lines": formatted["lines"],
             "cache_path": str(cache_path),
@@ -1318,19 +1323,58 @@ class IstinaRuntime:
         }
 
     @staticmethod
+    def _deduplicate_task_list_elements_by_label(elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """滚动读取时同一任务文本可能出现在多屏，按标签文本去重并保留置信度最高者。"""
+        best: Dict[str, Dict[str, Any]] = {}
+        for elem in elements:
+            label = str(elem.get("label", "")).strip()
+            if not label:
+                continue
+            conf = float(elem.get("confidence", 0.5))
+            if label not in best or conf > float(best[label].get("confidence", 0.5)):
+                best[label] = elem
+        return list(best.values())
+
+    @staticmethod
+    def _is_task_list_ocr_noise(label: str) -> bool:
+        """过滤任务列表 OCR 中由图标、UI 元素产生的噪声文本。"""
+        import re
+        text = str(label).strip()
+        if not text:
+            return True
+        # 已知噪声模式：UID、延迟、纯图标符号
+        if re.search(r"UID|ms$|^[\s]*$", text):
+            return True
+        # 单字符噪声（除 CJK 汉字外）
+        if len(text) == 1 and not re.search(r"[\u4e00-\u9fff]", text):
+            return True
+        # 纯感叹号/点/特殊符号组合（任务优先级图标）
+        if re.fullmatch(r"[!\.\×xXQq口日○〇]+", text):
+            return True
+        # 单个数字或纯短数字串（通常是图标而非任务名）——保留 3 位以上数字（如 738）
+        if re.fullmatch(r"\d{1,2}", text):
+            return True
+        return False
+
+    @staticmethod
     def _format_task_list_ocr(
         elements: List[Dict[str, Any]], dedup_distance: float = 0.02,
     ) -> Dict[str, Any]:
         """将 OCR 元素列表格式化为按阅读顺序排列的文本行。
 
         格式化策略：
-        1. 过滤空标签
+        1. 过滤空标签与图标噪声
         2. 按位置去重：中心点距离小于 dedup_distance（归一化坐标）的同标签元素只保留置信度最高的
         3. 按阅读顺序排序：先按 y 分行（行容差 0.04），行内按 x 排序
         4. 同行元素用空格连接为一条文本行
         """
-        # 过滤空标签
-        candidates = [e for e in elements if e.get("label") and str(e["label"]).strip()]
+        # 过滤空标签与噪声
+        candidates = [
+            e for e in elements
+            if e.get("label")
+            and str(e["label"]).strip()
+            and not IstinaRuntime._is_task_list_ocr_noise(str(e["label"]))
+        ]
         # 去重：同标签 + 位置相近 → 保留置信度最高
         deduped: List[Dict[str, Any]] = []
         for elem in candidates:
@@ -1429,6 +1473,855 @@ class IstinaRuntime:
                 self._logger.warning(LogCategory.MAIN, "保存任务列表截图失败", error=str(exc))
 
         return latest_path
+
+    # ------------------------------------------------------------------
+    # 分类任务自动执行（全智能·任务执行）
+    # ------------------------------------------------------------------
+
+    # 游戏内任务列表左侧分类标签（顺序与游戏内一致）
+    _CATEGORY_NAMES: Tuple[str, ...] = ("进行中", "ALL", "紧要", "重要", "次要")
+    # 分类标签兜底坐标（1280x720，仅"次要"经扫描验证；其余依赖 OCR 动态检测）
+    _CATEGORY_COORD_FALLBACK: Dict[str, Tuple[int, int]] = {"次要": (40, 285)}
+    # 任务列表页右上角关闭按钮坐标
+    _TASK_LIST_CLOSE_COORD: Tuple[int, int] = (1225, 35)
+    # 主世界任务列表入口图标兜底坐标
+    _TASK_LIST_ICON_COORD: Tuple[int, int] = (35, 155)
+
+    # 任务列表 OCR 中属于 UI 控件而非任务名的文本集合
+    _TASK_LIST_UI_LABELS: frozenset = frozenset({
+        "//任务", "进行中", "ALL", "紧要", "重要", "次要", "区",
+        "X", "×", "开始追踪", "停止追踪", "UID", "ms", "口",
+    })
+
+    def _run_category_tasks(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """逐一执行指定分类（默认次要）的任务，执行过程中频繁检查任务列表确认完成。
+
+        全智能·任务执行编排器。流程：
+        1. 确保进入任务列表页；
+        2. 若提供 selected_tasks：仅执行选中任务；否则点击目标分类标签并读取该分类全部任务；
+        3. 对每个任务：切到所属分类 -> 追踪 -> 关闭任务列表 -> VLM 追踪标识导航 ->
+           交互/完成 -> 重新打开任务列表并确认该任务已从该分类列表中消失；
+        4. 返回成功/失败任务清单。
+
+        选项：
+        - category: 目标分类（默认"次要"），当未提供 selected_tasks 时使用
+        - selected_tasks: [{"category","name","center"}] 仅执行这些任务（覆盖 category 全量）
+        - BlueTaskVlmMaxStepsValue / BlueTaskVlmStepTimeoutValue / BlueTaskMaxVerifyChecks
+        """
+        options = params.get("options") or {}
+        client_version = options.get("ClientVersion", "CN")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "readtask.run_category",
+                "flow": "run_category_tasks",
+                "options": options,
+                "maaend_connected": False,
+            }
+
+        # 分类：复选框选项 TaskExecuteCategory（list）→ category 字段 → 默认"次要"
+        cat_opt = options.get("TaskExecuteCategory")
+        if isinstance(cat_opt, list):
+            category = cat_opt[0] if cat_opt else "次要"
+        elif cat_opt:
+            category = str(cat_opt)
+        else:
+            category = str(options.get("category", "次要")) or "次要"
+        selected_tasks = options.get("selected_tasks")
+        # 解析选项（TaskExecute* 为主，BlueTask* 兼容旧 run_blue 调用）
+        try:
+            vlm_max_steps = int(options.get("TaskExecuteVlmMaxStepsValue", options.get("BlueTaskVlmMaxStepsValue", 60)))
+        except (TypeError, ValueError):
+            vlm_max_steps = 60
+        try:
+            vlm_step_timeout = float(options.get("TaskExecuteVlmStepTimeoutValue", options.get("BlueTaskVlmStepTimeoutValue", 30)))
+        except (TypeError, ValueError):
+            vlm_step_timeout = 30.0
+        try:
+            max_verification_checks = int(options.get("TaskExecuteMaxVerifyChecksValue", options.get("BlueTaskMaxVerifyChecks", 5)))
+        except (TypeError, ValueError):
+            max_verification_checks = 5
+
+        self._logger.info(
+            LogCategory.MAIN, "开始执行分类任务",
+            category=category, selected=len(selected_tasks) if selected_tasks else 0,
+            vlm_max_steps=vlm_max_steps, vlm_step_timeout=vlm_step_timeout,
+            max_verification_checks=max_verification_checks,
+        )
+
+        # 启动 LLM（VLM 导航依赖 llama-server）
+        try:
+            if not self.warmup_llm():
+                return {
+                    "status": "error",
+                    "command": "readtask.run_category",
+                    "flow": "run_category_tasks",
+                    "options": options,
+                    "message": "LLM 启动失败，无法执行 VLM 任务",
+                    "maaend_connected": self.connected,
+                }
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "启动 LLM 异常", error=str(exc))
+
+        # 1. 打开任务列表页（若尚未打开）
+        open_result = self._open_task_list_if_needed(runtime, serial, client_version)
+        if open_result.get("status") != "success":
+            return {
+                "status": "error",
+                "command": "readtask.run_category",
+                "flow": "run_category_tasks",
+                "options": options,
+                "message": open_result.get("message", "打开任务列表页失败"),
+                "maaend_connected": self.connected,
+            }
+
+        android = self.android(serial)
+        scroll_region = [80, 160, 420, 520]
+
+        # 2. 确定要执行的任务清单
+        if selected_tasks:
+            tasks_to_run: List[Dict[str, Any]] = []
+            for t in selected_tasks:
+                if isinstance(t, dict) and t.get("name"):
+                    tasks_to_run.append({
+                        "name": str(t["name"]).strip(),
+                        "category": str(t.get("category", category)) or category,
+                        "center": t.get("center"),
+                    })
+        else:
+            # 点击目标分类标签并读取该分类全部任务
+            self._click_category_by_name(android, serial, category)
+            time.sleep(1.5)
+            cat_page = self._read_task_list_page(
+                android, serial, scroll_region=scroll_region, swipe_distance=280,
+                wait_seconds=0.5, ocr_confidence=0.3, dedup_distance=0.02,
+            )
+            cat_tasks = self._extract_category_tasks(
+                cat_page["all_elements"], cat_page["formatted"].get("lines", []),
+            )
+            tasks_to_run = [
+                {"name": t["name"], "category": category, "center": t.get("center")}
+                for t in cat_tasks
+            ]
+
+        self._logger.info(
+            LogCategory.MAIN, "识别到分类任务",
+            count=len(tasks_to_run), category=category,
+            tasks=[t["name"] for t in tasks_to_run],
+        )
+
+        if not tasks_to_run:
+            return {
+                "status": "success",
+                "command": "readtask.run_category",
+                "flow": "run_category_tasks",
+                "options": options,
+                "completed_tasks": [],
+                "failed_tasks": [],
+                "message": f"当前无 {category} 分类任务",
+                "maaend_connected": self.connected,
+            }
+
+        # 3. 逐一执行
+        completed: List[str] = []
+        failed: List[str] = []
+        for idx, task in enumerate(tasks_to_run):
+            task_name = task["name"]
+            self._logger.info(
+                LogCategory.MAIN, "执行分类任务",
+                index=idx + 1, total=len(tasks_to_run), task=task_name, category=task.get("category"),
+            )
+            exec_result = self._execute_category_task(
+                runtime, android, serial, task,
+                vlm_max_steps=vlm_max_steps,
+                vlm_step_timeout=vlm_step_timeout,
+                max_verification_checks=max_verification_checks,
+            )
+            if exec_result.get("status") == "success":
+                completed.append(task_name)
+                self._logger.info(LogCategory.MAIN, "分类任务完成", task=task_name)
+            else:
+                failed.append(task_name)
+                self._logger.warning(LogCategory.MAIN, "分类任务失败", task=task_name, reason=exec_result.get("message"))
+
+        self._logger.info(
+            LogCategory.MAIN, "分类任务执行结束",
+            category=category, completed=len(completed), failed=len(failed),
+        )
+
+        return {
+            "status": "success" if not failed else "partial",
+            "command": "readtask.run_category",
+            "flow": "run_category_tasks",
+            "options": options,
+            "category": category,
+            "completed_tasks": completed,
+            "failed_tasks": failed,
+            "maaend_connected": self.connected,
+        }
+
+    def _list_blue_tasks(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """仅读取蓝色（次要）分类任务列表，不执行。"""
+        options = params.get("options") or {}
+        client_version = options.get("ClientVersion", "CN")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "readtask.list_blue",
+                "flow": "list_blue_tasks",
+                "options": options,
+                "maaend_connected": False,
+            }
+
+        open_result = self._open_task_list_if_needed(runtime, serial, client_version)
+        if open_result.get("status") != "success":
+            return {
+                "status": "error",
+                "command": "readtask.list_blue",
+                "flow": "list_blue_tasks",
+                "options": options,
+                "message": open_result.get("message", "打开任务列表页失败"),
+                "maaend_connected": self.connected,
+            }
+
+        android = self.android(serial)
+        self._click_category_by_name(android, serial, "次要")
+        time.sleep(1.5)
+
+        page = self._read_task_list_page(
+            android, serial, scroll_region=[80, 160, 420, 520], swipe_distance=280,
+            wait_seconds=0.5, ocr_confidence=0.3, dedup_distance=0.02,
+        )
+        blue_tasks = self._extract_category_tasks(page["all_elements"], page["formatted"].get("lines", []))
+
+        return {
+            "status": "success",
+            "command": "readtask.list_blue",
+            "flow": "list_blue_tasks",
+            "options": options,
+            "blue_tasks": [t["name"] for t in blue_tasks],
+            "blue_task_details": blue_tasks,
+            "maaend_connected": self.connected,
+        }
+
+    def _list_categorized_tasks(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """读取所有分类的任务列表（不执行），返回 {categories: [{name, tasks: [...]}]}。
+
+        供 GUI 按游戏内分类分组展示并供用户勾选。顺序与游戏内左侧分类标签一致。
+        """
+        options = params.get("options") or {}
+        client_version = options.get("ClientVersion", "CN")
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return {
+                "status": "error",
+                "command": "readtask.list_categorized",
+                "flow": "list_categorized_tasks",
+                "options": options,
+                "maaend_connected": False,
+            }
+
+        open_result = self._open_task_list_if_needed(runtime, serial, client_version)
+        if open_result.get("status") != "success":
+            return {
+                "status": "error",
+                "command": "readtask.list_categorized",
+                "flow": "list_categorized_tasks",
+                "options": options,
+                "message": open_result.get("message", "打开任务列表页失败"),
+                "maaend_connected": self.connected,
+            }
+
+        android = self.android(serial)
+        scroll_region = [80, 160, 420, 520]
+        categories: List[Dict[str, Any]] = []
+        for cat in self._CATEGORY_NAMES:
+            self._click_category_by_name(android, serial, cat)
+            time.sleep(1.2)
+            page = self._read_task_list_page(
+                android, serial, scroll_region=scroll_region, swipe_distance=280,
+                wait_seconds=0.5, ocr_confidence=0.3, dedup_distance=0.02,
+            )
+            cat_tasks = self._extract_category_tasks(
+                page["all_elements"], page["formatted"].get("lines", []),
+            )
+            categories.append({
+                "name": cat,
+                "tasks": [{"name": t["name"], "center": t.get("center")} for t in cat_tasks],
+            })
+            self._logger.info(LogCategory.MAIN, "读取分类任务列表", category=cat, count=len(cat_tasks))
+
+        return {
+            "status": "success",
+            "command": "readtask.list_categorized",
+            "flow": "list_categorized_tasks",
+            "options": options,
+            "categories": categories,
+            "maaend_connected": self.connected,
+        }
+
+    def _open_task_list_if_needed(
+        self,
+        runtime: Any,
+        serial: Optional[str],
+        client_version: str,
+    ) -> Dict[str, Any]:
+        """若当前不在任务列表页，则返回大世界并点击任务列表入口。"""
+        if self._is_task_list_page(serial):
+            return {"status": "success", "step": "already_on_task_list"}
+
+        # 快速检测是否已在大世界，避免重复执行耗时的 AndroidOpenGame
+        try:
+            already_in_world = runtime.run_pipeline("InWorld", {})
+        except Exception:
+            already_in_world = False
+        if not already_in_world and not self._ensure_game_in_world(runtime, serial, client_version):
+            return {"status": "error", "message": "启动游戏或等待进入大世界失败"}
+
+        android = self.android(serial)
+        click_ok = False
+        for attempt in range(3):
+            try:
+                ok = runtime.run_pipeline("ReadTaskListClickTaskIcon", {})
+                if ok:
+                    click_ok = True
+                    break
+            except Exception as exc:
+                self._logger.warning(LogCategory.MAIN, "打开任务列表图标失败", attempt=attempt + 1, error=str(exc))
+            if attempt < 2:
+                time.sleep(2.0)
+        if not click_ok:
+            try:
+                android.tap(self._TASK_LIST_ICON_COORD[0], self._TASK_LIST_ICON_COORD[1])
+                time.sleep(1.5)
+                click_ok = True
+            except Exception as exc:
+                self._logger.error(LogCategory.MAIN, "兜底点击任务图标异常", error=str(exc))
+        if not click_ok:
+            return {"status": "error", "message": "点击任务列表入口失败"}
+
+        time.sleep(2.0)
+        if not self._is_task_list_page(serial):
+            # 重试一次
+            try:
+                runtime.run_pipeline("ReadTaskListClickTaskIcon", {})
+            except Exception:
+                pass
+            time.sleep(2.0)
+            if not self._is_task_list_page(serial):
+                return {"status": "error", "message": "未能进入任务列表页"}
+        return {"status": "success", "step": "opened_task_list"}
+
+    def _close_task_list(self, android: Any) -> None:
+        """点击任务列表页右上角关闭按钮。"""
+        try:
+            android.tap(self._TASK_LIST_CLOSE_COORD[0], self._TASK_LIST_CLOSE_COORD[1])
+            time.sleep(1.0)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "关闭任务列表异常", error=str(exc))
+
+    def _click_task_list_category(self, android: Any, coord: Tuple[int, int]) -> None:
+        """点击任务列表左侧分类标签。"""
+        self._logger.info(LogCategory.MAIN, "点击任务列表分类标签", coord=coord)
+        try:
+            android.tap(coord[0], coord[1])
+            time.sleep(0.5)
+        except Exception as exc:
+            self._logger.error(LogCategory.MAIN, "点击分类标签异常", error=str(exc))
+
+    def _click_category_by_name(
+        self, android: Any, serial: Optional[str], category_name: str,
+    ) -> bool:
+        """点击任务列表左侧分类标签：优先 OCR 检测标签位置，失败则用兜底坐标。
+
+        分类标签位于左侧栏（归一化 x < 0.12），通过 OCR 匹配标签文本定位。
+        仅"次要"有经扫描验证的兜底坐标；其余分类依赖 OCR 检测。
+        """
+        # OCR 检测左侧栏分类标签
+        try:
+            ocr_result = self.execute(
+                "scene.elements",
+                {"serial": serial, "enable_ocr": True, "enable_template": False, "enable_color": False},
+            )
+            if isinstance(ocr_result, dict) and ocr_result.get("status") == "success":
+                screen_size = self._get_screen_size(serial)
+                for elem in ocr_result.get("elements", []):
+                    label = str(elem.get("label", "")).strip()
+                    if label == category_name:
+                        center = elem.get("center") or [0.5, 0.5]
+                        if float(center[0]) < 0.12:  # 左侧栏
+                            x, y = self._norm_to_screen(center, screen_size)
+                            self._logger.info(
+                                LogCategory.MAIN, "OCR 检测到分类标签",
+                                category=category_name, coord=(x, y),
+                            )
+                            android.tap(x, y)
+                            time.sleep(0.5)
+                            return True
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "OCR 检测分类标签异常", category=category_name, error=str(exc))
+
+        # 兜底坐标
+        coord = self._CATEGORY_COORD_FALLBACK.get(category_name)
+        if coord:
+            self._logger.info(LogCategory.MAIN, "使用兜底坐标点击分类标签", category=category_name, coord=coord)
+            try:
+                android.tap(coord[0], coord[1])
+                time.sleep(0.5)
+                return True
+            except Exception as exc:
+                self._logger.error(LogCategory.MAIN, "兜底点击分类标签异常", error=str(exc))
+                return False
+        self._logger.warning(LogCategory.MAIN, "未能定位分类标签", category=category_name)
+        return False
+
+    def _find_task_coord_by_name(
+        self, android: Any, serial: Optional[str], task_name: str,
+    ) -> Optional[Tuple[int, int]]:
+        """在当前任务列表页 OCR 查找任务条目，返回其屏幕坐标，未找到返回 None。"""
+        try:
+            page = self._read_task_list_page(
+                android, serial, scroll_region=[80, 160, 420, 520], swipe_distance=280,
+                wait_seconds=0.5, ocr_confidence=0.3, dedup_distance=0.02,
+            )
+            tasks = self._extract_category_tasks(
+                page["all_elements"], page["formatted"].get("lines", []),
+            )
+            for t in tasks:
+                if t["name"] == task_name:
+                    screen_size = self._get_screen_size(serial)
+                    return self._norm_to_screen(t.get("center", [0.5, 0.5]), screen_size)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "OCR 查找任务条目异常", task=task_name, error=str(exc))
+        return None
+
+    def _get_screen_size(self, serial: Optional[str]) -> Tuple[int, int]:
+        """获取设备屏幕分辨率，失败时默认 1280x720。"""
+        try:
+            data = self.execute("screenshot", {"serial": serial})
+            if data:
+                arr = np.frombuffer(data, np.uint8)
+                img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+                if img is not None:
+                    return int(img.shape[1]), int(img.shape[0])
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "获取屏幕分辨率失败", error=str(exc))
+        return 1280, 720
+
+    def _norm_to_screen(
+        self,
+        center: List[float],
+        screen_size: Tuple[int, int],
+    ) -> Tuple[int, int]:
+        """将归一化 OCR 中心坐标转换为屏幕坐标。"""
+        w, h = screen_size
+        cx = float(center[0]) if center else 0.5
+        cy = float(center[1]) if len(center) > 1 else 0.5
+        return int(round(cx * w)), int(round(cy * h))
+
+    def _extract_category_tasks(
+        self,
+        elements: List[Dict[str, Any]],
+        formatted_lines: List[str],
+    ) -> List[Dict[str, Any]]:
+        """从分类任务列表 OCR 结果中提取任务条目（含点击坐标）。
+
+        适用于任意分类（进行中/ALL/紧要/重要/次要）。策略：
+        - 过滤已知 UI 标签与噪声；
+        - 按行分组后，取每行最左侧且非区域/前缀描述的任务名元素作为点击目标。
+        """
+        import re
+
+        # 1. 过滤候选元素
+        candidates: List[Dict[str, Any]] = []
+        for elem in elements:
+            label = str(elem.get("label", "")).strip()
+            if not label or self._is_task_list_ocr_noise(label):
+                continue
+            if label in self._TASK_LIST_UI_LABELS:
+                continue
+            # 排除纯数字、纯英文缩写等噪声
+            if re.fullmatch(r"\d+", label) and len(label) <= 3:
+                continue
+            candidates.append(elem)
+
+        # 2. 按 y 坐标分组（行容差 0.04）
+        row_tolerance = 0.04
+        sorted_candidates = sorted(
+            candidates,
+            key=lambda e: (float((e.get("center") or [0.5, 0.5])[1]), float((e.get("center") or [0.5, 0.5])[0])),
+        )
+        rows: List[List[Dict[str, Any]]] = []
+        for elem in sorted_candidates:
+            cy = float((elem.get("center") or [0.5, 0.5])[1])
+            placed = False
+            for row in rows:
+                row_y = float((row[0].get("center") or [0.5, 0.5])[1])
+                if abs(cy - row_y) < row_tolerance:
+                    row.append(elem)
+                    placed = True
+                    break
+            if not placed:
+                rows.append([elem])
+
+        # 3. 从每行提取任务名：优先使用 formatted_lines 中匹配的行文本，
+        #    点击坐标取该行最左侧元素中心。
+        tasks: List[Dict[str, Any]] = []
+        used_lines: set = set()
+        for row in rows:
+            row_sorted = sorted(row, key=lambda e: float((e.get("center") or [0.5, 0.5])[0]))
+            row_text = "  ".join(str(e.get("label", "")).strip() for e in row_sorted)
+            # 与 formatted_lines 匹配，找到最相似且未使用的行
+            best_line = None
+            best_score = 0.0
+            for line in formatted_lines:
+                if line in used_lines:
+                    continue
+                # 简单相似度：共同字符比例
+                common = sum(1 for ch in set(line) if ch in row_text)
+                score = common / max(len(line), 1)
+                if score > best_score and score >= 0.3:
+                    best_score = score
+                    best_line = line
+            task_name = best_line if best_line else row_text
+            if best_line:
+                used_lines.add(best_line)
+            # 过滤仍然像 UI 的整行
+            if task_name in self._TASK_LIST_UI_LABELS or not task_name.strip():
+                continue
+            # 点击坐标：最左侧元素中心， Fallback 为行中第一个非空元素
+            click_elem = row_sorted[0] if row_sorted else None
+            center = click_elem.get("center") if click_elem else [0.5, 0.5]
+            tasks.append({
+                "name": task_name.strip(),
+                "center": center,
+                "row_text": row_text,
+            })
+
+        # 4. 去重：同名任务只保留第一个
+        seen: set = set()
+        deduped: List[Dict[str, Any]] = []
+        for t in tasks:
+            if t["name"] not in seen:
+                seen.add(t["name"])
+                deduped.append(t)
+        return deduped
+
+    def _execute_category_task(
+        self,
+        runtime: Any,
+        android: Any,
+        serial: Optional[str],
+        task: Dict[str, Any],
+        vlm_max_steps: int,
+        vlm_step_timeout: float,
+        max_verification_checks: int,
+    ) -> Dict[str, Any]:
+        """执行单个分类任务：切分类 -> 追踪 -> VLM 导航 -> 交互 -> 完成确认。
+
+        task 字典含 name / category / center（center 可缺失，缺失时用 OCR 查找）。
+        """
+        task_name = task["name"]
+        category = task.get("category", "次要")
+        screen_size = self._get_screen_size(serial)
+
+        # 0. 确保在任务列表页并切到目标分类
+        if not self._is_task_list_page(serial):
+            open_result = self._open_task_list_if_needed(runtime, serial, "CN")
+            if open_result.get("status") != "success":
+                return {"status": "error", "message": "打开任务列表失败"}
+        self._click_category_by_name(android, serial, category)
+        time.sleep(1.2)
+
+        # 1. 点击任务条目以追踪（优先存储坐标，兜底 OCR 查找）
+        click_x, click_y = self._norm_to_screen(task.get("center", [0.5, 0.5]), screen_size)
+        self._logger.info(LogCategory.MAIN, "点击分类任务条目", task=task_name, category=category, coord=(click_x, click_y))
+        click_ok = False
+        try:
+            android.tap(click_x, click_y)
+            click_ok = True
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "点击任务条目异常", task=task_name, error=str(exc))
+        time.sleep(2.0)
+
+        # 兜底：OCR 查找任务名重试
+        if not click_ok:
+            found = self._find_task_coord_by_name(android, serial, task_name)
+            if found:
+                self._logger.info(LogCategory.MAIN, "OCR 兜底定位任务条目", task=task_name, coord=found)
+                try:
+                    android.tap(found[0], found[1])
+                    click_ok = True
+                except Exception as exc:
+                    self._logger.warning(LogCategory.MAIN, "OCR 兜底点击异常", task=task_name, error=str(exc))
+                time.sleep(2.0)
+        if not click_ok:
+            return {"status": "error", "message": f"未找到任务条目: {task_name}"}
+
+        # 2. 若仍在任务列表页，尝试点击右侧的"开始追踪"按钮
+        if self._is_task_list_page(serial):
+            ocr_result = self.execute(
+                "scene.elements",
+                {"serial": serial, "enable_ocr": True, "enable_template": False, "enable_color": False},
+            )
+            track_elements: List[Dict[str, Any]] = []
+            if isinstance(ocr_result, dict) and ocr_result.get("status") == "success":
+                track_elements = ocr_result.get("elements", [])
+            for elem in track_elements:
+                label = str(elem.get("label", "")).strip()
+                if "追踪" in label or "开始" in label:
+                    ecx, ecy = self._norm_to_screen(elem.get("center", [0.5, 0.5]), screen_size)
+                    self._logger.info(LogCategory.MAIN, "点击追踪按钮", task=task_name, label=label, coord=(ecx, ecy))
+                    try:
+                        android.tap(ecx, ecy)
+                    except Exception as exc:
+                        self._logger.warning(LogCategory.MAIN, "点击追踪按钮异常", error=str(exc))
+                    time.sleep(2.0)
+                    break
+
+        # 3. 关闭任务列表，进入大世界
+        self._close_task_list(android)
+        time.sleep(1.5)
+
+        # 4. VLM 追踪标识导航
+        self._logger.info(LogCategory.MAIN, "VLM 追踪标识导航开始", task=task_name, category=category)
+        try:
+            walk_result = self.execute(
+                "nav3.walk_tracking",
+                {
+                    "max_steps": vlm_max_steps,
+                    "step_timeout": vlm_step_timeout,
+                    "serial": serial,
+                },
+            )
+            self._logger.info(
+                LogCategory.MAIN, "VLM 追踪标识导航结束",
+                task=task_name, status=walk_result.get("status") if isinstance(walk_result, dict) else "invalid",
+            )
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "VLM 追踪导航异常", task=task_name, error=str(exc))
+
+        # 5. 到达后尝试交互（F），部分任务需要拾取/确认
+        try:
+            android.keyevent("KEYCODE_F")
+            time.sleep(1.0)
+            android.keyevent("KEYCODE_F")
+            time.sleep(1.0)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "任务交互按键异常", task=task_name, error=str(exc))
+
+        # 6. 频繁检查任务列表，确认任务完成
+        self._logger.info(LogCategory.MAIN, "开始验证分类任务完成状态", task=task_name, category=category)
+        for check_idx in range(max_verification_checks):
+            # 重新打开任务列表
+            open_result = self._open_task_list_if_needed(runtime, serial, "CN")
+            if open_result.get("status") != "success":
+                self._logger.warning(LogCategory.MAIN, "验证时重新打开任务列表失败", task=task_name, attempt=check_idx + 1)
+                time.sleep(3.0)
+                continue
+
+            # 切回目标分类
+            self._click_category_by_name(android, serial, category)
+            time.sleep(1.0)
+
+            # 读取该分类任务列表
+            page = self._read_task_list_page(
+                android, serial, scroll_region=[80, 160, 420, 520], swipe_distance=280,
+                wait_seconds=0.5, ocr_confidence=0.3, dedup_distance=0.02,
+            )
+            current_tasks = self._extract_category_tasks(page["all_elements"], page["formatted"].get("lines", []))
+            current_names = {t["name"] for t in current_tasks}
+
+            self._logger.info(
+                LogCategory.MAIN, "分类任务完成状态检查",
+                task=task_name, category=category, attempt=check_idx + 1, remaining_tasks=list(current_names),
+            )
+
+            if task_name not in current_names:
+                return {"status": "success", "task": task_name, "checks": check_idx + 1}
+
+            # 尚未完成，等待后再次检查
+            self._close_task_list(android)
+            time.sleep(5.0)
+
+        return {
+            "status": "error",
+            "task": task_name,
+            "message": f"经过 {max_verification_checks} 次检查，任务仍存在于 {category} 列表中",
+        }
+
+    def _read_task_list_page(
+        self,
+        android: Any,
+        serial: Optional[str],
+        scroll_region: List[int],
+        swipe_distance: int = 320,
+        wait_seconds: float = 0.5,
+        ocr_confidence: float = 0.3,
+        dedup_distance: float = 0.02,
+    ) -> Dict[str, Any]:
+        """读取当前任务列表页（不点击入口图标），滚动到顶后逐屏 OCR 并格式化。"""
+        steps: List[Dict[str, Any]] = []
+
+        # 3.1 从下往上滑动至顶端
+        top_reached = self._scroll_task_list_to_top(
+            android, serial, scroll_region, swipe_distance=swipe_distance, wait_seconds=wait_seconds
+        )
+        steps.append({"step": "scroll_to_top", "status": "success", "top_reached": top_reached})
+
+        # 3.2 从顶端向下滑动，逐屏 OCR 并累积全部任务元素
+        all_elements = self._scroll_task_list_read_down(
+            android, serial, scroll_region, swipe_distance=swipe_distance, wait_seconds=wait_seconds,
+            ocr_confidence=ocr_confidence
+        )
+        steps.append({"step": "scroll_read", "status": "success", "screen_element_count": len(all_elements)})
+
+        # 3.3 格式化 OCR 结果
+        deduped_elements = self._deduplicate_task_list_elements_by_label(all_elements)
+        formatted = self._format_task_list_ocr(deduped_elements, dedup_distance=dedup_distance)
+        steps.append({"step": "format", "status": "success", "line_count": len(formatted["lines"]), "deduped_element_count": len(deduped_elements)})
+
+        return {
+            "all_elements": all_elements,
+            "formatted": formatted,
+            "steps": steps,
+        }
+
+    def _capture_screenshot_array(self, serial: Optional[str]) -> Optional[np.ndarray]:
+        """捕获设备截图并解码为 BGR numpy 数组。"""
+        image_bytes = self.execute("screenshot", {"serial": serial})
+        if not image_bytes:
+            return None
+        arr = np.frombuffer(image_bytes, np.uint8)
+        return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
+    @staticmethod
+    def _region_similar(
+        prev_img: Optional[np.ndarray], curr_img: Optional[np.ndarray], region: List[int], threshold: float = 0.02
+    ) -> bool:
+        """比较两图在指定区域的相似度，返回是否基本无变化。"""
+        if prev_img is None or curr_img is None:
+            return False
+        x, y, w, h = region
+        # 限制在有效范围内
+        ph, pw = prev_img.shape[:2]
+        ch, cw = curr_img.shape[:2]
+        x = min(max(x, 0), pw - 1, cw - 1)
+        y = min(max(y, 0), ph - 1, ch - 1)
+        w = min(w, pw - x, cw - x)
+        h = min(h, ph - y, ch - y)
+        if w <= 0 or h <= 0:
+            return False
+        prev_crop = prev_img[y:y+h, x:x+w]
+        curr_crop = curr_img[y:y+h, x:x+w]
+        # 下采样后计算归一化平均绝对差
+        prev_small = cv2.resize(prev_crop, (64, 64))
+        curr_small = cv2.resize(curr_crop, (64, 64))
+        diff = cv2.absdiff(prev_small, curr_small).astype(np.float32) / 255.0
+        return diff.mean() < threshold
+
+    def _scroll_task_list_to_top(
+        self,
+        android: Any,
+        serial: Optional[str],
+        region: List[int],
+        swipe_distance: int = 320,
+        wait_seconds: float = 0.5,
+        max_swipes: int = 20,
+    ) -> bool:
+        """持续从下往上滑动任务列表，直到连续 3 次画面相同（判定为已到达顶端）。"""
+        x, y, w, h = region
+        center_x = x + w // 2
+        bottom_y = y + h - 40
+        top_y = y + 40
+        actual_distance = min(swipe_distance, bottom_y - top_y)
+        if actual_distance <= 0:
+            self._logger.warning(LogCategory.MAIN, "任务列表滚动区域高度无效", region=region)
+            return False
+
+        stable_count = 0
+        prev_screen: Optional[np.ndarray] = None
+        for i in range(max_swipes):
+            android.swipe(center_x, bottom_y, center_x, bottom_y - actual_distance, duration_ms=300)
+            time.sleep(wait_seconds)
+            screen = self._capture_screenshot_array(serial)
+            if self._region_similar(prev_screen, screen, region):
+                stable_count += 1
+                self._logger.debug(LogCategory.MAIN, "滚动到顶端检测", stable_count=stable_count, swipe=i+1)
+                if stable_count >= 3:
+                    self._logger.info(LogCategory.MAIN, "已到达任务列表顶端", swipes=i+1)
+                    return True
+            else:
+                stable_count = 0
+            prev_screen = screen
+        self._logger.warning(LogCategory.MAIN, "到达顶端检测未稳定，已达最大滑动次数", max_swipes=max_swipes)
+        return False
+
+    def _scroll_task_list_read_down(
+        self,
+        android: Any,
+        serial: Optional[str],
+        region: List[int],
+        swipe_distance: int = 320,
+        wait_seconds: float = 0.5,
+        ocr_confidence: float = 0.3,
+        max_screens: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """从任务列表顶端开始逐屏向下滑动并 OCR，累积全部任务元素。"""
+        x, y, w, h = region
+        center_x = x + w // 2
+        top_y = y + 40
+        bottom_y = y + h - 40
+        actual_distance = min(swipe_distance, bottom_y - top_y)
+        all_elements: List[Dict[str, Any]] = []
+
+        stable_count = 0
+        prev_screen: Optional[np.ndarray] = None
+        for i in range(max_screens):
+            # OCR 当前整页
+            ocr_result = self.execute(
+                "scene.elements",
+                {
+                    "serial": serial,
+                    "enable_ocr": True,
+                    "enable_template": False,
+                    "enable_color": False,
+                },
+            )
+            if isinstance(ocr_result, dict) and ocr_result.get("status") == "success":
+                for e in ocr_result.get("elements", []):
+                    if e.get("source") == "ocr" and e.get("confidence", 0.0) >= ocr_confidence:
+                        all_elements.append(e)
+            else:
+                self._logger.warning(
+                    LogCategory.MAIN, "滑动读取 OCR 未返回有效结果",
+                    screen=i+1,
+                    status=ocr_result.get("status") if isinstance(ocr_result, dict) else "invalid",
+                )
+
+            # 向下滑动
+            android.swipe(center_x, top_y, center_x, top_y + actual_distance, duration_ms=300)
+            time.sleep(wait_seconds)
+
+            # 检测是否已到达底部：连续 3 次画面相同
+            screen = self._capture_screenshot_array(serial)
+            if self._region_similar(prev_screen, screen, region):
+                stable_count += 1
+                if stable_count >= 3:
+                    self._logger.info(LogCategory.MAIN, "已到达任务列表底部", screens=i+1)
+                    break
+            else:
+                stable_count = 0
+            prev_screen = screen
+        else:
+            self._logger.warning(LogCategory.MAIN, "向下滑动读取达到最大屏数", max_screens=max_screens)
+
+        return all_elements
 
     def _nav_to(self, params: Dict[str, Any]) -> Dict[str, Any]:
         target = params.get("target")

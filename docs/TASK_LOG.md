@@ -1,5 +1,59 @@
 # 任务日志
 
+## 2026-07-16 09:30 (全智能·任务执行 TaskExecute 构建)
+
+- **User Request**: 准备对"全智能"进行完善：先执行"任务列表读取"并在 GUI 展示读取到的任务，用户可选择需要完成什么任务，任务分类与游戏内一致。现在需要完成对"任务执行"这个全智能任务的构建，在构建中需要完成全部的（逐一）次要任务（任务列表内的一个分类），这个环节需要大量 VLM 参与，通过对任务列表的频繁检查以确认 VLM 真的完成了任务。最终结果必须是次要分类任务被全部完成。
+- **Outcome**: 新增全智能任务 `TaskExecute`（🧠任务执行），泛化原 `_run_blue_tasks`（仅次要分类）为 `_run_category_tasks`（支持全部 5 个分类：进行中/ALL/紧要/重要/次要），并新增 `_list_categorized_tasks` 供 GUI 按分类分组展示。GUI 任务列表卡片新增「按分类读取」按钮和分类+任务双选复选框树（分类父节点勾选→子任务全选/全不选），原「执行蓝色任务」按钮改为「执行选中任务」调用 `readtask.run_category` 传 `selected_tasks`。CLI 新增 `readtask run_category` / `readtask list_categorized` 子命令。关键改动：
+  1. **Runtime 泛化**（`src/core/service/runtime.py`）：
+     - 路由 `readtask.run_category` / `readtask.list_categorized` 新增；`_run_task` 添加 `TaskExecute` 拦截（Python 编排器模式，不走 MaaFW 单一 pipeline）。
+     - `_run_blue_tasks` → `_run_category_tasks`：泛化支持 `selected_tasks`（GUI 选中）和任意分类（默认次要）；选项键以 `TaskExecute*` 为主、`BlueTask*` 兼容。
+     - `_execute_blue_task` → `_execute_category_task`：切到目标分类 → 点击任务条目 → 开始追踪 → 关闭任务列表 → VLM `nav3.walk_tracking` 导航 → 交互（F 键）→ 频繁验证循环（重新打开任务列表 → 切回分类 → 读取 → 检查任务是否消失，最多 `max_verification_checks` 次）。
+     - 新增 `_list_categorized_tasks`：遍历 `_CATEGORY_NAMES`（进行中/ALL/紧要/重要/次要），逐个点击分类标签并读取，返回 `{categories: [{name, tasks: [{name, center}]}]}` 供 GUI 分组展示。
+     - 新增 `_click_category_by_name`：OCR 检测左侧栏（归一化 x<0.12）分类标签文本，点击其中心；失败用 `_CATEGORY_COORD_FALLBACK`（仅"次要"(40,285) 经验证）兜底。
+     - 新增 `_find_task_coord_by_name`：OCR 查找任务条目屏幕坐标。
+     - `_extract_blue_tasks` → `_extract_category_tasks` 重命名（逻辑不变，适用于任意分类）。
+  2. **任务定义**（`assets/tasks/TaskExecute.json` + `assets/pipelines/task_execute.json` + `task_index.json`）：group=full_intelligence，4 个选项：`TaskExecuteCategory`（checkbox，5 cases，default 次要）+ `TaskExecuteVlmMaxSteps`（input int，default 60）+ `TaskExecuteVlmStepTimeout`（input int，default 30）+ `TaskExecuteMaxVerifyChecks`（input int，default 5）。pipeline `TaskExecuteMain` 为元数据入口节点（DirectHit + DoNothing + next=[]），实际执行由 Python 编排器拦截。
+  3. **CLI**（`src/cli/handlers.py` + `src/cli/istina.py`）：`_handle_readtask` action 校验扩展为 `("run","run_blue","run_category","list_categorized")`；新增 `p_readtask_run_category` / `p_readtask_list_categorized` 子解析器。
+  4. **GUI**（`src/gui/pyqt6/pages/maaend_control_page.py`）：NAME_ZH 新增 `"TaskExecute": "🧠任务执行"`；任务列表卡片新增「按分类读取」按钮（`_load_task_list_categorized` 调用 `readtask.list_categorized`）；`_populate_task_list_tree_categorized` 实现分类+任务复选框树（父节点 `ItemIsAutoTristate|ItemIsUserCheckable`，子节点 `ItemIsUserCheckable`）；`_on_task_list_tree_item_changed` 处理父节点勾选→子任务全选/全不选（带 `_task_list_tree_blocks_signal` 防递归）；`_collect_selected_tasks` 收集勾选任务为 `[{name, category, center}]`；`_run_blue_tasks` 改为「执行选中任务」调用 `readtask.run_category` 传 `selected_tasks`（变量名保留以符合项目记忆约束）。
+  5. **本地化**：MaaEnd `zh_cn.json`/`en_us.json` 新增 21 个 TaskExecute 键（task.TaskExecute.label/description + 4 选项 × label/description + checkbox 5 cases + input 子项）；GUI `zh_CN.json`/`en_US.json` 新增 7 个键（btn_read_task_list_categorized / btn_run_selected_tasks / no_selected_tasks / no_selected_tasks_hint / selected_tasks_partial / selected_tasks_done / selected_tasks_failed）。
+  6. **3rd-part/maaend 运行时副本同步**：`resource/pipeline/task_execute.json`、`tasks/TaskExecute.json`、`tasks/task_index.json`（插入 TaskExecute 条目）、`locales/interface/zh_cn.json`+`en_us.json`（直接修改）。
+  7. **影响面**：新增任务不影响现有 DailyFull/Harvest/MaterialFarm/ReadAllTasks 等流程；`execute` 新增 `readtask.run_category`/`readtask.list_categorized` 路由，`_run_task` 新增 `TaskExecute` 拦截分支；GUI 复选框树仅影响任务列表卡片，其他卡片不受影响；原 `_run_blue_tasks` / `readtask.run_blue` / `readtask.list_blue` 保留向后兼容。
+  8. **非期待变化**：`_run_blue_tasks_btn` 变量名保留未改（项目记忆约束），仅文案改为「执行选中任务」；`_run_blue_tasks` 方法名保留，内部逻辑改为执行选中任务；`ItemIsAutoTristate` 在 PyQt6 中自动处理子节点→父节点三态更新，无需手动同步；分类标签坐标仅"次要"经扫描验证，其余分类依赖 OCR 动态检测+兜底坐标方案。
+- **Files Modified**:
+  - `src/core/service/runtime.py`（路由扩展 + TaskExecute 拦截 + `_run_category_tasks`/`_execute_category_task`/`_list_categorized_tasks`/`_click_category_by_name`/`_find_task_coord_by_name` 新增 + `_extract_blue_tasks`→`_extract_category_tasks` 重命名）
+  - `src/cli/handlers.py`（`_handle_readtask` action 校验扩展）
+  - `src/cli/istina.py`（新增 `run_category` / `list_categorized` 子解析器）
+  - `src/gui/pyqt6/pages/maaend_control_page.py`（NAME_ZH + 按分类读取按钮 + 复选框树 + 执行选中任务 + 5 个新方法）
+  - `src/gui/pyqt6/locales/zh_CN.json` + `en_US.json`（7 个新 GUI locale 键）
+  - `assets/tasks/TaskExecute.json`（新增任务定义）
+  - `assets/pipelines/task_execute.json`（新增 pipeline 元数据节点）
+  - `assets/tasks/task_index.json`（注册 TaskExecute）
+  - `3rd-part/maaend/locales/interface/zh_cn.json` + `en_us.json`（21 个 TaskExecute locale 键，gitignored）
+  - `3rd-part/maaend/resource/pipeline/task_execute.json` + `tasks/TaskExecute.json` + `tasks/task_index.json`（运行时副本同步，gitignored）
+  - `reports/implementation/2026-07-16_task_execute_implementation.md`（实现报告）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**:
+  - py_compile 4 个 Python 文件（runtime.py / handlers.py / istina.py / maaend_control_page.py）：exit 0
+  - json.load 10 个 JSON（3 源 + 3 同步副本 + 4 locale）：`JSON OK`
+  - `scripts/verify_locale_keys.py`：exit 0（zh_CN/en_US 键对称，新增 7 个 GUI 键均匹配）
+  - 端到端设备测试待用户执行：`python -m cli.istina readtask run_category --options "{\"category\":\"次要\"}" --serial <device>` 或 GUI「按分类读取」→勾选→「执行选中任务」
+
+## 2026-07-16 01:10 (读取全部任务列表·滚动读取与导航稳定性验证)
+
+- **User Request**: 继续测试"读取全部任务列表"任务：确保能正确进入任务列表页；OCR 应准确读取任务列表内容；在主页状态连续成功导航到任务页 5 次以证明流程稳定；实现滚动读取逻辑——导航到正确页面后持续从下往上滑动任务列表，每次滑动后等待 0.5s，直到连续 3 次滑动后画面相同停止（判定到达顶端），然后以合适距离向下滑动读取完整任务列表。
+- **Outcome**:
+  1. **滚动读取实现**：在 `IstinaRuntime._read_task_list_run` 中新增 `_scroll_task_list_to_top`（从下往上滑动，0.5s/次，连续 3 次画面相同判定到达顶端）与 `_scroll_task_list_read_down`（从顶端向下滑动并逐屏 OCR 累积全部任务元素）。新增 `_capture_screenshot_array`、`_region_similar` 用于截图比对，新增 `_deduplicate_task_list_elements_by_label` 处理滚动产生的跨屏重复 OCR 元素。
+  2. **页面校验收紧**：将点击后的校验从"任意任务关键词命中"改为必须识别到 `"//任务"` 标题；重试后仍无法进入任务列表页则返回错误，避免误将地图/区域总览等页面当作任务列表读取。
+  3. **关键问题修复**：测试中发现地图页（`//武陵 /武陵城`、`事务提醒`、区域名称）曾被误判为任务列表，原因是旧关键词列表包含 `矿脉源区`、`事务提醒` 等地图页同样出现的文本。收紧为 `"//任务"` 后问题解决。
+  4. **5 次连续导航验证**：从主页出发连续执行 `readtask.run` 5 次，每次先通过 `CloseButtonType1` 返回大世界再重新导航，结果 5/5 全部成功，每次均识别到 `"//任务"` 标题及 `"清波寨"`、`"蓄水源石虫"` 等期望内容。
+  5. **端到端读取结果**：最新一次完整执行捕获 175 个原始 OCR 元素（去重后 69 个），格式化 18 行，内容包含 `ALL/清波寨/侵蚀中的呼救`、`古崖论剑`、`藏剑谷`、`古董无人机`、`枢纽区/矿脉源区/维修总动员`、`谷地通道/消失的爱人`、`景玉谷/日常·天桩追踪`、`拍摄一群蓄水源石虫`、`停止追踪` 等，与用户期望的任务列表内容一致。
+- **Files Modified**:
+  - `src/core/service/runtime.py`（`_read_task_list_run` 增加滚动读取与严格页面校验；新增 `_scroll_task_list_to_top`、`_scroll_task_list_read_down`、`_capture_screenshot_array`、`_region_similar`、`_deduplicate_task_list_elements_by_label`）
+- **验证**:
+  - 静态导入：`3rd-part\python\python.exe -c "import sys; sys.path.insert(0, 'src'); from core.service.runtime import IstinaRuntime"` exit 0
+  - 5 次连续导航测试：5/5 success，每次 `has_task=True` 且 `has_expected=True`
+  - 端到端读取命令：`$env:PYTHONPATH="src"; 3rd-part\python\python.exe src\cli\istina.py readtask run --options "{}" --serial 192.168.1.12:16512`，`status=success`，`formatted_line_count=18`
+
 ## 2026-07-15 20:00 (读取全部任务列表·端到端测试与 OCR 后端关键修复)
 
 - **User Request**: 在 192.168.1.12:16512 上完整测试"读取全部任务列表"任务并对任务页内容有效格式化缓存。

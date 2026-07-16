@@ -335,9 +335,9 @@ def _handle_material(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
 
 
 def _handle_readtask(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
-    """读取全部任务列表 CLI 处理器：readtask run --options JSON --serial."""
+    """读取全部任务列表 CLI 处理器：readtask run/run_blue/run_category/list_categorized --options JSON --serial."""
     action = getattr(args, "action", None)
-    if action != "run":
+    if action not in ("run", "run_blue", "run_category", "list_categorized"):
         return {"status": "error", "message": f"unknown readtask action: {action}"}
     try:
         options = json.loads(getattr(args, "options", "{}") or "{}")
@@ -347,7 +347,7 @@ def _handle_readtask(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
     serial = getattr(args, "serial", None)
     if serial:
         params["serial"] = serial
-    return runtime.execute("readtask.run", params)
+    return runtime.execute(f"readtask.{action}", params)
 
 
 

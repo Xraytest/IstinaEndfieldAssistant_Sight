@@ -1,0 +1,101 @@
+{
+    "task": [
+        {
+            "name": "TaskExecute",
+            "label": "$task.TaskExecute.label",
+            "entry": "TaskExecuteMain",
+            "description": "$task.TaskExecute.description",
+            "controller": [
+                "ADB",
+                "Win32-Front",
+                "Wlroots"
+            ],
+            "group": [
+                "full_intelligence"
+            ],
+            "option": [
+                "TaskExecuteCategory",
+                "TaskExecuteVlmMaxSteps",
+                "TaskExecuteVlmStepTimeout",
+                "TaskExecuteMaxVerifyChecks"
+            ]
+        }
+    ],
+    "option": {
+        "TaskExecuteCategory": {
+            "type": "checkbox",
+            "label": "$option.TaskExecuteCategory.label",
+            "description": "$option.TaskExecuteCategory.description",
+            "default_case": [
+                "次要"
+            ],
+            "cases": [
+                {
+                    "name": "进行中",
+                    "label": "$option.TaskExecuteCategory.cases.InProgress.label"
+                },
+                {
+                    "name": "ALL",
+                    "label": "$option.TaskExecuteCategory.cases.ALL.label"
+                },
+                {
+                    "name": "紧要",
+                    "label": "$option.TaskExecuteCategory.cases.Critical.label"
+                },
+                {
+                    "name": "重要",
+                    "label": "$option.TaskExecuteCategory.cases.Major.label"
+                },
+                {
+                    "name": "次要",
+                    "label": "$option.TaskExecuteCategory.cases.Minor.label"
+                }
+            ]
+        },
+        "TaskExecuteVlmMaxSteps": {
+            "type": "input",
+            "label": "$option.TaskExecuteVlmMaxSteps.label",
+            "description": "$option.TaskExecuteVlmMaxSteps.description",
+            "inputs": [
+                {
+                    "name": "TaskExecuteVlmMaxStepsValue",
+                    "label": "$option.TaskExecuteVlmMaxSteps.inputs.TaskExecuteVlmMaxStepsValue.label",
+                    "description": "$option.TaskExecuteVlmMaxSteps.inputs.TaskExecuteVlmMaxStepsValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([5-9]|[1-9][0-9]|1[0-9][0-9]|200)$",
+                    "default": "60"
+                }
+            ]
+        },
+        "TaskExecuteVlmStepTimeout": {
+            "type": "input",
+            "label": "$option.TaskExecuteVlmStepTimeout.label",
+            "description": "$option.TaskExecuteVlmStepTimeout.description",
+            "inputs": [
+                {
+                    "name": "TaskExecuteVlmStepTimeoutValue",
+                    "label": "$option.TaskExecuteVlmStepTimeout.inputs.TaskExecuteVlmStepTimeoutValue.label",
+                    "description": "$option.TaskExecuteVlmStepTimeout.inputs.TaskExecuteVlmStepTimeoutValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([5-9]|[1-9][0-9]|1[0-9][0-9])$",
+                    "default": "30"
+                }
+            ]
+        },
+        "TaskExecuteMaxVerifyChecks": {
+            "type": "input",
+            "label": "$option.TaskExecuteMaxVerifyChecks.label",
+            "description": "$option.TaskExecuteMaxVerifyChecks.description",
+            "inputs": [
+                {
+                    "name": "TaskExecuteMaxVerifyChecksValue",
+                    "label": "$option.TaskExecuteMaxVerifyChecks.inputs.TaskExecuteMaxVerifyChecksValue.label",
+                    "description": "$option.TaskExecuteMaxVerifyChecks.inputs.TaskExecuteMaxVerifyChecksValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([1-9]|[1-9][0-9])$",
+                    "default": "5"
+                }
+            ]
+        }
+    }
+}

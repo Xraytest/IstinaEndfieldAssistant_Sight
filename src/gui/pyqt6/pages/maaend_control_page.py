@@ -108,6 +108,7 @@ NAME_ZH = {
     "MaterialFarm": "🧱材料刷取",
     "MaterialCollect": "🧺材料收取",
     "ReadAllTasks": "📋读取全部任务列表",
+    "TaskExecute": "🧠任务执行",
     "ProtocolSpace": "⚔️协议空间",
     "DijiangRewards": "🎁基建任务",
     "VisitFriends": "🤝拜访好友",
@@ -530,6 +531,41 @@ class MaaEndControlPage(QWidget):
         option_btn_row.addStretch()
         option_layout.addLayout(option_btn_row)
         options_layout.addWidget(option_card)
+
+        # Task list projection card
+        task_list_card = QGroupBox(locale.tr("task_list_card", "任务列表"))
+        task_list_card.setStyleSheet(CARD_STYLE)
+        task_list_layout = QVBoxLayout(task_list_card)
+        task_list_layout.setContentsMargins(2, 2, 2, 2)
+        task_list_layout.setSpacing(2)
+
+        task_list_btn_row = QHBoxLayout()
+        task_list_btn_row.setContentsMargins(0, 0, 0, 0)
+        task_list_btn_row.setSpacing(6)
+        self._read_task_list_btn = QPushButton(locale.tr("btn_read_task_list", "读取任务列表"))
+        self._read_task_list_btn.setStyleSheet(BTN_DEFAULT)
+        self._read_task_list_btn.clicked.connect(self._load_task_list)
+        task_list_btn_row.addWidget(self._read_task_list_btn)
+        self._read_task_list_categorized_btn = QPushButton(locale.tr("btn_read_task_list_categorized", "按分类读取"))
+        self._read_task_list_categorized_btn.setStyleSheet(BTN_DEFAULT)
+        self._read_task_list_categorized_btn.clicked.connect(self._load_task_list_categorized)
+        task_list_btn_row.addWidget(self._read_task_list_categorized_btn)
+        self._run_blue_tasks_btn = QPushButton(locale.tr("btn_run_selected_tasks", "执行选中任务"))
+        self._run_blue_tasks_btn.setStyleSheet(BTN_ACTIVE)
+        self._run_blue_tasks_btn.clicked.connect(self._run_blue_tasks)
+        task_list_btn_row.addWidget(self._run_blue_tasks_btn)
+        task_list_btn_row.addStretch()
+        task_list_layout.addLayout(task_list_btn_row)
+
+        self._task_list_tree = QTreeWidget()
+        self._task_list_tree.setStyleSheet(TREE_STYLE)
+        self._task_list_tree.setHeaderHidden(True)
+        self._task_list_tree.setMinimumHeight(120)
+        # 启用分类+任务双选复选框树（分类父节点勾选→子任务全选/全不选）
+        self._task_list_tree.itemChanged.connect(self._on_task_list_tree_item_changed)
+        self._task_list_tree_blocks_signal = False
+        task_list_layout.addWidget(self._task_list_tree, 1)
+        options_layout.addWidget(task_list_card)
         options_col.setMinimumWidth(240)
 
         # Column 3: Right (Presets | Queue | Preview | SimpleLog) -------
@@ -1078,6 +1114,197 @@ class MaaEndControlPage(QWidget):
         except Exception as exc:
             self.log_message.emit("队列", f"停止 llama-server 异常: {exc}")
 
+
+    # ------------------------------------------------------------------
+    # task list projection
+    # ------------------------------------------------------------------
+    def _load_task_list(self) -> None:
+        if not self._ensure_connected():
+            return
+        serial = self._resolve_serial_from_config()
+        self._append_log("任务列表", "开始读取任务列表...")
+        result = self._sync_execute("readtask.run", {"serial": serial, "options": {}}, timeout_ms=120000)
+        if not (result and result.get("status") == "success"):
+            msg = result.get("message", "未知错误") if isinstance(result, dict) else "无响应"
+            QMessageBox.warning(self, locale.tr("read_task_list_failed", "读取失败"), f"读取任务列表失败: {msg}")
+            self._append_log("任务列表", f"读取失败: {msg}")
+            return
+        lines = result.get("formatted_lines", [])
+        self._populate_task_list_tree(lines)
+        self._append_log("任务列表", f"读取成功，共 {len(lines)} 行")
+
+    def _populate_task_list_tree(self, lines: List[str]) -> None:
+        """以平铺方式展示任务列表行（不分组、不带复选框）。"""
+        self._task_list_tree_blocks_signal = True
+        try:
+            self._task_list_tree.clear()
+            for line in lines:
+                if not line.strip():
+                    continue
+                QTreeWidgetItem(self._task_list_tree, [line.strip()])
+            self._task_list_tree.expandAll()
+        finally:
+            self._task_list_tree_blocks_signal = False
+
+    def _populate_task_list_tree_categorized(self, categories: List[Dict[str, Any]]) -> None:
+        """以分类+任务复选框树展示，分类为父节点，任务为子节点（带复选框）。
+
+        categories 结构: [{"name": "次要", "tasks": [{"name": "...", "center": [x,y]}]}]
+        """
+        self._task_list_tree_blocks_signal = True
+        try:
+            self._task_list_tree.clear()
+            for cat in categories:
+                cat_name = cat.get("name", "")
+                tasks = cat.get("tasks", []) or []
+                cat_item = QTreeWidgetItem(self._task_list_tree, [cat_name])
+                cat_item.setData(0, Qt.ItemDataRole.UserRole, {"kind": "category", "name": cat_name})
+                # 父节点带三态复选框
+                cat_item.setFlags(cat_item.flags() | Qt.ItemFlag.ItemIsAutoTristate | Qt.ItemFlag.ItemIsUserCheckable)
+                if tasks:
+                    cat_item.setCheckState(0, Qt.CheckState.Unchecked)
+                else:
+                    cat_item.setCheckState(0, Qt.CheckState.Unchecked)
+                for t in tasks:
+                    tname = t.get("name", "")
+                    child = QTreeWidgetItem(cat_item, [tname])
+                    child.setData(0, Qt.ItemDataRole.UserRole, {
+                        "kind": "task",
+                        "name": tname,
+                        "category": cat_name,
+                        "center": t.get("center"),
+                    })
+                    child.setFlags(child.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                    child.setCheckState(0, Qt.CheckState.Unchecked)
+                self._task_list_tree.expandItem(cat_item)
+        finally:
+            self._task_list_tree_blocks_signal = False
+
+    def _on_task_list_tree_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
+        """分类父节点勾选→子任务全选/全不选；子任务勾选状态变化→更新父节点三态。"""
+        if self._task_list_tree_blocks_signal:
+            return
+        data = item.data(0, Qt.ItemDataRole.UserRole) or {}
+        kind = data.get("kind")
+        if kind != "category":
+            # 子任务勾选变化：让 Qt.ItemIsAutoTristate 自动更新父节点三态
+            return
+        # 父节点勾选→同步所有子任务
+        new_state = item.checkState(0)
+        self._task_list_tree_blocks_signal = True
+        try:
+            for i in range(item.childCount()):
+                child = item.child(i)
+                child.setCheckState(0, new_state)
+        finally:
+            self._task_list_tree_blocks_signal = False
+
+    def _collect_selected_tasks(self) -> List[Dict[str, Any]]:
+        """收集树中被勾选的任务（仅叶子任务节点），返回 [{name, category, center}]。"""
+        selected: List[Dict[str, Any]] = []
+        root = self._task_list_tree.invisibleRootItem()
+        for i in range(root.childCount()):
+            cat_item = root.child(i)
+            cat_data = cat_item.data(0, Qt.ItemDataRole.UserRole) or {}
+            if cat_data.get("kind") != "category":
+                continue
+            cat_name = cat_data.get("name", "")
+            for j in range(cat_item.childCount()):
+                child = cat_item.child(j)
+                cdata = child.data(0, Qt.ItemDataRole.UserRole) or {}
+                if cdata.get("kind") != "task":
+                    continue
+                if child.checkState(0) == Qt.CheckState.Checked:
+                    selected.append({
+                        "name": cdata.get("name", child.text(0)),
+                        "category": cat_name,
+                        "center": cdata.get("center"),
+                    })
+        return selected
+
+    def _load_task_list_categorized(self) -> None:
+        """按分类读取任务列表：调用 readtask.list_categorized，分类+任务复选框树展示。"""
+        if not self._ensure_connected():
+            return
+        if self._is_executing:
+            QMessageBox.information(self, locale.tr("executing", "执行中"), locale.tr("queue_busy", "当前已有任务在执行中"))
+            return
+        serial = self._resolve_serial_from_config()
+        self._append_log("任务列表", "开始按分类读取任务列表...")
+        result = self._sync_execute("readtask.list_categorized", {"serial": serial, "options": {}}, timeout_ms=300000)
+        if not (result and result.get("status") == "success"):
+            msg = result.get("message", "未知错误") if isinstance(result, dict) else "无响应"
+            QMessageBox.warning(self, locale.tr("read_task_list_failed", "读取失败"), f"按分类读取失败: {msg}")
+            self._append_log("任务列表", f"按分类读取失败: {msg}")
+            return
+        categories = result.get("categories", []) or []
+        self._populate_task_list_tree_categorized(categories)
+        total = sum(len(c.get("tasks", []) or []) for c in categories)
+        self._append_log("任务列表", f"按分类读取成功，共 {len(categories)} 个分类、{total} 个任务")
+
+    def _run_blue_tasks(self) -> None:
+        """执行选中的任务（复选框树中勾选的任务）。"""
+        if not self._ensure_connected():
+            return
+        if self._is_executing:
+            QMessageBox.information(self, locale.tr("executing", "执行中"), locale.tr("queue_busy", "当前已有任务在执行中"))
+            return
+        selected = self._collect_selected_tasks()
+        if not selected:
+            QMessageBox.information(
+                self,
+                locale.tr("no_selected_tasks", "未选中任务"),
+                locale.tr("no_selected_tasks_hint", "请先按分类读取任务列表并勾选要执行的任务"),
+            )
+            return
+        serial = self._resolve_serial_from_config()
+        # 按 category 分组聚合，便于日志展示
+        cat_groups: Dict[str, List[str]] = {}
+        for t in selected:
+            cat_groups.setdefault(t.get("category", "次要"), []).append(t.get("name", ""))
+        summary = ", ".join(f"{c}({len(names)})" for c, names in cat_groups.items())
+        self._append_log("任务列表", f"开始执行选中任务: {summary}")
+        options = {"selected_tasks": selected}
+        result = self._sync_execute(
+            "readtask.run_category",
+            {"serial": serial, "options": options},
+            timeout_ms=900000,
+        )
+        if result and result.get("status") in ("success", "partial"):
+            completed = result.get("completed_tasks", []) or []
+            failed = result.get("failed_tasks", []) or []
+            self._append_log("任务列表", f"选中任务执行完成: 成功 {len(completed)} 个，失败 {len(failed)} 个")
+            if failed:
+                QMessageBox.warning(
+                    self,
+                    locale.tr("selected_tasks_partial", "部分失败"),
+                    f"失败任务: {', '.join(failed)}",
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    locale.tr("selected_tasks_done", "完成"),
+                    "所有选中任务已执行完毕",
+                )
+        else:
+            msg = result.get("message", "未知错误") if isinstance(result, dict) else "无响应"
+            self._append_log("任务列表", f"选中任务执行失败: {msg}")
+            QMessageBox.warning(
+                self,
+                locale.tr("selected_tasks_failed", "执行失败"),
+                f"选中任务执行失败: {msg}",
+            )
+
+    def _resolve_serial_from_config(self) -> Optional[str]:
+        try:
+            from core.foundation.paths import get_project_root
+            config_path = Path(get_project_root()) / "config" / "client_config.json"
+            if config_path.is_file():
+                data = json.loads(config_path.read_text(encoding="utf-8"))
+                return (((data.get("device") or {}).get("last_connected")) or ((data.get("device") or {}).get("serial")))
+        except Exception:
+            pass
+        return None
 
     # ------------------------------------------------------------------
     # option editor

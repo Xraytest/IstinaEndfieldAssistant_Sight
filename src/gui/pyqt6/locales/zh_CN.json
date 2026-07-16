@@ -226,5 +226,12 @@
   "scripting_finished": "播放完成。",
   "scripting_stopped": "播放已停止。",
   "settings_save_failed": "保存失败",
-  "settings_save_failed_msg": "保存设置失败：{exc}"
+  "settings_save_failed_msg": "保存设置失败：{exc}",
+  "btn_read_task_list_categorized": "按分类读取",
+  "btn_run_selected_tasks": "执行选中任务",
+  "no_selected_tasks": "未选中任务",
+  "no_selected_tasks_hint": "请先按分类读取任务列表并勾选要执行的任务",
+  "selected_tasks_partial": "部分失败",
+  "selected_tasks_done": "完成",
+  "selected_tasks_failed": "执行失败"
 }

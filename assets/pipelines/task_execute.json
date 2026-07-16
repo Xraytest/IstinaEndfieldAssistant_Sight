@@ -1,0 +1,8 @@
+{
+  "TaskExecuteMain": {
+    "recognition": "DirectHit",
+    "action": "DoNothing",
+    "next": [],
+    "desc": "任务执行主入口（Python 编排器拦截 task.run TaskExecute，不会作为单一 MaaFW 任务执行；此节点仅供任务元数据 entry 一致性使用）"
+  }
+}
