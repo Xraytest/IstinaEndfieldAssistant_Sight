@@ -53,6 +53,7 @@ from core.foundation.logger import LogCategory, get_logger
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.queue_state import QueueState
+from gui.pyqt6.queue_video_recorder import QueueVideoRecorder
 from gui.pyqt6.theme.widget_styles import (
     BLUE_STYLE,
     BTN_ACTIVE,
@@ -125,6 +126,7 @@ NAME_ZH = {
     "WebEvent202605": "🎁自动共贺庆典网页活动",
     "AndroidOpenGame": "🎮打开游戏",
     "CloseGame": "❌关闭游戏",
+    "RecoverGame": "🔄异常处理",
     "RealTimeTask": "🤖实时开荒辅助",
     "ItemTransfer": "🐌库存转移",
     "Crafting": "🧪简易制作",
@@ -322,6 +324,7 @@ class MaaEndControlPage(QWidget):
         self._worker: Optional[TaskRunWorker] = None
         self._failed_indices: list[int] = []
         self._failed_indices_lock = threading.Lock()  # H-12: 保护跨线程访问
+        self._recorder: Optional[QueueVideoRecorder] = None  # 队列执行视频录制器（开发者选项）
         self._connected = False
         self._tasks_cache: Dict[str, Dict[str, Any]] = {}
         self._presets_cache: Dict[str, Dict[str, Any]] = {}
@@ -530,42 +533,7 @@ class MaaEndControlPage(QWidget):
         option_btn_row.setSpacing(6)
         option_btn_row.addStretch()
         option_layout.addLayout(option_btn_row)
-        options_layout.addWidget(option_card)
-
-        # Task list projection card
-        task_list_card = QGroupBox(locale.tr("task_list_card", "任务列表"))
-        task_list_card.setStyleSheet(CARD_STYLE)
-        task_list_layout = QVBoxLayout(task_list_card)
-        task_list_layout.setContentsMargins(2, 2, 2, 2)
-        task_list_layout.setSpacing(2)
-
-        task_list_btn_row = QHBoxLayout()
-        task_list_btn_row.setContentsMargins(0, 0, 0, 0)
-        task_list_btn_row.setSpacing(6)
-        self._read_task_list_btn = QPushButton(locale.tr("btn_read_task_list", "读取任务列表"))
-        self._read_task_list_btn.setStyleSheet(BTN_DEFAULT)
-        self._read_task_list_btn.clicked.connect(self._load_task_list)
-        task_list_btn_row.addWidget(self._read_task_list_btn)
-        self._read_task_list_categorized_btn = QPushButton(locale.tr("btn_read_task_list_categorized", "按分类读取"))
-        self._read_task_list_categorized_btn.setStyleSheet(BTN_DEFAULT)
-        self._read_task_list_categorized_btn.clicked.connect(self._load_task_list_categorized)
-        task_list_btn_row.addWidget(self._read_task_list_categorized_btn)
-        self._run_blue_tasks_btn = QPushButton(locale.tr("btn_run_selected_tasks", "执行选中任务"))
-        self._run_blue_tasks_btn.setStyleSheet(BTN_ACTIVE)
-        self._run_blue_tasks_btn.clicked.connect(self._run_blue_tasks)
-        task_list_btn_row.addWidget(self._run_blue_tasks_btn)
-        task_list_btn_row.addStretch()
-        task_list_layout.addLayout(task_list_btn_row)
-
-        self._task_list_tree = QTreeWidget()
-        self._task_list_tree.setStyleSheet(TREE_STYLE)
-        self._task_list_tree.setHeaderHidden(True)
-        self._task_list_tree.setMinimumHeight(120)
-        # 启用分类+任务双选复选框树（分类父节点勾选→子任务全选/全不选）
-        self._task_list_tree.itemChanged.connect(self._on_task_list_tree_item_changed)
-        self._task_list_tree_blocks_signal = False
-        task_list_layout.addWidget(self._task_list_tree, 1)
-        options_layout.addWidget(task_list_card)
+        options_layout.addWidget(option_card, 1)
         options_col.setMinimumWidth(240)
 
         # Column 3: Right (Presets | Queue | Preview | SimpleLog) -------
@@ -1052,7 +1020,9 @@ class MaaEndControlPage(QWidget):
             QMessageBox.warning(self, locale.tr("import_failed", "Import Failed"), str(exc))
 
     # VLM 驱动的任务列表，队列结束后需要显式停止 llama-server
-    _VLM_DRIVEN_TASKS = frozenset({"MaterialFarm", "MaterialCollect"})
+    # AutoCollect 改用 VLM 携带路线信息+标志物导航模式（nav3.walk_collect），
+    # 把 waypoints + collect_items 作为上下文给 VLM 自主导航，依赖 LLM。
+    _VLM_DRIVEN_TASKS = frozenset({"MaterialFarm", "MaterialCollect", "AutoCollect"})
 
     def _runtime_queue_runner(self, retry_indices: Optional[list[int]] = None) -> bool:
         items = list(self._queue_state.queue_items)
@@ -1085,7 +1055,7 @@ class MaaEndControlPage(QWidget):
             merged_options = dict(inline_options)
             merged_options.update(options)
             # name 是 argparse 位置参数，嵌入命令字符串；options 通过 params 传递
-            # timeout_ms=600000 容纳异常恢复（CloseGame + AndroidOpenGame + 重试）
+            # timeout_ms=600000 容纳异常恢复（RecoverGame: StopApp → StartApp → OpenGame + 重试）
             result = self._sync_execute(f"task run {clean_name}", {"options": merged_options}, timeout_ms=600000)
 
             ok = bool(result and result.get("status") == "success")
@@ -1114,186 +1084,6 @@ class MaaEndControlPage(QWidget):
         except Exception as exc:
             self.log_message.emit("队列", f"停止 llama-server 异常: {exc}")
 
-
-    # ------------------------------------------------------------------
-    # task list projection
-    # ------------------------------------------------------------------
-    def _load_task_list(self) -> None:
-        if not self._ensure_connected():
-            return
-        serial = self._resolve_serial_from_config()
-        self._append_log("任务列表", "开始读取任务列表...")
-        result = self._sync_execute("readtask.run", {"serial": serial, "options": {}}, timeout_ms=120000)
-        if not (result and result.get("status") == "success"):
-            msg = result.get("message", "未知错误") if isinstance(result, dict) else "无响应"
-            QMessageBox.warning(self, locale.tr("read_task_list_failed", "读取失败"), f"读取任务列表失败: {msg}")
-            self._append_log("任务列表", f"读取失败: {msg}")
-            return
-        lines = result.get("formatted_lines", [])
-        self._populate_task_list_tree(lines)
-        self._append_log("任务列表", f"读取成功，共 {len(lines)} 行")
-
-    def _populate_task_list_tree(self, lines: List[str]) -> None:
-        """以平铺方式展示任务列表行（不分组、不带复选框）。"""
-        self._task_list_tree_blocks_signal = True
-        try:
-            self._task_list_tree.clear()
-            for line in lines:
-                if not line.strip():
-                    continue
-                QTreeWidgetItem(self._task_list_tree, [line.strip()])
-            self._task_list_tree.expandAll()
-        finally:
-            self._task_list_tree_blocks_signal = False
-
-    def _populate_task_list_tree_categorized(self, categories: List[Dict[str, Any]]) -> None:
-        """以分类+任务复选框树展示，分类为父节点，任务为子节点（带复选框）。
-
-        categories 结构: [{"name": "次要", "tasks": [{"name": "...", "center": [x,y]}]}]
-        """
-        self._task_list_tree_blocks_signal = True
-        try:
-            self._task_list_tree.clear()
-            for cat in categories:
-                cat_name = cat.get("name", "")
-                tasks = cat.get("tasks", []) or []
-                cat_item = QTreeWidgetItem(self._task_list_tree, [cat_name])
-                cat_item.setData(0, Qt.ItemDataRole.UserRole, {"kind": "category", "name": cat_name})
-                # 父节点带三态复选框
-                cat_item.setFlags(cat_item.flags() | Qt.ItemFlag.ItemIsAutoTristate | Qt.ItemFlag.ItemIsUserCheckable)
-                if tasks:
-                    cat_item.setCheckState(0, Qt.CheckState.Unchecked)
-                else:
-                    cat_item.setCheckState(0, Qt.CheckState.Unchecked)
-                for t in tasks:
-                    tname = t.get("name", "")
-                    child = QTreeWidgetItem(cat_item, [tname])
-                    child.setData(0, Qt.ItemDataRole.UserRole, {
-                        "kind": "task",
-                        "name": tname,
-                        "category": cat_name,
-                        "center": t.get("center"),
-                    })
-                    child.setFlags(child.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                    child.setCheckState(0, Qt.CheckState.Unchecked)
-                self._task_list_tree.expandItem(cat_item)
-        finally:
-            self._task_list_tree_blocks_signal = False
-
-    def _on_task_list_tree_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
-        """分类父节点勾选→子任务全选/全不选；子任务勾选状态变化→更新父节点三态。"""
-        if self._task_list_tree_blocks_signal:
-            return
-        data = item.data(0, Qt.ItemDataRole.UserRole) or {}
-        kind = data.get("kind")
-        if kind != "category":
-            # 子任务勾选变化：让 Qt.ItemIsAutoTristate 自动更新父节点三态
-            return
-        # 父节点勾选→同步所有子任务
-        new_state = item.checkState(0)
-        self._task_list_tree_blocks_signal = True
-        try:
-            for i in range(item.childCount()):
-                child = item.child(i)
-                child.setCheckState(0, new_state)
-        finally:
-            self._task_list_tree_blocks_signal = False
-
-    def _collect_selected_tasks(self) -> List[Dict[str, Any]]:
-        """收集树中被勾选的任务（仅叶子任务节点），返回 [{name, category, center}]。"""
-        selected: List[Dict[str, Any]] = []
-        root = self._task_list_tree.invisibleRootItem()
-        for i in range(root.childCount()):
-            cat_item = root.child(i)
-            cat_data = cat_item.data(0, Qt.ItemDataRole.UserRole) or {}
-            if cat_data.get("kind") != "category":
-                continue
-            cat_name = cat_data.get("name", "")
-            for j in range(cat_item.childCount()):
-                child = cat_item.child(j)
-                cdata = child.data(0, Qt.ItemDataRole.UserRole) or {}
-                if cdata.get("kind") != "task":
-                    continue
-                if child.checkState(0) == Qt.CheckState.Checked:
-                    selected.append({
-                        "name": cdata.get("name", child.text(0)),
-                        "category": cat_name,
-                        "center": cdata.get("center"),
-                    })
-        return selected
-
-    def _load_task_list_categorized(self) -> None:
-        """按分类读取任务列表：调用 readtask.list_categorized，分类+任务复选框树展示。"""
-        if not self._ensure_connected():
-            return
-        if self._is_executing:
-            QMessageBox.information(self, locale.tr("executing", "执行中"), locale.tr("queue_busy", "当前已有任务在执行中"))
-            return
-        serial = self._resolve_serial_from_config()
-        self._append_log("任务列表", "开始按分类读取任务列表...")
-        result = self._sync_execute("readtask.list_categorized", {"serial": serial, "options": {}}, timeout_ms=300000)
-        if not (result and result.get("status") == "success"):
-            msg = result.get("message", "未知错误") if isinstance(result, dict) else "无响应"
-            QMessageBox.warning(self, locale.tr("read_task_list_failed", "读取失败"), f"按分类读取失败: {msg}")
-            self._append_log("任务列表", f"按分类读取失败: {msg}")
-            return
-        categories = result.get("categories", []) or []
-        self._populate_task_list_tree_categorized(categories)
-        total = sum(len(c.get("tasks", []) or []) for c in categories)
-        self._append_log("任务列表", f"按分类读取成功，共 {len(categories)} 个分类、{total} 个任务")
-
-    def _run_blue_tasks(self) -> None:
-        """执行选中的任务（复选框树中勾选的任务）。"""
-        if not self._ensure_connected():
-            return
-        if self._is_executing:
-            QMessageBox.information(self, locale.tr("executing", "执行中"), locale.tr("queue_busy", "当前已有任务在执行中"))
-            return
-        selected = self._collect_selected_tasks()
-        if not selected:
-            QMessageBox.information(
-                self,
-                locale.tr("no_selected_tasks", "未选中任务"),
-                locale.tr("no_selected_tasks_hint", "请先按分类读取任务列表并勾选要执行的任务"),
-            )
-            return
-        serial = self._resolve_serial_from_config()
-        # 按 category 分组聚合，便于日志展示
-        cat_groups: Dict[str, List[str]] = {}
-        for t in selected:
-            cat_groups.setdefault(t.get("category", "次要"), []).append(t.get("name", ""))
-        summary = ", ".join(f"{c}({len(names)})" for c, names in cat_groups.items())
-        self._append_log("任务列表", f"开始执行选中任务: {summary}")
-        options = {"selected_tasks": selected}
-        result = self._sync_execute(
-            "readtask.run_category",
-            {"serial": serial, "options": options},
-            timeout_ms=900000,
-        )
-        if result and result.get("status") in ("success", "partial"):
-            completed = result.get("completed_tasks", []) or []
-            failed = result.get("failed_tasks", []) or []
-            self._append_log("任务列表", f"选中任务执行完成: 成功 {len(completed)} 个，失败 {len(failed)} 个")
-            if failed:
-                QMessageBox.warning(
-                    self,
-                    locale.tr("selected_tasks_partial", "部分失败"),
-                    f"失败任务: {', '.join(failed)}",
-                )
-            else:
-                QMessageBox.information(
-                    self,
-                    locale.tr("selected_tasks_done", "完成"),
-                    "所有选中任务已执行完毕",
-                )
-        else:
-            msg = result.get("message", "未知错误") if isinstance(result, dict) else "无响应"
-            self._append_log("任务列表", f"选中任务执行失败: {msg}")
-            QMessageBox.warning(
-                self,
-                locale.tr("selected_tasks_failed", "执行失败"),
-                f"选中任务执行失败: {msg}",
-            )
 
     def _resolve_serial_from_config(self) -> Optional[str]:
         try:
@@ -1334,15 +1124,42 @@ class MaaEndControlPage(QWidget):
                 self._option_form.addWidget(hint)
                 return
             option_defs = self._resolve_option_defs(task)
-            # 递归渲染选项（含子选项），level=0 为顶层
-            for name in option_names:
-                self._render_option_row(name, option_defs, self._option_form, level=0)
-            self._option_form.addStretch()
-            self._apply_saved_option_values(self._selected_task, queue_index=queue_index)
+            # 性能优化：分批渲染选项，每批 _OPTION_BATCH 个，批之间用 QTimer 让出主线程。
+            # 视觉效果：选项逐步出现而非一次性卡顿；选中任务即时响应。
+            self._option_build_state = {
+                "names": list(option_names),
+                "defs": option_defs,
+                "queue_index": queue_index,
+                "pos": 0,
+            }
+            QTimer.singleShot(0, self._build_option_batch)
         finally:
             self._is_building_editor = False
-        # 渲染+恢复完成，保存一次恢复后的值（确保队列实例 options 与 UI 一致）
-        self._save_options()
+
+    _OPTION_BATCH = 5
+
+    def _build_option_batch(self) -> None:
+        """分批渲染选项行，避免一次性构建几十个 widget 阻塞主线程。"""
+        state = getattr(self, "_option_build_state", None)
+        if state is None:
+            return
+        names: list = state["names"]
+        defs: dict = state["defs"]
+        pos = state["pos"]
+        if pos >= len(names):
+            # 全部渲染完成
+            self._option_form.addStretch()
+            self._apply_saved_option_values(self._selected_task, queue_index=state.get("queue_index"))
+            self._option_build_state = None
+            # 渲染+恢复完成，保存一次恢复后的值（确保队列实例 options 与 UI 一致）
+            self._save_options()
+            return
+        batch_end = min(pos + self._OPTION_BATCH, len(names))
+        for i in range(pos, batch_end):
+            self._render_option_row(names[i], defs, self._option_form, level=0)
+        state["pos"] = batch_end
+        # 让出主线程处理事件，再继续下一批
+        QTimer.singleShot(0, self._build_option_batch)
 
     def _resolve_option_defs(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """解析任务的选项定义，优先使用任务内联 _option_defs，回退到全局 _task_option_defs。"""
@@ -1549,6 +1366,16 @@ class MaaEndControlPage(QWidget):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        # 性能优化：合并同一帧多次 resize，避免 splitter.setSizes 级联重排
+        # 子 widget 的 resizeEvent。setUpdatesEnabled(False) 抑制中间态绘制。
+        self._layout_dirty = True
+        QTimer.singleShot(0, self._flush_layout)
+
+    def _flush_layout(self) -> None:
+        """合并多个 resize 请求为一次布局同步。"""
+        if not getattr(self, "_layout_dirty", False):
+            return
+        self._layout_dirty = False
         self._sync_layout_geometry()
 
     def eventFilter(self, obj, event):
@@ -1597,28 +1424,33 @@ class MaaEndControlPage(QWidget):
         required = ("_preset_list", "_task_list", "_queue_list", "_log_text")
         if not all(hasattr(self, name) for name in required):
             return
-        tasks_col = getattr(self, "_tasks_col", None)
-        options_col = getattr(self, "_options_col", None)
-        right_col = getattr(self, "_right_col", None)
-        if tasks_col is not None:
-            tasks_col.setMinimumWidth(220)
-        if options_col is not None:
-            options_col.setMinimumWidth(240)
-        if right_col is not None:
-            right_col.setMinimumWidth(400)
-        total = max(self.width(), 1)
-        tasks_width = max(220, int(total * 0.20))
-        options_width = max(240, int(total * 0.30))
-        right_width = max(400, total - tasks_width - options_width - 12)
-        splitter.setSizes([tasks_width, options_width, right_width])
-        self._preset_list.setMinimumHeight(60)
-        self._task_list.setMinimumHeight(80)
-        self._queue_list.setMinimumHeight(60)
-        self._log_text.setMinimumHeight(60)
-        self._option_scroll.setMinimumHeight(120)
-        # Queue list row height optimization
-        if hasattr(self, "_queue_list"):
-            self._queue_list.verticalHeader().setDefaultSectionSize(32)
+        # 性能优化：批量布局变更期间禁用绘制，避免中间态触发重绘
+        splitter.setUpdatesEnabled(False)
+        try:
+            tasks_col = getattr(self, "_tasks_col", None)
+            options_col = getattr(self, "_options_col", None)
+            right_col = getattr(self, "_right_col", None)
+            if tasks_col is not None:
+                tasks_col.setMinimumWidth(220)
+            if options_col is not None:
+                options_col.setMinimumWidth(240)
+            if right_col is not None:
+                right_col.setMinimumWidth(400)
+            total = max(self.width(), 1)
+            tasks_width = max(220, int(total * 0.20))
+            options_width = max(240, int(total * 0.30))
+            right_width = max(400, total - tasks_width - options_width - 12)
+            splitter.setSizes([tasks_width, options_width, right_width])
+            self._preset_list.setMinimumHeight(60)
+            self._task_list.setMinimumHeight(80)
+            self._queue_list.setMinimumHeight(60)
+            self._log_text.setMinimumHeight(60)
+            self._option_scroll.setMinimumHeight(120)
+            # Queue list row height optimization
+            if hasattr(self, "_queue_list"):
+                self._queue_list.verticalHeader().setDefaultSectionSize(32)
+        finally:
+            splitter.setUpdatesEnabled(True)
 
     def _create_option_widget(self, name: str, opt_def: Dict[str, Any]) -> QWidget:
         opt_type = opt_def.get("type", "switch")
@@ -2087,11 +1919,10 @@ class MaaEndControlPage(QWidget):
     # ------------------------------------------------------------------
     def _delayed_init(self) -> None:
         """延迟初始化：立即渲染缓存列表，主线程顺序执行重连和元数据加载。"""
-        # 初始化期间停止预览定时器，避免与系统连接的嵌套事件循环冲突
+        # 初始化期间停止 PreviewWorker，避免与系统连接的嵌套事件循环冲突
         main_window = self.window()
-        preview_timer = getattr(main_window, "_preview_timer", None)
-        if preview_timer is not None:
-            preview_timer.stop()
+        if hasattr(main_window, "_stop_frame_worker"):
+            main_window._stop_frame_worker()
 
         # 立即渲染列表，保证启动时任务/预设列表可见。
         self.refresh()
@@ -2114,9 +1945,10 @@ class MaaEndControlPage(QWidget):
             self._auto_connect_attempted = True
             self._append_log("系统", locale.tr("auto_connect_failed", "Auto-connect failed at startup, will not retry."))
 
-        preview_timer = getattr(self.window(), "_preview_timer", None)
-        if preview_timer is not None and self._connected:
-            preview_timer.start()
+        # 连接成功后启动 PreviewWorker（替代旧的 preview_timer.start()）
+        main_window = self.window()
+        if self._connected and hasattr(main_window, "_start_frame_worker"):
+            main_window._start_frame_worker()
 
     def _do_metadata_load(self) -> None:
         result = self._sync_execute("metadata list", timeout_ms=10000)
@@ -2259,6 +2091,8 @@ class MaaEndControlPage(QWidget):
         self._is_executing = True
         self._update_execution_ui()
         self._append_log("系统", locale.tr("execution_started", "Start execution"))
+        # 开发者选项：若启用录制则启动视频录制（独立线程，不阻塞队列）
+        self._maybe_start_recording()
         self._worker = TaskRunWorker(target)
         self._worker.log.connect(self._append_log)
         self._worker.finished.connect(self._on_execution_finished)
@@ -2283,6 +2117,8 @@ class MaaEndControlPage(QWidget):
             del self._status_pulse_animation
         self._update_execution_ui()
         self._append_log("系统", locale.tr("execution_finished", "Execution finished: {success}").format(success=success))
+        # 开发者选项：停止视频录制并 finalize 文件
+        self._maybe_stop_recording()
         # MAAEND-01: 用户主动停止后不再安排自动重试，避免停止后队列恢复执行
         if not success and not user_stopped and self._failed_indices and self._auto_retry_enabled and self._retry_count < self._max_retries:
             self._append_log("系统", locale.tr("auto_retry_scheduled", "Auto-retry in {delay}s...").format(delay=self._retry_delay_ms / 1000))
@@ -2293,6 +2129,43 @@ class MaaEndControlPage(QWidget):
             self._worker.wait()
             self._worker.deleteLater()
             self._worker = None
+
+    def _maybe_start_recording(self) -> None:
+        """若开发者选项启用了"记录过程影像"，则启动视频录制。"""
+        try:
+            from core.foundation.paths import get_project_root
+            config_path = Path(get_project_root()) / "config" / "client_config.json"
+            if not config_path.is_file():
+                return
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            dev_cfg = data.get("developer", {}) or {}
+            if not dev_cfg.get("record_video", False):
+                return
+            serial = self._resolve_serial_from_config() or "default"
+            self._recorder = QueueVideoRecorder(serial)
+            if self._recorder.start():
+                self._append_log("系统", locale.tr("record_started", "Recording started: {path}").format(path=self._recorder.output_path or ""))
+            else:
+                self._append_log("系统", locale.tr("record_start_failed", "Recording failed to start (scrcpy not ready)"))
+                self._recorder = None
+        except Exception as exc:
+            self._logger.warning(LogCategory.GUI, "启动视频录制异常", error=str(exc))
+            self._recorder = None
+
+    def _maybe_stop_recording(self) -> None:
+        """停止视频录制并输出文件路径到日志。"""
+        if self._recorder is None:
+            return
+        try:
+            path = self._recorder.stop()
+            if path:
+                self._append_log("系统", locale.tr("record_finished", "Recording saved: {path}").format(path=path))
+            else:
+                self._append_log("系统", locale.tr("record_empty", "Recording produced no output"))
+        except Exception as exc:
+            self._logger.warning(LogCategory.GUI, "停止视频录制异常", error=str(exc))
+        finally:
+            self._recorder = None
 
     def _update_execution_ui(self):
         self._apply_preset_to_queue_btn.setEnabled(not self._is_executing)
@@ -2356,6 +2229,10 @@ class MaaEndControlPage(QWidget):
         else:
             # 被过滤掉时也滚动到底部，保持实时感
             self._scroll_log_to_bottom()
+
+    def append_external_log(self, source: str, text: str) -> None:
+        """外部模块（如定时任务页）向标准推理页输出日志的公开入口。"""
+        self._append_log(source, text)
 
     @staticmethod
     def _derive_log_level(source: str, text: str) -> int:

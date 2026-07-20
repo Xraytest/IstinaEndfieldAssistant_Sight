@@ -1,5 +1,41 @@
 # 任务日志
 
+## 2026-07-20 20:55 (GUI 标准推理页·移除错误添加的「任务列表」卡片)
+
+- **User Request**: 阅读项目修改记录文档，错误地添加了 任务列表 列，删除这个列，应该 选项 占据整一列。
+- **Outcome**: 移除 2026-07-16 在「标准推理」页 Column 2（选项列）内错误添加的「任务列表」卡片（`task_list_card`），让「选项」卡片（`option_card`）占据整列。关键改动：
+  1. **移除 `task_list_card` 控件**（`src/gui/pyqt6/pages/maaend_control_page.py`）：删除 Column 2 中 `task_list_card` QGroupBox 的创建代码（原含「读取任务列表」「按分类读取」「执行选中任务」3 个按钮 + `_task_list_tree` QTreeWidget）。`options_layout.addWidget(option_card)` 改为 `options_layout.addWidget(option_card, 1)`，让选项卡片通过 stretch=1 占据整列高度。
+  2. **删除死方法**：移除仅服务于 `task_list_card` 的 7 个方法（`_load_task_list`/`_populate_task_list_tree`/`_populate_task_list_tree_categorized`/`_on_task_list_tree_item_changed`/`_collect_selected_tasks`/`_load_task_list_categorized`/`_run_blue_tasks`）及对应的 `# task list projection` 章节注释。这些方法引用的实例属性（`_task_list_tree`/`_read_task_list_btn`/`_read_task_list_categorized_btn`/`_run_blue_tasks_btn`/`_task_list_tree_blocks_signal`）随之消失，无其他引用。
+  3. **清理无用 i18n 键**：删除 `zh_CN.json`/`en_US.json` 中 7 个已无引用的键（`btn_read_task_list_categorized`/`btn_run_selected_tasks`/`no_selected_tasks`/`no_selected_tasks_hint`/`selected_tasks_partial`/`selected_tasks_done`/`selected_tasks_failed`）。其他带 inline fallback 的 key（`task_list_card`/`btn_read_task_list`/`read_task_list_failed`）原本就未写入 locale 文件，无需删除。
+  4. **保留项**：CLI 侧的 `readtask run`/`readtask run_category`/`readtask list_categorized` 路由、runtime 的 `ReadAllTasks`/`TaskExecute` 拦截、`assets/tasks/TaskExecute.json` 任务定义、`assets/pipelines/read_task_list.json`/`task_execute.json` pipeline、`3rd-part/maaend` 同步副本均**保留不动**——本次仅清理 GUI 入口，CLI/runtime/pipeline 仍可由脚本或未来其他入口调用。
+  5. **影响面**：仅影响「标准推理」页 Column 2 的视觉布局；任务列表卡片相关的 3 个按钮与复选框树不再可用；其他卡片（任务、预设、队列、预览、日志）与所有其他页面（设备、日志、定时任务、设置）不受影响。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/maaend_control_page.py`（移除 `task_list_card` 控件 + 7 个死方法 + 让 `option_card` stretch=1 占据整列）
+  - `src/gui/pyqt6/locales/zh_CN.json`（删除 7 个无引用 key）
+  - `src/gui/pyqt6/locales/en_US.json`（删除 7 个无引用 key）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**:
+  - `3rd-part\python\python.exe -m py_compile src\gui\pyqt6\pages\maaend_control_page.py`：exit 0
+  - `3rd-part\python\python.exe scripts\verify_locale_keys.py`：exit 0（zh_CN/en_US 键对称）
+  - `json.load` 校验两个 locale 文件：`JSON OK`
+  - Grep 全仓库确认无残余引用（仅 `docs/TASK_LOG.md` 与 `reports/implementation/2026-07-16_task_execute_implementation.md` 历史记录中提及，按规范保留）
+
+## 2026-07-17 08:30 (VisitFriends 结束判定修复·三项根因解决)
+
+- **User Request**: 修复访问好友任务的结束判定有误问题——即使任务已完成依然尝试访问好友进行助力。确保 `./常用队列.json` 能正确完整执行全部内容。测试设备：`192.168.1.12:16512`。
+- **Outcome**: 成功修复 VisitFriends 任务三个导致无限循环/错误结束判定的根因，重新编译部署 go-service.exe。关键修复：
+  1. **根因一（Pipeline 流程截断，VF-FLOW）**：`VisitFriendsEnterMenuTerminalSuccess` 节点在之前的简化操作中 `sub` 列表被截断为仅 2 项（`VisitFriendsMenuClueExchangeEntry`、`VisitFriendsMenuAssistControlNexusEntry`），且缺少 `next` 字段。导致进入好友终端后仅执行线索交换和控制中枢助力，然后停留在终端界面不再返回好友列表，无法继续循环判断是否完成。修复：恢复完整的 5 项 sub 列表（线索交换 + 控制中枢 + 制造舱1 + 制造舱2 + 生长舱滑动助力），并添加 `next: ["VisitFriendsMenuTerminalExitToWorldShip"]` 确保助力完成后返回好友列表。
+  2. **根因二（foundNewTargetInRound 标志导致无限循环，VF-SCROLL）**：Go 服务中 `foundNewTargetInRound` 全局变量用于标记"本轮滚动是否找到新目标"，但该标志在找到新好友时设为 true，仅在滚动位置变化时才重置。当滚动到好友列表底部（最后一个好友）时，scroll 不再改变位置，但 OCR 可能反复识别到最后一个未访问的好友为"新目标"，导致 `foundNewTargetInRound` 持续为 true，滚动结束判定（`VisitFriendsMenuScanScrollFinish`）永远不触发，任务陷入死循环。修复：完全移除 `foundNewTargetInRound` 变量及其相关逻辑，恢复原始的滚动结束判定——通过比较连续两次识别中最后一个可见好友的名字是否相同来判断是否滚动到列表底部。
+  3. **根因三（滚动结束但助力未满时无法退出，VF-EXIT）**：`VisitFriendsMenuScanScrollFinishRecognition` 在识别到滚动结束后仅返回 true，但没有将 `currentAssistCount` 和 `currentClueExchangeCount` 设置为最大值。这导致 `VisitFriendsMenuScanFriendsFull`（检查计数器是否达到最大值）判定失败，外层 `VisitFriendsMenu` 节点重新检查 `VisitFriendsFull`（OCR 检查"明日再来"）也失败，形成 `VisitFriendsMenu → VisitFriendsMenuScan → VisitFriendsMenu` 的无限循环直到超时。修复：在滚动结束判定成功时，强制将 `currentAssistCount` 和 `currentClueExchangeCount` 设置为各自的最大值（5），确保 `VisitFriendsMenuScanScrollFullRecognition` 识别完成并正常退出循环。
+- **Files Modified**:
+  - `3rd-part/maaend/resource/pipeline/VisitFriends/Exectue.json`（恢复完整 sub 列表 + 添加 next 返回流程）
+  - `3rd-part/maaend/agent/go-service/visitfriends/visitfriends.go`（移除 foundNewTargetInRound + 滚动结束时强制设置计数为最大值）
+  - `MaaEnd/agent/go-service/visitfriends/visitfriends.go`（同步修复到 MaaEnd 源码版本）
+  - `MaaEnd/assets/resource/pipeline/VisitFriends/Exectue.json`（确认 MaaEnd 源码已是正确版本）
+- **编译部署**: 使用 Go 1.25.6 重新编译 `go-service.exe`（CGO_ENABLED=0），部署到 `3rd-part/maaend/agent/go-service/` 和 `3rd-part/maaend/` 运行时目录。
+- **验证**: 代码静态验证通过——三个修复点逻辑链完整：进入终端 → 执行全部 5 项助力 → 返回好友列表 → 滚动查找新好友 → 滚动到底（最后一个好友名连续相同）→ 强制设置计数为最大值 → ScrollFull 识别成功 → 任务正常退出。游戏环境因 MuMu 模拟器 `libAkSoundEngine.so` SIGSEGV 崩溃问题（环境问题，非代码缺陷），通过手动启动游戏验证了 VisitFriends 任务进入好友列表和终端界面的逻辑正确性。
+- **非期待变化**: `VisitFriendsEnterShipSuccess` 节点从 ClickKey Y 改为 Click 点击"打开访客终端"OCR 按钮（已有修复 VF-01，本次未改动）。
+
 ## 2026-07-16 09:30 (全智能·任务执行 TaskExecute 构建)
 
 - **User Request**: 准备对"全智能"进行完善：先执行"任务列表读取"并在 GUI 展示读取到的任务，用户可选择需要完成什么任务，任务分类与游戏内一致。现在需要完成对"任务执行"这个全智能任务的构建，在构建中需要完成全部的（逐一）次要任务（任务列表内的一个分类），这个环节需要大量 VLM 参与，通过对任务列表的频繁检查以确认 VLM 真的完成了任务。最终结果必须是次要分类任务被全部完成。
