@@ -63,6 +63,7 @@ from gui.pyqt6.theme.widget_styles import (
     CHECK_STYLE,
     COMBO_STYLE,
     DESC_LABEL_STYLE,
+    GREEN_STYLE,
     HEADER_STYLE,
     INFO_STYLE,
     INPUT_INVALID_STYLE,
@@ -77,6 +78,7 @@ from gui.pyqt6.theme.widget_styles import (
     TABLE_STYLE,
     TREE_STYLE,
     VAL_STYLE,
+    WHITE_STYLE,
 )
 
 locale = get_locale_manager()
@@ -385,6 +387,35 @@ class MaaEndControlPage(QWidget):
         self._bridge = bridge
         self.refresh()
 
+    def on_instance_changed(self, ctx) -> None:
+        """切换实例时调用：解绑旧 bridge 信号，绑定新 bridge + queue_state。
+
+        Args:
+            ctx: :class:`InstanceContext` 新实例上下文
+        """
+        # 解绑旧 bridge 的 logMessage
+        try:
+            self._bridge.logMessage.disconnect(self._append_log)
+        except Exception:
+            pass
+        # 切换 bridge
+        self._bridge = ctx.bridge
+        # 切换 queue_state（实例私有的队列状态）
+        self._queue_state = ctx.queue_state
+        self._state_path = self._queue_state.state_path
+        # 重新加载队列状态
+        self._queue_state.load()
+        self._selected_task = self._queue_state.selected_task
+        self._selected_preset = self._queue_state.selected_preset
+        # 绑定新 bridge 的 logMessage
+        self._bridge.logMessage.connect(self._append_log)
+        # 重置连接状态（新实例可能未连接）
+        self._connected = ctx.is_connected
+        self._auto_connect_attempted = True  # 切换后不自动连接，等用户手动
+        # 刷新 UI
+        self._restore_queue_ui()
+        self.refresh()
+
     def _sync_execute(self, command: str, params: Optional[Dict[str, Any]] = None, timeout_ms: int = 300000) -> Optional[dict]:
         """同步等待命令结果（调用线程会阻塞直到 commandFinished 或超时）。
 
@@ -481,7 +512,7 @@ class MaaEndControlPage(QWidget):
         header.addWidget(title)
         header.addStretch()
         self._status_label = QLabel(locale.tr("maaend_idle", "Idle"))
-        self._status_label.setStyleSheet(BLUE_STYLE)
+        self._status_label.setStyleSheet(WHITE_STYLE)
         header.addWidget(self._status_label)
         root.addLayout(header)
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -2176,6 +2207,14 @@ class MaaEndControlPage(QWidget):
             self._worker.stop()
         # 清空待执行命令队列，避免停止后 CLI 继续执行后续任务
         self._bridge.clear_pending()
+        # 终止当前正在运行的 CLI 子进程：
+        # CLI 内部的 MaaEndRuntime._run_task_with_retry/_recover_and_retry 没有停止检查，
+        # 仅靠 _worker.stop() 和 clear_pending() 无法中断当前 task run 命令，
+        # 会导致 RecoverGame（StopApp → StartApp → OpenGame）继续执行，
+        # 游戏反复关闭再打开。abort_current 直接 kill QProcess 立即中断。
+        aborted = self._bridge.abort_current()
+        if aborted:
+            self._append_log("系统", locale.tr("execution_aborted", "已终止当前 CLI 命令"))
         self._append_log("系统", locale.tr("execution_stop_requested", "Stop requested"))
 
     def _on_execution_finished(self, success: bool):
@@ -2252,7 +2291,8 @@ class MaaEndControlPage(QWidget):
         if not self._is_executing:
             self._progress_bar.setValue(0)
         self._status_label.setText(locale.tr("maaend_running" if self._is_executing else "maaend_idle", "Running" if self._is_executing else "Idle"))
-        self._status_label.setStyleSheet(RED_STYLE if self._is_executing else BLUE_STYLE)
+        # 空闲：白色；运行：蓝色
+        self._status_label.setStyleSheet(BLUE_STYLE if self._is_executing else WHITE_STYLE)
         if self._is_executing:
             self._pulse_status_label()
         self.execution_state_changed.emit(self._is_executing)

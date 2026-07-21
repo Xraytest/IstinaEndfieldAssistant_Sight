@@ -8,6 +8,7 @@ from PyQt6.QtCore import QRect, QSettings, QSize, Qt, QTimer
 from PyQt6.QtGui import QBrush, QCloseEvent, QColor, QCursor, QFont, QFontMetrics, QLinearGradient, QPainter, QPen, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -27,6 +28,13 @@ from core.foundation.logger import LogCategory, get_logger
 from core.foundation.paths import ensure_src_path, get_project_root
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
+from gui.pyqt6.instance import InstanceManager, InstanceSidebarWidget
+from gui.pyqt6.instance.dialogs import (
+    ConfirmDeleteDialog,
+    NewInstanceDialog,
+    RecolorInstanceDialog,
+    RenameInstanceDialog,
+)
 from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage
 from gui.pyqt6.pages.log_page import LogPage
 from gui.pyqt6.pages.maaend_control_page import MaaEndControlPage
@@ -239,15 +247,22 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle(locale.tr("app_title", "IstinaEndfieldAssistant Sight"))
         self.setMinimumSize(800, 600)
-        self._bridge = bridge_factory() if bridge_factory is not None else CLIBridge(self)
-        if self._bridge.parent() is None:
-            self._bridge.setParent(self)
+
+        # 多实例管理器：注册表 + 活动实例 + 上下文缓存
+        self._instance_mgr = InstanceManager(parent=self)
+
+        # 兼容旧 API：保留 self._bridge 指向活动实例的 bridge
+        # 在 _on_instance_changed 中会同步更新
+        self._bridge_factory = bridge_factory
+        active_ctx = self._instance_mgr.get_active_context()
+        self._bridge = active_ctx.bridge
+
         self._logger = get_logger(__name__)
 
         central = QWidget(self)
         layout = QVBoxLayout(central)
-        layout.setContentsMargins(16, 16, 16, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         self.setCentralWidget(central)
 
         self.setStatusBar(QStatusBar(self))
@@ -263,10 +278,24 @@ class MainWindow(QMainWindow):
         self._title_animation_timer = QTimer(self)
         self._title_animation_timer.timeout.connect(self._animate_title)
         self._is_executing = False
+        # 区分"真退出"与"最小化到托盘"：托盘菜单退出 / 应用退出流程设置 True，
+        # closeEvent 据此走资源清理 + super().closeEvent，不再最小化并提示。
+        self._force_quit: bool = False
         self._build_shell()
         self._restore_or_fit_window()
         self._update_responsive_mode()
         self._setup_tray_icon()
+
+        # 实例管理器初始化（启动活动实例的调度器）
+        self._instance_mgr.initialize()
+        # 绑定实例切换信号
+        self._instance_mgr.instance_changed.connect(self._on_instance_changed)
+        self._instance_mgr.instance_created.connect(self._on_instance_created)
+        self._instance_mgr.instance_deleted.connect(self._on_instance_deleted)
+        self._instance_mgr.instance_meta_changed.connect(self._on_instance_meta_changed)
+        # 监听活动实例的任务/连接状态变化
+        for ctx in self._instance_mgr._contexts.values():
+            self._bind_context_signals(ctx)
 
         QTimer.singleShot(0, self._show_gpu_warning_if_needed)
         self._setup_keyboard_shortcuts()
@@ -286,6 +315,21 @@ class MainWindow(QMainWindow):
         """Setup system tray icon for minimize-to-tray support."""
         self._tray_icon = TrayIcon(self)
 
+    def quit_application(self) -> None:
+        """托盘菜单"退出"入口：标记真退出，触发 closeEvent 走完整清理流程。
+
+        与直接调用 QApplication.quit() 的区别：
+          - QApplication.quit() 仅退出事件循环，跳过 closeEvent 资源清理
+            （_persist_state / scheduled_page.shutdown / _stop_frame_worker），
+            且退出过程中 Qt 可能因 setQuitOnLastWindowClosed(True) 派发
+            closeEvent，此时 tray 仍可用会被当作"最小化"。
+          - 本方法设置 _force_quit=True 后调用 self.close()，closeEvent 据此
+            走真退出分支，完成清理后 super().closeEvent(event) 接受关闭，
+            最后一个窗口关闭后 QApplication 自然退出。
+        """
+        self._force_quit = True
+        self.close()
+
     def _show_gpu_warning_if_needed(self) -> None:
         result = check_gpu()
         message = format_gpu_warning(result)
@@ -296,8 +340,20 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
-        settings.setValue("mainWindow/geometry", self.saveGeometry())
-        if self._tray_icon is not None and self._tray_icon.is_available():
+        # 多实例：geometry 按实例 id 隔离持久化
+        try:
+            from core.foundation.instance import get_instance_id
+            iid = get_instance_id()
+        except Exception:
+            iid = "default"
+        settings.setValue(f"instances/{iid}/mainWindow/geometry", self.saveGeometry())
+        # 兼容旧 key（保持 default 实例行为不变）
+        if iid == "default":
+            settings.setValue("mainWindow/geometry", self.saveGeometry())
+        # _force_quit 由托盘菜单"退出"显式设置，应用退出流程派发的 closeEvent
+        # 也视作真退出；只有用户点 X / Alt+F4 且托盘可用时才最小化到托盘。
+        is_real_quit = self._force_quit or self._tray_icon is None or not self._tray_icon.is_available()
+        if not is_real_quit:
             event.ignore()
             self.hide()
             self._tray_icon.show_message(locale.tr("app_title", "IstinaEndfieldAssistant Sight"), locale.tr("tray_minimized", "Minimized to tray. Double-click tray icon to restore."))
@@ -337,6 +393,13 @@ class MainWindow(QMainWindow):
     def _build_shell(self) -> None:
         root_layout = self.centralWidget().layout()
 
+        # 主体（hero + shell）放在一个外层 QWidget 中，便于统一设置内边距
+        body = QWidget(self)
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(16, 16, 16, 12)
+        body_layout.setSpacing(10)
+        root_layout.addWidget(body, 1)
+
         hero = QFrame(self)
         hero.setObjectName("heroPanel")
         hero_layout = QHBoxLayout(hero)
@@ -349,12 +412,33 @@ class MainWindow(QMainWindow):
         title_label.setAccessibleDescription("Istina Endfield Assistant 主窗口标题")
         hero_layout.addWidget(title_label)
         hero_layout.addStretch()
-        root_layout.addWidget(hero)
+        # 当前实例指示器（hero 右侧）
+        self._instance_indicator_label = QLabel("")
+        self._instance_indicator_label.setStyleSheet(
+            "color: #8a8ea4; font-size: 12px; padding: 2px 10px;"
+            " border: 1px solid #2d3038; border-radius: 10px;"
+        )
+        hero_layout.addWidget(self._instance_indicator_label)
+        body_layout.addWidget(hero)
 
         shell = QWidget(self)
         shell_layout = QHBoxLayout(shell)
         shell_layout.setContentsMargins(0, 0, 0, 0)
-        shell_layout.setSpacing(12)
+        shell_layout.setSpacing(8)
+
+        # 最左侧：实例切换侧栏
+        self._instance_sidebar = InstanceSidebarWidget(shell)
+        self._instance_sidebar.instance_activated.connect(self._on_sidebar_instance_activated)
+        self._instance_sidebar.create_requested.connect(self._on_sidebar_create_requested)
+        self._instance_sidebar.rename_requested.connect(self._on_sidebar_rename_requested)
+        self._instance_sidebar.recolor_requested.connect(self._on_sidebar_recolor_requested)
+        self._instance_sidebar.clone_requested.connect(self._on_sidebar_clone_requested)
+        self._instance_sidebar.delete_requested.connect(self._on_sidebar_delete_requested)
+        self._instance_sidebar.open_in_explorer_requested.connect(self._on_sidebar_open_in_explorer)
+        # 初始化侧栏内容
+        self._instance_sidebar.set_instances(self._instance_mgr.list_metas())
+        self._instance_sidebar.set_active(self._instance_mgr.active_id)
+        shell_layout.addWidget(self._instance_sidebar, 0, Qt.AlignmentFlag.AlignTop)
 
         nav_panel = QWidget(shell)
         nav_layout = QVBoxLayout(nav_panel)
@@ -394,16 +478,23 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self._page_stack)
         shell_layout.addWidget(content_panel, 1)
 
+        # 使用活动实例的 bridge 构造页面
+        active_ctx = self._instance_mgr.get_active_context()
+        active_store = active_ctx.task_store
+        active_scheduler = active_ctx.scheduler
         self._maaend_page = MaaEndControlPage(bridge=self._bridge)
         self._device_page = DeviceSettingsPage(bridge=self._bridge)
         self._prts_page = PrtsFullIntelligencePage(bridge=self._bridge)
-        self._scheduled_page = ScheduledTasksPage(bridge=self._bridge)
+        self._scheduled_page = ScheduledTasksPage(
+            bridge=self._bridge, store=active_store, scheduler=active_scheduler
+        )
+        self._settings_page = SettingsPage()
         pages = [
             (locale.tr("prts_title", "PRTS Intelligence (施工中)"), self._prts_page),
             (locale.tr("maaend_title", "Standard Inference"), self._maaend_page),
             (locale.tr("sched_title", "Scheduled Tasks"), self._scheduled_page),
             (locale.tr("device_title", "Device"), self._device_page),
-            (locale.tr("settings_title", "Settings"), SettingsPage()),
+            (locale.tr("settings_title", "Settings"), self._settings_page),
             (locale.tr("log_title", "Logs"), LogPage()),
         ]
         for label, page in pages:
@@ -435,11 +526,23 @@ class MainWindow(QMainWindow):
             if self._navigation_list.item(i).text() == "标准推理":
                 self._navigation_list.setCurrentRow(i)
                 break
-        root_layout.addWidget(shell, 1)
+        body_layout.addWidget(shell, 1)
+
+        # 更新实例指示器
+        self._update_instance_indicator()
 
     def _restore_or_fit_window(self) -> None:
         settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
-        geometry = settings.value("mainWindow/geometry")
+        # 多实例：geometry 按实例 id 隔离
+        try:
+            from core.foundation.instance import get_instance_id
+            iid = get_instance_id()
+        except Exception:
+            iid = "default"
+        geometry = settings.value(f"instances/{iid}/mainWindow/geometry")
+        if geometry is None:
+            # 向后兼容：旧 key
+            geometry = settings.value("mainWindow/geometry")
         if geometry is not None and self.restoreGeometry(geometry):
             return
 
@@ -539,16 +642,281 @@ class MainWindow(QMainWindow):
 
     def _on_execution_state_changed(self, is_executing: bool) -> None:
         self._is_executing = is_executing
+        # 同步到当前实例的 task_running 状态（驱动 sidebar 红点）
+        try:
+            active_ctx = self._instance_mgr.get_active_context()
+            active_ctx.set_task_running(is_executing)
+        except Exception:
+            pass
         if is_executing:
             self._title_animation_timer.start(500)
             QApplication.setOverrideCursor(QCursor(Qt.CursorShape.BusyCursor))
             self._set_taskbar_progress(0)
         else:
             self._title_animation_timer.stop()
-            self.setWindowTitle(locale.tr("app_title", "IstinaEndfieldAssistant Sight"))
+            self._update_window_title()
             QApplication.restoreOverrideCursor()
             self._set_taskbar_progress(100)
             QTimer.singleShot(1000, lambda: self._set_taskbar_progress(0))
+
+    # ------------------------------------------------------------------
+    # 多实例：sidebar 事件处理 + 实例切换分发
+    # ------------------------------------------------------------------
+    def _bind_context_signals(self, ctx: "InstanceContext") -> None:
+        """绑定实例上下文的状态变化信号到 sidebar。"""
+        try:
+            ctx.task_running_changed.connect(self._instance_sidebar.set_task_running)
+            ctx.connection_changed.connect(self._instance_sidebar.set_connected)
+            ctx.completed_unread_changed.connect(self._instance_sidebar.set_completed_unread)
+            # 调度器繁忙状态：非活动实例任务完成时标记"完成且未读"
+            scheduler = ctx.scheduler
+            iid = ctx.id
+            busy_signal = getattr(scheduler, "busy_state_changed", None)
+            if busy_signal is not None and not getattr(scheduler, "_iea_bound_completed", False):
+                busy_signal.connect(lambda busy, _iid=iid: self._on_scheduler_busy_changed(_iid, busy))
+                scheduler._iea_bound_completed = True
+        except Exception:
+            pass
+
+    def _on_scheduler_busy_changed(self, instance_id: str, busy: bool) -> None:
+        """调度器繁忙状态变化：任务完成时若非活动实例则标记未读。"""
+        if busy:
+            return
+        try:
+            if instance_id == self._instance_mgr.active_id:
+                return
+            ctx = self._instance_mgr.get_context(instance_id)
+            ctx.set_completed_unread(True)
+        except Exception:
+            pass
+
+    def _update_instance_indicator(self) -> None:
+        """更新 hero 右侧的实例指示器。"""
+        try:
+            ctx = self._instance_mgr.get_active_context()
+            meta = ctx.meta
+            self._instance_indicator_label.setText(meta.display_name)
+            self._instance_indicator_label.setStyleSheet(
+                f"color: {meta.color}; font-size: 12px; padding: 2px 10px;"
+                f" border: 1px solid {meta.color}; border-radius: 10px;"
+            )
+        except Exception:
+            self._instance_indicator_label.setText("")
+
+    def _update_window_title(self) -> None:
+        """更新窗口标题（含实例名）。"""
+        base = locale.tr("app_title", "IstinaEndfieldAssistant Sight")
+        try:
+            ctx = self._instance_mgr.get_active_context()
+            meta = ctx.meta
+            if not meta.is_default:
+                self.setWindowTitle(f"{base} [{meta.display_name}]")
+            else:
+                self.setWindowTitle(base)
+        except Exception:
+            self.setWindowTitle(base)
+
+    def _on_sidebar_instance_activated(self, instance_id: str) -> None:
+        """侧栏点击切换实例。"""
+        # 切换前若当前实例有任务在执行，弹确认
+        try:
+            current_ctx = self._instance_mgr.get_active_context()
+            if current_ctx.is_task_running:
+                reply = QMessageBox.warning(
+                    self,
+                    locale.tr("instance_switch_running_title", "任务执行中"),
+                    locale.tr(
+                        "instance_switch_running_msg",
+                        "当前实例正在执行任务，切换实例可能中断预览。是否继续？"
+                    ),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
+        except Exception:
+            pass
+        self._instance_mgr.set_active(instance_id)
+
+    def _on_instance_changed(self, instance_id: str) -> None:
+        """实例切换后的分发逻辑：刷新页面、状态栏、预览。"""
+        ctx = self._instance_mgr.get_context(instance_id)
+        # 0. 清除"完成且未读"状态（用户已切回该实例，绿点消除）
+        if ctx.is_completed_unread:
+            ctx.set_completed_unread(False)
+        # 1. 停止旧实例的预览 worker
+        self._stop_frame_worker()
+        # 2. 同步 self._bridge 到新实例的 bridge
+        self._bridge.commandFinished.disconnect(self._on_bridge_command_finished)
+        self._bridge.processCrashed.disconnect(self._on_cli_crashed)
+        self._bridge = ctx.bridge
+        self._bridge.commandFinished.connect(self._on_bridge_command_finished)
+        self._bridge.processCrashed.connect(self._on_cli_crashed)
+        # 3. 通知各页面刷新（pages 自行实现 on_instance_changed）
+        self._dispatch_instance_changed_to_pages(ctx)
+        # 4. 更新侧栏选中态
+        self._instance_sidebar.set_active(instance_id)
+        # 5. 更新窗口标题 + 实例指示器
+        self._update_window_title()
+        self._update_instance_indicator()
+        # 6. 启动新实例的预览 worker（若已连接）
+        if ctx.is_connected:
+            self._start_frame_worker()
+        else:
+            if self._preview_widget is not None:
+                self._preview_widget.clear_pixmap()
+                self._preview_widget.set_status(
+                    locale.tr("preview_status_disconnected", "已断开"), _STATUS_COLOR_LOST
+                )
+        # 7. 绑定信号（首次加载该实例时）
+        self._bind_context_signals(ctx)
+
+    def _dispatch_instance_changed_to_pages(self, ctx: "InstanceContext") -> None:
+        """将实例上下文变化分发到各页面。
+
+        每个页面可选实现 ``on_instance_changed(ctx)`` 方法，未实现则跳过。
+        """
+        for page in (self._maaend_page, self._device_page, self._prts_page,
+                     self._scheduled_page, self._settings_page):
+            handler = getattr(page, "on_instance_changed", None)
+            if handler is None:
+                continue
+            try:
+                handler(ctx)
+            except Exception as exc:
+                self._logger.warning(LogCategory.GUI, "页面 on_instance_changed 异常",
+                                     page=type(page).__name__, error=str(exc))
+
+    def _on_instance_created(self, instance_id: str) -> None:
+        """新实例创建后刷新侧栏。"""
+        self._instance_sidebar.set_instances(self._instance_mgr.list_metas())
+
+    def _on_instance_deleted(self, instance_id: str) -> None:
+        """实例删除后刷新侧栏。"""
+        self._instance_sidebar.set_instances(self._instance_mgr.list_metas())
+
+    def _on_instance_meta_changed(self, instance_id: str) -> None:
+        """实例元数据变化（重命名/改色/改图标）。"""
+        meta = self._instance_mgr.registry.get_meta(instance_id)
+        if meta is not None:
+            self._instance_sidebar.update_meta(meta)
+        # 若是活动实例，刷新标题与指示器
+        if instance_id == self._instance_mgr.active_id:
+            self._update_window_title()
+            self._update_instance_indicator()
+
+    def _on_sidebar_create_requested(self) -> None:
+        """新建实例。"""
+        dlg = NewInstanceDialog(self._instance_mgr.list_metas(), parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        name, color, clone_from = dlg.get_values()
+        try:
+            new_id = self._instance_mgr.create(
+                display_name=name, color=color, clone_from=clone_from
+            )
+            # 询问是否立即切换到新实例
+            reply = QMessageBox.question(
+                self,
+                locale.tr("instance_created_title", "实例已创建"),
+                locale.tr(
+                    "instance_created_msg",
+                    "实例 \"{name}\" 已创建。是否立即切换到该实例？"
+                ).format(name=name),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self._instance_mgr.set_active(new_id)
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                locale.tr("instance_create_failed_title", "创建失败"),
+                str(exc),
+            )
+
+    def _on_sidebar_rename_requested(self, instance_id: str) -> None:
+        meta = self._instance_mgr.registry.get_meta(instance_id)
+        if meta is None:
+            return
+        dlg = RenameInstanceDialog(meta.display_name, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        new_name = dlg.get_name()
+        self._instance_mgr.update_meta(instance_id, display_name=new_name)
+
+    def _on_sidebar_recolor_requested(self, instance_id: str) -> None:
+        meta = self._instance_mgr.registry.get_meta(instance_id)
+        if meta is None:
+            return
+        dlg = RecolorInstanceDialog(meta.color, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._instance_mgr.update_meta(instance_id, color=dlg.get_color())
+
+    def _on_sidebar_clone_requested(self, instance_id: str) -> None:
+        """克隆实例：直接以新名创建，clone_from=instance_id。"""
+        meta = self._instance_mgr.registry.get_meta(instance_id)
+        if meta is None:
+            return
+        dlg = NewInstanceDialog(self._instance_mgr.list_metas(), parent=self)
+        # 预填：克隆来源锁定为源实例
+        for i in range(dlg._clone_combo.count()):
+            if dlg._clone_combo.itemData(i) == instance_id:
+                dlg._clone_combo.setCurrentIndex(i)
+                break
+        dlg.setWindowTitle(locale.tr("instance_clone_title", "克隆实例"))
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        name, color, _ = dlg.get_values()
+        try:
+            self._instance_mgr.create(
+                display_name=name, color=color, clone_from=instance_id
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "", str(exc))
+
+    def _on_sidebar_delete_requested(self, instance_id: str) -> None:
+        meta = self._instance_mgr.registry.get_meta(instance_id)
+        if meta is None:
+            return
+        if meta.is_default:
+            QMessageBox.information(
+                self,
+                locale.tr("instance_delete_default_title", "无法删除"),
+                locale.tr("instance_delete_default_msg", "default 实例不可删除"),
+            )
+            return
+        dlg = ConfirmDeleteDialog(meta, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        if dlg.get_confirm_text() != meta.display_name:
+            QMessageBox.warning(
+                self,
+                locale.tr("instance_delete_mismatch_title", "名称不匹配"),
+                locale.tr("instance_delete_mismatch_msg", "输入的名称与实例名不匹配，已取消删除"),
+            )
+            return
+        try:
+            self._instance_mgr.delete(instance_id)
+        except Exception as exc:
+            QMessageBox.critical(self, "", str(exc))
+
+    def _on_sidebar_open_in_explorer(self, instance_id: str) -> None:
+        """在文件管理器中打开实例目录。"""
+        from core.foundation.instance import get_instance_root
+        import subprocess
+        import sys
+        path = str(get_instance_root(instance_id))
+        try:
+            if sys.platform.startswith("win"):
+                subprocess.Popen(["explorer", path])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
+        except Exception as exc:
+            self._logger.warning(LogCategory.GUI, "打开文件管理器失败", error=str(exc))
 
     def _animate_title(self) -> None:
         if not self._is_executing:
@@ -623,7 +991,9 @@ class MainWindow(QMainWindow):
 
     def _resolve_preview_serial(self) -> Optional[str]:
         try:
-            config = json.loads((get_project_root() / "config" / "client_config.json").read_text(encoding="utf-8"))
+            from core.foundation.instance import get_instance_root
+            config_path = get_instance_root() / "config" / "client_config.json"
+            config = json.loads(config_path.read_text(encoding="utf-8"))
             return ((config.get("device") or {}).get("last_connected")) or ((config.get("device") or {}).get("serial"))
         except Exception:
             return None

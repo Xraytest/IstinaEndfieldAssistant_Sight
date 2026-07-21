@@ -54,6 +54,16 @@ RED_STYLE = (
     f"color: {_DANGER}; font-size: {_SIZE_BASE}px;"
     f" font-family: '{_FONT}'; padding: 3px 0;"
 )
+# 空闲状态：白色（使用 text_primary 近白色）
+WHITE_STYLE = (
+    f"color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px;"
+    f" font-family: '{_FONT}'; padding: 3px 0;"
+)
+# 完成且未读状态：绿色
+GREEN_STYLE = (
+    f"color: #22c55e; font-size: {_SIZE_BASE}px;"
+    f" font-family: '{_FONT}'; padding: 3px 0;"
+)
 BLUE_STYLE = (
     f"color: {_PRIMARY}; font-size: {_SIZE_BASE}px;"
     f" font-family: '{_FONT}'; padding: 3px 0;"
