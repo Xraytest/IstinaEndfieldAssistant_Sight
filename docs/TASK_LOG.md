@@ -2490,6 +2490,22 @@
   - `reports/incidents/2026-07-21_adb_connected_false_multi_cause_analysis.md`（新增 4 部分分析报告：根因分析 / 修改方案 A-D / 影响面 / 非期待变化 + 验证清单）
   - `docs/TASK_LOG.md`（本条记录）
 
+## 2026-07-22 07:35 (问题分析·连接失败复发 - 推翻 DLL 假设，定位真正根因)
+
+- **User Request**: 阅读最新日志，依然存在能够找到设备但连接失败
+- **Outcome**: 完成根因重新分析 + 修复。**推翻前次"DLL 版本不匹配"假设**，定位到 3 个真正根因并全部修复，Resource.post_bundle 验证 succeeded=True：
+  - **E. JSON 注释导致 rapidjson 解析失败（真正直接原因）**：`3rd-part/maaend/resource/pipeline` 下 5 个 JSON 文件含 `//` 行注释，MaaFW 的 C++ rapidjson 不支持注释，触发 `json::open failed` → `Resource.Loading.Failed`。前次报告假设的 DLL 版本不匹配是错误结论（实际 DLL 注入 env 后仍失败，hash 不变）。修复：`maa_end/runtime.py` 新增 `_strip_comments_in_pipeline()` 方法，在 `post_bundle` 前扫描所有 pipeline JSON，对含注释的文件剥除注释后原地写回（复用 `_strip_json_comments` 函数），使资源加载自愈。
+  - **SceneMenu.json 未转义 ASCII 双引号（3rd-part 资源缺陷，本地修复）**：第 81 行 `desc` 值中 `触发"是否退出游戏？"对话框` 含未转义的 ASCII 双引号（chr(34)），JSON 解析在第一个 `"` 处认为字符串结束。`_strip_comments_in_pipeline` 只处理注释不处理引号，需手动修复：改为单引号 `'是否退出游戏？'`。
+  - **Exectue.json 缺失节点定义（3rd-part 资源缺陷，本地修复）**：`MenuScan.json:50` 引用 `VisitFriendsEnterShipConfirmDialogCancel` 但无任何文件定义该节点，触发 `PipelineChecker check_all_validity failed`。修复：在 `Exectue.json` 中补全该节点（识别 GrayCancelButton + Click + post_delay 500ms + next 空列表）。
+  - **F. adbutils 2.x AdbDevice.state 属性移除**：前次方案 C 修复了 `device_list()` 但遗留 `device.state` 属性访问，adbutils 2.x 改用 `get_state()` 方法。修复：`adb_manager.py` 改为 `getattr(device, "state", None) or device.get_state()`。
+  - **3rd-part 文件状态**：SceneMenu.json 和 Exectue.json 被 .gitignore，本地修复不进 git。`_strip_comments_in_pipeline` 保证注释问题重新同步后自愈；引号和节点问题需手动维护（3rd-part 上游缺陷）。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`（方案 E：`_strip_comments_in_pipeline` 方法 + `load_resource` 调用）
+  - `src/core/capability/device/adb_manager.py`（方案 F：`device.get_state()` 兼容）
+  - `3rd-part/maaend/resource/pipeline/SceneManager/SceneMenu.json`（gitignored，本地修复：删注释 + 未转义引号改单引号）
+  - `3rd-part/maaend/resource/pipeline/VisitFriends/Exectue.json`（gitignored，本地修复：补全缺失节点）
+  - `docs/TASK_LOG.md`（本条记录）
+
 ## 2026-07-12 00:25
 
 - **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！
@@ -3132,3 +3148,21 @@
   - reports/incidents/2026-07-13_daily_full_queue_failures.md（新增·6 个失败任务的四阶段分析报告）
   - docs/TASK_LOG.md（本文件）
 - **验证**: Maatouch 连接测试通过（AdbController.post_connection() 成功）；待运行时验证 — 重新连接设备后执行 EnvironmentMonitoring，确认 AdbShellInput not supports [contact=0] 错误不再出现，虚拟摇杆操作正常。
+
+## 2026-07-22 15:45 (实例状态点与主页面状态标识三色方案)
+
+- **User Request**: 修改实例右上角的状态点与主页面的状态标识：空闲：白色；运行：蓝色；完成且未读（处于其他实例未返回）：绿色
+- **Outcome**: 实现实例侧边栏状态点 + 主页面状态标识的三色方案，新增 `completed_unread`（完成且未读）状态跟踪与信号链路。
+  1. **[widget_styles.py](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/gui/pyqt6/theme/widget_styles.py)**：新增 `WHITE_STYLE`（空闲·近白色 text_primary）和 `GREEN_STYLE`（完成·#22c55e）两个样式常量。
+  2. **[maaend_control_page.py](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/gui/pyqt6/pages/maaend_control_page.py)**：主页面 `_status_label` 初始态从 `BLUE_STYLE` 改为 `WHITE_STYLE`（空闲=白）；`_update_execution_ui` 中运行态用 `BLUE_STYLE`、空闲态用 `WHITE_STYLE`。
+  3. **[sidebar.py](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/gui/pyqt6/instance/sidebar.py)**：`InstanceItemWidget.paintEvent` 改为三路分支——运行（蓝点+呼吸光效，r=5）> 完成未读（绿点静态，r=5）> 空闲（白点静态，r=4）。新增 `set_completed_unread(unread)` 方法；`InstanceSidebarWidget` 新增 `set_completed_unread(instance_id, unread)` 转发方法。
+  4. **[manager.py](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/gui/pyqt6/instance/manager.py)**：`InstanceContext` 新增 `completed_unread_changed` 信号、`_completed_unread` 字段、`is_completed_unread` 属性、`set_completed_unread(unread)` 方法。
+  5. **[main_window.py](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/gui/pyqt6/main_window.py)**：`_bind_context_signals` 连接 `completed_unread_changed` → sidebar；连接调度器 `busy_state_changed(False)` → `_on_scheduler_busy_changed`（非活动实例标记未读）；`_on_instance_changed` 开头清除活动实例的 `completed_unread`（用户切回即消绿点）。
+- **Files Modified**:
+  - src/gui/pyqt6/theme/widget_styles.py（新增 WHITE_STYLE、GREEN_STYLE）
+  - src/gui/pyqt6/pages/maaend_control_page.py（状态标签空闲白/运行蓝）
+  - src/gui/pyqt6/instance/sidebar.py（三色状态点 + set_completed_unread）
+  - src/gui/pyqt6/instance/manager.py（InstanceContext completed_unread 状态+信号）
+  - src/gui/pyqt6/main_window.py（调度器信号接线 + 实例切换清除未读）
+  - docs/TASK_LOG.md（本文件）
+- **验证**: py_compile 5 个文件全部通过（exit_code=0）；git commit `4dc464c` 已推送至 origin/main。待 GUI 运行时验证 — 启动 GUI 后观察实例侧边栏状态点颜色（空闲白/运行蓝/完成未读绿）与主页面状态标签颜色（空闲白/运行蓝）。
