@@ -88,6 +88,10 @@ KNOWN_KEYEVENT_NAMES = frozenset(
         "KEYCODE_Q",
         "KEYCODE_E",
         "KEYCODE_F",
+        # 游戏快捷键：M 打开地图（_vlm_teleport_to_area 手动打开地图兜底）
+        "KEYCODE_M",
+        "KEYCODE_R",
+        "KEYCODE_B",
         # 媒体键
         "KEYCODE_MEDIA_PLAY",
         "KEYCODE_MEDIA_PAUSE",

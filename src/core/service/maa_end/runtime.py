@@ -148,7 +148,8 @@ class MaaEndRuntime:
         # 队列：唯一可执行单元。预设只是任务列表，应用预设 = 用其任务覆盖队列。
         self._queue: List[Dict[str, Any]] = []
         self._load_lock = threading.Lock()  # N11: 保护 load_tasks/load_presets 并发调用
-        # 集中式异常恢复：任何任务失败时执行 CloseGame → AndroidOpenGame → 重试
+        # _recovering 标志：仅 _recover_and_retry 被显式调用时置位，防止 RecoverGame 自身失败时递归
+        # 注意：run_task 不再对识别未命中（正常失败）自动触发异常恢复，与 run_pipeline 一致
         self._recovering = False
         self._client_version = "CN"
 
@@ -220,6 +221,29 @@ class MaaEndRuntime:
                             self._tasks[name] = task_copy
                 except Exception as e:  # pragma: no cover
                     self.logger.debug(LogCategory.MAIN, "加载任务定义失败", path=str(json_path), error=str(e))
+            # 加载 assets/tasks/ 下的自定义任务（覆盖 3rd-part 中的同名任务）
+            custom_tasks_root = _PROJECT_ROOT / "assets" / "tasks"
+            if custom_tasks_root.is_dir():
+                for json_path in custom_tasks_root.rglob("*.json"):
+                    if json_path.name == "nodes.json":
+                        continue
+                    if "preset" in json_path.parts:
+                        continue
+                    try:
+                        data = _load_json_file(json_path)
+                        global_options = data.get("option")
+                        if isinstance(global_options, dict):
+                            self._option_defs.update(global_options)
+                        task_list = data.get("task", [])
+                        for task in task_list:
+                            name = task.get("name")
+                            if name:
+                                task_copy = dict(task)
+                                task_copy["_source"] = str(json_path.relative_to(_PROJECT_ROOT))
+                                task_copy["_option_defs"] = dict(global_options) if isinstance(global_options, dict) else {}
+                                self._tasks[name] = task_copy
+                    except Exception as e:  # pragma: no cover
+                        self.logger.debug(LogCategory.MAIN, "加载自定义任务定义失败", path=str(json_path), error=str(e))
             self._tasks_loaded = True  # 标志位移到循环结束后，避免空列表固化
             return self._tasks
 
@@ -227,20 +251,32 @@ class MaaEndRuntime:
         with self._load_lock:  # N11: 并发加载加锁，避免 self._presets 竞争
             preset_root = self._resolve_asset_path("tasks", "preset")
             self._presets = {}
-            if not preset_root.exists():
-                self._presets_loaded = True
-                return self._presets
-            for json_path in preset_root.glob("*.json"):
-                try:
-                    data = _load_json_file(json_path)
-                    preset_list = data.get("preset", [])
-                    for preset in preset_list:
-                        name = preset.get("name")
-                        if name:
-                            self._presets[name] = preset
-                            self._presets[name]["_source"] = str(json_path.relative_to(self._maaend_root))
-                except Exception as e:  # pragma: no cover
-                    self.logger.debug(LogCategory.MAIN, "加载预设失败", path=str(json_path), error=str(e))
+            if preset_root.exists():
+                for json_path in preset_root.glob("*.json"):
+                    try:
+                        data = _load_json_file(json_path)
+                        preset_list = data.get("preset", [])
+                        for preset in preset_list:
+                            name = preset.get("name")
+                            if name:
+                                self._presets[name] = preset
+                                self._presets[name]["_source"] = str(json_path.relative_to(self._maaend_root))
+                    except Exception as e:  # pragma: no cover
+                        self.logger.debug(LogCategory.MAIN, "加载预设失败", path=str(json_path), error=str(e))
+            # 加载 assets/tasks/preset/ 下的自定义预设（覆盖 3rd-part 中的同名预设）
+            custom_preset_root = _PROJECT_ROOT / "assets" / "tasks" / "preset"
+            if custom_preset_root.is_dir():
+                for json_path in custom_preset_root.glob("*.json"):
+                    try:
+                        data = _load_json_file(json_path)
+                        preset_list = data.get("preset", [])
+                        for preset in preset_list:
+                            name = preset.get("name")
+                            if name:
+                                self._presets[name] = preset
+                                self._presets[name]["_source"] = str(json_path.relative_to(_PROJECT_ROOT))
+                    except Exception as e:  # pragma: no cover
+                        self.logger.debug(LogCategory.MAIN, "加载自定义预设失败", path=str(json_path), error=str(e))
             self._presets_loaded = True  # 标志位移到循环结束后
             return self._presets
 
@@ -284,6 +320,7 @@ class MaaEndRuntime:
 
     _CONNECTION_TIMEOUT_S = 20
     _SCRECAP_TIMEOUT_S = 10
+    _MAX_TASK_RETRIES = 1
 
     def _connect_once(self) -> bool:
         self._resource = Resource()
@@ -297,15 +334,13 @@ class MaaEndRuntime:
             config={},
         )
         job = self._controller.post_connection()
-        job.wait()
-        if not job.succeeded:
-            self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败", address=self._device_address)
+        if not self._wait_job(job, timeout_s=float(self._CONNECTION_TIMEOUT_S)):
+            self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败或超时", address=self._device_address)
             self._cleanup_partial()
             return False
         screencap_job = self._controller.post_screencap()
-        screencap_job.wait()
-        if not screencap_job.succeeded:
-            self.logger.error(LogCategory.MAIN, "首次截图失败", address=self._device_address)
+        if not self._wait_job(screencap_job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
+            self.logger.error(LogCategory.MAIN, "首次截图失败或超时", address=self._device_address)
             self._cleanup_partial()
             return False
         self._tasker = Tasker()
@@ -445,6 +480,37 @@ class MaaEndRuntime:
         self._connected = False
         self.logger.info(LogCategory.MAIN, "MaaEnd runtime 已断开")
 
+    def post_stop(self) -> bool:
+        """中止当前正在运行的 MaaFW 任务（pipeline / recognition）。
+
+        MaaFW Tasker 的 post_stop() 是异步操作，会立即返回一个 Job 对象，
+        中止信号会让当前运行的 job 尽快退出。本方法等待中止完成（最长 5s），
+        确保下一个 post_task 不会因 MaaFW 仍在处理中止而无限等待。
+        用于 _run_pipeline_with_timeout 超时后释放 MaaFW，
+        避免后续 pipeline / OCR 因 MaaFW 忙而级联超时。
+        """
+        if not self._connected or self._tasker is None:
+            return False
+        try:
+            stop_job = self._tasker.post_stop()
+            self.logger.info(LogCategory.MAIN, "MaaFW post_stop() 已发送中止信号")
+            # post_stop() 是异步的，等待中止完成（最长 5s）
+            if stop_job is not None and hasattr(stop_job, "wait"):
+                try:
+                    stop_job.wait(timeout=5000)  # ms
+                except Exception:
+                    # 某些 MaaFW 版本 wait() 不支持 timeout 参数，尝试不带 timeout
+                    try:
+                        stop_job.wait()
+                    except Exception as exc:
+                        self.logger.warning(
+                            LogCategory.MAIN, "post_stop Job.wait() 失败", error=str(exc),
+                        )
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "MaaFW post_stop() 失败", error=str(exc))
+            return False
+
     def _start_agent(self) -> None:
         if self._agent_client is not None:
             return
@@ -512,17 +578,16 @@ class MaaEndRuntime:
             # 中的聚合 nodes.json 统一移出。
             self._relocate_aggregate_nodes()
             job = self._resource.post_bundle(resource_dir)
-            job.wait()
-            if not job.succeeded:
-                self.logger.error(LogCategory.MAIN, "Pipeline 资源加载失败", path=str(resource_dir))
+            # BUNDLE-HARD-TIMEOUT: 资源加载若 MaaFW 内部死锁会无限阻塞
+            if not self._wait_job(job, timeout_s=60.0):
+                self.logger.error(LogCategory.MAIN, "Pipeline 资源加载失败或超时", path=str(resource_dir))
                 return False
             self.logger.info(LogCategory.MAIN, "Pipeline 资源加载成功", path=str(resource_dir))
             adb_resource_dir = self._resolve_asset_path("resource_adb")
             if adb_resource_dir.exists():
                 job_adb = self._resource.post_bundle(adb_resource_dir)
-                job_adb.wait()
-                if not job_adb.succeeded:
-                    self.logger.error(LogCategory.MAIN, "ADB 资源加载失败", path=str(adb_resource_dir))
+                if not self._wait_job(job_adb, timeout_s=60.0):
+                    self.logger.error(LogCategory.MAIN, "ADB 资源加载失败或超时", path=str(adb_resource_dir))
                     return False
                 self.logger.info(LogCategory.MAIN, "ADB 资源加载成功", path=str(adb_resource_dir))
             return True
@@ -661,14 +726,40 @@ class MaaEndRuntime:
                 merged[key] = value
         return merged
 
-    def _wait_job(self, job: Any) -> bool:
+    def _wait_job(self, job: Any, timeout_s: Optional[float] = None) -> bool:
         """等待任务完成。
 
         注意：job.wait() 返回 Job 对象自身（truthy），不是任务成功与否的布尔值。
         必须用 job.succeeded 检查任务的真实状态。
+
+        如果指定 timeout_s，使用线程 + join(timeout) 包装，避免 MaaFramework
+        并发限制导致 job.wait() 无限阻塞。超时返回 False。
         """
-        job.wait()
-        return job.succeeded
+        if timeout_s is None:
+            job.wait()
+            return job.succeeded
+        import threading as _threading
+        box: dict = {"succeeded": False, "error": None}
+
+        def _do_wait() -> None:
+            try:
+                job.wait()
+                box["succeeded"] = bool(job.succeeded)
+            except BaseException as exc:
+                box["error"] = exc
+
+        t = _threading.Thread(target=_do_wait, daemon=True, name="maafw-wait-job")
+        t.start()
+        t.join(timeout=timeout_s)
+        if t.is_alive():
+            self.logger.warning(
+                LogCategory.MAIN, "job.wait() 超时，放弃等待",
+                timeout_s=timeout_s,
+            )
+            return False
+        if box["error"] is not None:
+            return False
+        return box["succeeded"]
 
     def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any]) -> bool:
         if not self._connected or self._tasker is None:
@@ -679,14 +770,12 @@ class MaaEndRuntime:
             job = self._tasker.post_task(entry, pipeline_override if pipeline_override else {})
             succeeded = self._wait_job(job)
         except Exception as e:
-            # 仅真正的执行异常才视为连接断开
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "自定义管道执行异常", entry=entry, error=str(e))
             return False
         if succeeded:
             self.logger.info(LogCategory.MAIN, "自定义管道执行成功", entry=entry)
             return True
-        # 识别未命中等「正常失败」不得污染连接态，也不触发恢复/重连
         self.logger.warning(LogCategory.MAIN, "自定义管道执行失败", entry=entry)
         return False
 
@@ -710,36 +799,108 @@ class MaaEndRuntime:
             self._client_version = options["ClientVersion"]
         override = self.build_pipeline_override(task_name, options)
         entry = task.get("entry", task_name)
+        return self._run_task_with_retry(task_name, options, entry, override)
+
+    def _run_task_with_retry(self, task_name: str, options: Dict[str, Any], entry: str, override: Dict[str, Any]) -> bool:
+        for attempt in range(1 + self._MAX_TASK_RETRIES):
+            if attempt > 0:
+                self.logger.warning(LogCategory.MAIN, "任务自动重试", task=task_name, attempt=attempt)
+            result = self._run_task_once(task_name, options, entry, override)
+            if result is True:
+                return True
+            if result is None:
+                self.logger.warning(LogCategory.MAIN, "任务执行异常（连接断开），尝试恢复", task=task_name)
+                if not self._recovering and self._try_recover_connection(task_name):
+                    self.logger.info(LogCategory.MAIN, "连接恢复成功，重试任务", task=task_name)
+                    result2 = self._run_task_once(task_name, options, entry, override)
+                    return bool(result2 is True)
+                self.logger.error(LogCategory.MAIN, "连接恢复失败，无法重试", task=task_name)
+                return False
+            if self._recovering or attempt >= self._MAX_TASK_RETRIES:
+                break
+            if self._connected and self._lightweight_recover_ui():
+                self.logger.info(LogCategory.MAIN, "轻量恢复完成，重试任务", task=task_name)
+                retry_result = self._run_task_once(task_name, options, entry, override)
+                if retry_result is True:
+                    return True
+            self.logger.info(LogCategory.MAIN, "轻量恢复后仍失败，尝试完整恢复", task=task_name)
+            recover_ok = self._recover_and_retry(task_name, options)
+            if recover_ok:
+                return True
+            return False
+        self.logger.warning(LogCategory.MAIN, "任务执行失败（含重试）", task=task_name)
+        return False
+
+    def _run_task_once(self, task_name: str, options: Dict[str, Any], entry: str, override: Dict[str, Any]) -> Optional[bool]:
         self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
+        watchdog_stop = threading.Event()
+        watchdog_thread = threading.Thread(
+            target=self._connection_watchdog, args=(task_name, watchdog_stop), daemon=True,
+        )
+        watchdog_thread.start()
         try:
             job = self._tasker.post_task(entry, override if override else {})
             succeeded = self._wait_job(job)
         except Exception as e:
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "任务执行异常", task=task_name, error=str(e))
-            if not self._recovering and self._try_recover(task_name):
-                return self._retry_task(task_name, options, entry)
-            return False
+            return None
+        finally:
+            watchdog_stop.set()
         if succeeded:
-            if self._detect_task_skipped(job, task_name):
+            if self._detect_task_skipped(job, task_name, entry):
                 self.logger.warning(LogCategory.MAIN, "任务被跳过（未满足执行条件，如未到计划周期）", task=task_name)
                 return False
             self.logger.info(LogCategory.MAIN, "任务执行成功", task=task_name)
             return True
+        if not self._connected:
+            return None
         self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
-        if self._recovering:
-            self.logger.warning(LogCategory.MAIN, "恢复任务失败，不递归", task=task_name)
-            return False
-        return self._recover_and_retry(task_name, options)
+        return False
 
-    def _detect_task_skipped(self, job: Any, task_name: str) -> bool:
+    def _connection_watchdog(self, task_name: str, stop_event: threading.Event) -> None:
+        started = time.monotonic()
+        while not stop_event.is_set():
+            for _ in range(100):
+                if stop_event.is_set():
+                    return
+                time.sleep(0.1)
+            if stop_event.is_set():
+                return
+            if not self._check_adb_health():
+                self.logger.warning(LogCategory.MAIN, "看门狗：ADB 连接断开，中断任务", task=task_name)
+                self._connected = False
+                try:
+                    if self._tasker is not None:
+                        self._tasker.post_stop()
+                except Exception:
+                    pass
+                return
+            elapsed = time.monotonic() - started
+            if elapsed > 300:
+                self.logger.warning(LogCategory.MAIN, "看门狗：任务疑似卡死，发送中断信号", task=task_name, elapsed_s=int(elapsed))
+                self._connected = False
+                try:
+                    if self._tasker is not None:
+                        self._tasker.post_stop()
+                except Exception:
+                    pass
+                return
+
+    def _detect_task_skipped(self, job: Any, task_name: str, entry: str = "") -> bool:
         """检测任务是否走了跳过分支（未真正执行业务）。
 
         MaaEnd 的 *Schedule 任务设计为 entry.next = [业务节点, 跳过节点]。
         当 ScheduleRecognition 不命中（如 attach 全 false）时走跳过节点，
         MaaFW 仍报告 status=succeeded，但任务实际未执行业务。
         通过检查节点轨迹区分跳过与真正执行。
+
+        仅对 entry 包含 "Schedule" 的任务应用此启发式检测，避免对普通任务
+        （如 DijiangRewards，其节点轨迹天然含 End/Done 但不含 Main/Start/Look）
+        产生误判。
         """
+        if "Schedule" not in (entry or ""):
+            return False
         try:
             task_detail = job.get()
             if not task_detail:
@@ -803,31 +964,53 @@ class MaaEndRuntime:
     def run_queue(self) -> bool:
         """执行队列（唯一的可执行单元）。
 
-        单个任务识别未命中等「正常失败」不影响后续任务；仅当连接真正断开时
-        才中止剩余任务。返回 True 表示全部成功，False 表示存在失败或中断。
+        每个任务执行前进行健康检查（ADB + 截图验证），连接异常时自动恢复。
+        单个任务失败不影响后续任务；仅当连接彻底无法恢复时才中止。
         """
         if not self._queue:
             self.logger.warning(LogCategory.MAIN, "队列为空，无可执行任务")
             return False
         self.logger.info(LogCategory.MAIN, "开始执行队列", queue_size=len(self._queue))
         failures: List[str] = []
-        for item in self._queue:
+        total = len(self._queue)
+        for idx, item in enumerate(self._queue):
             name = str(item.get("name") or "").strip()
             options = item.get("options") or {}
             if not name:
                 continue
+            if not self._ensure_queue_connection(name, idx, total):
+                failures.append(name)
+                break
+            self.logger.info(LogCategory.MAIN, "队列进度", current=idx + 1, total=total, task=name)
             if not self.run_task(name, options):
                 failures.append(name)
-                self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name)
-                # 若连接已真正断开，继续也无意义，及时中止剩余任务
+                self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name, failed_index=idx + 1)
                 if not self._connected:
-                    self.logger.error(LogCategory.MAIN, "队列执行中连接断开，中止")
-                    break
+                    self.logger.warning(LogCategory.MAIN, "任务后连接断开，尝试恢复继续队列")
+                    if not self._ensure_queue_connection(name, idx, total):
+                        break
         if failures:
-            self.logger.warning(LogCategory.MAIN, "队列执行完成但存在失败任务", failed=failures)
+            self.logger.warning(LogCategory.MAIN, "队列执行完成但存在失败任务", failed=failures, total=len(failures))
             return False
-        self.logger.info(LogCategory.MAIN, "队列执行完成")
+        self.logger.info(LogCategory.MAIN, "队列执行完成，全部成功", total=total)
         return True
+
+    def _ensure_queue_connection(self, task_name: str, idx: int, total: int) -> bool:
+        if self._connected and self._check_adb_health():
+            if self._verify_connection_alive():
+                return True
+            self.logger.warning(LogCategory.MAIN, "控制器失效，尝试重建")
+            if self._rebuild_controller():
+                return True
+        self.logger.warning(LogCategory.MAIN, "队列任务执行前连接异常，尝试恢复", task=task_name)
+        if self._quick_reconnect_adb():
+            self.logger.info(LogCategory.MAIN, "队列连接恢复成功", task=task_name)
+            return True
+        if self._reconnect_with_retry():
+            self.logger.info(LogCategory.MAIN, "队列完整重连成功", task=task_name)
+            return True
+        self.logger.error(LogCategory.MAIN, "队列连接恢复失败，中止剩余任务", remaining=total - idx)
+        return False
 
     def run_preset(self, preset_name: str) -> bool:
         """应用预设到队列并执行队列（便捷封装）。
@@ -861,43 +1044,64 @@ class MaaEndRuntime:
         return base, {"_inline": payload}
 
     def _recover_and_retry(self, task_name: str, options: Dict[str, Any]) -> bool:
-        """集中式异常恢复：关闭游戏 → 启动游戏 → 从头重试失败任务。
+        """分级异常恢复：优先轻量 UI 修正，最终手段才重启游戏。
 
-        任何任务失败（识别未命中等）时调用此方法。通过 _recovering 标志
-        防止恢复任务自身失败时递归。仅重试一次，避免无限循环。
+        恢复层级：
+        1. 验证 ADB 连接可用（不可用则先重连）
+        2. 执行 RecoverGame 任务（StopApp → StartApp → OpenGame）
+        3. 等待游戏完全加载 + 关闭弹窗
+        4. 重试失败任务
         """
         self.logger.info(
             LogCategory.MAIN,
-            "异常恢复开始：关闭游戏 → 启动游戏 → 重试任务",
+            "异常恢复开始：验证连接 → RecoverGame → 重试任务",
             task=task_name,
             client_version=self._client_version,
         )
         self._recovering = True
         try:
-            self.logger.info(LogCategory.MAIN, "异常恢复步骤1/3：关闭游戏")
-            self.run_task("CloseGame", {"ClientVersion": self._client_version})
-            if not self._connected:
-                self.logger.error(LogCategory.MAIN, "异常恢复中止：连接断开")
+            if self._controller is None or self._tasker is None or not self._connected:
+                self.logger.info(LogCategory.MAIN, "异常恢复：需要完整重连")
+                if not self._reconnect_with_retry():
+                    self.logger.error(LogCategory.MAIN, "异常恢复：重连失败")
+                    return False
+
+            self.logger.info(LogCategory.MAIN, "异常恢复：执行 RecoverGame 任务")
+            recover_ok = self.run_task("RecoverGame", {"ClientVersion": self._client_version})
+            if not recover_ok:
+                self.logger.error(LogCategory.MAIN, "异常恢复失败：RecoverGame 任务失败")
                 return False
 
-            self.logger.info(LogCategory.MAIN, "异常恢复步骤2/3：启动游戏")
-            open_ok = self.run_task("AndroidOpenGame", {"ClientVersion": self._client_version})
-            if not open_ok:
-                self.logger.error(LogCategory.MAIN, "异常恢复失败：启动游戏失败")
-                return False
+            self._post_game_restart_cleanup()
 
-            self.logger.info(LogCategory.MAIN, "异常恢复步骤3/3：重试失败任务", task=task_name)
+            self.logger.info(LogCategory.MAIN, "异常恢复：重试失败任务", task=task_name)
             return self.run_task(task_name, options)
         finally:
             self._recovering = False
+
+    def _post_game_restart_cleanup(self) -> None:
+        """游戏重启后的清理：等待加载 + 关闭弹窗。"""
+        self.logger.info(LogCategory.MAIN, "游戏重启后清理：等待加载 + 关闭弹窗")
+        time.sleep(8.0)
+        for i in range(8):
+            try:
+                subprocess.run(
+                    [self._adb_path, "-s", self._device_address, "shell", "input", "keyevent", "4"],
+                    text=True, timeout=5, capture_output=True,
+                )
+                time.sleep(1.0)
+            except Exception:
+                pass
+        time.sleep(3.0)
+        self.logger.info(LogCategory.MAIN, "游戏重启后清理完成")
 
     def _try_recover(self, task_name: str) -> bool:
         """尝试恢复连接/设备状态，失败则重启应用。"""
         try:
             if self._controller is not None:
                 job = self._controller.post_screencap()
-                job.wait()
-                if job.succeeded:
+                # RECOVER-SCREENCAP-TIMEOUT: 恢复时 screencap 也可能阻塞
+                if self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
                     self._connected = True
                     self.logger.info(LogCategory.MAIN, "恢复连接成功", task=task_name)
                     return True
@@ -917,6 +1121,39 @@ class MaaEndRuntime:
             self.logger.error(LogCategory.MAIN, "恢复失败", task=task_name, error=str(exc))
         return False
 
+    def _try_recover_connection(self, task_name: str) -> bool:
+        """专注于连接恢复：先尝试轻量重连，失败则完整重建。"""
+        self.logger.info(LogCategory.MAIN, "尝试恢复连接", task=task_name)
+        if self._controller is None or self._tasker is None:
+            self.logger.info(LogCategory.MAIN, "资源已清理，执行完整重连")
+            return self._reconnect_with_retry()
+        if self._check_adb_health():
+            if self._verify_connection_alive():
+                self.logger.info(LogCategory.MAIN, "连接仍然可用", task=task_name)
+                return True
+            self.logger.info(LogCategory.MAIN, "ADB 可用但控制器失效，重建控制器")
+            if self._rebuild_controller():
+                return True
+        self.logger.info(LogCategory.MAIN, "轻量恢复不够，尝试 ADB 快速重连")
+        if self._quick_reconnect_adb():
+            return True
+        self.logger.info(LogCategory.MAIN, "ADB 重连失败，尝试完整重建连接")
+        return self._reconnect_with_retry()
+
+    def _reconnect_with_retry(self) -> bool:
+        """带重试的完整重连。模拟器重启后 ADB 可能需要时间恢复。"""
+        for attempt in range(3):
+            if attempt > 0:
+                self.logger.info(LogCategory.MAIN, f"完整重连重试 {attempt}/3")
+                time.sleep(3.0 * attempt)
+            if self._reconnect():
+                return True
+            if not self._check_adb_health():
+                self.logger.info(LogCategory.MAIN, "ADB 不可用，等待后重试")
+                time.sleep(3.0)
+                self._quick_reconnect_adb()
+        return False
+
     def _retry_task(self, task_name: str, options: Dict[str, Any], entry: str) -> bool:
         """恢复后重试当前任务一次。"""
         if not self._connected or self._tasker is None:
@@ -930,12 +1167,117 @@ class MaaEndRuntime:
             self.logger.exception(LogCategory.MAIN, "重试异常", task=task_name, error=str(exc))
             return False
         if succeeded:
-            if self._detect_task_skipped(job, task_name):
+            if self._detect_task_skipped(job, task_name, entry):
                 self.logger.warning(LogCategory.MAIN, "重试任务被跳过", task=task_name)
                 return False
             self.logger.info(LogCategory.MAIN, "重试成功", task=task_name)
             return True
         self.logger.warning(LogCategory.MAIN, "重试失败", task=task_name)
+        return False
+
+    def _send_key_back(self) -> bool:
+        try:
+            subprocess.run(
+                [self._adb_path, "-s", self._device_address, "shell", "input", "keyevent", "4"],
+                text=True, timeout=5, capture_output=True,
+            )
+            time.sleep(0.8)
+            self.logger.info(LogCategory.MAIN, "已发送 BACK 关闭弹窗")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "发送 BACK 键失败", error=str(exc))
+            return False
+
+    def _check_adb_health(self) -> bool:
+        try:
+            result = subprocess.run(
+                [self._adb_path, "-s", self._device_address, "shell", "echo", "ok"],
+                text=True, timeout=5, capture_output=True,
+            )
+            return result.returncode == 0 and "ok" in result.stdout
+        except Exception:
+            return False
+
+    def _quick_reconnect_adb(self) -> bool:
+        self.logger.info(LogCategory.MAIN, "快速 ADB 重连")
+        for attempt in range(3):
+            if attempt > 0:
+                self.logger.info(LogCategory.MAIN, f"ADB 重连重试 {attempt}/3")
+                time.sleep(2.0 * attempt)
+            try:
+                result = subprocess.run(
+                    [self._adb_path, "connect", self._device_address],
+                    text=True, timeout=10, capture_output=True,
+                )
+                if "connected" in result.stdout.lower():
+                    time.sleep(0.5)
+                    if self._rebuild_controller():
+                        return True
+            except Exception as exc:
+                self.logger.warning(LogCategory.MAIN, "快速 ADB 重连失败", attempt=attempt, error=str(exc))
+        self.logger.info(LogCategory.MAIN, "快速重连失败，重启 ADB 服务后重试")
+        try:
+            self._kill_adb()
+            time.sleep(1)
+            for attempt in range(2):
+                try:
+                    subprocess.run(
+                        [self._adb_path, "connect", self._device_address],
+                        text=True, timeout=10, capture_output=True,
+                    )
+                    time.sleep(1)
+                    if self._rebuild_controller():
+                        return True
+                except Exception:
+                    time.sleep(2)
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "ADB 重启后重连失败", error=str(exc))
+        return False
+
+    def _rebuild_controller(self) -> bool:
+        if not MAAFW_AVAILABLE:
+            return False
+        try:
+            screencap_ok = False
+            if self._controller is not None:
+                try:
+                    job = self._controller.post_screencap()
+                    screencap_ok = self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S))
+                except Exception:
+                    pass
+            if screencap_ok:
+                self._connected = True
+                self.logger.info(LogCategory.MAIN, "控制器复用成功（截图验证通过）")
+                return True
+            self.logger.info(LogCategory.MAIN, "控制器不可复用，重建完整连接")
+            return self._reconnect()
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "控制器重建失败", error=str(exc))
+            return False
+
+    def _lightweight_recover_ui(self) -> bool:
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "轻量恢复：多次 BACK 关闭弹窗/对话框")
+        for _ in range(3):
+            if not self._send_key_back():
+                return False
+        if not self._verify_connection_alive():
+            return False
+        time.sleep(1.5)
+        return True
+
+    def _verify_connection_alive(self) -> bool:
+        if not self._connected or self._controller is None:
+            return False
+        try:
+            job = self._controller.post_screencap()
+            ok = self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S))
+            if ok:
+                return True
+        except Exception:
+            pass
+        self._connected = False
         return False
 
     def _reconnect(self) -> bool:
@@ -986,24 +1328,61 @@ class MaaEndRuntime:
     def imported_task_paths(self) -> List[str]:
         return self.interface().get("import", [])
 
-    def screenshot(self) -> Optional[bytes]:
+    def screenshot(self, timeout_s: float = 8.0) -> Optional[bytes]:
+        # SCREENCAP-HARD-TIMEOUT: MaaFramework 的 post_screencap() 和 job.done
+        # 都可能阻塞：
+        # 1. job.wait() 无超时参数，若 MaaFramework 与设备的 ADB screencap 通道
+        #    卡死（如 scrcpy 会话冲突、设备休眠），wait() 会无限阻塞
+        # 2. post_screencap() 本身可能阻塞：当 _run_pipeline_with_timeout 的
+        #    孤儿线程仍在运行 job.wait()（pipeline 任务未完成）时，MaaFramework
+        #    内部可能拒绝并发操作，导致 post_screencap() 阻塞等待 pipeline 完成
+        # 解决方案：把 post_screencap() + 轮询 job.done 全部放入子线程，
+        # 主线程用 join(timeout) 等待，超时即放弃。子线程为 daemon，自然消亡。
         if not self._connected or self._controller is None:
             return None
-        try:
-            job = self._controller.post_screencap()
-            job.wait()
-            if not job.succeeded:
-                # H-02: 单次截图失败（瞬时抖动）不应翻转连接态，避免触发重连风暴；
-                # 真正的连接断开由上层重试/恢复机制判定。
-                self.logger.warning(LogCategory.MAIN, "截图失败（screencap 未成功），但保持连接态")
-                return None
-            cached = self._controller.cached_image
-            if cached is None:
-                return None
-            import cv2
-            success, buf = cv2.imencode(".png", cached)
-            return buf.tobytes() if success else None
-        except Exception as e:
-            # H-02: 异常同样只记录，不翻转连接态
-            self.logger.warning(LogCategory.MAIN, "截图异常，保持连接态", error=str(e))
+
+        import threading as _threading
+
+        result_box: dict = {"data": None, "error": None}
+
+        def _do_screencap() -> None:
+            try:
+                job = self._controller.post_screencap()
+                # 子线程内用剩余时间轮询 job.done
+                inner_deadline = time.monotonic() + float(timeout_s)
+                while not job.done:
+                    if time.monotonic() >= inner_deadline:
+                        self.logger.warning(
+                            LogCategory.MAIN,
+                            "截图子线程：screencap 未在限定时间内完成",
+                            timeout_s=timeout_s,
+                        )
+                        return
+                    time.sleep(0.05)
+                if not job.succeeded:
+                    self.logger.warning(LogCategory.MAIN, "截图失败（screencap 未成功），但保持连接态")
+                    return
+                cached = self._controller.cached_image
+                if cached is None:
+                    return
+                import cv2
+                success, buf = cv2.imencode(".png", cached)
+                if success:
+                    result_box["data"] = buf.tobytes()
+            except BaseException as exc:  # noqa: BLE001
+                result_box["error"] = exc
+
+        t = _threading.Thread(target=_do_screencap, daemon=True, name="maaend-screenshot")
+        t.start()
+        t.join(timeout=timeout_s + 2.0)  # 主线程给 2s 余量
+        if t.is_alive():
+            self.logger.warning(
+                LogCategory.MAIN,
+                "截图超时（post_screencap 阻塞或 job 不完成），放弃本次截图",
+                timeout_s=timeout_s,
+            )
             return None
+        if result_box["error"] is not None:
+            self.logger.warning(LogCategory.MAIN, "截图异常，保持连接态", error=str(result_box["error"]))
+            return None
+        return result_box["data"]

@@ -52,6 +52,29 @@
                 "ProductionAssistMFGCabin",
                 "ProductionAssistGrowthChamber"
             ],
+            "presets": [
+                {
+                    "name": "OnlyGrowthChamber",
+                    "label": "只选培养舱",
+                    "value": [
+                        "ProductionAssistGrowthChamber"
+                    ]
+                },
+                {
+                    "name": "SelectAll",
+                    "label": "全选",
+                    "value": [
+                        "ProductionAssistControlNexus",
+                        "ProductionAssistMFGCabin",
+                        "ProductionAssistGrowthChamber"
+                    ]
+                },
+                {
+                    "name": "ClearAll",
+                    "label": "清空",
+                    "value": []
+                }
+            ],
             "cases": [
                 {
                     "name": "ProductionAssistControlNexus",

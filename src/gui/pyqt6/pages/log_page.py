@@ -42,25 +42,23 @@ _INITIAL_LINES = 200
 # 后台分块加载时每次处理的行数：越小 UI 越跟手，越大整体加载越快
 _CHUNK_LINES = 500
 
+# 性能优化：预编译正则，避免每行 re.sub 时重复编译
+_TS_PATTERN = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})")
+_LEVEL_PATTERNS: List[tuple] = [
+    (re.compile(rf"\b({level})\b", re.IGNORECASE), color)
+    for level, color in _LOG_LEVEL_COLORS.items()
+]
+
 
 def _highlight_line(line: str) -> str:
     """对单行日志做 HTML 转义与高亮，返回可直接拼入 HTML 的片段。"""
     # 先正确转义 HTML 特殊字符，防止日志中的 HTML 标签被 Qt 渲染执行
     escaped = html.escape(line, quote=False)
     # Highlight timestamp pattern like 2026-07-07 16:09:23
-    escaped = re.sub(
-        r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})",
-        r"<span style='color: #8b919e;'>\1</span>",
-        escaped,
-    )
+    escaped = _TS_PATTERN.sub(r"<span style='color: #8b919e;'>\1</span>", escaped)
     # Highlight log levels
-    for level, color in _LOG_LEVEL_COLORS.items():
-        escaped = re.sub(
-            rf"\b({level})\b",
-            rf"<span style='color: {color}; font-weight: bold;'>\1</span>",
-            escaped,
-            flags=re.IGNORECASE,
-        )
+    for pat, color in _LEVEL_PATTERNS:
+        escaped = pat.sub(rf"<span style='color: {color}; font-weight: bold;'>\1</span>", escaped)
     return escaped
 
 
@@ -128,6 +126,11 @@ class LogPage(QWidget):
         self._load_token = 0
         self._loading = False
         self._current_path: Optional[Path] = None
+        # 性能优化：缓存最近一次文件列表与渲染 HTML，showEvent 时毫秒级恢复
+        self._cached_file_items: List[tuple] = []  # [(display_name, path_str)]
+        self._cached_html: str = ""
+        self._cached_path: Optional[Path] = None
+        self._dir_mtime_last: float = 0.0
         self._setup_ui()
         self._refresh_file_list()
         self._load_selected_log()
@@ -174,6 +177,20 @@ class LogPage(QWidget):
         content_root.addWidget(self._log_view, 1)
 
     def _refresh_file_list(self) -> None:
+        # 性能优化：检查目录 mtime，未变化则直接复用缓存，避免重复 stat() 排序
+        try:
+            dir_mtime = self._logs_dir.stat().st_mtime if self._logs_dir.exists() else 0.0
+        except OSError:
+            dir_mtime = 0.0
+        if self._cached_file_items and dir_mtime == self._dir_mtime_last:
+            # 缓存命中：直接复用，不重新 stat
+            self._file_combo.clear()
+            for name, path_str in self._cached_file_items:
+                self._file_combo.addItem(name, path_str)
+            return
+        self._dir_mtime_last = dir_mtime
+        self._cached_file_items = []
+
         self._file_combo.clear()
         if not self._logs_dir.exists():
             self._file_combo.addItem(locale.tr("log_dir_missing", "Log directory not found"))
@@ -189,6 +206,7 @@ class LogPage(QWidget):
             return
         for f in log_files:
             self._file_combo.addItem(f.name, str(f))
+            self._cached_file_items.append((f.name, str(f)))
 
     def _load_selected_log(self) -> None:
         # 切换文件/刷新时取消尚未完成的后台加载，避免向新内容中混入旧日志
@@ -200,6 +218,12 @@ class LogPage(QWidget):
             return
         log_path = Path(str(data))
         self._current_path = log_path
+        # 缓存命中：同一路径且缓存 HTML 非空时直接恢复，毫秒级
+        if self._cached_path == log_path and self._cached_html:
+            self._log_view.setHtml(self._cached_html)
+            self._log_view.moveCursor(QTextCursor.MoveOperation.End)
+            self._update_path_label(loading=False)
+            return
         if not log_path.exists():
             self._log_view.setPlainText(locale.tr("log_file_missing", "Log file does not exist."))
             self._update_path_label(loading=False)
@@ -214,8 +238,12 @@ class LogPage(QWidget):
                         reached_limit = True
                         break
                     lines.append(_highlight_line(line.rstrip("\r\n")))
-            self._log_view.setHtml("<br>".join(lines))
+            html_text = "<br>".join(lines)
+            self._log_view.setHtml(html_text)
             self._log_view.moveCursor(QTextCursor.MoveOperation.End)
+            # 缓存首段 HTML（后台加载完成后会更新为完整 HTML）
+            self._cached_html = html_text
+            self._cached_path = log_path
             if reached_limit:
                 # 剩余部分交由后台线程持续分块加载，期间用户可自由浏览已展示内容
                 self._start_loader(log_path, skip_lines=len(lines))
@@ -275,12 +303,17 @@ class LogPage(QWidget):
         cursor.insertHtml("<br>" + html_chunk)
         view.setTextCursor(saved_cursor)
         bar.setValue(saved_scroll)
+        # 注：不在此处缓存 toHtml()，避免大文档每 chunk 都做完整序列化。
+        # 完整缓存在 _on_loading_done 中一次性完成。
 
     def _on_loading_done(self, token: int) -> None:
         if token != self._load_token:
             return
         self._loading = False
         self._update_path_label(loading=False)
+        # 完整加载后缓存最终 HTML（仅一次 toHtml 调用，避免每 chunk 重复序列化）
+        self._cached_html = self._log_view.toHtml()
+        self._cached_path = self._current_path
 
     def _on_loader_error(self, msg: str, token: int) -> None:
         if token != self._load_token:

@@ -184,12 +184,35 @@ class PipelineRunner:
             roi=tuple(roi),
             threshold=[node.threshold],
         )
-        job = self._maa_tasker.post_recognition(
-            JRecognitionType.TemplateMatch,
-            param,
-            screen,
-        )
-        detail = job.get()
+        # OCR/TEMPLATE-HARD-TIMEOUT: job.get() 在 MaaFramework 内部有未完成
+        # pipeline 任务时会因并发限制阻塞。改用线程 + join(timeout) 包装，
+        # 超时返回空列表（视为未匹配）。
+        import threading as _threading
+        box: dict = {"detail": None, "error": None}
+        TEMPLATE_TIMEOUT_S = 10.0
+
+        def _do_match() -> None:
+            try:
+                job = self._maa_tasker.post_recognition(
+                    JRecognitionType.TemplateMatch,
+                    param,
+                    screen,
+                )
+                job.wait()
+                box["detail"] = job.get()
+            except BaseException as exc:
+                box["error"] = exc
+
+        t = _threading.Thread(target=_do_match, daemon=True, name="maafw-tmpl-match")
+        t.start()
+        t.join(timeout=TEMPLATE_TIMEOUT_S)
+        if t.is_alive():
+            logger.warning(f"maafw template match 超时 {TEMPLATE_TIMEOUT_S}s，放弃（MaaFramework 可能忙）")
+            return []
+        if box["error"] is not None:
+            logger.debug(f"maafw template match 异常: {box['error']}")
+            return []
+        detail = box["detail"]
         if not detail or not detail.hit:
             return []
 
@@ -257,12 +280,35 @@ class PipelineRunner:
                     roi=tuple(roi),
                     threshold=node.threshold,
                 )
-                job = self._maa_tasker.post_recognition(
-                    JRecognitionType.OCR,
-                    param,
-                    screen,
-                )
-                detail = job.get()
+                # OCR-HARD-TIMEOUT: job.get() 在 MaaFramework 内部有未完成
+                # pipeline 任务时会因并发限制阻塞。改用线程 + join(timeout) 包装，
+                # 超时返回空列表（视为未匹配）。
+                import threading as _threading
+                box: dict = {"detail": None, "error": None}
+                OCR_TIMEOUT_S = 10.0
+
+                def _do_ocr() -> None:
+                    try:
+                        job = self._maa_tasker.post_recognition(
+                            JRecognitionType.OCR,
+                            param,
+                            screen,
+                        )
+                        job.wait()
+                        box["detail"] = job.get()
+                    except BaseException as exc:
+                        box["error"] = exc
+
+                t = _threading.Thread(target=_do_ocr, daemon=True, name="maafw-runner-ocr")
+                t.start()
+                t.join(timeout=OCR_TIMEOUT_S)
+                if t.is_alive():
+                    logger.warning(f"maafw runner OCR 超时 {OCR_TIMEOUT_S}s，放弃（MaaFramework 可能忙）")
+                    return []
+                if box["error"] is not None:
+                    logger.debug(f"maafw runner OCR 异常: {box['error']}")
+                    return []
+                detail = box["detail"]
                 if detail and detail.hit:
                     results = []
                     best = detail.best_result

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -274,7 +274,8 @@ class Navigator:
 
         cfg_kwargs: Dict[str, Any] = {"max_steps": max_steps}
         if step_timeout is not None:
-            cfg_kwargs["vlm_call_timeout_s"] = float(step_timeout)
+            # step_timeout 作为整体步超时（日志警告阈值）。
+            # vlm_call_timeout_s 用默认值 90s（云端 API 实测需 30-77s）。
             cfg_kwargs["step_timeout_s"] = float(step_timeout)
         if target_radius is not None:
             cfg_kwargs["target_radius"] = float(target_radius)
@@ -346,6 +347,7 @@ class Navigator:
         max_steps: int = 40,
         keyevent_fn: Optional[callable] = None,
         step_timeout: Optional[float] = None,
+        ocr_fn: Optional[callable] = None,
     ) -> Dict[str, Any]:
         """Navigate by following on-screen quest tracking markers using VLM.
 
@@ -355,6 +357,8 @@ class Navigator:
 
         Args:
             step_timeout: 单次 VLM 推理超时（秒），None 则使用默认值。
+            ocr_fn: 可选 OCR 验证函数，接收 PNG bytes 返回标签列表。
+                    用于服务端硬验证 VLM 的 arrived 报告（防止误报）。
         """
         self._logger.info("nav-vlm tracking mode (no target coords)")
 
@@ -373,8 +377,76 @@ class Navigator:
 
         cfg_kwargs: Dict[str, Any] = {"max_steps": max_steps}
         if step_timeout is not None:
-            cfg_kwargs["vlm_call_timeout_s"] = float(step_timeout)
+            # step_timeout 作为整体步超时（日志警告阈值）。
+            # vlm_call_timeout_s 不再绑定 step_timeout——云端 API
+            # （qwen3.5-35b）实测需 30-77s，若 vlm_call_timeout_s < 实际响应时间
+            # 会杀死有效请求并重试，反而更慢。让 vlm_call_timeout_s 用默认值 90s。
             cfg_kwargs["step_timeout_s"] = float(step_timeout)
+        walk_cfg = VlmWalkConfig(**cfg_kwargs)
+        walker = VlmWalkNavigator(
+            llm_client=llm_client,
+            screenshot_fn=self._screenshot_fn,
+            input_fn=input_fn,
+            locator=self._locator,
+            data_loader=self._data,
+            config=walk_cfg,
+            ocr_fn=ocr_fn,
+        )
+
+        return walker.walk_to_tracking(max_steps=max_steps)
+
+    def to_collect_vlm(
+        self,
+        waypoints: List[Tuple[float, float]],
+        collect_items: List[str],
+        map_name: str = "",
+        llm_client: Optional[LlmClient] = None,
+        max_steps: int = 60,
+        keyevent_fn: Optional[callable] = None,
+        step_timeout: Optional[float] = None,
+        target_radius: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """采集任务专用 VLM 导航：沿 waypoints 路线导航并采集指定资源。
+
+        把路线坐标(waypoints)与采集物名称(collect_items)作为上下文提供给
+        VLM，由 VLM 综合截图+小地图+路线信息+标志物名称自主决定导航动作。
+        这是用户要求的"将路线信息与标志物给予VLM，由其完成导航"。
+
+        Args:
+            waypoints: 路线坐标点列表（来自 MapTrackerMove 节点 path 字段）
+            collect_items: 采集物名称列表（如 ["映火荞花"]），作为标志物
+            map_name: 小地图 ID（如 ``map01_lv001``）
+            step_timeout: 单次 VLM 推理超时（秒）
+            target_radius: waypoint 到达判定半径
+        """
+        self._logger.info(
+            "nav-vlm collect mode: map=%s waypoints=%d items=%s",
+            map_name, len(waypoints), "/".join(collect_items),
+        )
+
+        if llm_client is None:
+            self._logger.warning("no LLM client supplied, cannot do collect walk")
+            return {"status": "error", "message": "no LLM client for collect walk"}
+
+        if not waypoints:
+            return {"status": "error", "message": "no waypoints provided for collect walk"}
+
+        frame = self._get_frame()
+        if frame is None:
+            return {"status": "error", "message": "no screenshot available"}
+
+        def default_input(key: str, duration: Optional[float]) -> None:
+            self._logger.info("[vlm-input] key=%s duration=%s (no keyevent_fn provided)", key, duration)
+
+        input_fn = keyevent_fn or default_input
+
+        cfg_kwargs: Dict[str, Any] = {"max_steps": max_steps}
+        if step_timeout is not None:
+            # step_timeout 作为整体步超时（日志警告阈值）。
+            # vlm_call_timeout_s 用默认值 90s（云端 API 实测需 30-77s）。
+            cfg_kwargs["step_timeout_s"] = float(step_timeout)
+        if target_radius is not None:
+            cfg_kwargs["target_radius"] = float(target_radius)
         walk_cfg = VlmWalkConfig(**cfg_kwargs)
         walker = VlmWalkNavigator(
             llm_client=llm_client,
@@ -385,7 +457,12 @@ class Navigator:
             config=walk_cfg,
         )
 
-        return walker.walk_to_tracking(max_steps=max_steps)
+        return walker.walk_to_collect(
+            waypoints=waypoints,
+            collect_items=collect_items,
+            map_name=map_name,
+            max_steps=max_steps,
+        )
 
     # ------------------------------------------------------------------
     # Internal

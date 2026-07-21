@@ -1,6 +1,6 @@
 {
-  "selected_task": "AndroidOpenGame",
-  "selected_preset": "DailyFull",
+  "selected_task": "DijiangRewards",
+  "selected_preset": "MaterialFarmFull",
   "queue_items": [
     {
       "name": "AndroidOpenGame",
@@ -28,9 +28,14 @@
       "display_name": "DijiangRewards",
       "type": "task",
       "options": {
-        "AutoStartExchange": "No",
+        "AutoStartExchange": "Yes",
         "StageTaskSetting": "No",
-        "ClueSetting": "No",
+        "ClueSetting": "Yes",
+        "SendCluesDirect": "Yes",
+        "ClueSend": {
+          "MaxClueSend": "3"
+        },
+        "ClueStockLimit": "1",
         "SelectToGrow": "Any",
         "AutoExtractSeed": "Yes",
         "SortBy": "Default",
@@ -41,13 +46,37 @@
       "name": "CreditShoppingN2",
       "display_name": "CreditShoppingN2",
       "type": "task",
-      "options": {}
+      "options": {
+        "CreditShoppingReserve": {
+          "ReserveCreditThreshold": "300"
+        },
+        "CreditShoppingClueSend": {
+          "MaxClueSendWhenInsufficient": "1"
+        },
+        "CreditShoppingClueStockLimit": "2",
+        "CreditShoppingPriority1": "Yes",
+        "CreditShoppingPriority2": "Yes",
+        "CreditShoppingPriority3": "No",
+        "CreditShoppingForce": "Refresh",
+        "CreditShoppingKeepShelfRecord": "Yes"
+      }
     },
     {
       "name": "DeliveryJobs",
       "display_name": "DeliveryJobs",
       "type": "task",
-      "options": {}
+      "options": {
+        "ValleyIV": "Yes",
+        "OriginiumSciencePark": "Yes",
+        "OriginLodespring": "Yes",
+        "PowerPlateau": "Yes",
+        "Wuling": "Yes",
+        "WulingCity": "Yes",
+        "TestArea": "Yes",
+        "PackCargoSelectItem": "No",
+        "DeliveryJobsAcceptJobOnly": "No",
+        "DeliveryJobsPackCargoOnly": "No"
+      }
     },
     {
       "name": "SellProduct",
@@ -65,7 +94,57 @@
         ],
         "SellBeyondAidQuota": "No",
         "ValleyIVSell": "Yes",
-        "WulingSell": "Yes"
+        "ValleyIVRefugeeCamp": "Yes",
+        "ValleyIVRefugeeCampOperator": "No",
+        "ValleyIVRefugeeCampAttempt1": "Yes",
+        "ValleyIVRefugeeCampItem1": "荞愈胶囊",
+        "ValleyIVRefugeeCampReserve1": "全部售出",
+        "ValleyIVRefugeeCampAttempt2": "Yes",
+        "ValleyIVRefugeeCampItem2": "无",
+        "ValleyIVRefugeeCampReserve2": "全部售出",
+        "ValleyIVRefugeeCampAttempt3": "No",
+        "ValleyIVRefugeeCampAttempt4": "No",
+        "ValleyIVInfrastructureOutpost": "Yes",
+        "ValleyIVInfrastructureOutpostOperator": "No",
+        "ValleyIVInfrastructureOutpostAttempt1": "Yes",
+        "ValleyIVInfrastructureOutpostItem1": "无",
+        "ValleyIVInfrastructureOutpostReserve1": "全部售出",
+        "ValleyIVInfrastructureOutpostAttempt2": "Yes",
+        "ValleyIVInfrastructureOutpostItem2": "无",
+        "ValleyIVInfrastructureOutpostReserve2": "全部售出",
+        "ValleyIVInfrastructureOutpostAttempt3": "No",
+        "ValleyIVInfrastructureOutpostAttempt4": "No",
+        "ValleyIVReconstructionCommand": "Yes",
+        "ValleyIVReconstructionCommandOperator": "No",
+        "ValleyIVReconstructionCommandAttempt1": "Yes",
+        "ValleyIVReconstructionCommandItem1": "无",
+        "ValleyIVReconstructionCommandReserve1": "全部售出",
+        "ValleyIVReconstructionCommandAttempt2": "Yes",
+        "ValleyIVReconstructionCommandItem2": "无",
+        "ValleyIVReconstructionCommandReserve2": "全部售出",
+        "ValleyIVReconstructionCommandAttempt3": "No",
+        "ValleyIVReconstructionCommandAttempt4": "No",
+        "WulingSell": "Yes",
+        "WulingSkyKingFlats": "Yes",
+        "WulingSkyKingFlatsOperator": "No",
+        "WulingSkyKingFlatsAttempt1": "Yes",
+        "WulingSkyKingFlatsItem1": "无",
+        "WulingSkyKingFlatsReserve1": "全部售出",
+        "WulingSkyKingFlatsAttempt2": "Yes",
+        "WulingSkyKingFlatsItem2": "无",
+        "WulingSkyKingFlatsReserve2": "全部售出",
+        "WulingSkyKingFlatsAttempt3": "No",
+        "WulingSkyKingFlatsAttempt4": "No",
+        "WulingCardiacRemediationStation": "Yes",
+        "WulingCardiacRemediationStationOperator": "No",
+        "WulingCardiacRemediationStationAttempt1": "Yes",
+        "WulingCardiacRemediationStationItem1": "无",
+        "WulingCardiacRemediationStationReserve1": "全部售出",
+        "WulingCardiacRemediationStationAttempt2": "Yes",
+        "WulingCardiacRemediationStationItem2": "无",
+        "WulingCardiacRemediationStationReserve2": "全部售出",
+        "WulingCardiacRemediationStationAttempt3": "No",
+        "WulingCardiacRemediationStationAttempt4": "No"
       }
     },
     {
@@ -121,7 +200,7 @@
           "SurfingFestivalTicket"
         ],
         "AutoStockBuyCulturalGoodsValleyIVGiftLimit": {
-          "ValleyGiftLimit": "200"
+          "ValleyGiftLimit": "2000"
         },
         "AutoStockUseDiscountsValleyIV": "Any",
         "AutoStockStapleWuling": "No"
@@ -174,12 +253,6 @@
       }
     },
     {
-      "name": "SeizeDeliveryJobs",
-      "display_name": "SeizeDeliveryJobs",
-      "type": "task",
-      "options": {}
-    },
-    {
       "name": "AutoCollect",
       "display_name": "AutoCollect",
       "type": "task",
@@ -219,7 +292,8 @@
           "CommonRoute7",
           "CommonRoute8"
         ],
-        "AutoCollectStashBackpackSubTask": "Yes"
+        "AutoCollectStashBackpackSubTask": "Yes",
+        "StashBackpackType": "No"
       }
     }
   ],
@@ -245,6 +319,7 @@
       "ClientVersion": "CN"
     },
     "VisitFriends": {
+      "VisitFriendsRemark": "No",
       "ProductionAssistControl": [
         "ProductionAssistControlNexus",
         "ProductionAssistMFGCabin",
@@ -252,40 +327,24 @@
       ]
     },
     "DijiangRewards": {
-      "AutoStartExchange": "Yes",
+      "AutoStartExchange": "No",
       "StageTaskSetting": "No",
-      "ClueStockLimit": "2"
+      "ClueSetting": "No",
+      "SelectToGrow": "Any"
     },
     "CreditShoppingN2": {
-      "CreditShoppingForce": "Refresh",
       "CreditShoppingReserve": {
         "ReserveCreditThreshold": "300"
       },
+      "CreditShoppingClueSend": {
+        "MaxClueSendWhenInsufficient": "1"
+      },
+      "CreditShoppingClueStockLimit": "2",
       "CreditShoppingPriority1": "Yes",
-      "CreditShoppingPriority1Items": [
-        "ArsenalTicket",
-        "Oroberyl"
-      ],
-      "CreditShoppingPriority1DiscountValue": "Any",
       "CreditShoppingPriority2": "Yes",
-      "CreditShoppingPriority2Items": [
-        "ArsenalTicket",
-        "Oroberyl",
-        "TCreds",
-        "ElementaryCognitiveCarrier",
-        "ElementaryCombatRecord",
-        "IntermediateCombatRecord",
-        "ArmsInspector",
-        "ArmsINSPKit",
-        "CastDie",
-        "HeavyCastDie",
-        "Protodisk",
-        "Protoset",
-        "Protoprism",
-        "Protohedron"
-      ],
-      "CreditShoppingPriority2DiscountValue": "-75%",
-      "CreditShoppingPriority3": "No"
+      "CreditShoppingPriority3": "No",
+      "CreditShoppingForce": "Refresh",
+      "CreditShoppingKeepShelfRecord": "Yes"
     },
     "DeliveryJobs": {
       "ValleyIV": "Yes",
@@ -316,7 +375,6 @@
       "DailyClaimDeliveryJobsRewards": "Yes",
       "DailyProtocolPassRewards": "Yes"
     },
-    "SeizeDeliveryJobs": {},
     "AutoCollect": {
       "AutoCollectSchedule": [
         "AutoCollectScheduleMonday",

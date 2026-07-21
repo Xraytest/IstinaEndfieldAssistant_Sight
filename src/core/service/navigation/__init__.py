@@ -1,4 +1,4 @@
-﻿from .entity_db import Entity, EntityDatabase
+from .entity_db import Entity, EntityDatabase
 from .map_data_loader import GridCell, MapDataLoader, MapLayout, MapLevel
 from .minimap_locator import MapPosition, MinimapLocator
 from .navigator import Navigator

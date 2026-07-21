@@ -87,16 +87,52 @@ def apply_dpi_scaling(widget: QWidget, base_font_size: int = 12) -> None:
 
 
 def fade_widget(widget: QWidget, duration: int = 200) -> None:
-    """Fade a widget in/out using opacity animation."""
+    """Fade-in 动画，视觉效果与 QGraphicsOpacityEffect 完全一致。
+
+    优化点：不再对目标 widget 套 QGraphicsOpacityEffect（会强制整棵子树走离屏
+    合成慢路径）。改为在 widget 上方覆盖一个纯色 overlay widget，对该 overlay
+    做 opacity 动画。overlay 是单个扁平 widget，无子树，离屏合成开销极低。
+
+    视觉等效：原方案 page 从透明(opacity=0)渐变到不透明(opacity=1)，过程中
+    透出父容器背景色。本方案 overlay 从不透明(覆盖父背景色)渐变到透明，过程
+    中露出下方的 page，最终 overlay 移除。两者帧帧对应，肉眼不可分辨。
+    """
     from PyQt6.QtCore import QPropertyAnimation
     from PyQt6.QtWidgets import QGraphicsOpacityEffect
-    effect = QGraphicsOpacityEffect(widget)
-    widget.setGraphicsEffect(effect)
-    anim = QPropertyAnimation(effect, b"opacity", widget)
+
+    # 父背景色：与 contentPanel/PANEL_STYLE 的 bg_card 一致，使 overlay 起始色
+    # 与原方案透明态露出色相同（视觉帧帧对应）
+    overlay = QWidget(widget)
+    overlay.setAutoFillBackground(True)
+    overlay.setStyleSheet("background-color: #161820;")
+    overlay.setGeometry(widget.rect())
+    overlay.show()
+    overlay.raise_()
+
+    # overlay 跟随 widget 尺寸变化（动画期间 resize 极少发生，但兜底）
+    widget.installEventFilter(_ResizeForward(overlay))
+
+    effect = QGraphicsOpacityEffect(overlay)
+    overlay.setGraphicsEffect(effect)
+    anim = QPropertyAnimation(effect, b"opacity", overlay)
     anim.setDuration(duration)
-    anim.setStartValue(0.0)
-    anim.setEndValue(1.0)
+    anim.setStartValue(1.0)
+    anim.setEndValue(0.0)
+    anim.finished.connect(overlay.deleteLater)
     anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+
+class _ResizeForward(QObject):
+    """把目标 widget 的 Resize 事件转发给 overlay，保持几何同步。"""
+
+    def __init__(self, overlay: QWidget) -> None:
+        super().__init__(overlay)
+        self._overlay = overlay
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Resize and watched is self._overlay.parent():
+            self._overlay.setGeometry(self._overlay.parent().rect())
+        return False
 
 
 def clamp_window_size(available: QSize, preferred: Tuple[int, int], minimum: Tuple[int, int]) -> QSize:

@@ -11,7 +11,8 @@ import json
 import re
 import shlex
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+from uuid import uuid4
 
 from PyQt6.QtCore import QObject, QProcess, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QMessageBox
@@ -83,6 +84,10 @@ class CLIBridge(QObject):
         self._interactive = True
         self._command_ready = False
         self._logger = get_logger(__name__)
+        # execute_async 回调注册表：{request_id: (on_done, on_error, expected_cmd_prefix)}
+        self._async_callbacks: Dict[str, tuple] = {}
+        # 命令前缀 -> request_id 列表，用于在 commandFinished 时匹配回调
+        self._cmd_prefix_to_reqs: Dict[str, List[str]] = {}
 
     @pyqtSlot(str, dict)
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> None:
@@ -93,6 +98,84 @@ class CLIBridge(QObject):
             self._send_next_if_idle()
         else:
             self._start_next_process()
+
+    def execute_async(
+        self,
+        command: str,
+        params: Optional[Dict[str, Any]] = None,
+        on_done: Optional[Callable[[dict], None]] = None,
+        on_error: Optional[Callable[[str], None]] = None,
+        timeout_ms: int = 300000,
+    ) -> str:
+        """异步执行命令，通过回调通知结果，不阻塞主线程。
+
+        与 _sync_execute 的区别：
+          - _sync_execute 用 QEventLoop 阻塞调用线程，主线程期间无法响应 UI 事件
+          - execute_async 立即返回 request_id，命令完成后调用 on_done/on_error
+
+        Args:
+            command: 命令字符串，如 "system connect"、"metadata list"
+            params: 参数字典
+            on_done: 命令成功完成时的回调，参数为结果 dict
+            on_error: 命令失败/崩溃/超时时的回调，参数为错误消息 str
+            timeout_ms: 超时毫秒数，超时后调用 on_error 并清理回调
+
+        Returns:
+            request_id: 可用于 cancel_async 取消
+        """
+        req_id = uuid4().hex
+        expected = command.split()
+        expected_key = " ".join(expected)
+        self._async_callbacks[req_id] = (on_done, on_error, expected_key)
+        self._cmd_prefix_to_reqs.setdefault(expected_key, []).append(req_id)
+        # 超时清理
+        if timeout_ms > 0:
+            QTimer.singleShot(timeout_ms, lambda: self._on_async_timeout(req_id))
+        # 实际发送命令
+        self.execute(command, params)
+        return req_id
+
+    def cancel_async(self, req_id: str) -> None:
+        """取消尚未触发的异步回调。"""
+        cb = self._async_callbacks.pop(req_id, None)
+        if cb is None:
+            return
+        _, _, expected_key = cb
+        reqs = self._cmd_prefix_to_reqs.get(expected_key, [])
+        if req_id in reqs:
+            reqs.remove(req_id)
+            if not reqs:
+                self._cmd_prefix_to_reqs.pop(expected_key, None)
+
+    def _on_async_timeout(self, req_id: str) -> None:
+        cb = self._async_callbacks.pop(req_id, None)
+        if cb is None:
+            return
+        on_done, on_error, expected_key = cb
+        reqs = self._cmd_prefix_to_reqs.get(expected_key, [])
+        if req_id in reqs:
+            reqs.remove(req_id)
+        if on_error is not None:
+            on_error("timeout")
+
+    def _dispatch_async_callbacks(self, command_str: str, result: dict, is_error: bool = False) -> None:
+        """commandFinished/commandError 触发时，分发到匹配的异步回调。"""
+        expected_key = " ".join(command_str.split()[:1]) if command_str else ""
+        # 精确匹配前缀（支持 "system connect" 等）
+        for key in list(self._cmd_prefix_to_reqs.keys()):
+            if command_str.startswith(key) or command_str.split()[: len(key.split())] == key.split():
+                req_ids = self._cmd_prefix_to_reqs.pop(key, [])
+                for req_id in req_ids:
+                    cb = self._async_callbacks.pop(req_id, None)
+                    if cb is None:
+                        continue
+                    on_done, on_error, _ = cb
+                    if is_error:
+                        if on_error is not None:
+                            on_error(result.get("message", str(result)) if isinstance(result, dict) else str(result))
+                    else:
+                        if on_done is not None:
+                            on_done(result)
 
     @staticmethod
     def _build_args(command: str, params: Dict[str, Any]) -> List[str]:
@@ -192,6 +275,8 @@ class CLIBridge(QObject):
                 command = " ".join(self._last_command)
                 self._logger.debug(LogCategory.GUI, "发出 commandFinished 信号", command=command, status=result.get("status") if isinstance(result, dict) else None)
                 self.commandFinished.emit(command, result)
+                # 分发到 execute_async 注册的回调
+                self._dispatch_async_callbacks(command, result, is_error=False)
                 if self._interactive:
                     self._current_command = None
                     self._send_next_if_idle()

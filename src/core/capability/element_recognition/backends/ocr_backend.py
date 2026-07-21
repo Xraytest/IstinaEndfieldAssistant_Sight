@@ -123,6 +123,11 @@ class OCRBackend:
         RecognitionDetail.hit / .best_result / .all_results 才是 OCR 详情字段。
         旧实现误把 TaskDetail 当 RecognitionDetail 使用，导致 AttributeError 静默吞掉，
         OCR 始终返回空列表。
+
+        OCR-HARD-TIMEOUT: job.wait() 无超时参数，当 MaaFramework 内部有未完成的
+        pipeline 任务（如 _run_pipeline_with_timeout 的孤儿线程仍在 job.wait()）
+        时，post_recognition 会因 MaaFramework 并发限制而阻塞，导致整个进程假死。
+        改为线程 + Event.wait(timeout) 包装，超时返回空列表，不阻塞调用方。
         """
         results: List[ElementInfo] = []
         h, w = screen.shape[:2]
@@ -138,14 +143,35 @@ class OCRBackend:
             threshold=self._confidence_threshold,
         )
 
-        job = self._maa_tasker.post_recognition(
-            JRecognitionType.OCR,
-            ocr_param,
-            screen,
-        )
-        # 必须显式 wait，否则 get() 拿到的 TaskDetail.node_id_list 为空
-        job.wait()
-        task_detail = job.get()
+        # 线程包装：post_recognition + wait + get，主线程用 join(timeout) 等待
+        # 默认 10s 超时（正常 OCR 应在 1-3s 内完成；超时通常是 MaaFramework 忙）
+        import threading as _threading
+        box: dict = {"task_detail": None, "error": None}
+        OCR_TIMEOUT_S = 10.0
+
+        def _do_ocr() -> None:
+            try:
+                job = self._maa_tasker.post_recognition(
+                    JRecognitionType.OCR,
+                    ocr_param,
+                    screen,
+                )
+                # 必须显式 wait，否则 get() 拿到的 TaskDetail.node_id_list 为空
+                job.wait()
+                box["task_detail"] = job.get()
+            except BaseException as exc:  # noqa: BLE001
+                box["error"] = exc
+
+        t = _threading.Thread(target=_do_ocr, daemon=True, name="maafw-ocr")
+        t.start()
+        t.join(timeout=OCR_TIMEOUT_S)
+        if t.is_alive():
+            logger.warning(f"maafw OCR 超时 {OCR_TIMEOUT_S}s，放弃本次 OCR（MaaFramework 可能忙）")
+            return results
+        if box["error"] is not None:
+            logger.debug(f"maafw OCR 异常: {box['error']}")
+            return results
+        task_detail = box["task_detail"]
         if not task_detail:
             return results
 

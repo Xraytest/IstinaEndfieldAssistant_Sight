@@ -320,6 +320,10 @@ class MaaEndControlPage(QWidget):
         self._option_tree: Dict[str, Dict[str, Any]] = {}
         self._is_executing = False
         self._is_building_editor = False  # 渲染期间阻止 _save_options 覆盖已保存选项
+        # 启动期标志:从 __init__ 到 _delayed_init 完成期间为 True,
+        # 阻止选项渲染触发的 _save_options 写盘 + _refresh_queue_list 刷新,
+        # 避免队列列表在选项区还在动态生长时被并发刷新。
+        self._is_initializing = True
         self._user_stopped = False  # MAAEND-01: 标记用户主动停止，阻止 _on_execution_finished 自动重试
         self._worker: Optional[TaskRunWorker] = None
         self._failed_indices: list[int] = []
@@ -329,6 +333,11 @@ class MaaEndControlPage(QWidget):
         self._tasks_cache: Dict[str, Dict[str, Any]] = {}
         self._presets_cache: Dict[str, Dict[str, Any]] = {}
         self._task_option_defs: Dict[str, Dict[str, Any]] = {}
+        # refresh 去重:启动期 _delayed_init、_on_metadata_loaded、showEvent 都可能
+        # 触发 refresh,重复 refresh 会清空 task_list/preset_list 再重建,
+        # 与选项编辑器分批渲染叠加产生明显抖动。该标志保证同一事件循环 tick 内
+        # 只有一次 refresh 实际执行。
+        self._refresh_pending = False
         self._queue_state = QueueState()
         self._state_path = self._queue_state.state_path
         self._auto_retry_enabled = True
@@ -718,7 +727,10 @@ class MaaEndControlPage(QWidget):
         ):
             widget.setFont(font)
 
-        self._sync_layout_geometry()
+        # 不在 _setup_ui 末尾调用 _sync_layout_geometry:此时 widget 尚未 show,
+        # self.width() 为 0,splitter.setSizes 会用错误比例绘制首帧。
+        # 改为在 showEvent 首次触发时计算正确尺寸。
+        self._initial_layout_synced = False
 
     # ------------------------------------------------------------------
     # task / preset list helpers
@@ -1150,8 +1162,21 @@ class MaaEndControlPage(QWidget):
             # 全部渲染完成
             self._option_form.addStretch()
             self._apply_saved_option_values(self._selected_task, queue_index=state.get("queue_index"))
+            # 兜底:对 _apply_saved_option_recursive 未触发的 switch/select 选项
+            # (例如该选项无保存值,_apply_saved_option_recursive 走 if name not in saved
+            # 分支会调用 _refresh_sub_options,但若该选项名出现在 saved 中却被赋值
+            # 后 _refresh_sub_options 已触发),这里再统一扫一遍确保所有顶层 switch/select
+            # 的子选项都被渲染一次。
+            for top_name in names:
+                node = self._option_tree.get(top_name)
+                if node and node["opt_type"] in ("switch", "select"):
+                    # 只对子容器仍隐藏(即 _refresh_sub_options 从未被调用过)的节点触发
+                    if not node["sub_container"].isVisible() and not node["children"]:
+                        self._refresh_sub_options(top_name)
             self._option_build_state = None
             # 渲染+恢复完成，保存一次恢复后的值（确保队列实例 options 与 UI 一致）
+            # 注意:启动期 _is_initializing=True 时 _save_options 会被屏蔽,
+            # 真正落盘由 _on_metadata_loaded 末尾的 QTimer.singleShot(0, _save_options) 完成。
             self._save_options()
             return
         batch_end = min(pos + self._OPTION_BATCH, len(names))
@@ -1254,8 +1279,13 @@ class MaaEndControlPage(QWidget):
             elif opt_type == "select":
                 widget.currentIndexChanged.connect(lambda idx, n=name: self._refresh_sub_options(n))
 
-        # 初始渲染当前 case 的子选项
-        self._refresh_sub_options(name)
+        # 初始渲染时不主动渲染子选项:避免与 _apply_saved_option_values 的二次
+        # _refresh_sub_options 形成可见的"先按默认 case 出现→清空→按保存值出现"闪烁。
+        # 子选项渲染交给两条路径:
+        #   1) _apply_saved_option_values 应用保存值时会调用 _refresh_sub_options
+        #   2) _build_option_batch 末尾对未匹配保存值的 switch/select 兜底调用一次
+        # 仅在 level > 0 (子选项嵌套层级)且父 case 已被显式触发时才需要立即渲染,
+        # 顶层选项一律延迟到统一的应用保存值阶段。
 
     def _refresh_sub_options(self, parent_name: str) -> None:
         """当父选项(switch/select)值变化时，动态刷新子选项的显示。
@@ -1452,6 +1482,16 @@ class MaaEndControlPage(QWidget):
         finally:
             splitter.setUpdatesEnabled(True)
 
+    def _apply_checkbox_preset(self, checkboxes: Dict[str, QCheckBox], preset_value: List[str]) -> None:
+        """将 checkbox 组应用预设值（全选/只选某几项/清空等）。"""
+        target_set = set(preset_value)
+        for name, cb in checkboxes.items():
+            if cb.isChecked() != (name in target_set):
+                cb.blockSignals(True)
+                cb.setChecked(name in target_set)
+                cb.blockSignals(False)
+        self._save_options()
+
     def _create_option_widget(self, name: str, opt_def: Dict[str, Any]) -> QWidget:
         opt_type = opt_def.get("type", "switch")
         cases = opt_def.get("cases", [])
@@ -1483,6 +1523,20 @@ class MaaEndControlPage(QWidget):
                 cb.toggled.connect(self._save_options)
                 layout.addWidget(cb)
                 checkboxes[case.get("name", "")] = cb
+            presets = opt_def.get("presets", [])
+            if presets and isinstance(presets, list):
+                preset_row = QWidget()
+                preset_layout = QHBoxLayout(preset_row)
+                preset_layout.setContentsMargins(0, 2, 0, 0)
+                preset_layout.setSpacing(4)
+                for preset in presets:
+                    btn = QPushButton(_resolve_label(preset.get("label", preset.get("name", ""))))
+                    btn.setStyleSheet(BTN_DEFAULT)
+                    preset_value = preset.get("value", [])
+                    btn.clicked.connect(lambda checked=False, pv=preset_value, cbs=checkboxes: self._apply_checkbox_preset(cbs, pv))
+                    preset_layout.addWidget(btn)
+                preset_layout.addStretch()
+                layout.addWidget(preset_row)
             container.checkboxes = checkboxes  # type: ignore[attr-defined]
             return container
         if opt_type == "select":
@@ -1609,6 +1663,11 @@ class MaaEndControlPage(QWidget):
 
     def _save_options(self):
         if self._is_building_editor:
+            return
+        # 启动期:_delayed_init 尚未完成,选项树还在分批渲染,
+        # 此时的 _collect_options 收集到不完整选项值,写盘会污染已保存的 task_options,
+        # 同时 _refresh_queue_list 会触发队列列表在选项区还在动态变化时被并发刷新。
+        if self._is_initializing:
             return
         if not self._selected_task:
             return
@@ -1969,10 +2028,22 @@ class MaaEndControlPage(QWidget):
         # 防止列表因之前的失败 _sync_execute 被 clear() 后永远空白。
         if not self._tasks_cache or not self._presets_cache:
             self.refresh()
+        # 启动期结束:metadata 已加载、列表已刷新、选项编辑器即将完成渲染。
+        # 解除 _save_options 屏蔽,并安排一次延迟 _save_options 把当前 UI 落盘
+        # (此时 _build_option_batch 可能还在分批调度中,QTimer.singleShot(0) 排在
+        # 它们之后,保证选项树完整后再 collect)。
+        if self._is_initializing:
+            self._is_initializing = False
+            QTimer.singleShot(0, self._save_options)
 
     def showEvent(self, event: QShowEvent) -> None:
         super().showEvent(event)
-        # 页面切回时，若任一缓存为空则触发刷新，避免列表因切换操作丢失内容
+        # 首次显示时同步 splitter 比例:此时 self.width() 已是真实窗口尺寸,
+        # 避免构造期 width=0 导致首帧用最小宽度(220+240+400)挤压绘制。
+        if not getattr(self, "_initial_layout_synced", False):
+            self._initial_layout_synced = True
+            QTimer.singleShot(0, self._sync_layout_geometry)
+        # 页面切回时,若任一缓存为空则触发刷新,避免列表因切换操作丢失内容
         if not self._tasks_cache or not self._presets_cache:
             QTimer.singleShot(50, self.refresh)
 
@@ -2269,6 +2340,19 @@ class MaaEndControlPage(QWidget):
                 self._render_log_entry(entry["source"], entry["text"])
 
     def refresh(self):
+        # 去重:同一事件循环 tick 内多次 refresh 只执行一次。
+        # 启动期 _delayed_init/_on_metadata_loaded/showEvent 可能同时调度 refresh,
+        # 重复 clear+rebuild task_list/preset_list 会与选项编辑器分批渲染叠加产生抖动。
+        if self._refresh_pending:
+            return
+        self._refresh_pending = True
+        # 用 QTimer.singleShot(0) 让真正的 refresh 在当前 tick 结束后执行,
+        # 同一 tick 内后续 refresh 调用都会被 _refresh_pending 拦截;
+        # tick 结束时 _refresh_pending 被清除,允许下一轮 refresh。
+        QTimer.singleShot(0, self._do_refresh)
+
+    def _do_refresh(self):
+        self._refresh_pending = False
         self._refresh_task_list()
         self._refresh_preset_list()
         # 延迟构建 option editor，避免阻塞列表显示

@@ -95,6 +95,7 @@ META-INF/
 # --- Dotenv ---
 .env
 .env.*
+!.env.example
 
 # --- OS ---
 Thumbs.db

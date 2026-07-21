@@ -15,6 +15,7 @@
             ],
             "option": [
                 "TaskExecuteCategory",
+                "TaskExecuteTargetCount",
                 "TaskExecuteVlmMaxSteps",
                 "TaskExecuteVlmStepTimeout",
                 "TaskExecuteMaxVerifyChecks"
@@ -49,6 +50,21 @@
                 {
                     "name": "次要",
                     "label": "$option.TaskExecuteCategory.cases.Minor.label"
+                }
+            ]
+        },
+        "TaskExecuteTargetCount": {
+            "type": "input",
+            "label": "$option.TaskExecuteTargetCount.label",
+            "description": "$option.TaskExecuteTargetCount.description",
+            "inputs": [
+                {
+                    "name": "TaskExecuteTargetCountValue",
+                    "label": "$option.TaskExecuteTargetCount.inputs.TaskExecuteTargetCountValue.label",
+                    "description": "$option.TaskExecuteTargetCount.inputs.TaskExecuteTargetCountValue.description",
+                    "pipeline_type": "int",
+                    "verify": "^([1-9]|[1-9][0-9]|100)$",
+                    "default": "10"
                 }
             ]
         },

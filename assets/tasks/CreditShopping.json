@@ -58,9 +58,6 @@
             "pipeline_override": {
                 "ReceptionRoomSendCluesDirect": {
                     "enabled": true
-                },
-                "ReceptionRoomSendCluesSelectClues": {
-                    "max_hit": "{MaxClueSendWhenInsufficient}"
                 }
             }
         },

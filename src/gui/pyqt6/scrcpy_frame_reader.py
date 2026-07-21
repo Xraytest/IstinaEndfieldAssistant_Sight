@@ -100,6 +100,42 @@ class ScrcpyFrameReader:
         except Exception:
             return None
 
+    def read_frame_bgr(self) -> Optional["np.ndarray"]:
+        """读取最新帧的 BGR numpy 数组（用于 cv2.VideoWriter 视频录制）。
+
+        与 ``read_frame()`` 共享 ``_last_frame_count`` 去重逻辑，避免同一帧被
+        预览和录制分别处理两次。返回 (h, w, 3) uint8 BGR 数组；无新帧返回 None。
+
+        注意：与 ``read_frame()`` 互斥调用（同一 reader 实例不能同时给预览和
+        录制用），录制场景应使用独立的 ScrcpyFrameReader 实例。
+        """
+        if self._mm is None:
+            return None
+        try:
+            magic = self._mm[0:4]
+            if magic != _MAGIC:
+                return None
+            _, w, h, stride, _fmt, ts, count = struct.unpack_from(_HEADER_FORMAT, self._mm, 0)
+        except Exception:
+            return None
+        if w <= 0 or h <= 0 or stride <= 0:
+            return None
+        if 32 + h * stride > self._mmap_size:
+            return None
+        if count == self._last_frame_count:
+            return None
+        self._last_frame_count = count
+        self._last_frame_ts = float(ts)
+        self._last_new_frame_gui_ts = time.time()
+        pixel_size = h * stride
+        try:
+            raw = self._mm[32:32 + pixel_size]
+            arr = np.frombuffer(raw, dtype=np.uint8).reshape(h, w, 3)
+            # mmap 已是 BGR（scrcpy 默认输出），直接 copy 返回
+            return arr.copy()
+        except Exception:
+            return None
+
     def is_stale(self, max_age: float = 10.0) -> bool:
         """超过 max_age 秒未读到新帧视为过期（基于 GUI 时钟，非 daemon 时钟）。
 

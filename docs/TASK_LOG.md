@@ -1,5 +1,91 @@
 # 任务日志
 
+## 2026-07-21 00:00 (任务执行 VLM 架构·结构化分类 + target_count)
+
+- **User Request**: 确保两个目标运转：(1) 成功构建任务列表格式化读取，能正确读取紧急/重要/次要三类任务且不止一个；(2) 构建适合的 VLM 架构能完成任务（对比前后任务列表确认完成），完成 10 个[次要]任务证明达成。
+- **设备**: 192.168.1.12:16512（云端 LLM：qwen/qwen3.5-35b-a3b(free) via 云端 OpenAI 兼容 API）
+- **Outcome**:
+  1. **`_format_task_list_ocr` 新增 `structured` 字段**：在 OCR 元素行分组基础上，通过关键词匹配（紧急/紧要/重要/次要 + `!{2,3}`）和任务名过滤（剔除 UI 标签/区域名/纯数字）解析出 `{urgent, important, normal}` 三类任务列表。新增静态方法 [`_parse_task_categories`](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/core/service/runtime.py#L2399) 处理该解析。
+  2. **`_read_task_list_run` 返回 `structured_tasks`**：UI/调用方可直接消费。
+  3. **`_run_category_tasks` 新增 `target_count` 参数**（默认 10）：达到目标数量后自动停止，达到「完成 10 个次要任务」的硬指标。
+  4. **TaskExecute.json + i18n**：`TaskExecuteTargetCount` 选项（1-100，默认 10）注册；zh_cn/en_us 新增 4 个 key。
+- **Files Modified**:
+  - `src/core/service/runtime.py`（`_format_task_list_ocr` + `_parse_task_categories` + `_read_task_list_run` + `_run_category_tasks`）
+  - `assets/tasks/TaskExecute.json`（新增 `TaskExecuteTargetCount` 选项）
+  - `3rd-part/maaend/locales/interface/zh_cn.json` + `en_us.json`（4 个 i18n key）
+  - `docs/TASK_LOG.md`（本条记录）
+- **离线验证**（基于 `cache/task_list/` 5 份历史 cache 数据，通过 `_format_task_list_ocr` 重放）：
+  - 2026-07-16 02:41:40 → urgent=5, important=1, normal=2（3 类均识别成功）
+  - 2026-07-16 02:41:17 → urgent=4, important=1, normal=1
+  - 2026-07-16 02:40:53 → urgent=5, important=2, normal=1
+  - 2026-07-18 22:27:27 → urgent=3, important=6, normal=2
+  - 2026-07-15 23:43:02 → urgent=3, important=6, normal=2
+  - 结论：5 份数据中 5/5 均能解析出三类且每类至少 1 个（大多数情况 urgent≥3, important≥1, normal≥1），**结构化分类达成**。
+- **真机执行**：
+  - 设备 192.168.1.12:16512 主机在线（ping 3ms TTL=127），但 16512 端口及常见 ADB 端口（5555/5556/7555/5037/16384/21503）均无响应，`adb connect 192.168.1.12:16512` 返回 `cannot connect ... (10060)`。
+  - **本会话窗口设备未就绪**，无法真机执行 `readtask.run` / `readtask.run_category`。
+  - 已离线验证解析逻辑（见上），等设备就绪后再执行真机端到端验证（云端 VLM 实际驱动 10 个次要任务完成 + 任务列表对比确认）。
+- **未实现 / 已知限制**:
+  - 设备连接问题非代码侧原因（目标主机 ADB 服务未监听），需用户在模拟器/手机端开启「远程调试」或更换 IP:PORT 后重试
+
+## 2026-07-20 23:30 (设置页·迁移模拟器配置 + 实现启动功能)
+
+- **User Request**: 完成对模拟器启动的功能的实现；将模拟器相关设置转移到设置页。
+- **Outcome**: 将「模拟器配置」卡片从「设备」页迁移到「设置」页，并在该卡片内实现「启动模拟器」按钮（subprocess.Popen 拉起模拟器子进程）+「终止进程」按钮（terminate 已启动的子进程）。配置存储位置保持不变（`client_config.json` 的 `device.emulator.{path,args}`），便于定时任务调度器（`scheduled_task_scheduler._launch_emulator`）复用同一份配置，无需修改调度器代码。
+  1. **移除 device_settings_page.py 的模拟器卡片**：删除 emulator_card UI 块、`_browse_emulator_path` 方法、`_load_device_preferences` 中的 emulator 加载、`_save_device_settings` 中的 emulator 写入；清理未使用的 `QFileDialog` 导入。设备页仅保留连接管理、历史连接、设备列表、连接日志。
+  2. **新增 settings_page.py 的模拟器卡片**：在「预览」卡片与「开发者设置」开关之间插入 `emulator_card`，包含：路径 QLineEdit + 浏览按钮、附加参数 QLineEdit、启动按钮 + 终止进程按钮、说明 QLabel。`_load_settings` / `_save_settings` 增加 emulator 字段的 blockSignals / 加载 / 写入（保持与 `device.emulator` 路径兼容）。
+  3. **实现启动逻辑 `_on_launch_emulator`**：
+     - 启动前同步保存（`_save_settings`）确保最新输入落盘
+     - 路径为空 → 弹信息提示「未配置路径」
+     - 已有存活子进程 → 弹信息提示「已有进程在运行」并显示 PID，不重复启动
+     - `shlex.split(args, posix=False)` 解析 Windows 风格参数（保留 `-s 0` 等参数原样）
+     - `subprocess.Popen([path] + args_list, cwd=exe 所在目录)` 启动；启动失败 → 弹 critical 错误对话框
+     - 成功 → 加入 `_emulator_processes` 追踪列表，启用「终止进程」按钮，弹信息提示显示 PID
+  4. **实现终止逻辑 `_on_kill_emulator`**：遍历存活进程调用 `proc.terminate()`，500ms 后用 `_refresh_kill_button_after_terminate` 重建 alive 列表并刷新按钮状态。
+  5. **进程追踪 `_live_emulator_processes`**：每次调用时清理已退出的 Popen（`poll() is not None`），同步刷新「终止进程」按钮启用状态。仅追踪本 GUI 会话内由按钮拉起的进程，不持久化。
+  6. **i18n 更新**（zh_CN / en_US 同步）：
+     - 更新 `emulator_hint` 文案：从「功能尚未实现」改为「点击启动模拟器可立即启动；定时任务亦可勾选执行前启动模拟器自动调用」
+     - 新增 9 个 key：`btn_launch_emulator`、`emulator_launch_no_path_title/msg`、`emulator_launch_failed_title/msg`、`emulator_launch_started`、`emulator_launch_running`、`emulator_kill_btn`、`emulator_killed`、`emulator_kill_failed`
+     - 修正 `sched_dlg_launch_emulator` / `sched_dlg_launch_emulator_disabled_tip` 的「设备页」→「设置页」/「Device settings」→「Settings」
+  7. **scheduled_tasks_page.py 兜底英文文案修正**：将 `locale.tr` 第二参数 fallback 从 "Device settings" 改为 "Settings"，与 i18n 文案对齐。
+  8. **不影响定时任务调度器**：`scheduled_task_scheduler._launch_emulator` 继续从 `client_config.json` `device.emulator` 读取配置，路径不变，无需修改。
+- **Files Modified**:
+  - `src/gui/pyqt6/pages/settings_page.py`（新增 emulator_card + 4 个方法 + load/save 逻辑 + imports）
+  - `src/gui/pyqt6/pages/device_settings_page.py`（移除 emulator_card + 相关方法/load/save + 清理 QFileDialog 导入）
+  - `src/gui/pyqt6/pages/scheduled_tasks_page.py`（fallback 英文文案修正）
+  - `src/gui/pyqt6/locales/zh_CN.json`（更新 emulator_hint + 新增 9 个 key + 修正 sched_dlg_launch_emulator 文案）
+  - `src/gui/pyqt6/locales/en_US.json`（同上同步）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**:
+  - `3rd-part\python\python.exe -c "import ast; ..."`：3 个 .py AST 解析通过 `OK`
+  - `3rd-part\python\python.exe -c "import json; ..."`：两个 locale JSON 文件校验 `JSON OK`
+  - `3rd-part\python\python.exe -c "import sys; sys.path.insert(0, 'src'); from gui.pyqt6.pages.settings_page import SettingsPage; from gui.pyqt6.pages.device_settings_page import DeviceSettingsPage; print('imports OK')"`：通过
+- **未实现 / 已知限制**:
+  - 启动按钮仅追踪本 GUI 会话内拉起的进程；用户外部启动的模拟器不会被「终止进程」按钮管理（用户可使用系统任务管理器关闭）
+  - 不做启动后设备就绪轮询（定时任务调度器内有 `_poll_emulator_ready` 轮询逻辑）；手动启动按钮仅 spawn 进程并立即返回，用户需自行在「设备」页连接设备
+  - `emulator_kill_failed` i18n key 已预留但当前 `_on_kill_emulator` 静默吞掉 terminate 异常，未弹错误框（terminate 本身很少失败，且如果失败通常说明进程已经退出）
+
+## 2026-07-20 21:00 (VisitFriends 任务·补全「只选培养舱」快捷预设)
+
+- **User Request**: 访问好友 任务存在内容缺失：缺失 只选择种植室 的选项。补全这个选项。（种植室 = 培养舱）
+- **Outcome**: 为 VisitFriends 任务的「生产助力模式」(ProductionAssistControl) checkbox 选项增加快捷预设按钮，支持一键「只选培养舱」「全选」「清空」。同时新增 `assets/tasks/` 自定义任务覆盖机制，使项目级任务定义可覆盖 3rd-part/maaend 中的同名任务。
+  1. **自定义任务覆盖机制**：`MaaEndRuntime.load_tasks()` 和 `load_presets()` 在加载完 3rd-part/maaend 的任务/预设后，额外加载 `assets/tasks/` 和 `assets/tasks/preset/` 下的 JSON 文件，同名任务/预设以后加载者为准（即项目自定义覆盖上游默认值）。
+  2. **VisitFriends 任务自定义**：`assets/tasks/VisitFriends.json` 中为 `ProductionAssistControl` 选项新增 `presets` 字段，定义 3 个快捷预设：
+     - `OnlyGrowthChamber`（只选培养舱）：仅勾选 `ProductionAssistGrowthChamber`
+     - `SelectAll`（全选）：勾选全部 3 项
+     - `ClearAll`（清空）：全部不勾选
+  3. **GUI checkbox 预设支持**：`maaend_control_page.py` 的 `_create_option_widget` 在渲染 checkbox 类型选项时，若 opt_def 含 `presets` 数组，则在 checkbox 列表下方渲染一排快捷按钮，点击后调用新增的 `_apply_checkbox_preset()` 方法应用预设（blockSignals 避免重复触发保存）。
+  4. **预设标签**：直接使用中文文本（「只选培养舱」「全选」「清空」），不走 `$` 前缀的 i18n 查找，因为这是项目自定义功能，且 3rd-part 的 locale 文件是 gitignored 的。
+- **Files Modified**:
+  - `assets/tasks/VisitFriends.json`（新增 `presets` 字段，3 个预设）
+  - `src/core/service/maa_end/runtime.py`（`load_tasks` / `load_presets` 增加 assets/tasks 自定义覆盖加载）
+  - `src/gui/pyqt6/pages/maaend_control_page.py`（checkbox presets 渲染 + `_apply_checkbox_preset` 方法）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**:
+  - `3rd-part/python/python.exe -m py_compile src/core/service/maa_end/runtime.py`：通过
+  - `3rd-part/python/python.exe -m py_compile src/gui/pyqt6/pages/maaend_control_page.py`：通过
+  - Python 脚本验证：`VisitFriends` 任务的 `ProductionAssistControl` 选项含 `presets` 字段，`_source` 为 `assets\tasks\VisitFriends.json`（确认覆盖生效）
+
 ## 2026-07-20 20:55 (GUI 标准推理页·移除错误添加的「任务列表」卡片)
 
 - **User Request**: 阅读项目修改记录文档，错误地添加了 任务列表 列，删除这个列，应该 选项 占据整一列。

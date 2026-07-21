@@ -8,14 +8,14 @@
 
   "ReadTaskListClickTaskIcon": {
     "recognition": "TemplateMatch",
-    "template": "Baker/TaskOptions.png",
     "roi": [
-      400,
-      0,
-      600,
-      100
+      20,
+      140,
+      50,
+      50
     ],
-    "threshold": 0.7,
+    "template": "SceneManager/TaskOptionsMainWorld.png",
+    "threshold": 0.40,
     "action": "Click",
     "pre_delay": 500,
     "post_wait_freezes": {
@@ -28,6 +28,6 @@
       "time": 80
     },
     "next": [],
-    "desc": "点击任务列表图标（事务通讯页签），切换到任务列表界面。复用 BAKER.json 中 BakerSwitchTask 的 roi 与模板 Baker/TaskOptions.png；threshold 0.7 与原版 BakerSwitchTask 默认值对齐；pre_delay 500ms 等待 SceneEnterMenuBaker 后画面稳定；next 为空，点击后立即停止，避免触发 BakerSwitchTask 原有的 BakerCheckHome 完整会话流程"
+    "desc": "在主世界页面左上角小地图左下角点击任务列表图标 SceneManager/TaskOptionsMainWorld.png，roi x:20-70, y:140-190。next 为空，点击后由 Python 编排器接管 OCR"
   }
 }

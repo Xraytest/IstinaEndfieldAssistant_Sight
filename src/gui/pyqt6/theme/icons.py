@@ -229,14 +229,16 @@ def _icon_search() -> QPainterPath:
     return p
 
 
-# Navigation icon registry
-_NAV_ICONS: Dict[str, callable] = {
-    "PRTS全智能": _icon_robot,
-    "标准推理": _icon_gear,
-    "设备": _icon_device,
-    "设置": _icon_settings,
-    "日志": _icon_doc,
-}
+# Navigation icon registry.
+# Matching is token-based (substring, case-insensitive) so localized labels
+# such as "PRTS 全智能（施工中）" or English fallbacks still resolve to an icon.
+_NAV_ICON_MATCHERS: tuple = (
+    (("prts", "全智能", "copilot"), _icon_robot),
+    (("推理", "inference", "maaend", "standard"), _icon_gear),
+    (("设备", "device"), _icon_device),
+    (("设置", "setting"), _icon_settings),
+    (("日志", "log"), _icon_doc),
+)
 
 # Action button icon registry
 _ACTION_ICONS: Dict[str, callable] = {
@@ -289,9 +291,18 @@ def _icon_cross_small(size: int) -> QPainterPath:
     return p
 
 
+def _match_nav_factory(label: str):
+    """Return the icon factory whose token matches the label, or None."""
+    low = label.lower()
+    for tokens, factory in _NAV_ICON_MATCHERS:
+        if any(tok.lower() in low for tok in tokens):
+            return factory
+    return None
+
+
 def get_nav_icon(label: str, size: int = 18) -> QIcon:
     """Return a vector icon for a navigation label."""
-    factory = _NAV_ICONS.get(label)
+    factory = _match_nav_factory(label)
     if not factory:
         return QIcon()
     key = f"nav:{label}:{size}"

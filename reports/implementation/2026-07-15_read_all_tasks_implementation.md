@@ -8,7 +8,7 @@
 
 ## 1. 设计概要
 
-新增全智能分类任务 `ReadAllTasks`（📋读取全部任务列表）。由于 Go agent 是 gitignored 无法注册 custom action，采用与 `MaterialFarm`/`MaterialCollect` 一致的 Python 编排器模式：`IstinaRuntime._run_task` 拦截 `ReadAllTasks` 走 Python 编排，串联 MaaFW pipeline（进入 Baker 界面 → 点击任务图标 → 关闭）与 OCR 整页识别 + 格式化缓存。
+新增全智能分类任务 `ReadAllTasks`（📋读取全部任务列表）。由于 Go agent 是 gitignored 无法注册 custom action，采用与 `MaterialFarm`/`MaterialCollect` 一致的 Python 编排器模式：`IstinaRuntime._run_task` 拦截 `ReadAllTasks` 走 Python 编排，在**主世界页面直接点击任务列表图标**（不进入 Baker），串联 OCR 整页识别 + 格式化缓存。
 
 ### 编排流程
 
@@ -17,8 +17,7 @@ ensure_maaend_ready
   → ensure_game_in_world
   → start_scrcpy（供 OCR 截图）
   → 解析选项（ocr_confidence / save_screenshot / dedup_distance）
-  → run_pipeline("SceneEnterMenuBaker")        # 进入 Baker 界面
-  → run_pipeline("ReadTaskListClickTaskIcon")  # 点击任务图标，切到事务通讯页签
+  → run_pipeline("ReadTaskListClickTaskIcon")  # 主世界直接点击任务列表图标 Baker/TaskOptions.png
   → time.sleep(1.0)                             # 等待页面稳定
   → execute("scene.elements", enable_ocr=True, enable_template=False, enable_color=False)
   → 过滤 source=="ocr" 且 confidence >= ocr_confidence
@@ -29,10 +28,9 @@ ensure_maaend_ready
 
 ## 2. 关键设计决策
 
-### 2.1 复用现有 pipeline 节点而非新建
+### 2.1 主世界直接点击任务图标（不进入 Baker）
 
-- `SceneEnterMenuBaker`：复用 `assets/pipelines/scene_navigation.json` 中已有的 Baker 入口节点。
-- `ReadTaskListClickTaskIcon`：复用 `BAKER.json` 中 `BakerSwitchTask` 的 `roi=[400,0,600,100]` 与模板 `Baker/TaskOptions.png`，但 `next` 设为空数组——点击后立即停止，避免触发 `BakerSwitchTask → BakerCheckHome` 的完整会话流程（会与 OCR 抢占界面）。
+- `ReadTaskListClickTaskIcon`：使用模板 `Baker/TaskOptions.png`（主世界页面上的任务列表入口图标，**非 Baker 内部页签切换**）。`threshold=0.45` 以适配主世界图标与 Baker 内部图标的视觉差异；`green_mask=true` 过滤背景干扰。`next` 设为空数组——点击后立即停止，由 Python 编排器接管 OCR。
 - `CloseButtonType1`：复用 `assets/pipelines/close_info.json` 中通用关闭按钮节点。
 
 ### 2.2 OCR 后端优化
@@ -115,34 +113,33 @@ ensure_maaend_ready
 3rd-part\python\python.exe -m cli.istina readtask run --options "{}" --serial 192.168.1.12:16512
 ```
 
-**结果**：`status=success`，`raw_ocr_count=21`，`formatted_line_count=9`。
+**结果**：`status=success`，`raw_ocr_count=9`，`formatted_line_count=7`。
 
-执行步骤全部成功：
+执行步骤：
 
 | step | status | 备注 |
 |---|---|---|
-| enter_baker | success | attempt=1（两步进入 + action=Click override） |
-| switch_to_task_tab | success | attempt=1（BakerEntry + next 列表 override） |
-| ocr | success | raw_count=21 |
-| format | success | line_count=9 |
-| cache | success | 写入 `cache/task_list/task_list_cache.json` + 历史归档 |
-| close | success | CloseButtonType1 返回大世界 |
+| click_task_icon | success | attempt=1（主世界直接匹配 Baker/TaskOptions.png，threshold=0.45 + green_mask） |
+| ocr | success | raw_count=9 |
+| format | success | line_count=7 |
+| cache | success | 写入 `cache/task_list/task_list_cache.json` + 历史归档 + 截图 |
+| close | failed | CloseButtonType1 未匹配（任务列表关闭按钮样式不同，非阻断） |
 
-格式化输出（9 行，按阅读顺序）：
+格式化输出（7 行，按阅读顺序）：
 
 ```
-//BAKER/事务通讯
-司  管理员，刚才收到四  号谷地工人们提出...
-巴  来自塞什卡的求助...  管理员，我们收到了
-8  过，息壤设施的问...  管理员，庄天师嘱托
-来有没有空？有些...  管理员，不知道你近  -请选择会话
-管理员。  十分抱歉打扰到您，  ÉMPTY
-总桩吗  你现在能马上来一趟
-全部显示
-20ms  UID: 1439188325
+探索
+雪  中
+拍摄一群蓄水源石虫
+前往拍摄蓄水源石虫
+前往景玉谷完成
+637476374
+20ms  UID:1439188325
 ```
 
-缓存文件 `cache/task_list/task_list_cache.json` 含 21 个 `raw_elements`（每个含 label/type/source/confidence/center/bbox/action）+ `formatted_lines` + 元信息（timestamp/task/status/serial/element_count/row_count）。
+OCR 成功识别任务列表内容（探索类任务：拍摄蓄水源石虫、前往景玉谷完成等），**非 Baker 事务通讯内容**，确认主世界任务列表图标点击正确。
+
+缓存文件 `cache/task_list/task_list_cache.json` 含 9 个 `raw_elements`（每个含 label/type/source/confidence/center/bbox/action）+ `formatted_lines` + 元信息（timestamp/task/status/serial/element_count/row_count）。截图保存至 `cache/task_list/task_list_20260715_205653.png`（1.47 MB）。
 
 > 测试过程中发现并修复的两个阻断性缺陷详见第 8 节。
 
@@ -157,23 +154,24 @@ ensure_maaend_ready
 
 ## 7. 非期待变化与已知限制
 
-- **ReadTaskListClickTaskIcon 的 `next` 为空**：与原 `BakerSwitchTask` 不同，点击后不进入 `BakerCheckHome` 会话流程。这是有意设计——OCR 需要稳定停留在任务列表页，不能让 pipeline 继续推进会话。
+- **ReadTaskListClickTaskIcon 的 `next` 为空**：点击后不进入任何后续 pipeline 流程。这是有意设计——OCR 需要稳定停留在任务列表页，不能让 pipeline 继续推进。
+- **threshold=0.45 偏低**：`Baker/TaskOptions.png` 模板在主世界页面的匹配度约 0.51（该模板原从 Baker 内部裁剪），需降低 threshold 至 0.45 才能命中。`green_mask=true` 辅助过滤背景。若游戏 UI 变更导致误匹配，可考虑从主世界重新裁剪专用模板。
+- **close 步骤失败**：任务列表界面的关闭按钮样式与 `CloseButtonType1` 不匹配，导致关闭步骤失败（非阻断，任务列表可能仍打开）。后续可添加专用关闭节点。
 - **`time.sleep(1.0)` 硬编码等待**：未使用 `post_wait_freezes` 之后的动态等待，因为 OCR 走的是 `scene.elements` 而非 pipeline 节点，pipeline 的 `post_wait_freezes` 不覆盖此场景。1.0 秒为经验值，网络慢/设备慢时可能需要调大。
 - **OCR 仅识别当前可视区域**：任务列表若可滚动，单次 OCR 只能读到首屏。本任务不实现滚动翻页读取（用户需求是"OCR 整页"，理解为单页）。
 - **格式化行容差 0.04 为经验值**：对任务列表这类行间距规整的界面合适；若任务条目含多行描述，可能误合并。可通过降低 `dedup_distance` 缓解，但行容差目前未作为选项暴露。
 
 ## 8. 测试中发现的问题与修复
 
-端到端测试过程中暴露两个阻断性缺陷，均已修复。
+端到端测试过程中暴露的缺陷及修复。
 
-### 8.1 OCR-ENTER：Baker 入口 Alt+Click 误触大世界模式切换
+### 8.1 初始方案：进入 Baker 后切任务页签（已废弃）
 
-- **现象**：`run_pipeline("SceneEnterMenuBaker")` 报成功，但实际未进入 Baker 界面，游戏被切到工业/探索模式（界面状态被破坏，需手动 BACK 键恢复）。
-- **根因**：`__ScenePrivateWorldEnterMenuBaker` 节点的原始 `action` 为 `AutoAltClickAction`（Alt+Click）。Baker 图标 ROI `[168,113,101,95]` 落在大世界视图区，Alt+Click 在该区域触发的是模式切换而非打开 Baker 菜单。
-- **修复**（`src/core/service/runtime.py` `_read_task_list_run`）：
-  1. 通过 `pipeline_override` 将 `__ScenePrivateWorldEnterMenuBaker` 的 `action` 改为普通 `Click`：`runtime.run_pipeline("SceneEnterMenuBaker", {"__ScenePrivateWorldEnterMenuBaker": {"action": "Click"}})`。
-  2. 改为两步进入：第一步 `SceneEnterMenuBaker`（action=Click）打开 Baker；第二步 `BakerEntry` 复用原始页签检测流程，并通过 override 其内部节点的 `next` 列表，使流程在命中"事务通讯"界面时停止——`BakerCheckTask.next=[]`（已在事务通讯→停止）、`BakerCheckMsg.next=[BakerSwitchTask]`（在会话消息→点 TaskOptions 切换）、`BakerOverCheck.next=[BakerSwitchTask]`（无会话→点 TaskOptions 切换，不走 BakerOverEnd 退出）、`BakerOverEnd.next=[]`（双重保险防退出）。
-  3. 两步各含 3 次重试（间隔 2.0s）。
+初版实现采用"进入 Baker 界面 → 点击 TaskOptions 切到事务通讯页签"的两步方案，但存在两个问题：
+1. `SceneEnterMenuBaker` 的 `AutoAltClickAction` 会误触大世界模式切换。
+2. OCR 识别到的是 Baker 事务通讯内容（会话消息），**而非用户期望的游戏任务列表**。
+
+用户反馈明确指出：`Baker/TaskOptions.png` 是**主世界页面上的任务列表入口图标**，不是 Baker 内部的页签切换。因此废弃 Baker 进入方案，改为**主世界直接全屏匹配 `Baker/TaskOptions.png` 并点击**，threshold 降至 0.45 + green_mask 以适配主世界图标的视觉差异。修正后 OCR 成功识别到任务列表内容（探索/拍摄蓄水源石虫/前往景玉谷完成等），确认方案正确。
 
 ### 8.2 OCR-API：maafw Python 绑定 API 误用导致 OCR 始终返回空（根因）
 
