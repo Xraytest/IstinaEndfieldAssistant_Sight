@@ -2,6 +2,23 @@
 
 同一 serial 只创建一个实例，通过 Unix domain socket / JSON-RPC 暴露能力，
 截图等二进制数据通过 mmap 文件映射传递。
+
+============================================================
+图像与触控通道约束（严重红线，违反会导致任务假成功/失败）
+============================================================
+图像（screenshot）：强制走 scrcpy（_ScrcpySession），禁用 ADB screencap。
+  - scrcpy 通过 MJPEG/H.264 拉流（30fps 流畅），pipeline OCR 可用。
+  - ADB screencap 单帧拉取延迟 200-500ms，pipeline OCR 不可用。
+  - 严禁回退：scrcpy 无帧时直接返回错误，由会话自愈机制恢复。
+
+触控（tap/swipe）：生产任务走 MaaTouch（MaaEndRuntime._controller.post_*）。
+  - MaaTouch 通过 device 端 maatouch binary 走 socket 协议，延迟 < 1ms。
+  - 本 AndroidRuntime 的 tap/swipe 走 TouchManager (adb shell input)，
+    仅为兼容遗留 Python 自定义任务保留，**严禁用于 MaaFW 生产任务**。
+  - 严禁新增：用 adb shell input 做生产任务的触控。
+
+keyevent：adb shell input keyevent（无 MaaTouch 等价协议）。
+============================================================
 """
 
 from __future__ import annotations
@@ -40,14 +57,16 @@ class AndroidRuntimeError(Exception):
 
 
 class _ScrcpySession:
-    """单设备 scrcpy 视频流会话，内部维护最新帧缓存。
+    """单设备 scrcpy 视频流会话（图像通道），内部维护最新帧缓存。
 
-    实现 scrcpy v2.7 tunnel_forward 协议：
-      [1B dummy] [64B device_name] [12B video_header: codec_id(4) + w(4) + h(4)]
-      → 循环: [12B frame_header] [N B frame_data]
-      帧标志: bit63=CONFIG, bit62=KEY_FRAME, bits0-61=PTS
-
-    使用 av.CodecContext 持续解码，避免每帧重建容器。
+    ★ 图像通道（与触控分离）：
+      - 图像传输强制走 scrcpy（MJPEG/H.264 socket 拉流），禁用 ADB screencap。
+      - 实现 scrcpy v2.7 tunnel_forward 协议：
+        [1B dummy] [64B device_name] [12B video_header: codec_id(4) + w(4) + h(4)]
+        → 循环: [12B frame_header] [N B frame_data]
+        帧标志: bit63=CONFIG, bit62=KEY_FRAME, bits0-61=PTS
+      - 使用 av.CodecContext 持续解码，避免每帧重建容器。
+      - 与触控无关：scrcpy 是图像通道；触控走 MaaTouch（MaaEndRuntime._controller.post_*）。
     """
 
     def __init__(self, adb_manager: ADBDeviceManager, logger: Any):
@@ -553,7 +572,13 @@ class _Daemon:
     def _resolve_ipc_address(self) -> str:
         if os.name == "nt":
             safe = self._serial.replace(":", "_").replace("/", "_").replace("\\", "_")
-            return r"\\.\pipe\istina-android-" + safe + "-" + self._pipe_token
+            # 多实例隔离：pipe 名含 instance_id，便于调试且避免同 serial 跨实例碰撞
+            try:
+                from core.foundation.instance import get_instance_id
+                iid = get_instance_id()
+            except Exception:
+                iid = "default"
+            return r"\\.\pipe\istina-android-" + iid + "-" + safe + "-" + self._pipe_token
         return self._socket_path
 
     def start(self) -> None:
@@ -719,6 +744,11 @@ class _Daemon:
                         self._scrcpy_session = None
                     return {"result": True}
                 if method == "screenshot":
+                    # ★★★ 图像传输强制走 scrcpy，禁用任何回退（包括 ADB screencap） ★★★
+                    # scrcpy 通过 MJPEG/H.264 拉流，30fps 流畅；ADB screencap 单帧
+                    # 拉取延迟 200-500ms，pipeline OCR 不可用。
+                    # scrcpy 无帧/帧过期时返回错误，由 _recv_exact 的 max_stalls 机制
+                    # （90s 无数据强制重建会话）自动恢复；严禁回退 ADB screencap。
                     serial = params.get("serial", self._serial)
                     frame = None
                     if self._scrcpy_session is not None:
@@ -745,15 +775,17 @@ class _Daemon:
                         self._logger.debug("daemon screenshot 使用 scrcpy 帧", serial=serial, frame_shape=frame.shape if hasattr(frame, 'shape') else None)
                         _, buf = cv2.imencode(".png", frame)
                         return self._encode_binary(buf.tobytes())
-                    # 图像传输只走 scrcpy，禁止回退 ADB screencap。
-                    # scrcpy 无帧/帧过期时返回错误，依赖 _recv_exact 的 max_stalls 机制
-                    # （90s 无数据强制重建会话）自动恢复。
+                    # 严禁回退：screencap 路径在下面已经删除；只允许 scrcpy。
                     self._logger.debug("daemon screenshot scrcpy 无帧/帧过期，等待会话自动恢复", serial=serial)
                     return {"error": "screenshot failed: scrcpy not ready"}
                 if method == "tap":
+                    # ★ 触控通道：当前阶段为兼容旧 Python 自定义任务保留 TouchManager 入口。
+                    # MaaFW 任务执行走 MaaEndRuntime._controller.post_click (MaaTouch)，
+                    # 本入口严禁用于 MaaFW 任务上下文（生产任务统一走 MaaTouch）。
                     self._touch.tap(int(params.get("x", 0)), int(params.get("y", 0)), serial=params.get("serial", self._serial))
                     return {"result": True}
                 if method == "swipe":
+                    # ★ 触控通道：同上 tap 的说明。
                     self._touch.swipe(
                         int(params.get("x1", 0)),
                         int(params.get("y1", 0)),
@@ -765,14 +797,15 @@ class _Daemon:
                     return {"result": True}
                 if method == "keyevent":
                     key = params.get("key")
-                    # keyevent 必须为纯数字或已知常量名，防止 shell 注入
+                    # keyevent 走 adb shell input keyevent（无 MaaTouch 等价协议）。
+                    # 安全约束：必须为纯数字或已知常量名，防止 shell 注入。
                     if not _is_valid_keyevent(key):
                         return {"error": f"invalid keyevent: {key!r}"}
                     output = self._adb_manager.shell(f"input keyevent {key}", serial=params.get("serial", self._serial))
                     return {"result": output}
                 if method == "shell":
                     cmd = params.get("cmd", "")
-                    # 限制允许的 shell 命令前缀，防止任意命令执行
+                    # 限制允许的 shell 命令前缀，防止任意命令执行。
                     if not _is_allowed_shell_cmd(cmd):
                         self._logger.warning("守护进程拒绝 shell 命令", cmd=cmd[:80])
                         return {"error": "shell command not allowed"}

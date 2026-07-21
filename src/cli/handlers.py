@@ -464,6 +464,8 @@ def _handle_device_status(runtime: IstinaRuntime, args: argparse.Namespace) -> D
 
 
 def _handle_device_screenshot(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    # ★ 图像通道：走 scrcpy（AndroidRuntime.screenshot → _ScrcpySession）
+    # 严禁回退到 ADB screencap。
     android = runtime.android()
     data = android.screenshot()
     return _write_or_base64(data, getattr(args, "out", None))
@@ -473,6 +475,9 @@ def _handle_device_tap(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict
     err = _check_coord(args.x, "x") or _check_coord(args.y, "y")
     if err:
         return err
+    # ★ 触控通道：CLI 调试入口走 AndroidRuntime.tap → TouchManager (adb shell input)。
+    # ⚠️ 这是 fallback 通道，**严禁**用于生产任务；生产任务统一走
+    # MaaEndRuntime._controller.post_click (MaaTouch)。
     android = runtime.android()
     try:
         x, y = int(args.x), int(args.y)
@@ -491,6 +496,9 @@ def _handle_device_swipe(runtime: IstinaRuntime, args: argparse.Namespace) -> Di
     )
     if err:
         return err
+    # ★ 触控通道：CLI 调试入口走 AndroidRuntime.swipe → TouchManager (adb shell input)。
+    # ⚠️ 这是 fallback 通道，**严禁**用于生产任务；生产任务统一走
+    # MaaEndRuntime._controller.post_swipe (MaaTouch)。
     android = runtime.android()
     try:
         x1, y1, x2, y2 = int(args.x1), int(args.y1), int(args.x2), int(args.y2)
@@ -508,6 +516,7 @@ def _handle_device_swipe(runtime: IstinaRuntime, args: argparse.Namespace) -> Di
 
 
 def _handle_device_keyevent(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    # keyevent 走 adb shell input keyevent（无 MaaTouch 等价协议，唯一可用通道）。
     android = runtime.android()
     key = str(getattr(args, "key", "")).strip()
     # 校验 keyevent 参数：必须为纯数字或 KEYCODE_ 前缀常量名

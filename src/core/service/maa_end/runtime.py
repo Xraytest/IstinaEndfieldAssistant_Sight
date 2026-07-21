@@ -152,6 +152,17 @@ class MaaEndRuntime:
         # 注意：run_task 不再对识别未命中（正常失败）自动触发异常恢复，与 run_pipeline 一致
         self._recovering = False
         self._client_version = "CN"
+        # 用户主动停止事件：由 request_stop() 设置，_run_task_with_retry/_recover_and_retry/
+        # _post_game_restart_cleanup 在关键节点检查，避免停止后仍执行 RecoverGame 流程。
+        # 当前 CLI 子进程模式下，GUI 通过 kill QProcess 直接终止子进程即可生效；
+        # 此 event 作为防御性设计，便于将来 CLI 改为长驻/RPC 模式时通过命令设置。
+        self._user_stop_event: threading.Event = threading.Event()
+        # 多实例隔离：agent_id 含 instance_tag，避免跨实例同时启动 go-service 时碰撞
+        try:
+            from core.foundation.instance import get_instance_id
+            self._instance_tag = get_instance_id()
+        except Exception:
+            self._instance_tag = "default"
 
 
     def _default_maaend_root(self) -> Path:
@@ -324,7 +335,14 @@ class MaaEndRuntime:
 
     def _connect_once(self) -> bool:
         self._resource = Resource()
-        input_methods = int((MaaAdbInputMethodEnum.AdbShell | MaaAdbInputMethodEnum.Maatouch) if MaaAdbInputMethodEnum else 1)
+        # ★ 触控通道：MaaTouch（高速 socket 协议），禁用 AdbShell（adb shell input）。
+        # 严禁回退到 adb shell input — adb shell input 走 InputManager 注入，延迟高、
+        # 易被游戏反外挂检测，且无法被 MaaFW 的 input_method 状态机管理。
+        # 单一通道：MaaTouch。Maatouch=4 是位掩码枚举，必须用位运算赋值。
+        input_methods = int(MaaAdbInputMethodEnum.Maatouch if MaaAdbInputMethodEnum else 4)
+        # ★ 截图通道：Default（-57 = All & ~{0..5}）仅保留 EmulatorExtras(64)。
+        # 任务级 screenshot 由 MaaFW 控制器直接拉帧；GUI 实时预览/录制由
+        # android_runtime.py 的 scrcpy 通道独立提供（不依赖 MaaFW 控制器）。
         screencap_methods = int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0)
         self._controller = AdbController(
             adb_path=Path(self._adb_path),
@@ -511,6 +529,26 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "MaaFW post_stop() 失败", error=str(exc))
             return False
 
+    def request_stop(self) -> None:
+        """标记用户主动停止：_run_task_with_retry/_recover_and_retry/_post_game_restart_cleanup
+        在关键节点检查此事件，提前退出并跳过 RecoverGame 流程。
+
+        与 post_stop 的区别：
+          - post_stop 是 MaaFW 任务级中止，仅中断当前 pipeline job
+          - request_stop 是 runtime 级中止，阻止后续重试与 RecoverGame（StopApp→StartApp→OpenGame）
+        """
+        self._user_stop_event.set()
+        self.logger.info(LogCategory.MAIN, "已请求停止 runtime，后续重试与 RecoverGame 将被跳过")
+        # 同时调用 post_stop 中止当前 MaaFW job，让 _wait_job 尽快返回
+        try:
+            self.post_stop()
+        except Exception:
+            pass
+
+    def clear_stop_request(self) -> None:
+        """清除停止标记，供下次任务执行前重置。"""
+        self._user_stop_event.clear()
+
     def _start_agent(self) -> None:
         if self._agent_client is not None:
             return
@@ -519,7 +557,7 @@ class MaaEndRuntime:
         if AgentClient is None or not agent_exe.exists():
             self.logger.warning(LogCategory.MAIN, "go-service.exe 不存在，跳过 Agent 启动", path=str(agent_exe))
             return
-        agent_id = f"istina-maaend-{int(time.time() * 1000)}"
+        agent_id = f"istina-maaend-{self._instance_tag}-{int(time.time() * 1000)}"
         process = None
         try:
             agent_env = os.environ.copy()
@@ -803,6 +841,10 @@ class MaaEndRuntime:
 
     def _run_task_with_retry(self, task_name: str, options: Dict[str, Any], entry: str, override: Dict[str, Any]) -> bool:
         for attempt in range(1 + self._MAX_TASK_RETRIES):
+            # 用户主动停止：跳过重试与恢复，立即返回失败
+            if self._user_stop_event.is_set():
+                self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过任务重试", task=task_name, attempt=attempt)
+                return False
             if attempt > 0:
                 self.logger.warning(LogCategory.MAIN, "任务自动重试", task=task_name, attempt=attempt)
             result = self._run_task_once(task_name, options, entry, override)
@@ -818,6 +860,10 @@ class MaaEndRuntime:
                 return False
             if self._recovering or attempt >= self._MAX_TASK_RETRIES:
                 break
+            # 用户主动停止：跳过轻量恢复与完整恢复，避免触发 RecoverGame
+            if self._user_stop_event.is_set():
+                self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过异常恢复", task=task_name)
+                return False
             if self._connected and self._lightweight_recover_ui():
                 self.logger.info(LogCategory.MAIN, "轻量恢复完成，重试任务", task=task_name)
                 retry_result = self._run_task_once(task_name, options, entry, override)
@@ -978,6 +1024,11 @@ class MaaEndRuntime:
             options = item.get("options") or {}
             if not name:
                 continue
+            # 用户主动停止：中止队列
+            if self._user_stop_event.is_set():
+                self.logger.warning(LogCategory.MAIN, "检测到停止请求，中止队列执行", remaining=total - idx)
+                failures.append(name)
+                break
             if not self._ensure_queue_connection(name, idx, total):
                 failures.append(name)
                 break
@@ -985,6 +1036,10 @@ class MaaEndRuntime:
             if not self.run_task(name, options):
                 failures.append(name)
                 self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name, failed_index=idx + 1)
+                # 用户主动停止：中止队列（不再继续后续任务）
+                if self._user_stop_event.is_set():
+                    self.logger.warning(LogCategory.MAIN, "检测到停止请求，中止队列执行", failed_task=name)
+                    break
                 if not self._connected:
                     self.logger.warning(LogCategory.MAIN, "任务后连接断开，尝试恢复继续队列")
                     if not self._ensure_queue_connection(name, idx, total):
@@ -1052,6 +1107,10 @@ class MaaEndRuntime:
         3. 等待游戏完全加载 + 关闭弹窗
         4. 重试失败任务
         """
+        # 用户主动停止：跳过 RecoverGame，避免游戏反复关闭再打开
+        if self._user_stop_event.is_set():
+            self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过 RecoverGame 异常恢复", task=task_name)
+            return False
         self.logger.info(
             LogCategory.MAIN,
             "异常恢复开始：验证连接 → RecoverGame → 重试任务",
@@ -1066,6 +1125,11 @@ class MaaEndRuntime:
                     self.logger.error(LogCategory.MAIN, "异常恢复：重连失败")
                     return False
 
+            # 再次检查：重连过程中可能收到停止请求
+            if self._user_stop_event.is_set():
+                self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过 RecoverGame 任务执行", task=task_name)
+                return False
+
             self.logger.info(LogCategory.MAIN, "异常恢复：执行 RecoverGame 任务")
             recover_ok = self.run_task("RecoverGame", {"ClientVersion": self._client_version})
             if not recover_ok:
@@ -1074,25 +1138,46 @@ class MaaEndRuntime:
 
             self._post_game_restart_cleanup()
 
+            # 重启清理后再次检查：清理过程中可能收到停止请求
+            if self._user_stop_event.is_set():
+                self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过原任务重试", task=task_name)
+                return False
+
             self.logger.info(LogCategory.MAIN, "异常恢复：重试失败任务", task=task_name)
             return self.run_task(task_name, options)
         finally:
             self._recovering = False
 
     def _post_game_restart_cleanup(self) -> None:
-        """游戏重启后的清理：等待加载 + 关闭弹窗。"""
+        """游戏重启后的清理：等待加载 + 关闭弹窗。
+
+        所有 time.sleep 改为 _user_stop_event.wait(timeout)，以便在用户请求停止时
+        立即退出，不再继续执行后续 BACK 键与等待。
+        """
         self.logger.info(LogCategory.MAIN, "游戏重启后清理：等待加载 + 关闭弹窗")
-        time.sleep(8.0)
+        # 等待游戏加载 8s，停止请求可立即打断
+        if self._user_stop_event.wait(timeout=8.0):
+            self.logger.warning(LogCategory.MAIN, "游戏重启后清理：检测到停止请求，提前退出")
+            return
         for i in range(8):
+            if self._user_stop_event.is_set():
+                self.logger.warning(LogCategory.MAIN, "游戏重启后清理：检测到停止请求，提前退出", step=i)
+                return
             try:
                 subprocess.run(
                     [self._adb_path, "-s", self._device_address, "shell", "input", "keyevent", "4"],
                     text=True, timeout=5, capture_output=True,
                 )
-                time.sleep(1.0)
+                # 等待 1s，停止请求可立即打断
+                if self._user_stop_event.wait(timeout=1.0):
+                    self.logger.warning(LogCategory.MAIN, "游戏重启后清理：检测到停止请求，提前退出", step=i)
+                    return
             except Exception:
                 pass
-        time.sleep(3.0)
+        # 最终等待 3s，停止请求可立即打断
+        if self._user_stop_event.wait(timeout=3.0):
+            self.logger.warning(LogCategory.MAIN, "游戏重启后清理：检测到停止请求，提前退出")
+            return
         self.logger.info(LogCategory.MAIN, "游戏重启后清理完成")
 
     def _try_recover(self, task_name: str) -> bool:

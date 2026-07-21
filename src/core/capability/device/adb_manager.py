@@ -1,6 +1,16 @@
-"""ADB 设备管理器 - 最简实现
+"""ADB 设备管理器 - 通道职责分工
 
-提供 ADB 设备扫描、连接、命令执行和截图能力。
+⚠️ 通道职责（严重红线）：
+  - 图像（screencap）：⚠️ 严禁作为生产任务的图像通道！
+    严禁使用本类 screencap() 拉取生产任务截图。生产任务统一走 scrcpy
+    （_ScrcpySession，见 core/capability/device/android_runtime.py）。
+    本 screencap() 仅在 AndroidRuntime 守护进程无法启动 scrcpy 时
+    作为极端兜底使用，且调用方必须明确承担延迟 200-500ms 的后果。
+  - 触控：本类的 shell() 仅用于非生产 adb shell 命令（如 am start），
+    生产任务触控必须走 MaaTouch（MaaEndRuntime._controller.post_*）。
+  - shell：仅允许白名单前缀（ALLOWED_SHELL_PREFIXES），防止注入。
+
+提供 ADB 设备扫描、连接、命令执行和极简兜底截图能力。
 """
 
 from __future__ import annotations
@@ -90,7 +100,12 @@ class ADBDeviceManager:
             return self._shell_via_subprocess(cmd, serial)
 
     def screencap(self, serial: Optional[str] = None) -> bytes:
-        """截图并返回 PNG 二进制数据"""
+        """⚠️ 极端兜底截图（不推荐作为生产任务图像通道）
+
+        生产任务统一走 scrcpy（android_runtime.py._ScrcpySession）。
+        本方法仅在 scrcpy 会话无法启动时作为兜底，调用方必须接受 200-500ms 延迟。
+        严禁：把本方法作为生产任务（VisitFriends/AutoCollect 等）的图像通道。
+        """
         try:
             import adbutils
 
