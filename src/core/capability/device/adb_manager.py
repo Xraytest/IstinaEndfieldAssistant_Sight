@@ -65,7 +65,11 @@ class ADBDeviceManager:
             if device_iter is None:
                 raise RuntimeError("adbutils AdbClient 无 device_list/devices 方法")
             for device in device_iter():
-                devices.append(ADBDeviceInfo(serial=device.serial, state=device.state))
+                # adbutils 2.x 移除 AdbDevice.state 属性，改用 get_state() 方法
+                _state = getattr(device, "state", None)
+                if _state is None and hasattr(device, "get_state"):
+                    _state = device.get_state()
+                devices.append(ADBDeviceInfo(serial=device.serial, state=_state))
             return devices
         except Exception as e:
             # D3: 不要静默吞掉异常，记录后回退到 subprocess 实现

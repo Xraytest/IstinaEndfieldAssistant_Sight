@@ -622,6 +622,10 @@ class MaaEndRuntime:
             # 目录全部 JSON 并因 "key already exists" 整体失败。加载前将各 pipeline 目录
             # 中的聚合 nodes.json 统一移出。
             self._relocate_aggregate_nodes()
+            # 方案 E：剥除 pipeline JSON 中的 // 和 /* */ 注释。MaaFW 的 C++ rapidjson
+            # 不支持注释，含注释的 JSON 会触发 json::open failed → Resource.Loading.Failed。
+            # 3rd-part/maaend/resource/pipeline 下有 5 个文件含注释，需在 post_bundle 前预处理。
+            self._strip_comments_in_pipeline()
             job = self._resource.post_bundle(resource_dir)
             # BUNDLE-HARD-TIMEOUT: 资源加载若 MaaFW 内部死锁会无限阻塞
             if not self._wait_job(job, timeout_s=60.0):
@@ -675,6 +679,41 @@ class MaaEndRuntime:
             except Exception as exc:
                 self.logger.warning(
                     LogCategory.MAIN, "移动聚合 nodes.json 失败，资源加载可能冲突", path=str(nodes), error=str(exc)
+                )
+
+    def _strip_comments_in_pipeline(self) -> None:
+        """剥除 pipeline 目录下所有 JSON 文件的 // 和 /* */ 注释。
+
+        MaaFW 的 Resource.post_bundle 用 C++ rapidjson 解析 JSON，不支持注释。
+        3rd-part/maaend/resource/pipeline 下部分 JSON 含 // 行注释，导致
+        json::open failed → Resource.Loading.Failed。此方法在 post_bundle 前扫描
+        所有 pipeline JSON，对含注释的文件剥除注释后原地写回，使资源加载自愈。
+        重新同步 3rd-part 资源后再次调用会自动修复。
+        """
+        pipeline_dir = self._resolve_asset_path("resource", "pipeline")
+        if not pipeline_dir.is_dir():
+            return
+        for json_path in pipeline_dir.rglob("*.json"):
+            try:
+                text = json_path.read_text(encoding="utf-8")
+                # 严格解析成功则无需处理
+                json.loads(text)
+                continue
+            except json.JSONDecodeError:
+                # 解析失败，可能含注释，尝试剥除
+                pass
+            except Exception:
+                # 读取失败等其他异常，跳过
+                continue
+            try:
+                stripped = _strip_json_comments(text)
+                # 验证剥注释后能严格解析
+                json.loads(stripped)
+                json_path.write_text(stripped, encoding="utf-8")
+                self.logger.info(LogCategory.MAIN, "已剥除 JSON 注释", path=str(json_path))
+            except Exception as exc:
+                self.logger.warning(
+                    LogCategory.MAIN, "剥除 JSON 注释失败", path=str(json_path), error=str(exc)
                 )
 
     def build_pipeline_override(self, task_name: str, options: Dict[str, Any]) -> Dict[str, Any]:
