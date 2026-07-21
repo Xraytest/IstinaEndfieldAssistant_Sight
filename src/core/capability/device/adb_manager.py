@@ -59,7 +59,12 @@ class ADBDeviceManager:
             import adbutils
 
             adb = adbutils.AdbClient(host="127.0.0.1", port=5037)
-            for device in adb.devices():
+            # 方案 C：adbutils >= 2.0 移除 AdbClient.devices()，改为 device_list()。
+            # 同时兼容 1.x（devices）与 2.x（device_list），避免 WARNING 噪音。
+            device_iter = getattr(adb, "device_list", None) or getattr(adb, "devices", None)
+            if device_iter is None:
+                raise RuntimeError("adbutils AdbClient 无 device_list/devices 方法")
+            for device in device_iter():
                 devices.append(ADBDeviceInfo(serial=device.serial, state=device.state))
             return devices
         except Exception as e:

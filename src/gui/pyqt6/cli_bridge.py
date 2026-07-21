@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import sys
@@ -69,8 +70,10 @@ class CLIBridge(QObject):
     processCrashed = pyqtSignal(int)
     logMessage = pyqtSignal(str, str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, instance_id: str = "default"):
         super().__init__(parent)
+        from core.foundation.instance import normalize_instance_id
+        self._instance_id = normalize_instance_id(instance_id)
         self._process: Optional[QProcess] = None
         self._pending_commands: List[List[str]] = []
         self._current_command: Optional[List[str]] = None
@@ -88,6 +91,14 @@ class CLIBridge(QObject):
         self._async_callbacks: Dict[str, tuple] = {}
         # 命令前缀 -> request_id 列表，用于在 commandFinished 时匹配回调
         self._cmd_prefix_to_reqs: Dict[str, List[str]] = {}
+        # 用户主动终止当前 QProcess 标志：_on_finished 据此跳过 crash_count 累加
+        # 与 processCrashed 信号发射，避免触发 _on_cli_crashed 的自动重连逻辑。
+        self._user_aborted: bool = False
+
+    @property
+    def instance_id(self) -> str:
+        """该 bridge 绑定的实例 id。"""
+        return self._instance_id
 
     @pyqtSlot(str, dict)
     def execute(self, command: str, params: Optional[Dict[str, Any]] = None) -> None:
@@ -98,6 +109,10 @@ class CLIBridge(QObject):
             self._send_next_if_idle()
         else:
             self._start_next_process()
+
+    def _build_instance_args(self) -> List[str]:
+        """构造 CLI 启动时的 --instance 参数。"""
+        return ["--instance", self._instance_id]
 
     def execute_async(
         self,
@@ -177,8 +192,7 @@ class CLIBridge(QObject):
                         if on_done is not None:
                             on_done(result)
 
-    @staticmethod
-    def _build_args(command: str, params: Dict[str, Any]) -> List[str]:
+    def _build_args(self, command: str, params: Dict[str, Any]) -> List[str]:
         # N07: shlex.split 正确处理带空格/引号的值，避免 split() 误切分
         args = shlex.split(command)
         for key, value in params.items():
@@ -222,8 +236,27 @@ class CLIBridge(QObject):
         self._process.finished.connect(self._on_finished)
         self._process.errorOccurred.connect(self._on_error)
 
-        cmd = [self._python_path, self._istina_path, "--interactive"]
-        self._logger.debug(LogCategory.GUI, "启动 CLI 交互进程", cmd=" ".join(cmd))
+        # 方案 B：为 CLI 子进程显式注入 MAAFW_BINARY_PATH + PATH prepend，
+        # 确保 import maa.* 时加载项目自带 OLDER 版本 MaaFramework.dll（与
+        # 3rd-part/maaend/resource 匹配），避免 STATUS_DLL_NOT_FOUND (0xC0000135)
+        # 进程崩溃。即使 main.py 已注入 env，此处显式设置作为防御性保护。
+        try:
+            from PyQt6.QtCore import QProcessEnvironment
+            _maafw_dll_dir = get_project_root() / "3rd-part" / "maaend" / "agent" / "maafw"
+            env = QProcessEnvironment.systemEnvironment()
+            if _maafw_dll_dir.is_dir():
+                if env.value("MAAFW_BINARY_PATH") == "":
+                    env.insert("MAAFW_BINARY_PATH", str(_maafw_dll_dir.resolve()))
+                # PATH prepend：让 MaaFramework.dll 依赖的同目录 DLL 也能被加载
+                _old_path = env.value("PATH")
+                _new_path = str(_maafw_dll_dir.resolve()) + (os.pathsep + _old_path if _old_path else "")
+                env.insert("PATH", _new_path)
+            self._process.setProcessEnvironment(env)
+        except Exception as exc:
+            self._logger.warning(LogCategory.GUI, "注入 MAAFW_BINARY_PATH 到 CLI 子进程失败", error=str(exc))
+
+        cmd = [self._python_path, self._istina_path, "--interactive", *self._build_instance_args()]
+        self._logger.debug(LogCategory.GUI, "启动 CLI 交互进程", cmd=" ".join(cmd), instance=self._instance_id)
         self._process.start(cmd[0], cmd[1:])
         started = self._process.waitForStarted(5000)
         self._logger.debug(LogCategory.GUI, "CLI 交互进程启动结果", started=started, pid=self._process.processId() if started else None)
@@ -300,6 +333,17 @@ class CLIBridge(QObject):
         if self._restart_pending:
             self._finalize_current_process()
             return
+        # 用户主动终止：不当作崩溃处理，跳过 crash_count 累加与 processCrashed 信号，
+        # 避免触发 MainWindow._on_cli_crashed 的自动重连逻辑（用户停止后不应自动重连）。
+        user_aborted = self._user_aborted
+        if user_aborted:
+            self._logger.info(LogCategory.GUI, "CLI 命令被用户主动终止", exit_code=exit_code, command=" ".join(self._last_command))
+            self.commandError.emit(
+                " ".join(self._last_command),
+                "user aborted",
+            )
+            self._finalize_current_process()
+            return
         crashed = exit_status == QProcess.ExitStatus.CrashExit
         if crashed:
             self._crash_count += 1
@@ -374,6 +418,35 @@ class CLIBridge(QObject):
         self._pending_commands.clear()
         self._logger.info(LogCategory.GUI, "已清空待执行命令队列", cleared=count)
 
+    def abort_current(self) -> bool:
+        """用户主动终止当前正在运行的 CLI 命令。
+
+        GUI"停止"按钮调用此方法立即终止 QProcess，避免 CLI 子进程内部的
+        MaaEndRuntime._run_task_with_retry/_recover_and_retry 继续执行 RecoverGame
+        流程（StopApp → StartApp → OpenGame）导致游戏反复关闭再打开。
+
+        与 clear_pending 的区别：
+          - clear_pending 仅清空待执行队列，对当前正在运行的 QProcess 无效
+          - abort_current 直接 kill QProcess，立即中断当前命令
+
+        设置 _user_aborted=True 让 _on_finished 跳过 crash_count 累加与
+        processCrashed 信号发射，避免触发 _on_cli_crashed 的自动重连。
+
+        Returns:
+            True 表示已发送终止信号，False 表示当前无运行中的进程
+        """
+        if self._process is None or self._process.state() == QProcess.ProcessState.NotRunning:
+            return False
+        self._user_aborted = True
+        cmd_str = " ".join(self._last_command) if self._last_command else "<unknown>"
+        self._logger.info(LogCategory.GUI, "用户主动终止当前 CLI 命令", command=cmd_str)
+        try:
+            self._process.kill()
+        except Exception as exc:
+            self._logger.warning(LogCategory.GUI, "kill QProcess 失败", error=str(exc))
+            return False
+        return True
+
     def _handle_process_error(self, message: str) -> None:
         self._logger.error(LogCategory.MAIN, "CLI 进程错误", error=message)
         self.commandError.emit(" ".join(self._last_command), message)
@@ -387,6 +460,7 @@ class CLIBridge(QObject):
         self._process = None
         self._current_command = None
         self._restart_pending = False
+        self._user_aborted = False
 
     def _show_crash_dialog(self) -> None:
         QMessageBox.critical(

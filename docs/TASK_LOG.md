@@ -2478,6 +2478,18 @@
 - **Outcome**: 批次 96 审计完成，新增 2 项发现：LLM-CUDA-FLAG（_cuda_failed 标记在 CPU 回退成功后仍为 True，后续启动跳过 GPU 尝试）/ PRTS-CHAT-ERROR（PRTS 页面仅连接 commandFinished，无 commandError 处理器，聊天错误时 UI 冻结）。批次 95 审计确认全部 8 项发现准确无需修正，补充观察为 DUP-I 模式。
 - **Files Modified**: reports/auto/20260712_0016_batch96.md
 
+## 2026-07-21 22:30 (问题分析·ADB 连接 true 但 connected 显示 false)
+
+- **User Request**: 阅读最新日志，存在 ADB 连接 true 但提示 connected 显示 false 的问题。全面地分析问题，错误原因不止一个
+- **Outcome**: 完成多根因分析（仅分析，未改代码）。识别出 3 个独立错误原因：
+  - **A. MaaFW Pipeline 资源加载失败（直接原因）**：用户安装的 maa Python 包附带的 `MaaFramework.dll`（2,536,448 字节，较新）与项目内置的 MaaEnd 资源（`3rd-part/maaend/agent/maafw/MaaFramework.dll` 2,511,360 字节，较旧）版本不匹配。`maa/__init__.py` 在 import 时通过 `MAAFW_BINARY_PATH` 环境变量定位 DLL，但 `maa_end/runtime.py` 仅在 `_start_agent` 中为 `go-service.exe` 子进程设置该变量，主 Python 进程从未设置 → 加载到错误版本的 DLL → `Resource.load(...)` 失败（`Resource.Loading.Failed` 多次重试，hash 不同）→ `IstinaRuntime.connect()` 返回 False → CLI 输出 `status=error` → GUI 调用 `set_connected(False)`。
+  - **B. CLI 进程崩溃 `exit_code=-1073741510`（STATUS_DLL_NOT_FOUND）**：`gui/pyqt6/cli_bridge.py` 中 `QProcess.start()` 启动 CLI 子进程时未调用 `setProcessEnvironment()` 注入 `MAAFW_BINARY_PATH`，子进程内 `import maa.*` 时无法定位 MaaFW DLL 直接崩溃。
+  - **C. adbutils 2.12.0 API 不兼容（非阻塞但噪音大）**：`adb_manager.py` 第 62 行 `for device in adb.devices():` 使用了 adbutils 2.12.0 已移除的 API（`AdbClient.devices()` 被 `device_list()` 取代），触发 warning 并回退 subprocess。已通过 Python REPL 验证：`hasattr(c, 'devices')` 为 False，`hasattr(c, 'device_list')` 为 True。
+  - **现象解释**：`MaaEndRuntime._connected` 在 `_connect_once()` 末尾置为 True（仅反映 ADB + Tasker 通道状态，日志显示 "MaaEnd runtime 连接成功"），但 `load_resource()` 失败路径未重置 `_connected = False`，造成 "ADB 连接 true 但 connected 显示 false" 的语义错配。
+- **Files Modified**:
+  - `reports/incidents/2026-07-21_adb_connected_false_multi_cause_analysis.md`（新增 4 部分分析报告：根因分析 / 修改方案 A-D / 影响面 / 非期待变化 + 验证清单）
+  - `docs/TASK_LOG.md`（本条记录）
+
 ## 2026-07-12 00:25
 
 - **User Request**: 完整阅读文档与./reports/CODE_REVIEW_WARNS.md，明析项目需求与边界。基于边界，寻找代码存在的漏洞与错误，提出可用的修改建议，若存在可明显提升用户体验的细节点也可附在报告内提出（优先注重代码错误，其次漏洞，最后优化）。完成报告编写后审计之前的报告，寻找错误或不必要的建议，将他们指出并深入分析写入当前批次报告。避免执行测试，以代码逻辑分析为主体，分析后报告存放到./reports/auto/<timestsamp>.md，避免重复提交之前发现的问题！！！严禁修改文件！！！

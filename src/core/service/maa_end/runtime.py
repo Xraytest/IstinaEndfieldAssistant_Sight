@@ -87,6 +87,13 @@ _maaend_agent_dir = _PROJECT_ROOT / "3rd-part" / "maaend" / "agent"
 _maafw_dir = _maaend_agent_dir / "maafw"
 _DEFAULT_DLL_DIR = _maafw_dir if _maafw_dir.is_dir() else None
 
+# 方案 A1：在 import maa.* 之前注入 MAAFW_BINARY_PATH，确保主 Python 进程加载项目
+# 自带的 OLDER 版本 MaaFramework.dll（与 3rd-part/maaend/resource 版本匹配），
+# 避免加载用户 site-packages 中 NEWER 版本 DLL 触发 Resource.Loading.Failed。
+# maa/__init__.py 在 import 时执行 Library.open(path)，path 取自该环境变量。
+if _DEFAULT_DLL_DIR is not None and os.environ.get("MAAFW_BINARY_PATH") is None:
+    os.environ["MAAFW_BINARY_PATH"] = str(_DEFAULT_DLL_DIR.resolve())
+
 MAAFW_AVAILABLE = False
 try:
     from maa.agent_client import AgentClient
@@ -356,11 +363,12 @@ class MaaEndRuntime:
             self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败或超时", address=self._device_address)
             self._cleanup_partial()
             return False
+        # 首轮截图失败不应让整个连接失败：screencap 通道可能在游戏加载未完成时
+        # 暂时返回空帧。只要 ADB 控制器本身已连上，就视为设备已连接，GUI 应显示
+        # "已连接"。screencap 后续在任务执行时会自动重试。
         screencap_job = self._controller.post_screencap()
         if not self._wait_job(screencap_job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
-            self.logger.error(LogCategory.MAIN, "首次截图失败或超时", address=self._device_address)
-            self._cleanup_partial()
-            return False
+            self.logger.warning(LogCategory.MAIN, "首次截图失败或超时（不阻断连接）", address=self._device_address)
         self._tasker = Tasker()
         if not self._tasker.bind(self._resource, self._controller):
             self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
@@ -373,14 +381,13 @@ class MaaEndRuntime:
         except Exception:
             pass
         # Start Agent after Tasker is ready so it can register sinks correctly.
+        # Agent 是可选增强（go-service.exe 子进程），缺失不应阻断设备连接。
+        # 实际场景中 go-service.exe 可能因路径/权限/DLL 缺失而启动失败，
+        # 但 ADB 控制器与 Tasker 已就绪，基础任务仍可执行。
         self._start_agent()
         if self._agent_client is None or self._agent_process is None:
-            # H-13: Agent 部分启动（client 或 process 任一缺失）即视为未就绪，中止连接，
-            # 避免带着半初始化的 Agent 继续，导致后续 bind/connect 失败且难以定位。
-            self.logger.error(LogCategory.MAIN, "Agent 未启动（client 或 process 缺失），连接中止")
-            self._cleanup_partial()
-            return False
-        if self._agent_client is not None:
+            self.logger.warning(LogCategory.MAIN, "Agent 未启动（client 或 process 缺失），跳过 Agent 高级功能，基础连接已建立")
+        else:
             try:
                 self._agent_client.bind(self._resource)
                 self._agent_client.register_sink(self._resource, self._controller, self._tasker)
@@ -619,6 +626,10 @@ class MaaEndRuntime:
             # BUNDLE-HARD-TIMEOUT: 资源加载若 MaaFW 内部死锁会无限阻塞
             if not self._wait_job(job, timeout_s=60.0):
                 self.logger.error(LogCategory.MAIN, "Pipeline 资源加载失败或超时", path=str(resource_dir))
+                # 方案 D：资源加载失败视为整体未连接，避免 _connected=True 与
+                # IstinaRuntime.connect() 返回 False 的语义错配（导致 GUI 显示
+                # connected=False 但日志显示"MaaEnd runtime 连接成功"）。
+                self._connected = False
                 return False
             self.logger.info(LogCategory.MAIN, "Pipeline 资源加载成功", path=str(resource_dir))
             adb_resource_dir = self._resolve_asset_path("resource_adb")
@@ -626,11 +637,13 @@ class MaaEndRuntime:
                 job_adb = self._resource.post_bundle(adb_resource_dir)
                 if not self._wait_job(job_adb, timeout_s=60.0):
                     self.logger.error(LogCategory.MAIN, "ADB 资源加载失败或超时", path=str(adb_resource_dir))
+                    self._connected = False  # 方案 D：同上，资源加载失败重置连接态
                     return False
                 self.logger.info(LogCategory.MAIN, "ADB 资源加载成功", path=str(adb_resource_dir))
             return True
         except Exception as e:
             self.logger.exception(LogCategory.MAIN, "Pipeline 资源加载异常", error=str(e))
+            self._connected = False  # 方案 D：异常路径同样重置连接态
             return False
 
     def _relocate_aggregate_nodes(self) -> None:
