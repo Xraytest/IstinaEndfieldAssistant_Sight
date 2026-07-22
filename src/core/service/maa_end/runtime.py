@@ -340,6 +340,14 @@ class MaaEndRuntime:
     _SCRECAP_TIMEOUT_S = 10
     _MAX_TASK_RETRIES = 1
 
+    # 不需要「先回到主世界」前置的任务：自身负责启动游戏/恢复，或本身就是进入主世界。
+    # 其他任务（VisitFriends/SellProduct/DijiangRewards/DailyRewards/CreditShoppingN2 等）
+    # 假设从主世界开始，若前一任务留下非主世界页面状态会导致 InWorld 误匹配。
+    _TASKS_SKIP_ENTER_WORLD = frozenset({
+        "AndroidOpenGame", "PCOpenGame", "OpenGame",
+        "RecoverGame", "StopApp", "StartApp",
+    })
+
     def _connect_once(self) -> bool:
         self._resource = Resource()
         # ★ 触控通道：MaaTouch（高速 socket 协议），禁用 AdbShell（adb shell input）。
@@ -963,6 +971,17 @@ class MaaEndRuntime:
         return False
 
     def _connection_watchdog(self, task_name: str, stop_event: threading.Event) -> None:
+        # 游戏启动/恢复类任务耗时较长（加载、登录流程），使用更长的卡死超时。
+        # 300s 对 OpenGame 太短：游戏冷启动 + 加载 + 登录流程可达 5-8 分钟，
+        # 看门狗在 300s 触发 post_stop 会与任务完成产生竞态，导致：
+        # job.succeeded=False（post_stop 赢了竞态）→ _connected=False →
+        # _run_task_once 返回 None → 触发连接恢复 → 重新执行 AndroidOpenGame → 无限循环。
+        _WATCHDOG_TIMEOUT_GAME = 900  # 15 min for OpenGame/RecoverGame/StartApp/StopApp
+        _WATCHDOG_TIMEOUT_NORMAL = 300  # 5 min for other tasks
+        if task_name in self._TASKS_SKIP_ENTER_WORLD:
+            stuck_timeout = _WATCHDOG_TIMEOUT_GAME
+        else:
+            stuck_timeout = _WATCHDOG_TIMEOUT_NORMAL
         started = time.monotonic()
         while not stop_event.is_set():
             for _ in range(100):
@@ -981,8 +1000,8 @@ class MaaEndRuntime:
                     pass
                 return
             elapsed = time.monotonic() - started
-            if elapsed > 300:
-                self.logger.warning(LogCategory.MAIN, "看门狗：任务疑似卡死，发送中断信号", task=task_name, elapsed_s=int(elapsed))
+            if elapsed > stuck_timeout:
+                self.logger.warning(LogCategory.MAIN, "看门狗：任务疑似卡死，发送中断信号", task=task_name, elapsed_s=int(elapsed), stuck_timeout=stuck_timeout)
                 self._connected = False
                 try:
                     if self._tasker is not None:
@@ -1090,6 +1109,14 @@ class MaaEndRuntime:
             if not self._ensure_queue_connection(name, idx, total):
                 failures.append(name)
                 break
+            # 任务间清理：非首个任务且非 OpenGame/RecoverGame，先回到主世界，
+            # 避免前一任务留下的页面状态（如信用商店）导致 InWorld 误匹配。
+            # 根因：InWorld=Or(ProtosyncMenuButton,RegionalDevelopmentButton,InWorldOcrText)，
+            # InWorldOcrText 匹配 UID，而 UID 在商店/好友列表等页面也可见，导致
+            # __ScenePrivateWorldEnterMenuRegionalDevelopment 的 And(InWorld) 在非主世界
+            # 页面误匹配，后续子任务尝试从主世界打开菜单列表失败（ SellProduct FAIL 根因）。
+            if idx > 0 and name not in self._TASKS_SKIP_ENTER_WORLD:
+                self._ensure_in_world_before_task(name)
             self.logger.info(LogCategory.MAIN, "队列进度", current=idx + 1, total=total, task=name)
             if not self.run_task(name, options):
                 failures.append(name)
@@ -1124,6 +1151,25 @@ class MaaEndRuntime:
             return True
         self.logger.error(LogCategory.MAIN, "队列连接恢复失败，中止剩余任务", remaining=total - idx)
         return False
+
+    def _ensure_in_world_before_task(self, task_name: str) -> None:
+        """任务间清理：执行 SceneAnyEnterWorld 回到主世界。
+
+        前一任务可能留下非主世界页面状态（如信用商店、好友列表），导致下一任务的
+        InWorld 识别误匹配（InWorldOcrText 匹配 UID，UID 在多个页面可见）。
+        本方法通过 SceneAnyEnterWorld pipeline 尝试回到主世界，失败不阻止任务执行。
+        """
+        if not self._connected or self._tasker is None:
+            return
+        self.logger.info(LogCategory.MAIN, "任务间清理：尝试回到主世界", before_task=task_name)
+        try:
+            ok = self.run_pipeline("SceneAnyEnterWorld", {})
+            if ok:
+                self.logger.info(LogCategory.MAIN, "任务间清理：已回到主世界", before_task=task_name)
+            else:
+                self.logger.warning(LogCategory.MAIN, "任务间清理：回到主世界失败（继续执行任务）", before_task=task_name)
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "任务间清理异常（继续执行任务）", before_task=task_name, error=str(exc))
 
     def run_preset(self, preset_name: str) -> bool:
         """应用预设到队列并执行队列（便捷封装）。
