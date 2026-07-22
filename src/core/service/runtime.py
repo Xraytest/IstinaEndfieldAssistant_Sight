@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -67,34 +69,69 @@ def _get_llama_runtime(config: Dict[str, Any]) -> Any:
 
 
 def _load_dotenv() -> None:
-    """从项目根目录的 .env 文件加载环境变量（不覆盖已存在的值）。
+    """加载 .env 环境变量（多实例分层）。
+
+    加载顺序（后者覆盖前者，但 ``os.environ`` 已有值不被覆盖）：
+        1. **全局** ``<project_root>/.env``：仅含 ``LLM_PROVIDER`` / ``LLM_CLOUD_*``
+           等 LLM 配置，对所有实例共享
+        2. **实例** ``<instance_root>/.env``：实例私有 env（预留扩展位，
+           目前为空）。若出现 ``LLM_*`` 键会被忽略并 warning（防误改全局 LLM）
 
     轻量实现：仅解析 ``KEY=VALUE`` 行，跳过注释/空行。不引入 python-dotenv
     依赖，避免 requirements.txt 改动。.env 已被 .gitignore 忽略。
     """
-    env_path = get_project_root() / ".env"
-    if not env_path.exists():
-        return
-    try:
-        with open(env_path, "r", encoding="utf-8") as f:
-            for raw_line in f:
-                line = raw_line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip('"').strip("'")
-                if key and key not in os.environ:
-                    os.environ[key] = value
-    except OSError:
-        pass
+    from core.foundation.instance import get_instance_root
+
+    global_env_path = get_project_root() / ".env"
+    instance_env_path = get_instance_root() / ".env"
+
+    # 实例 .env 中禁止覆盖的键（LLM 全局共享）
+    _GLOBAL_ONLY_KEYS = {
+        "LLM_PROVIDER",
+        "LLM_CLOUD_BASE_URL",
+        "LLM_CLOUD_API_KEY",
+        "LLM_CLOUD_MODEL",
+        "LLM_PORT",
+    }
+
+    for env_path, is_global in ((global_env_path, True), (instance_env_path, False)):
+        if not env_path.exists():
+            continue
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for raw_line in f:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if not key:
+                        continue
+                    if not is_global and key in _GLOBAL_ONLY_KEYS:
+                        # 实例 .env 中的 LLM_* 键忽略，防误改全局配置
+                        continue
+                    if key not in os.environ:
+                        os.environ[key] = value
+        except OSError:
+            pass
 
 
 def _llm_provider() -> str:
     """读取 LLM_PROVIDER 环境变量，默认 local。"""
     return (os.environ.get("LLM_PROVIDER") or "local").strip().lower()
+
+
+def _instance_config_path() -> Path:
+    """获取当前实例的 client_config.json 路径。
+
+    - ``default`` 实例：``<project_root>/config/client_config.json``（向后兼容）
+    - 其它实例：``<instance_root>/config/client_config.json``
+    """
+    from core.foundation.instance import get_instance_root
+    return get_instance_root() / "config" / "client_config.json"
 
 
 def _get_llm_client(llama_runtime: Any) -> Any:
@@ -353,14 +390,73 @@ class IstinaRuntime:
             self._nav_android = android
         return self._nav
 
+    def _try_launch_emulator_and_wait(self) -> bool:
+        """连接失败时调用：检查配置中是否已填写模拟器路径，若有则启动并等待。
+
+        等待时间由 ``device.emulator.launch_wait_seconds`` 控制（默认 30 秒）。
+        模拟器以独立子进程启动（不阻塞本进程），Popen 后立即返回。
+        若路径未填写或启动异常，返回 False 表示未进行模拟器拉起。
+
+        Returns:
+            True 若已成功发起模拟器启动命令并完成等待；
+            False 若未配置模拟器路径或启动失败。
+        """
+        try:
+            device_cfg = (self._config or {}).get("device") or {}
+        except Exception:
+            device_cfg = {}
+        emu_cfg = device_cfg.get("emulator") or {}
+        path = str(emu_cfg.get("path") or "").strip()
+        if not path:
+            return False
+        args_str = str(emu_cfg.get("args") or "").strip()
+        try:
+            wait_secs = int(emu_cfg.get("launch_wait_seconds", 30))
+        except (TypeError, ValueError):
+            wait_secs = 30
+        wait_secs = max(0, min(600, wait_secs))
+
+        # posix=False：Windows 风格参数解析（保留引号，兼容 -s 0 / -v 0 等）
+        args_list = shlex.split(args_str, posix=False) if args_str else []
+        cwd = os.path.dirname(path) or None
+        try:
+            proc = subprocess.Popen([path] + args_list, cwd=cwd)
+        except Exception as exc:
+            self._logger.error(
+                LogCategory.MAIN,
+                "连接失败后启动模拟器异常",
+                path=path,
+                error=str(exc),
+            )
+            return False
+        self._logger.info(
+            LogCategory.MAIN,
+            "连接失败，已启动模拟器，等待就绪",
+            path=path,
+            pid=proc.pid,
+            wait_seconds=wait_secs,
+        )
+        if wait_secs > 0:
+            time.sleep(wait_secs)
+        return True
+
     def connect(self, serial: Optional[str] = None) -> bool:
         self._logger.info(LogCategory.MAIN, "开始连接设备", serial=serial)
         runtime = self.maaend(serial)
         if not runtime.connected:
             ok = runtime.connect()
             if not ok:
-                self._logger.error(LogCategory.MAIN, "MaaEnd runtime 连接失败")
-                return False
+                # 连接失败：若已配置模拟器路径则启动模拟器并等待后重试一次
+                self._logger.warning(
+                    LogCategory.MAIN,
+                    "首次连接失败，尝试启动模拟器后重试",
+                    serial=serial,
+                )
+                if self._try_launch_emulator_and_wait():
+                    ok = runtime.connect()
+                if not ok:
+                    self._logger.error(LogCategory.MAIN, "MaaEnd runtime 连接失败（模拟器拉起后仍失败）")
+                    return False
         resource_ok = runtime.load_resource()
         if not resource_ok:
             self._logger.error(LogCategory.MAIN, "MaaEnd runtime 资源加载失败")
@@ -681,9 +777,9 @@ class IstinaRuntime:
             root = get_project_root().resolve()
             if root not in p.parents and p != root:  # CFG-09: 约束 --config 在项目根内
                 self._logger.warning(LogCategory.MAIN, "config 路径越界，回退默认", path=str(p))
-                return root / "config" / "client_config.json"
+                return _instance_config_path()
             return p
-        return get_project_root() / "config" / "client_config.json"
+        return _instance_config_path()
 
     def save_config(self) -> None:
         path = self._resolve_config_path()
@@ -817,7 +913,10 @@ class IstinaRuntime:
 
         当 InWorld 模板匹配（RegionalDevelopmentButton/ProtosyncMenuButton）过时
         导致 EnterGame 永远识别不到时，用 scene.elements OCR 检测画面是否包含
-        主城菜单按钮文字（地区建设/干员/寻访/采购中心等）作为备用判据。
+        主城菜单按钮文字（地区建设/干员/采购中心等）作为备用判据。
+
+        要求至少命中 _IN_WORLD_OCR_MIN_HITS 个关键词，避免单一关键词偶发误匹配
+        （如签到弹窗文本 "踞渊北眺寻访凭证" 中的 "寻访" 已从关键词列表移除）。
         """
         try:
             ocr_result = self.execute(
@@ -837,15 +936,18 @@ class IstinaRuntime:
             elements = ocr_result.get("elements", [])
         text = "".join(e.get("label", "") for e in elements if isinstance(e, dict))
         matched = [kw for kw in self._IN_WORLD_OCR_KEYWORDS if kw in text]
-        if matched:
+        if len(matched) >= self._IN_WORLD_OCR_MIN_HITS:
             self._logger.info(
                 LogCategory.MAIN, "OCR 备用判据确认已在大世界",
-                matched=matched,
+                matched=matched, hit_count=len(matched),
+                min_required=self._IN_WORLD_OCR_MIN_HITS,
             )
             return True
         self._logger.warning(
-            LogCategory.MAIN, "OCR 备用判据未匹配大世界特征文字",
-            matched=matched, ocr_preview=text[:200],
+            LogCategory.MAIN, "OCR 备用判据未匹配足够大世界特征文字",
+            matched=matched, hit_count=len(matched),
+            min_required=self._IN_WORLD_OCR_MIN_HITS,
+            ocr_preview=text[:200],
         )
         return False
 
@@ -1789,14 +1891,17 @@ class IstinaRuntime:
     _AUTO_COLLECT_MAX_ROUNDS = 5
     # 大世界特征文字：EnterGame 模板匹配过时时，用 OCR 检测这些关键词作为备用判据
     # （主城3D场景的左侧/右侧菜单固定会显示这些按钮文字）
+    # 注意：不包含 "寻访" —— 签到弹窗文本 "踞渊北眺寻访凭证*5" 会误匹配
+    # 要求至少命中 2 个关键词，避免单一关键词偶发误匹配
     _IN_WORLD_OCR_KEYWORDS = (
         # 主城菜单栏关键词
-        "地区建设", "干员", "寻访", "采购中心", "行动手册",
+        "地区建设", "干员", "采购中心", "行动手册",
         "通行证", "好友", "装备加工", "编队", "百科", "档案库",
         # 大世界（野外）通用关键词：角色在野外时主城菜单不可见，
         # 但 "探索" 按钮和任务追踪文字始终存在
         "探索",
     )
+    _IN_WORLD_OCR_MIN_HITS = 2
 
     def _verify_collect_success(self, serial: Optional[str]) -> tuple[bool, str]:
         """通过 OCR 检测采集是否成功。

@@ -17,7 +17,6 @@
         "pre_delay": 0,
         "post_delay": 0,
         "next": [
-            "EnterGame",
             "[JumpBack]ClickContinue",
             "[JumpBack]CheckIn",
             "[JumpBack]CollectRewards",
@@ -29,7 +28,8 @@
             "[JumpBack]LoginFailed",
             "[JumpBack]WaitLoadingIcon",
             "[JumpBack]WaitLoadingText",
-            "[JumpBack]WaitBlackScreen"
+            "[JumpBack]WaitBlackScreen",
+            "EnterGame"
         ]
     },
     "WaitBlackScreen": {
@@ -208,34 +208,17 @@
         }
     },
     "EnterGame": {
-        "desc": "确认已进入大世界（要求 InWorld 成立且不在加载中）",
+        "desc": "确认已进入大世界。OpenGame.next 已将弹窗处理器放在 EnterGame 之前（CheckIn/CollectRewards/MonthlyCard 等），弹窗会被先处理。post_delay 让 UI 稳定后再返回成功。注意：__NotLoading(inverse) 已移除——MaaFW 的任务级 inverse 在 And/Or 子识别中不生效（And 只看 box 非 null，忽略 inverse），导致加载中误报（Or 匹配到黑屏 box 非 null→And 通过）而主世界漏报（Or 无匹配 box=null→And 失败）",
         "recognition": {
             "type": "And",
             "param": {
                 "all_of": [
-                    "InWorld",
-                    "__NotLoading"
+                    "InWorld"
                 ]
             }
         },
         "pre_delay": 0,
-        "post_delay": 0
-    },
-    "__NotLoading": {
-        "desc": "反向检测：若任意加载特征还在则返回不匹配",
-        "recognition": {
-            "type": "Or",
-            "param": {
-                "any_of": [
-                    "WaitLoadingIcon",
-                    "WaitLoadingText",
-                    "WaitBlackScreen"
-                ]
-            }
-        },
-        "inverse": true,
-        "pre_delay": 0,
-        "post_delay": 0
+        "post_delay": 3000
     },
     "MonthlyCard": {
         "recognition": {

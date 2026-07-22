@@ -3166,3 +3166,35 @@
   - src/gui/pyqt6/main_window.py（调度器信号接线 + 实例切换清除未读）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 5 个文件全部通过（exit_code=0）；git commit `4dc464c` 已推送至 origin/main。待 GUI 运行时验证 — 启动 GUI 后观察实例侧边栏状态点颜色（空闲白/运行蓝/完成未读绿）与主页面状态标签颜色（空闲白/运行蓝）。
+
+## 2026-07-22 16:30 (OpenGame 完成判定修复 + 队列视频 OCR 验证)
+
+- **User Request**: 分析：启动游戏刚把游戏进程启动就返回游戏启动完成，但事实上还需要后续一系列行为进入主世界才算完成，修正机制并完整执行一次任务队列，并检查每个任务标记完成时是否真的完成（OCR 整个过程的视频记录并查阅）
+- **Outcome**: 修复 OpenGame 任务过早完成判定机制，并通过视频录制 + 抽帧 OCR 验证每个任务的 SUCCESS/FAIL 标记是否名副其实。
+  1. **OPENGAME-01 根因**（前一会话已分析）：`EnterGame = And(InWorld, __NotLoading)` 在签到弹窗阶段误报成功——`InWorldOcrText` 匹配弹窗上的 UID、`__NotLoading` 因 MaaFW inverse 限制在 Or 子识别中不生效误判为 true、`EnterGame` 在 `OpenGame.next` 首位抢先匹配。修复：重排 `OpenGame.next`（EnterGame 移到末位）、移除「寻访」关键词、要求 2 个关键词命中、`_run_task_with_retry` 正常失败不再触发 RecoverGame。
+  2. **INVERSE-01 根因**（本会话新发现）：修复 OPENGAME-01 后第二次队列运行仍失败。MaaFW 日志显示 `EnterGame` 评估时 `InWorld` 命中（ProtosyncMenuButton 0.7445），但 `__NotLoading` 的 Or 无匹配返回 box=null，And 因 `__NotLoading box=null` 失败。**核心发现**：MaaFW 任务级 `inverse: true` 在 And/Or 子识别中**完全不生效**——And 只看子识别 box 是否非 null，inverse 标志被丢弃。导致加载中误报（Or 匹配黑屏 box 非 null→And 通过）和主世界漏报（Or 无匹配 box=null→And 失败）两种误判。
+  3. **修改 5**：移除 `__NotLoading` 节点，简化 `EnterGame` 为 `And(InWorld)` + `post_delay:3000`。同步修改 `3rd-part/maaend/resource/pipeline/OpenGame.json`（运行时副本）和 `assets/pipelines/open_game.json`（git 跟踪源）。理由：OpenGame.next 重排后所有弹窗/加载 JumpBack 处理器在 EnterGame 之前评估，EnterGame 只需检查 InWorld 即可——`__NotLoading` 的过滤职责已由 next 列表顺序承担。
+  4. **第三次队列运行验证**：连接设备 `127.0.0.1:16416`，录制视频 `cache/recordings/queue_run_20260722_082134.mp4`（5464 帧/364.3s/15fps），运行 QuickDaily 队列（6 任务）。
+  5. **视频抽帧 OCR 验证**：对 7 个关键时间点（65/68/70/72/75/77/80s）+ 13 个过渡时间点（55-67s 每秒）抽帧并用 easyocr 识别画面内容。
+- **验证结果**:
+  | 任务 | 标记 | 视频帧 OCR 验证 |
+  |------|------|-----------------|
+  | AndroidOpenGame | ✅ SUCCESS | 56s 主世界出现（UID 可见）；70s EnterGame 命中（InWorld 匹配，box [1203,10,55,55]）；73s post_delay 完成。**SUCCESS 名副其实** |
+  | VisitFriends | ❌ FAIL | 主世界画面（好友列表锚点模板过期）— **FAIL 正确** |
+  | DijiangRewards | ❌ FAIL | 送货任务对话框（前置任务未完成）— **FAIL 正确** |
+  | CreditShoppingN2 | ✅ SUCCESS | 信用商店页面（"245/300"、"立即刷新"）— **SUCCESS 名副其实** |
+  | SellProduct | ❌ FAIL | 信用商店页面（卡在上一任务）— **FAIL 正确** |
+  | DailyRewards | ❌ FAIL | 主世界画面（导航超时）— **FAIL 正确** |
+- **次要发现**: WaitLoadingIcon 在 08:22:30-42（12 个 cycle）持续以 score 0.998243 匹配，但视频显示主世界在 56s（08:22:30）已出现。可能是 MaaFW screencap 与 scrcpy 视频流时间偏差，或模板在主世界 UI 上误匹配。未导致任务失败，增加 ~12s 额外等待。建议后续检查 LoadingIcon.png 模板或提高 threshold。
+- **MaaFW 日志时间线**（08:22:30-47）：
+  - 08:22:30.886 WaitLoadingIcon SUCCEEDED (score 0.998243) — 加载图标仍可见
+  - 08:22:30-42 12 cycles of WaitLoadingIcon matching（每 cycle ~0.8s）
+  - 08:22:44.850 EnterGame Recognition.Starting（所有 JumpBack 处理器失败后终于评估 EnterGame）
+  - 08:22:44.861 EnterGame Recognition.SUCCEEDED (And, InWorld matched)
+  - 08:22:47.864 EnterGame PipelineNode.Succeeded (post_delay:3000ms 完成)
+- **Files Modified**:
+  - `3rd-part/maaend/resource/pipeline/OpenGame.json`（移除 __NotLoading 节点 + EnterGame 简化为 And(InWorld) + post_delay:3000 + desc 说明 inverse 限制）
+  - `assets/pipelines/open_game.json`（同步上述修改，git 跟踪源）
+  - `reports/incidents/2026-07-22_opengame_premature_success_and_recovery_trigger.md`（追加 INVERSE-01 章节 + 第三次队列运行验证结果）
+  - `docs/TASK_LOG.md`（本条记录）
+- **待办**: WaitLoadingIcon 过度匹配问题（次要，不影响任务结果）；VisitFriends/DijiangRewards/SellProduct/DailyRewards 任务失败原因（模板过期/导航超时，与 2026-07-13 报告一致，需系统性更新模板）。

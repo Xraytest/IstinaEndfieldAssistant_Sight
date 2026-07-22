@@ -910,9 +910,14 @@ class MaaEndRuntime:
                     return bool(result2 is True)
                 self.logger.error(LogCategory.MAIN, "连接恢复失败，无法重试", task=task_name)
                 return False
+            # result is False：MaaFW 穷举 entry.next 后仍未命中（OCR/TemplateMatch
+            # 未命中、菜单未渲染好、UI 变化等"正常失败"）。对齐 project_memory 约束：
+            # 不得触发 _recover_and_retry/RecoverGame，否则会导致"任务刚启动就被
+            # 强制关游戏"（如 VisitFriends 22s 内 OCR 未命中 → 整任务判定失败 →
+            # 直接 StopApp 关游戏的严重 bug）。仅做轻量 BACK 关弹窗后重试一次。
             if self._recovering or attempt >= self._MAX_TASK_RETRIES:
                 break
-            # 用户主动停止：跳过轻量恢复与完整恢复，避免触发 RecoverGame
+            # 用户主动停止：跳过轻量恢复，避免触发不必要的 BACK 操作
             if self._user_stop_event.is_set():
                 self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过异常恢复", task=task_name)
                 return False
@@ -921,10 +926,11 @@ class MaaEndRuntime:
                 retry_result = self._run_task_once(task_name, options, entry, override)
                 if retry_result is True:
                     return True
-            self.logger.info(LogCategory.MAIN, "轻量恢复后仍失败，尝试完整恢复", task=task_name)
-            recover_ok = self._recover_and_retry(task_name, options)
-            if recover_ok:
-                return True
+            # 轻量恢复后仍失败：视为正常失败，返回 False 让上层决定是否继续下一个任务。
+            # 不再触发 _recover_and_retry（RecoverGame: StopApp → StartApp → OpenGame），
+            # 该恢复只能由用户手动触发，或上层逻辑在显式检测到自动登出弹窗/
+            # 连接断开等真正崩溃场景时调用。
+            self.logger.warning(LogCategory.MAIN, "任务执行失败（轻量恢复后仍失败，视为正常失败）", task=task_name)
             return False
         self.logger.warning(LogCategory.MAIN, "任务执行失败（含重试）", task=task_name)
         return False
