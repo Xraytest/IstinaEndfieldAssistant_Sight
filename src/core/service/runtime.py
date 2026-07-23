@@ -159,6 +159,18 @@ def _get_llm_client(llama_runtime: Any) -> Any:
     return LlmClient(base_url=llama_runtime.base_url)
 
 
+_GAME_PACKAGE_FALLBACK = "com.hypergryph.endfield"
+
+
+def _get_game_package(config: Optional[Dict[str, Any]] = None) -> str:
+    """从 client_config 读取游戏包名，缺失时回退到默认值。"""
+    if not isinstance(config, dict):
+        return _GAME_PACKAGE_FALLBACK
+    device = config.get("device") or {}
+    pkg = (device.get("package") or "").strip()
+    return pkg or _GAME_PACKAGE_FALLBACK
+
+
 class AndroidRuntimeProxy:
     """Android 交互运行时适配层，委托给跨进程单例 AndroidRuntime"""
 
@@ -353,11 +365,13 @@ class IstinaRuntime:
                 runtime = self._maaend_clients.get(resolved)
                 if runtime is None:
                     from core.service.maa_end.runtime import MaaEndRuntime
+                    game_package = _get_game_package(self._config)
                     runtime = MaaEndRuntime(
                         maaend_root=self._config.get("maaend_root"),
                         device_address=resolved,
                         adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
                         adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", True),
+                        game_package=game_package,
                     )
                     self._maaend_clients[resolved] = runtime
         return runtime
@@ -839,9 +853,17 @@ class IstinaRuntime:
         game_running = False
         try:
             android = self.android(serial)
-            pid = android.shell("pidof com.hypergryph.endfield").strip()
+            package = _get_game_package(self._config)
+            pid = android.shell(f"pidof {package}").strip()
+            if not pid:
+                # pidof 可能不存在于精简 Android 环境（如云终末地），回退到 ps|grep
+                try:
+                    ps_out = android.shell(f"ps -A | grep {package}").strip()
+                    pid = ps_out.split()[1] if ps_out and len(ps_out.split()) > 1 else ""
+                except Exception:
+                    pid = ""
             if pid:
-                self._logger.info(LogCategory.MAIN, "游戏进程已在运行", pid=pid)
+                self._logger.info(LogCategory.MAIN, "游戏进程已在运行", pid=pid, package=package)
                 game_running = True
             else:
                 self._logger.info(LogCategory.MAIN, "游戏未运行，准备启动")
@@ -1433,11 +1455,22 @@ class IstinaRuntime:
                         time.sleep(1.0)
                     except Exception as exc:
                         self._logger.warning(LogCategory.MAIN, "交互收取异常", error=str(exc))
-                    # 领取/确认面板
-                    try:
-                        runtime.run_pipeline("MaterialCollectClaim", {})
-                    except Exception as exc:
-                        self._logger.warning(LogCategory.MAIN, "MaterialCollectClaim 异常", error=str(exc))
+                        point_ok = False
+                    if point_ok:
+                        # 领取/确认面板
+                        try:
+                            runtime.run_pipeline("MaterialCollectClaim", {})
+                        except Exception as exc:
+                            self._logger.warning(LogCategory.MAIN, "MaterialCollectClaim 异常", error=str(exc))
+                        # 采集验证：OCR 检测飘字，防止"到达但未采集到"的误判
+                        collected, ocr_preview = self._verify_collect_success(serial)
+                        self._logger.info(
+                            LogCategory.MAIN, "采集验证（tracking 路线）",
+                            route=route, collected=collected,
+                            ocr_preview=ocr_preview[:120],
+                        )
+                        if not collected:
+                            point_ok = False
                 results.append({
                     "route": route,
                     "status": "success" if point_ok else "partial",
@@ -1487,11 +1520,23 @@ class IstinaRuntime:
                     time.sleep(1.0)
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "交互收取异常", error=str(exc))
+                    route_ok = False
+                    continue
                 # 领取/确认面板
                 try:
                     runtime.run_pipeline("MaterialCollectClaim", {})
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "MaterialCollectClaim 异常", error=str(exc))
+                # 采集验证：OCR 检测飘字，防止"到达但未采集到"的误判
+                collected, ocr_preview = self._verify_collect_success(serial)
+                self._logger.info(
+                    LogCategory.MAIN, "采集验证（waypoint 路线）",
+                    route=route, point=idx + 1, collected=collected,
+                    ocr_preview=ocr_preview[:120],
+                )
+                if not collected:
+                    route_ok = False
+                    continue
             results.append({
                 "route": route,
                 "status": "success" if route_ok else "partial",
@@ -5521,7 +5566,8 @@ class IstinaRuntime:
             LogCategory.MAIN, "覆盖层无法关闭，强制重启游戏",
         )
         try:
-            android.shell("am force-stop com.hypergryph.endfield")
+            package = _get_game_package(self._config)
+            android.shell(f"am force-stop {package}")
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "force-stop 异常", error=str(exc))
         time.sleep(3.0)
@@ -5684,8 +5730,11 @@ class IstinaRuntime:
             self._logger.warning(LogCategory.MAIN, "OCR 查找任务条目异常", task=task_name, error=str(exc))
         return None
 
-    def _get_screen_size(self, serial: Optional[str]) -> Tuple[int, int]:
-        """获取设备屏幕分辨率，失败时默认 1280x720。"""
+    def _get_screen_size(self, serial: Optional[str] = None) -> Tuple[int, int]:
+        """获取设备屏幕分辨率，失败时默认 1280x720。
+
+        ``serial`` 默认值为 ``None``，避免调用方遗漏时传入字符串 ``"None"``。
+        """
         try:
             data = self.execute("screenshot", {"serial": serial})
             if data:
@@ -5696,6 +5745,19 @@ class IstinaRuntime:
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "获取屏幕分辨率失败", error=str(exc))
         return 1280, 720
+
+    # 屏幕分辨率缓存：VLM keyevent 高频调用，每次截屏获取分辨率开销过大。
+    # 以 serial 为 key 缓存，同一设备分辨率不变，切换设备时自然刷新。
+    _SCREEN_SIZE_CACHE: Dict[Optional[str], Tuple[int, int]] = {}
+
+    def _get_screen_size_cached(self, serial: Optional[str] = None) -> Tuple[int, int]:
+        """带缓存的屏幕分辨率获取。
+
+        首次调用同 _get_screen_size（截屏），后续直接返回缓存。
+        """
+        if serial not in self._SCREEN_SIZE_CACHE:
+            self._SCREEN_SIZE_CACHE[serial] = self._get_screen_size(serial)
+        return self._SCREEN_SIZE_CACHE[serial]
 
     def _norm_to_screen(
         self,
@@ -6450,61 +6512,57 @@ class IstinaRuntime:
         - E (turn_right): 改用 swipe 屏幕右侧向右拖（相机右旋）
         - F (interact): 改用 tap 屏幕交互按钮位置（手机端 F keyevent 无效）
 
-        坐标验证：通过截屏分析摇杆区域像素重心确定实际摇杆中心 (220, 560)，
-        与 Go agent 的 (195, 551) 有偏差。使用 (220, 560) 时 input swipe
-        可成功移动角色（429m -> 437m），使用 (195, 551) 时无效。
-        拖动距离 90px（Go agent 的 JOYSTICK_RUN_DY）配合 5000ms 时长效果最佳。
+        坐标基于 1280x720 参考分辨率，通过 _scale_for_screen 按实际分辨率缩放。
+        屏幕分辨率缓存于 _SCREEN_SIZE_CACHE，避免每次 keyevent 都截屏。
         """
         try:
-            android = self.android()
+            screen_size = self._get_screen_size_cached()
             # 移动键映射到 swipe 摇杆操作
             # 摇杆中心通过截屏重心分析确定为 (220, 560)，拖动距离 90px
-            _JOYSTICK_CENTER = (220, 560)
-            _JOYSTICK_RADIUS = 90
+            _JOYSTICK_CENTER_REF = (220, 560)
+            _JOYSTICK_RADIUS_REF = 90
+            jc_x, jc_y = self._scale_for_screen(_JOYSTICK_CENTER_REF, screen_size)
+            jr = self._scale_radius(_JOYSTICK_RADIUS_REF, screen_size)
             _MOVE_KEY_SWIPE = {
-                "KEYCODE_W": (_JOYSTICK_CENTER[0], _JOYSTICK_CENTER[1] - _JOYSTICK_RADIUS),  # 上
-                "KEYCODE_S": (_JOYSTICK_CENTER[0], _JOYSTICK_CENTER[1] + _JOYSTICK_RADIUS),  # 下
-                "KEYCODE_A": (_JOYSTICK_CENTER[0] - _JOYSTICK_RADIUS, _JOYSTICK_CENTER[1]),  # 左
-                "KEYCODE_D": (_JOYSTICK_CENTER[0] + _JOYSTICK_RADIUS, _JOYSTICK_CENTER[1]),  # 右
+                "KEYCODE_W": (jc_x, jc_y - jr),  # 上
+                "KEYCODE_S": (jc_x, jc_y + jr),  # 下
+                "KEYCODE_A": (jc_x - jr, jc_y),  # 左
+                "KEYCODE_D": (jc_x + jr, jc_y),  # 右
             }
             # 相机旋转键映射到屏幕右侧 swipe（手机端相机旋转手势）
-            # 屏幕中点偏右，水平 swipe 控制相机左右旋转
-            _CAMERA_CENTER = (960, 400)
-            _CAMERA_SWIPE_DIST = 300
+            _CAMERA_CENTER_REF = (960, 400)
+            _CAMERA_SWIPE_DIST_REF = 300
+            cc_x, cc_y = self._scale_for_screen(_CAMERA_CENTER_REF, screen_size)
+            cd = self._scale_radius(_CAMERA_SWIPE_DIST_REF, screen_size)
             _TURN_KEY_SWIPE = {
-                "KEYCODE_Q": (_CAMERA_CENTER[0] - _CAMERA_SWIPE_DIST, _CAMERA_CENTER[1]),  # 左旋
-                "KEYCODE_E": (_CAMERA_CENTER[0] + _CAMERA_SWIPE_DIST, _CAMERA_CENTER[1]),  # 右旋
+                "KEYCODE_Q": (cc_x - cd, cc_y),  # 左旋
+                "KEYCODE_E": (cc_x + cd, cc_y),  # 右旋
             }
             if key in _MOVE_KEY_SWIPE:
-                # duration 转为 swipe 持续毫秒（限制 800-5000ms）
-                # 较长时长移动更多（5s 约 5m，3s 约 2m）
                 if duration is not None:
                     dur_ms = max(800, min(int(duration * 1000), 5000))
                 else:
                     dur_ms = 2000
                 target_x, target_y = _MOVE_KEY_SWIPE[key]
                 android.swipe(
-                    _JOYSTICK_CENTER[0], _JOYSTICK_CENTER[1],
+                    jc_x, jc_y,
                     target_x, target_y,
                     duration_ms=dur_ms,
                 )
             elif key in _TURN_KEY_SWIPE:
-                # 相机旋转：屏幕右侧水平 swipe，duration 越长旋转角度越大
                 if duration is not None:
                     dur_ms = max(300, min(int(duration * 1000), 1500))
                 else:
                     dur_ms = 500
                 target_x, target_y = _TURN_KEY_SWIPE[key]
                 android.swipe(
-                    _CAMERA_CENTER[0], _CAMERA_CENTER[1],
+                    cc_x, cc_y,
                     target_x, target_y,
                     duration_ms=dur_ms,
                 )
             elif key == "KEYCODE_F":
-                # F 键改用 tap 屏幕交互按钮位置（手机端 keyevent 无效）
                 self._vlm_press_interact(android)
             else:
-                # 其他键仍用 keyevent
                 if duration is not None and duration > 0.3:
                     repeats = max(1, int(duration / 0.15))
                     for _ in range(repeats):
@@ -6515,29 +6573,34 @@ class IstinaRuntime:
         except Exception as exc:
             self._logger.warning("VLM keyevent '%s' failed: %s", key, exc)
 
+    @staticmethod
+    def _scale_for_screen(ref_coord: Tuple[int, int], screen_size: Tuple[int, int]) -> Tuple[int, int]:
+        """将基于 1280x720 的参考坐标按实际分辨率缩放。"""
+        ref_w, ref_h = 1280, 720
+        sw, sh = screen_size
+        return int(round(ref_coord[0] * sw / ref_w)), int(round(ref_coord[1] * sh / ref_h))
+
+    @staticmethod
+    def _scale_radius(ref_r: int, screen_size: Tuple[int, int]) -> int:
+        """将参考半径按实际分辨率等比缩放（取宽高缩放的平均值）。"""
+        ref_w, ref_h = 1280, 720
+        sw, sh = screen_size
+        return int(round(ref_r * (sw / ref_w + sh / ref_h) / 2))
+
     def _vlm_press_interact(self, android: Any, serial: Optional[str] = None) -> None:
         """模拟 F 键交互：手机端 keyevent F 无效，改为 tap 屏幕交互按钮位置。
 
-        终末地手游的交互按钮（"交谈"/"拾取"等）通常出现在屏幕右侧中部，
-        约 (1100, 400) 位置（1280x720 分辨率）。当角色靠近可交互对象时
-        按钮才会出现，按钮不在时 tap 无副作用。
-
-        对于对话推进，对话界面通常支持点击屏幕任意位置继续，所以也 tap
-        对话文本区域 (640, 500)。
-
-        这里同时 tap 两个位置以确保兼容两种场景：
-        - (1100, 400): 3D 世界中的交互按钮
-        - (640, 500): 对话文本区域（点击继续）
+        坐标基于 1280x720 参考分辨率，通过 _scale_for_screen 按实际分辨率缩放。
         """
+        screen_size = self._get_screen_size_cached()
+        interact_btn = self._scale_for_screen((1100, 400), screen_size)
+        dialog_area = self._scale_for_screen((640, 500), screen_size)
         try:
-            # 先 tap 交互按钮位置（3D 世界）
-            android.tap(1100, 400, serial=serial)
+            android.tap(interact_btn[0], interact_btn[1], serial=serial)
             time.sleep(0.3)
-            # 再 tap 对话区域（对话推进）
-            android.tap(640, 500, serial=serial)
+            android.tap(dialog_area[0], dialog_area[1], serial=serial)
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "vlm_press_interact 失败", error=str(exc))
-            # 兜底：尝试 keyevent F（万一某些场景支持）
             try:
                 android.keyevent("KEYCODE_F")
             except Exception:

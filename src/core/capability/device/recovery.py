@@ -14,10 +14,12 @@ from core.foundation.logger import LogCategory, get_logger
 class AndroidAppRestartPolicy:
     """Android 应用无响应时的重启策略。"""
 
+    DEFAULT_PACKAGE = "com.hypergryph.endfield"
+
     def __init__(
         self,
         adb_path: str = "3rd-part/adb/adb.exe",
-        package: str = "com.hypergryph.endfield",
+        package: str = DEFAULT_PACKAGE,
         activity: Optional[str] = None,
         wait_after_launch: float = 3.0,
     ):
@@ -26,6 +28,27 @@ class AndroidAppRestartPolicy:
         self._activity = activity
         self._wait_after_launch = wait_after_launch
         self._logger = get_logger(__name__)
+
+    @classmethod
+    def from_config(cls, config: Optional[Dict[str, Any]] = None, **kwargs: Any) -> "AndroidAppRestartPolicy":
+        """从 client_config 构造重启策略。
+
+        ``config["device"]["package"]`` 为空时回退到默认包名。
+        """
+        package = cls.DEFAULT_PACKAGE
+        if isinstance(config, dict):
+            device = config.get("device") or {}
+            pkg = (device.get("package") or "").strip()
+            if pkg:
+                package = pkg
+        if kwargs.get("package"):
+            package = kwargs["package"]
+        return cls(
+            adb_path=kwargs.get("adb_path", "3rd-part/adb/adb.exe"),
+            package=package,
+            activity=kwargs.get("activity"),
+            wait_after_launch=float(kwargs.get("wait_after_launch", 3.0)),
+        )
 
     def restart(self, serial: Optional[str] = None) -> bool:
         """重启目标应用。"""

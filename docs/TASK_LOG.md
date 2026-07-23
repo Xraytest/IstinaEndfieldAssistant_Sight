@@ -2163,18 +2163,22 @@
 ## 2026-07-11 22:30 (AutoCodeReview������ʮ������)
 
 - **User Request**: �����Ķ��ĵ���������Ŀ������߽硣���ڱ߽磬Ѱ�Ҵ�����ڵ�©�������������õ��޸Ľ��顣��ɱ����д�����֮ǰ�ı��棬Ѱ�Ҵ���򲻱�Ҫ�Ľ��顣����ִ�в��ԣ��Դ����߼�����Ϊ���塣�����󱨸��� ./reports/auto/<timestamp>.md�������ظ��ύ֮ǰ���ֵ����⡣�Ͻ��޸��ļ���
-- **Outcome**: ���� 75 ��ɣ�9 �·��֣�5 Low / 4 Info�� + 2 �����֤�����ķ��֣�	ray_icon.py:64 ����"�˳�"�˵�������Ӧ�ò��˳���QApplication.quit() �� MainWindow.closeEvent �� event.ignore() ���أ������ش��ڣ���main_window.py:221 Ĭ��ҳ��ѡ��ʹ��Ӳ�������� "��׼����"��Ӣ�Ļ�����ʧЧ��device_settings_page.py:311 �� models.py:53 ��ԭ��д�루�� settings_page.py ԭ��д��ģʽ��һ�£���ecorder.py:56 4 �� parent ��·������ͬ GUI-03 ģʽ����maaend_control_page.py:174 ѡ���ǩ locale Ӳ���� zh_cn.json��prts_full_intelligence_page.py:62-66 ҳ���״���ʾ�Զ����� LLM�������֤������ 7 D1 ���޸���ע��ȷ�ϣ������� 8 NAV-01 ȷ��׼ȷ��
+- **Outcome**: ���� 75 ��ɣ�9 �·��֣�5 Low / 4 Info�� + 2 �����֤�����ķ��֣�	ray_icon.py:64 ����"�˳�"�˵�������Ӧ�ò��˳���QApplication.quit() �� MainWindow.closeEvent �� event.ignore() ���أ������ش��ڣ���main_window.py:221 Ĭ��ҳ��ѡ��ʹ��Ӳ�������� "��׼����"��Ӣ�Ļ�����ʧЧ��device_settings_page.py:311 �� models.py:53 ��ԭ��д�루�� settings_page.py ԭ��д��ģʽ��һ�£���
+ecorder.py:56 4 �� parent ��·������ͬ GUI-03 ģʽ����maaend_control_page.py:174 ѡ���ǩ locale Ӳ���� zh_cn.json��prts_full_intelligence_page.py:62-66 ҳ���״���ʾ�Զ����� LLM�������֤������ 7 D1 ���޸���ע��ȷ�ϣ������� 8 NAV-01 ȷ��׼ȷ��
 - **Files Modified**:
-  - eports/auto/20260711_2230_tray_quit_i18n_atomic.md��������
+  - 
+eports/auto/20260711_2230_tray_quit_i18n_atomic.md��������
   - docs/TASK_LOG.md�����ļ���
 - **��֤**��ֻ����飬δ�޸�ҵ����룻����˶� 35+ ����ʷ����ȷ�ϱ��� 9 ���·������ظ���NAV-01������ 8���� D1������ 7��������Ʋ�����֤δ��Ϊ�·����ظ��ύ��
 
 ## 2026-07-11 20:30 (AutoCodeReview������ʮ������)
 
 - **User Request**: �����Ķ��ĵ���������Ŀ������߽硣���ڱ߽磬Ѱ�Ҵ�����ڵ�©�������������õ��޸Ľ��顣��ɱ����д�����֮ǰ�ı��棬Ѱ�Ҵ���򲻱�Ҫ�Ľ��顣����ִ�в��ԣ��Դ����߼�����Ϊ���塣�����󱨸��� ./reports/auto/<timestamp>.md�������ظ��ύ֮ǰ���ֵ����⡣�Ͻ��޸��ļ���
-- **Outcome**: ���� 76 ��ɣ�6 �·��֣�2 Medium / 1 Low / 3 Info�� + 1 �����֤�����ķ��֣�maa_end/runtime.py _connect_with_timeout �� _wait_job �ػ��߳��ڳ�ʱ���Գ���/������������Դ��Use-After-Free ���գ���untime.py save_config ��ԭ��д�룻prts_full_intelligence_page.py �� LLM �ظ�����������_replace_tokens �����滻���գ�_cleanup_partial �ظ��������롣�����֤������ 75 ȫ�� 9 ���ȷ��׼ȷ���޴���򲻱�Ҫ���顣
+- **Outcome**: ���� 76 ��ɣ�6 �·��֣�2 Medium / 1 Low / 3 Info�� + 1 �����֤�����ķ��֣�maa_end/runtime.py _connect_with_timeout �� _wait_job �ػ��߳��ڳ�ʱ���Գ���/������������Դ��Use-After-Free ���գ���
+untime.py save_config ��ԭ��д�룻prts_full_intelligence_page.py �� LLM �ظ�����������_replace_tokens �����滻���գ�_cleanup_partial �ظ��������롣�����֤������ 75 ȫ�� 9 ���ȷ��׼ȷ���޴���򲻱�Ҫ���顣
 - **Files Modified**:
-  - eports/auto/20260711_2030_maaend_thread_token_config.md��������
+  - 
+eports/auto/20260711_2030_maaend_thread_token_config.md��������
   - docs/TASK_LOG.md�����ļ���
 - **��֤**��ֻ����飬δ�޸�ҵ����룻����˶� 38+ ����ʷ����ȷ�ϱ��� 6 ���·������ظ������� 75 ��ƾ�Դ�������ȷ������
 ## 2026-07-11 �� ���� 77
@@ -2359,7 +2363,8 @@
   - src/gui/pyqt6/main_window.py
   - src/gui/pyqt6/locales/zh_CN.json
   - src/gui/pyqt6/locales/en_US.json
-  - eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
+  - 
+eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - docs/TASK_LOG.md（本文件）
 - **验证**: py_compile 通过（android_runtime.py + main_window.py）；json.load 校验通过（zh_CN.json + en_US.json）；pytest 181 passed / 5 skipped / 1 failed（	est_config_get_set_works 为环境权限问题，非本次引入）。
 

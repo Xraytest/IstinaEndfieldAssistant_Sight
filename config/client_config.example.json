@@ -14,9 +14,11 @@
     "auto_connect_last": true,
     "auto_reconnect": true,
     "adb_restart_on_timeout": true,
+    "package": "com.hypergryph.endfield",
     "emulator": {
       "path": "",
-      "args": ""
+      "args": "",
+      "launch_wait_seconds": 30
     }
   },
   "logging": {

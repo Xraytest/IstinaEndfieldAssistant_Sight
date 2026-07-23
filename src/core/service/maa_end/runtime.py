@@ -134,12 +134,14 @@ class MaaEndRuntime:
         device_address: str = "localhost:16512",
         adb_path: str = "3rd-part/adb/adb.exe",
         adb_restart_on_timeout: bool = True,
+        game_package: str = "com.hypergryph.endfield",
     ):
         self.logger = get_logger()
         self._maaend_root = Path(maaend_root) if maaend_root else self._default_maaend_root()
         self._device_address = device_address
         self._adb_path = str(get_project_root() / adb_path)
         self._adb_restart_on_timeout = bool(adb_restart_on_timeout)
+        self._game_package = (game_package or "").strip() or "com.hypergryph.endfield"
         self._resource: Optional[Any] = None
         self._tasker: Optional[Any] = None
         self._controller: Optional[Any] = None
@@ -346,6 +348,12 @@ class MaaEndRuntime:
     _TASKS_SKIP_ENTER_WORLD = frozenset({
         "AndroidOpenGame", "PCOpenGame", "OpenGame",
         "RecoverGame", "StopApp", "StartApp",
+    })
+
+    # 长时间运行任务：好友拜访（53 个好友 × 加载+操作+退出 ≈ 15-25 分钟）、
+    # 信用商店批量购买等。300s 看门狗会误杀，需更长超时。
+    _TASKS_LONG_RUNNING = frozenset({
+        "VisitFriends",
     })
 
     def _connect_once(self) -> bool:
@@ -977,9 +985,12 @@ class MaaEndRuntime:
         # job.succeeded=False（post_stop 赢了竞态）→ _connected=False →
         # _run_task_once 返回 None → 触发连接恢复 → 重新执行 AndroidOpenGame → 无限循环。
         _WATCHDOG_TIMEOUT_GAME = 900  # 15 min for OpenGame/RecoverGame/StartApp/StopApp
+        _WATCHDOG_TIMEOUT_LONG = 1800  # 30 min for long-running tasks (VisitFriends etc.)
         _WATCHDOG_TIMEOUT_NORMAL = 300  # 5 min for other tasks
         if task_name in self._TASKS_SKIP_ENTER_WORLD:
             stuck_timeout = _WATCHDOG_TIMEOUT_GAME
+        elif task_name in self._TASKS_LONG_RUNNING:
+            stuck_timeout = _WATCHDOG_TIMEOUT_LONG
         else:
             stuck_timeout = _WATCHDOG_TIMEOUT_NORMAL
         started = time.monotonic()
@@ -1137,11 +1148,13 @@ class MaaEndRuntime:
 
     def _ensure_queue_connection(self, task_name: str, idx: int, total: int) -> bool:
         if self._connected and self._check_adb_health():
-            if self._verify_connection_alive():
-                return True
-            self.logger.warning(LogCategory.MAIN, "控制器失效，尝试重建")
-            if self._rebuild_controller():
-                return True
+            # ADB 健康即视为连接可用。
+            # 旧实现额外调用 _verify_connection_alive()（post_screencap + _wait_job 10s），
+            # 但 screencap 通道可能在游戏加载/过场时短暂延迟，导致 10s 超时误判为"控制器失效"，
+            # 进而触发 _rebuild_controller/_quick_reconnect_adb，在队列中每个任务前增加 10-60s 开销。
+            # 若控制器实际失效，_run_task_once 的 post_task 会抛出异常并设置 _connected=False，
+            # 随后 _run_task_with_retry 会通过 _try_recover_connection 恢复，无需在此预检。
+            return True
         self.logger.warning(LogCategory.MAIN, "队列任务执行前连接异常，尝试恢复", task=task_name)
         if self._quick_reconnect_adb():
             self.logger.info(LogCategory.MAIN, "队列连接恢复成功", task=task_name)
@@ -1300,7 +1313,7 @@ class MaaEndRuntime:
             from core.capability.device.recovery import AndroidAppRestartPolicy
             restart_policy = AndroidAppRestartPolicy(
                 adb_path=self._adb_path,
-                package="com.hypergryph.endfield",
+                package=self._game_package,
             )
             ok = restart_policy.restart(serial=self._device_address)
             if ok:
