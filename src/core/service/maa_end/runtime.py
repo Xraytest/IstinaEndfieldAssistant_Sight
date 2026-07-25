@@ -899,6 +899,8 @@ class MaaEndRuntime:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行管道")
             return False
         self.logger.info(LogCategory.MAIN, "开始执行自定义管道", entry=entry)
+        # 管道执行前检测并关闭云游戏空闲断连弹窗
+        self._dismiss_cloud_idle_popup()
         try:
             # NODE-REG-FIX: 同 _run_task_once，用 resource.override_pipeline 注册再执行
             if pipeline_override:
@@ -1017,12 +1019,12 @@ class MaaEndRuntime:
                 self.logger.warning(LogCategory.MAIN, "任务被跳过（未满足执行条件，如未到计划周期）", task=task_name)
                 return False
 
-            # Task #9: False success mitigation for MaaFW pipeline OCR/template failures.
-            # When MaaFW's C++ OCR engine fails internally (e.g., ocrer_ is null),
-            # it may return hit=False for all recognition nodes but still report the task as succeeded.
-            # We validate by checking if any recognition node actually hit.
             detail = job.get()
             if detail:
+                # 记录识别过程日志（DEBUG 级别）
+                self._log_recognition_detail(task_name, entry, detail)
+
+                # Task #9: False success mitigation for MaaFW pipeline OCR/template failures.
                 has_recognition = False
                 has_any_hit = False
                 for node in detail.nodes:
@@ -1046,6 +1048,13 @@ class MaaEndRuntime:
         if not self._connected:
             return None
         self.logger.warning(LogCategory.MAIN, "任务执行失败", task=task_name)
+        # 任务失败也尝试记录识别详情，便于分析失败原因
+        try:
+            detail_fail = job.get()
+            if detail_fail:
+                self._log_recognition_detail(task_name, entry, detail_fail)
+        except Exception:
+            pass
         return False
 
     def _connection_watchdog(self, task_name: str, stop_event: threading.Event) -> None:
@@ -1218,6 +1227,9 @@ class MaaEndRuntime:
 
     def _ensure_queue_connection(self, task_name: str, idx: int, total: int) -> bool:
         if self._connected and self._check_adb_health():
+            # 任务前尝试关闭云游戏空闲断连弹窗（如"长时间未操作"弹窗，
+            # 该弹窗会导致后续所有 pipeline 操作失败）。
+            self._dismiss_cloud_idle_popup()
             # ADB 健康即视为连接可用。
             # 旧实现额外调用 _verify_connection_alive()（post_screencap + _wait_job 10s），
             # 但 screencap 通道可能在游戏加载/过场时短暂延迟，导致 10s 超时误判为"控制器失效"，
@@ -1241,11 +1253,15 @@ class MaaEndRuntime:
         前一任务可能留下非主世界页面状态（如信用商店、好友列表），导致下一任务的
         InWorld 识别误匹配（InWorldOcrText 匹配 UID，UID 在多个页面可见）。
         本方法通过 SceneAnyEnterWorld pipeline 尝试回到主世界，失败不阻止任务执行。
+
+        注：如果 SceneAnyEnterWorld 因云游戏空闲断连弹窗阻塞，先尝试关闭弹窗再执行。
         """
         if not self._connected or self._tasker is None:
             return
         self.logger.info(LogCategory.MAIN, "任务间清理：尝试回到主世界", before_task=task_name)
         try:
+            # 清理弹窗防阻塞
+            self._dismiss_cloud_idle_popup()
             ok = self.run_pipeline("SceneAnyEnterWorld", {})
             if ok:
                 self.logger.info(LogCategory.MAIN, "任务间清理：已回到主世界", before_task=task_name)
@@ -1568,7 +1584,110 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "控制器重建失败", error=str(exc))
             return False
 
-    def _lightweight_recover_ui(self) -> bool:
+    # ──────────────────────────────────────────────
+    # 云游戏空闲断连弹窗处理
+    # ──────────────────────────────────────────────
+    # 云终末地长时间无操作后会弹出提示框：
+    #   "由于长时间未操作，游戏将自动结束"
+    #   按钮："知道了" 或 "点击任意位置继续"
+    # 此弹窗会阻止所有后续 pipeline 操作，必须在任务间逐一检测并关闭。
+    _CLOUD_IDLE_TIMEOUT_KEYWORDS = frozenset({
+        "长时间未操作", "自动结束", "点击任意位置继续",
+        "知道了", "提示",
+        "长时间未操作", "将自动结束",
+    })
+    _CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT = "知道了"
+
+    def _dismiss_cloud_idle_popup(self) -> bool:
+        """检测并关闭云游戏空闲断连弹窗。
+
+        使用 post_recognition OCR 检测弹窗中的"知道了"按钮，
+        若检测到则点击该按钮位置关闭弹窗。
+
+        Returns:
+            True 若弹窗已检测并关闭，False 若无弹窗或操作失败。
+        """
+        if not self._connected or self._tasker is None or self._controller is None:
+            return False
+        try:
+            # 截图
+            job = self._controller.post_screencap()
+            if not self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
+                return False
+            img = self._controller.cached_image
+            if img is None:
+                return False
+
+            # OCR 全屏搜索"知道了"按钮
+            from maa.pipeline import JOCR, JRecognitionType
+            ocr_param = JOCR(
+                expected=[self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT],
+                roi=[0, 0, img.shape[1], img.shape[0]],
+                threshold=0.3,
+            )
+            ocr_job = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, img)
+            detail = ocr_job.wait().get()
+
+            # 检查是否找到"知道了"按钮
+            if detail:
+                for node in detail.nodes:
+                    if node.recognition and node.recognition.hit:
+                        best = node.recognition.best_result
+                        if best:
+                            # best.box 是 tuple/list [x,y,w,h] 或 Rect 对象
+                            bx = best.box
+                            if hasattr(bx, 'x'):   # Rect 对象
+                                cx = bx.x + bx.w // 2
+                                cy = bx.y + bx.h // 2
+                            else:                   # list/tuple [x,y,w,h]
+                                cx = bx[0] + bx[2] // 2
+                                cy = bx[1] + bx[3] // 2
+                            self.logger.warning(
+                                LogCategory.MAIN,
+                                "检测到云游戏空闲断连弹窗，点击关闭",
+                                button_text=self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT,
+                                target=(cx, cy),
+                            )
+                            click_job = self._controller.post_click(cx, cy)
+                            click_job.wait()
+                            time.sleep(1.0)
+                            return True
+            return False
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "云游戏空闲弹窗检测异常", error=str(exc))
+            return False
+
+    # ──────────────────────────────────────────────
+    # 任务识别过程日志记录
+    # ──────────────────────────────────────────────
+    def _log_recognition_detail(self, task_name: str, entry: str, job_result: Any) -> None:
+        """记录任务执行过程中各识别节点的 OCR/TemplateMatch 结果。
+
+        调用位置：_run_task_once（任务执行成功/失败后）。
+        日志级别：DEBUG，仅在问题调试时查阅。
+        """
+        if not job_result:
+            return
+        try:
+            for node in job_result.nodes:
+                if node.recognition:
+                    rec = node.recognition
+                    node_name = node.name or entry
+                    result_texts = []
+                    for r in rec.all_results[:5]:
+                        if hasattr(r, 'text'):
+                            result_texts.append(f'{r.text}({r.score:.2f})')
+                        elif hasattr(r, 'box'):
+                            result_texts.append(f'box=({r.box.x},{r.box.y},{r.box.w},{r.box.h}) score={r.score:.2f}')
+                    self.logger.debug(
+                        LogCategory.MAIN,
+                        f"识别详情: node={node_name} algorithm={rec.algorithm} "
+                        f"hit={rec.hit} results={len(rec.all_results)} "
+                        f"top={result_texts[:3]}",
+                        task=task_name,
+                    )
+        except Exception as exc:
+            self.logger.debug(LogCategory.MAIN, "记录识别详情异常", task=task_name, error=str(exc))
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "轻量恢复：多次 BACK 关闭弹窗/对话框")
