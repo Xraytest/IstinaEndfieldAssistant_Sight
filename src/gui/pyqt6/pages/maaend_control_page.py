@@ -1067,6 +1067,13 @@ class MaaEndControlPage(QWidget):
     # 把 waypoints + collect_items 作为上下文给 VLM 自主导航，依赖 LLM。
     _VLM_DRIVEN_TASKS = frozenset({"MaterialFarm", "MaterialCollect", "AutoCollect"})
 
+    # 与 MaaEndRuntime._TASKS_SKIP_ENTER_WORLD 保持一致：
+    # 自身负责启动游戏/恢复的任务不需要前置「回到主世界」清理。
+    _TASKS_SKIP_ENTER_WORLD = frozenset({
+        "AndroidOpenGame", "PCOpenGame", "OpenGame",
+        "RecoverGame", "StopApp", "StartApp",
+    })
+
     def _runtime_queue_runner(self, retry_indices: Optional[list[int]] = None) -> bool:
         items = list(self._queue_state.queue_items)
         if not items:
@@ -1075,6 +1082,7 @@ class MaaEndControlPage(QWidget):
         failed: list[int] = []
         indices = range(total) if retry_indices is None else retry_indices
         has_vlm_task = False
+        prev_clean_name: Optional[str] = None
         for idx in indices:
             if idx < 0 or idx >= total:
                 continue
@@ -1092,6 +1100,16 @@ class MaaEndControlPage(QWidget):
                 options = {**options, **inline_options}
             self.log_message.emit("队列", locale.tr("executing_task", "Executing {name} ({idx}/{total})").format(name=_zh(name), idx=idx + 1, total=total))
             clean_name, inline_options = self._parse_inline_task_name(name)
+            # 任务间清理：非首任务且非启动类任务，先回到主世界。
+            # 与 MaaEndRuntime.run_queue 行为对齐，避免前一任务留下非主世界
+            # 页面状态（如信用商店/好友列表）导致 InWorld 误匹配。
+            # retry_indices 首项也需清理（重试场景下前任状态未知）。
+            if prev_clean_name is not None and clean_name not in self._TASKS_SKIP_ENTER_WORLD:
+                self._sync_execute(
+                    "task enter_world",
+                    {"before_task": clean_name},
+                    timeout_ms=120000,  # 60s pipeline + 60s 余量
+                )
             # 检查是否为 VLM 驱动的任务
             if clean_name in self._VLM_DRIVEN_TASKS:
                 has_vlm_task = True
@@ -1107,6 +1125,7 @@ class MaaEndControlPage(QWidget):
             self.log_message.emit("队列", f"{_zh(name)} -> {locale.tr('queue_success' if ok else 'queue_failed', 'Success' if ok else 'Failed')} ({idx + 1}/{total})")
             if not ok:
                 failed.append(idx)
+            prev_clean_name = clean_name
         with self._failed_indices_lock:
             self._failed_indices = failed
         # 队列执行完成后，如果包含 VLM 驱动的任务，显式停止 llama-server

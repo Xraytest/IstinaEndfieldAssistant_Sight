@@ -894,6 +894,12 @@ class MaaEndRuntime:
             return False
         return box["succeeded"]
 
+    # SceneAnyEnterWorld 等导航类管道的正常执行耗时上限（秒）。
+    # 实测：从主世界到主世界 ≈3s，从登录页/弹窗后回主世界 ≤30s。
+    # 超过 60s 通常是 InWorld 模板在非主世界页面误匹配导致 MaaFW next 列表
+    # 死循环（PostStop / DoNothing 节点 loop back）。看门狗会 post_stop 释放 MaaFW。
+    _PIPELINE_NAV_TIMEOUT_S = 60
+
     def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any]) -> bool:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行管道")
@@ -909,7 +915,21 @@ class MaaEndRuntime:
                 except Exception as reg_err:
                     self.logger.warning(LogCategory.MAIN, "注册 pipeline override 失败", error=str(reg_err))
             job = self._tasker.post_task(entry, {})
-            succeeded = self._wait_job(job)
+            # 超时兜底：避免 SceneAnyEnterWorld 在 InWorld 误匹配时陷入 MaaFW
+            # next 列表死循环（实测 4 分钟仍未退出）。超时后 post_stop 释放 MaaFW，
+            # 让上层（_ensure_in_world_before_task / _ensure_game_is_alive）走重启路径。
+            succeeded = self._wait_job(job, timeout_s=self._PIPELINE_NAV_TIMEOUT_S)
+            if not succeeded and job is not None:
+                self.logger.warning(
+                    LogCategory.MAIN,
+                    "管道执行超时，发送 post_stop 释放 MaaFW",
+                    entry=entry,
+                    timeout_s=self._PIPELINE_NAV_TIMEOUT_S,
+                )
+                try:
+                    self._tasker.post_stop()
+                except Exception:
+                    pass
         except Exception as e:
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "自定义管道执行异常", entry=entry, error=str(e))
@@ -1024,22 +1044,46 @@ class MaaEndRuntime:
                 # 记录识别过程日志（DEBUG 级别）
                 self._log_recognition_detail(task_name, entry, detail)
 
-                # Task #9: False success mitigation for MaaFW pipeline OCR/template failures.
+                # False Success 检测（多策略）：
+                # FS-1: 所有识别节点均未命中（OCR/TemplateMatch 全失败但 MaaFW 报成功）
+                # FS-2: 任务轨迹含 PostStop/AbortPipeline 节点（被中止但 MaaFW 仍报 Succeeded）
+                # FS-3: 节点数为 0 或所有节点 completed=False（MaaFW override 注册失败的典型症状）
                 has_recognition = False
                 has_any_hit = False
+                has_post_stop = False
+                completed_node_count = 0
                 for node in detail.nodes:
+                    if getattr(node, "completed", False):
+                        completed_node_count += 1
+                    # PostStop 中止：action 类型为 PostStop 或节点名含 Abort/Stop
+                    node_name = (getattr(node, "name", "") or "").lower()
+                    if "abort" in node_name or "poststop" in node_name or "stop" in node_name:
+                        has_post_stop = True
                     if node.recognition:
                         has_recognition = True
                         if node.recognition.hit:
                             has_any_hit = True
-                            break
+                            # 不 break：需要扫描全部节点检测 PostStop
 
+                false_success_reason = None
                 if has_recognition and not has_any_hit:
+                    false_success_reason = "所有识别节点均未命中但 MaaFW 报告成功"
+                elif has_post_stop and not has_any_hit:
+                    false_success_reason = "任务被 PostStop/Abort 中止但 MaaFW 报告成功"
+                elif completed_node_count == 0 and len(detail.nodes) > 0:
+                    false_success_reason = "所有节点均未完成（MaaFW override 注册失败或 pipeline 解析错误）"
+
+                if false_success_reason:
                     self.logger.warning(
                         LogCategory.MAIN,
-                        "任务执行结果误判纠正：所有识别节点均未命中但 MaaFW 报告成功 (False Success)",
+                        f"任务执行结果误判纠正：{false_success_reason} (False Success)",
                         task=task_name,
-                        entry=entry
+                        entry=entry,
+                        node_count=len(detail.nodes),
+                        completed_nodes=completed_node_count,
+                        has_recognition=has_recognition,
+                        has_any_hit=has_any_hit,
+                        has_post_stop=has_post_stop,
                     )
                     return False
 
@@ -1737,6 +1781,11 @@ class MaaEndRuntime:
 
         调用位置：_run_task_once（任务执行成功/失败后）。
         日志级别：DEBUG，仅在问题调试时查阅。
+
+        注意：本方法只读不写，严禁包含任何 BACK/click/sleep 等副作用操作。
+        历史曾因合并冲突残留了 _lightweight_recover_ui 的代码片段，导致每个
+        任务执行后被无差别发送 3 次 BACK，触发云终末地游戏退出主世界 →
+        _ensure_game_is_alive 重启游戏 → 单任务阻塞 4 分钟的级联故障。
         """
         if not job_result:
             return
@@ -1760,16 +1809,6 @@ class MaaEndRuntime:
                     )
         except Exception as exc:
             self.logger.debug(LogCategory.MAIN, "记录识别详情异常", task=task_name, error=str(exc))
-        if not self._connected:
-            return False
-        self.logger.info(LogCategory.MAIN, "轻量恢复：多次 BACK 关闭弹窗/对话框")
-        for _ in range(3):
-            if not self._send_key_back():
-                return False
-        if not self._verify_connection_alive():
-            return False
-        time.sleep(1.5)
-        return True
 
     def _verify_connection_alive(self) -> bool:
         if not self._connected or self._controller is None:

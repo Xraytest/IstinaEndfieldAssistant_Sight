@@ -48,6 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional config path; runtime still defaults to config/client_config.json.",
     )
+    parser.add_argument(
+        "--instance",
+        default=os.environ.get("IEA_INSTANCE", "default"),
+        help="IEA instance id (routes config/cache/logs to instances/<id>/). "
+             "Default 'default' uses project root for backward compatibility.",
+    )
 
     sub = parser.add_subparsers(dest="command")
 
@@ -106,6 +112,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_task_run.add_argument("name", help="task name")
     p_task_run.add_argument("--options", default="{}", help="JSON options")
     p_task_run.add_argument("--serial", default=None, help="device serial")
+
+    p_task_enter_world = p_task_sub.add_parser("enter_world", help="inter-task cleanup: return to main world before next task")
+    p_task_enter_world.add_argument("--before-task", default=None, help="name of the upcoming task (for logging)")
+    p_task_enter_world.add_argument("--serial", default=None, help="device serial")
 
     p_task_list = p_task_sub.add_parser("list", help="list tasks")
     p_task_list.add_argument("--serial", default=None, help="device serial")
@@ -275,6 +285,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    # 多实例支持：在 IstinaRuntime 初始化前设置实例上下文
+    from core.foundation.instance import set_instance_id
+    try:
+        set_instance_id(args.instance)
+    except ValueError as exc:
+        sys.stderr.write(f"[IEA] 实例 id 非法: {exc}\n")
+        return 2
+
     original_stdout_fd: Optional[int] = None
     stdout_redirected = False
     try:
@@ -422,5 +440,13 @@ def _auto_warmup(runtime: IstinaRuntime, args: argparse.Namespace) -> None:
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
         parser = build_parser()
+        # 交互模式：预解析 --instance 选项（如存在），设置实例上下文
+        pre_args, _ = parser.parse_known_args()
+        from core.foundation.instance import set_instance_id
+        try:
+            set_instance_id(getattr(pre_args, "instance", "default") or "default")
+        except ValueError as exc:
+            sys.stderr.write(f"[IEA] 实例 id 非法: {exc}\n")
+            sys.exit(2)
         sys.exit(_interactive_loop(parser))
     sys.exit(main())

@@ -3203,3 +3203,30 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - `reports/incidents/2026-07-22_opengame_premature_success_and_recovery_trigger.md`（追加 INVERSE-01 章节 + 第三次队列运行验证结果）
   - `docs/TASK_LOG.md`（本条记录）
 - **待办**: WaitLoadingIcon 过度匹配问题（次要，不影响任务结果）；VisitFriends/DijiangRewards/SellProduct/DailyRewards 任务失败原因（模板过期/导航超时，与 2026-07-13 报告一致，需系统性更新模板）。
+
+## 2026-07-26 07:30 (云终末地队列执行阻断与状态误判·CLOUD-BLOCK-01)
+
+- **User Request**: 优化软件在云终末地上的表现。落实到端测试（阅读代码以管理链接模拟器），解决执行队列时遇到的阻断与状态误判（未完成却被标注成功）
+- **设备**: 127.0.0.1:16416（云终末地 com.hypergryph.cloud.endfield）
+- **Outcome**: 通过 `scripts/run_queue_with_recording.py` 运行 12 任务队列并录制视频（`cache/recordings/queue_run_20260726_071518.mp4` 266MB），结合 `logs/main.log` 时间线分析，定位 4 个根因并实施修复：
+  1. **CLOUD-BLOCK-01（CRITICAL）**：[`_log_recognition_detail`](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/core/service/maa_end/runtime.py#L1735) 末尾残留 `_lightweight_recover_ui` 孤儿代码（3 次 BACK + 1.5s sleep），导致每个任务执行后被无差别发送 3 次 BACK。在云终末地 BACK 直接退出游戏 → `_ensure_game_is_alive` 调用 `SceneAnyEnterWorld` → `run_pipeline` 无超时阻塞 4 分钟 → 重启游戏 → 死循环。**修复**：删除孤儿代码 + 强化 docstring 警告。
+  2. **PIPELINE-TIMEOUT-01**：[`run_pipeline`](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/core/service/maa_end/runtime.py#L903) 调用 `_wait_job(job)` 未传 `timeout_s`，MaaFW next 列表死循环时 Python 端无限等待。**修复**：新增 `_PIPELINE_NAV_TIMEOUT_S = 60` 类常量，超时后 `post_stop()` 释放 MaaFW。
+  3. **FALSE-SUCCESS-02**：[`_run_task_once`](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/core/service/maa_end/runtime.py#L1047) 的 False Success 检测仅覆盖 FS-1（识别全未命中），遗漏 FS-2（PostStop/Abort 中止）和 FS-3（节点全未完成）。**修复**：扫描所有节点（不再 break），新增 FS-2/FS-3 检测策略，日志含 `has_post_stop`/`completed_nodes` 字段。
+  4. **GUI-QUEUE-CLEANUP-01**：[`_runtime_queue_runner`](file:///c:/Users/cheng/Documents/ArkStudio/IstinaAI/IstinaEndfieldAssistant_Sight/src/gui/pyqt6/pages/maaend_control_page.py#L1077) 通过 `task run` 逐个执行任务，不经过 `MaaEndRuntime.run_queue` 的 `_ensure_in_world_before_task`，导致前一任务留下非主世界页面时下一任务 InWorld 误匹配。**修复**：新增 `task enter_world` CLI 子命令 + `IstinaRuntime._enter_world` 方法，GUI 在非首任务且非启动类任务前调用清理。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`（删除孤儿代码 + run_pipeline 超时 + False Success 增强）
+  - `src/core/service/runtime.py`（新增 `_enter_world` + `task.enter_world` 路由）
+  - `src/cli/istina.py`（新增 `task enter_world` 子命令）
+  - `src/cli/handlers.py`（新增 `_handle_task_enter_world` + 路由）
+  - `src/gui/pyqt6/pages/maaend_control_page.py`（`_runtime_queue_runner` 任务间清理 + `_TASKS_SKIP_ENTER_WORLD` 常量）
+  - `reports/incidents/2026-07-26_cloud_endfield_queue_blocking_and_false_success.md`（新增·四段式分析报告）
+  - `docs/TASK_LOG.md`（本条记录）
+- **验证**:
+  - 5 个 .py 文件 `py_compile` 全部通过（exit_code=0）
+  - CLI 解析验证：`task enter_world --before-task VisitFriends --serial 127.0.0.1:16416` → `Namespace(action='enter_world', before_task='VisitFriends', serial='127.0.0.1:16416')`
+  - `IstinaRuntime._enter_world` 方法存在性验证通过
+  - 待端到端验证：连接云终末地设备执行 12 任务队列，观察任务成功后不再出现 BACK spam、SceneAnyEnterWorld 阻塞 ≤60s、GUI 任务间出现清理日志
+- **未实现 / 已知限制**:
+  - `_PIPELINE_NAV_TIMEOUT_S = 60` 为经验值，若未来 SceneAnyEnterWorld 复杂度增加可能需要调大
+  - FS-2 检测依赖节点名含 `abort`/`poststop`/`stop` 的启发式，若 MaaFW 未来变更节点命名约定需同步更新
+  - 未修复 VisitFriends 模板过期问题（与 2026-07-13 TMPL-01 一致，需系统性更新模板，不在本次范围内）

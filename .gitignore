@@ -36,6 +36,10 @@ cache/
 explore_logs/
 output/
 
+# --- Multi-instance data (instances/<id>/ contains per-instance config/cache/logs/scripts) ---
+instances/
+!instances/.gitkeep
+
 # --- Local test/run output settings ---
 pytest_output_settings.txt
 
@@ -96,6 +100,11 @@ META-INF/
 .env
 .env.*
 !.env.example
+
+# --- Release staging (大文件 + 派生产物，禁止提交) ---
+# release_staging/ 是 release 脚本打包生成的发布产物（含 1.6GB+ zip 与解压副本），
+# 非源码且会膨胀仓库体积。发布应通过 GitHub Releases / 外部存储分发，不入 git。
+release_staging/
 
 # --- OS ---
 Thumbs.db

@@ -132,6 +132,8 @@ class CLIDispatch:
     def _handle_task(self, args: argparse.Namespace) -> Dict[str, Any]:
         if args.action == "run":
             return _handle_task_run(self._runtime, args)
+        if args.action == "enter_world":
+            return _handle_task_enter_world(self._runtime, args)
         if args.action == "list":
             return _handle_task_list(self._runtime, args)
         return {"status": "error", "message": "unknown task action"}
@@ -371,6 +373,21 @@ def _handle_task_run(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[s
     }
     ok = runtime.execute("task.run", params)
     return {"status": "success" if ok else "error", "task": args.name}
+
+
+def _handle_task_enter_world(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:
+    """任务间清理：执行 SceneAnyEnterWorld 回到主世界。
+
+    GUI 队列执行路径通过 task.run 逐个执行任务，不会经过
+    MaaEndRuntime.run_queue 的任务间清理逻辑。本命令暴露清理能力给 GUI，
+    避免前一任务留下非主世界页面状态导致下一任务 InWorld 误匹配。
+    """
+    params = {
+        "before_task": getattr(args, "before_task", None),
+        "serial": getattr(args, "serial", None),
+    }
+    ok = runtime.execute("task.enter_world", params)
+    return {"status": "success" if ok else "error", "before_task": params["before_task"]}
 
 
 def _handle_task_list(runtime: IstinaRuntime, args: argparse.Namespace) -> Dict[str, Any]:

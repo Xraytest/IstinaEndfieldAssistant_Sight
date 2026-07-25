@@ -549,6 +549,8 @@ class IstinaRuntime:
 
         if domain == "task" and action == "run":
             return self._run_task(params)
+        if domain == "task" and action == "enter_world":
+            return self._enter_world(params)
         if domain == "task" and action == "list":
             return self._list_tasks(params)
         if domain == "preset" and action == "run":
@@ -685,6 +687,22 @@ class IstinaRuntime:
         if not self._ensure_maaend_ready(runtime):
             return False
         return bool(runtime.run_task(name, options))
+
+    def _enter_world(self, params: Dict[str, Any]) -> bool:
+        """任务间清理：调用 MaaEndRuntime._ensure_in_world_before_task 回到主世界。
+
+        GUI 队列执行路径（_runtime_queue_runner）通过 task.run 逐个执行任务，
+        不会经过 MaaEndRuntime.run_queue 的任务间清理逻辑。本命令暴露清理能力
+        给 GUI，避免前一任务留下非主世界页面状态导致下一任务 InWorld 误匹配。
+        """
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        if not self._ensure_maaend_ready(runtime):
+            return False
+        before_task = str(params.get("before_task") or "").strip()
+        runtime._ensure_in_world_before_task(before_task or "unknown")
+        # 清理失败不阻断队列（与 run_queue 行为一致）
+        return True
 
     def _run_preset(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")
