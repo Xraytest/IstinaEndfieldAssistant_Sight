@@ -357,6 +357,11 @@ class MaaEndRuntime:
     })
 
     def _connect_once(self) -> bool:
+        # ★ 强制横屏旋转：MuMu 等模拟器物理显示为竖屏(720x1280)，但云终末地等游戏
+        # 以 ROTATION_90 横屏渲染(1280x720)。MaaFW 的 screencap 返回原始物理帧，
+        # 导致 pipeline JSON 中按横屏设计的 ROI 坐标全部越界。通过 ADB 设置
+        # user_rotation=1 强制系统横屏，使 screencap 输出与 pipeline 预期一致。
+        self._force_landscape_rotation()
         self._resource = Resource()
         # ★ 触控通道：MaaTouch（高速 socket 协议），禁用 AdbShell（adb shell input）。
         # 严禁回退到 adb shell input — adb shell input 走 InputManager 注入，延迟高、
@@ -971,6 +976,31 @@ class MaaEndRuntime:
             if self._detect_task_skipped(job, task_name, entry):
                 self.logger.warning(LogCategory.MAIN, "任务被跳过（未满足执行条件，如未到计划周期）", task=task_name)
                 return False
+
+            # Task #9: False success mitigation for MaaFW pipeline OCR/template failures.
+            # When MaaFW's C++ OCR engine fails internally (e.g., ocrer_ is null),
+            # it may return hit=False for all recognition nodes but still report the task as succeeded.
+            # We validate by checking if any recognition node actually hit.
+            detail = job.get()
+            if detail:
+                has_recognition = False
+                has_any_hit = False
+                for node in detail.nodes:
+                    if node.recognition:
+                        has_recognition = True
+                        if node.recognition.hit:
+                            has_any_hit = True
+                            break
+
+                if has_recognition and not has_any_hit:
+                    self.logger.warning(
+                        LogCategory.MAIN,
+                        "任务执行结果误判纠正：所有识别节点均未命中但 MaaFW 报告成功 (False Success)",
+                        task=task_name,
+                        entry=entry
+                    )
+                    return False
+
             self.logger.info(LogCategory.MAIN, "任务执行成功", task=task_name)
             return True
         if not self._connected:
@@ -1389,6 +1419,47 @@ class MaaEndRuntime:
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "发送 BACK 键失败", error=str(exc))
             return False
+
+    def _force_landscape_rotation(self) -> None:
+        """强制设备横屏旋转，解决模拟器竖屏物理显示与游戏横屏渲染的不匹配。
+
+        MuMu 等模拟器物理显示为竖屏(720x1280)，但云终末地等游戏以 ROTATION_90
+        横屏渲染(1280x720)。MaaFW 的 screencap 返回原始物理帧(竖屏)，导致
+        pipeline JSON 中按横屏设计的 ROI 坐标全部越界。通过 ADB 设置
+        user_rotation=1 强制系统横屏，使 screencap 输出与 pipeline 预期一致。
+        """
+        try:
+            # 检查当前旋转状态
+            result = subprocess.run(
+                [self._adb_path, "-s", self._device_address, "shell",
+                 "settings", "get", "system", "user_rotation"],
+                text=True, timeout=5, capture_output=True,
+            )
+            current = result.stdout.strip()
+            if current == "1":
+                self.logger.debug(LogCategory.MAIN, "设备已处于横屏模式，无需调整")
+                return
+            # 设置横屏 (1 = ROTATION_90)
+            subprocess.run(
+                [self._adb_path, "-s", self._device_address, "shell",
+                 "settings", "put", "system", "user_rotation", "1"],
+                text=True, timeout=5, capture_output=True,
+            )
+            # 验证设置成功
+            verify = subprocess.run(
+                [self._adb_path, "-s", self._device_address, "shell",
+                 "settings", "get", "system", "user_rotation"],
+                text=True, timeout=5, capture_output=True,
+            )
+            if verify.stdout.strip() == "1":
+                self.logger.info(LogCategory.MAIN, "已强制设备横屏旋转 (user_rotation=1)")
+            else:
+                self.logger.warning(
+                    LogCategory.MAIN, "设置横屏旋转后验证失败",
+                    expected="1", actual=verify.stdout.strip(),
+                )
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "强制横屏旋转失败（不阻断连接）", error=str(exc))
 
     def _check_adb_health(self) -> bool:
         try:
