@@ -237,12 +237,11 @@ class CLIBridge(QObject):
         self._process.errorOccurred.connect(self._on_error)
 
         # 方案 B：为 CLI 子进程显式注入 MAAFW_BINARY_PATH + PATH prepend，
-        # 确保 import maa.* 时加载项目自带 OLDER 版本 MaaFramework.dll（与
-        # 3rd-part/maaend/resource 匹配），避免 STATUS_DLL_NOT_FOUND (0xC0000135)
-        # 进程崩溃。即使 main.py 已注入 env，此处显式设置作为防御性保护。
+        # 确保 import maa.* 时加载 site-packages 中的 MaaFramework.dll v5.12.2
+        #（修复 PPOCRv6 与 pipeline OCR 兼容性），而非项目 maaend 的旧版 DLL。
         try:
             from PyQt6.QtCore import QProcessEnvironment
-            _maafw_dll_dir = get_project_root() / "3rd-part" / "maaend" / "agent" / "maafw"
+            _maafw_dll_dir = get_project_root() / "3rd-part" / "python" / "Lib" / "site-packages" / "maa" / "bin"
             env = QProcessEnvironment.systemEnvironment()
             if _maafw_dll_dir.is_dir():
                 if env.value("MAAFW_BINARY_PATH") == "":

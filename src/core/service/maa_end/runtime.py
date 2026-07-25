@@ -81,11 +81,14 @@ def _load_json_file(path: Path) -> Dict[str, Any]:
     except json.JSONDecodeError:
         return json.loads(_strip_json_comments(text))
 
-# Point maa library to MaaEnd maafw DLLs for matching versions.
+# Point maa library to the site-package bundled MaaFramework DLLs.
+# After upgrading pip maafw to v5.12.2 (which fixes PPOCRv6 model loading
+# and pipeline OCR node parsing), the project DLLs at 3rd-part/maaend/agent/maafw/
+# are older v5.11.x and incompatible. We redirect MAAFW_BINARY_PATH to the
+# bundled Python site-packages maa/bin where the upgraded DLLs live.
 _PROJECT_ROOT = get_project_root()
-_maaend_agent_dir = _PROJECT_ROOT / "3rd-part" / "maaend" / "agent"
-_maafw_dir = _maaend_agent_dir / "maafw"
-_DEFAULT_DLL_DIR = _maafw_dir if _maafw_dir.is_dir() else None
+_SITE_BIN_DIR = _PROJECT_ROOT / "3rd-part" / "python" / "Lib" / "site-packages" / "maa" / "bin"
+_DEFAULT_DLL_DIR = _SITE_BIN_DIR if _SITE_BIN_DIR.is_dir() else None
 
 # 方案 A1：在 import maa.* 之前注入 MAAFW_BINARY_PATH，确保主 Python 进程加载项目
 # 自带的 OLDER 版本 MaaFramework.dll（与 3rd-part/maaend/resource 版本匹配），
@@ -363,11 +366,15 @@ class MaaEndRuntime:
         # user_rotation=1 强制系统横屏，使 screencap 输出与 pipeline 预期一致。
         self._force_landscape_rotation()
         self._resource = Resource()
-        # ★ 触控通道：MaaTouch（高速 socket 协议），禁用 AdbShell（adb shell input）。
-        # 严禁回退到 adb shell input — adb shell input 走 InputManager 注入，延迟高、
-        # 易被游戏反外挂检测，且无法被 MaaFW 的 input_method 状态机管理。
-        # 单一通道：MaaTouch。Maatouch=4 是位掩码枚举，必须用位运算赋值。
-        input_methods = int(MaaAdbInputMethodEnum.Maatouch if MaaAdbInputMethodEnum else 4)
+        # ★ 触控通道：优先 Maatouch（高速 socket 协议），回退到 Minitouch/AdbShell。
+        # 在云终末地等精简 Android 环境中 Maatouch 二进制可能无法部署，此时 MaaFW
+        # 自动按优先级（Maatouch > MinitouchAndAdbKey > AdbShell）选择可用方案。
+        # AdbShell (input keyevent/tap) 延迟较高但可用，比完全无触控好。
+        input_methods = int(
+            MaaAdbInputMethodEnum.Default
+            if MaaAdbInputMethodEnum
+            else (4 | 2 | 1)  # Maatouch | Minitouch | AdbShell
+        )
         # ★ 截图通道：Default（-57 = All & ~{0..5}）仅保留 EmulatorExtras(64)。
         # 任务级 screenshot 由 MaaFW 控制器直接拉帧；GUI 实时预览/录制由
         # android_runtime.py 的 scrcpy 通道独立提供（不依赖 MaaFW 控制器）。
@@ -380,10 +387,25 @@ class MaaEndRuntime:
             config={},
         )
         job = self._controller.post_connection()
-        if not self._wait_job(job, timeout_s=float(self._CONNECTION_TIMEOUT_S)):
-            self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败或超时", address=self._device_address)
-            self._cleanup_partial()
-            return False
+        conn_ok = self._wait_job(job, timeout_s=float(self._CONNECTION_TIMEOUT_S))
+        if not conn_ok:
+            # MaaFW v5.12.2: 在云终末地等精简 Android 环境中，输入方法初始化
+            # (Maatouch) 可能失败（No available input method），但控制器仍有
+            # 截图能力。尝试截一帧验证，若能获取图像则视为降级连接成功。
+            self.logger.warning(LogCategory.MAIN, "ADB 控制器连接报告失败（输入通道不可用），尝试降级连接", address=self._device_address)
+            try:
+                probe_job = self._controller.post_screencap()
+                probe_ok = self._wait_job(probe_job, timeout_s=float(self._SCRECAP_TIMEOUT_S))
+                if probe_ok:
+                    self.logger.warning(LogCategory.MAIN, "控制器降级连接成功（仅截图，无触控）", address=self._device_address)
+                else:
+                    self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败且截图不可用", address=self._device_address)
+                    self._cleanup_partial()
+                    return False
+            except Exception as probe_err:
+                self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败", address=self._device_address, error=str(probe_err))
+                self._cleanup_partial()
+                return False
         # 首轮截图失败不应让整个连接失败：screencap 通道可能在游戏加载未完成时
         # 暂时返回空帧。只要 ADB 控制器本身已连上，就视为设备已连接，GUI 应显示
         # "已连接"。screencap 后续在任务执行时会自动重试。
@@ -878,7 +900,13 @@ class MaaEndRuntime:
             return False
         self.logger.info(LogCategory.MAIN, "开始执行自定义管道", entry=entry)
         try:
-            job = self._tasker.post_task(entry, pipeline_override if pipeline_override else {})
+            # NODE-REG-FIX: 同 _run_task_once，用 resource.override_pipeline 注册再执行
+            if pipeline_override:
+                try:
+                    self._resource.override_pipeline(pipeline_override)
+                except Exception as reg_err:
+                    self.logger.warning(LogCategory.MAIN, "注册 pipeline override 失败", error=str(reg_err))
+            job = self._tasker.post_task(entry, {})
             succeeded = self._wait_job(job)
         except Exception as e:
             self._connected = False
@@ -964,7 +992,19 @@ class MaaEndRuntime:
         )
         watchdog_thread.start()
         try:
-            job = self._tasker.post_task(entry, override if override else {})
+            # NODE-REG-FIX: MaaFW v5.12.x 的 MaaTaskerPostTask 对 override 中新节点
+            # (不在 resource 中预先注册的节点) 无法正确解析执行，导致 Node: name="",
+            # completed=False, succeeded=False。
+            # 改用 resource.override_pipeline() 先将 override 注册到 resource 中，
+            # 再以空 override 执行 post_task，确保 OCR 等新节点能被正确加载。
+            # 该方法也修复了 MaaFW pipeline OCR 报 ocrer_ is null 的根本原因：
+            # 旧版 v5.11.x DLL 不支持 PPOCRv6 模型格式。
+            if override:
+                try:
+                    self._resource.override_pipeline(override)
+                except Exception as reg_err:
+                    self.logger.warning(LogCategory.MAIN, "注册 pipeline override 失败（仍尝试原方式）", error=str(reg_err))
+            job = self._tasker.post_task(entry, {})
             succeeded = self._wait_job(job)
         except Exception as e:
             self._connected = False

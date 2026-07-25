@@ -12,10 +12,10 @@ if _src_str not in sys.path:
     sys.path.insert(0, _src_str)
 
 # 方案 A2：在 import core.*/gui.* 之前注入 MAAFW_BINARY_PATH，确保 GUI 主进程
-# 及其 QProcess 启动的 CLI 子进程（自动继承父进程环境变量）都加载项目自带的
-# MaaFramework.dll（与 3rd-part/maaend/resource 版本匹配）。详见 incident 报告
-# 2026-07-21_adb_connected_false_multi_cause_analysis.md 方案 A。
-_MAAFW_DLL_DIR = Path(__file__).resolve().parent.parent.parent.parent / "3rd-part" / "maaend" / "agent" / "maafw"
+# 及其 QProcess 启动的 CLI 子进程（自动继承父进程环境变量）都加载正确版本的
+# MaaFramework.dll。maafw pip 已升级到 v5.12.2（修复 PPOCRv6 与 pipeline OCR）
+# 因此指向 site-packages 中的新版 DLL。
+_MAAFW_DLL_DIR = Path(__file__).resolve().parent.parent.parent.parent / "3rd-part" / "python" / "Lib" / "site-packages" / "maa" / "bin"
 if _MAAFW_DLL_DIR.is_dir() and os.environ.get("MAAFW_BINARY_PATH") is None:
     os.environ["MAAFW_BINARY_PATH"] = str(_MAAFW_DLL_DIR.resolve())
 
