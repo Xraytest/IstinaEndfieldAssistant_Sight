@@ -1607,6 +1607,24 @@ class MaaEndRuntime:
     _CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT = "知道了"
     _CLOUD_IDLE_DISMISS_RETRY_COUNT = 3
 
+    def _lightweight_recover_ui(self) -> bool:
+        """轻量恢复：当任务失败时，尝试关闭弹窗后重试。
+
+        先检测并关闭云游戏空闲断连弹窗，再发送 3 次 BACK 关闭
+        其他可能存在的弹窗/对话框，最后验证连接是否正常。
+        """
+        if not self._connected:
+            return False
+        self._dismiss_cloud_idle_popup()
+        self.logger.info(LogCategory.MAIN, "轻量恢复：多次 BACK 关闭弹窗/对话框")
+        for _ in range(3):
+            if not self._send_key_back():
+                return False
+        if not self._verify_connection_alive():
+            return False
+        time.sleep(1.5)
+        return True
+
     def _dismiss_cloud_idle_popup(self) -> bool:
         """检测并关闭云游戏空闲断连弹窗。
 
