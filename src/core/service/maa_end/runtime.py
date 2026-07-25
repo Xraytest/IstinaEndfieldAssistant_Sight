@@ -1227,9 +1227,15 @@ class MaaEndRuntime:
 
     def _ensure_queue_connection(self, task_name: str, idx: int, total: int) -> bool:
         if self._connected and self._check_adb_health():
-            # 任务前尝试关闭云游戏空闲断连弹窗（如"长时间未操作"弹窗，
-            # 该弹窗会导致后续所有 pipeline 操作失败）。
+            # 任务前尝试关闭云游戏空闲断连弹窗。
+            # 弹窗关闭后还需验证游戏是否仍在运行。
             self._dismiss_cloud_idle_popup()
+            # 游戏活跃度检查：若弹窗刚关闭，游戏可能在退出过程中，
+            # 需要确保回到主世界后再开始任务。
+            # 仅对非 OpenGame/RecoverGame 任务做此检查，避免
+            # 启动类任务自身流程被打断。
+            if task_name not in self._TASKS_SKIP_ENTER_WORLD:
+                self._ensure_game_is_alive()
             # ADB 健康即视为连接可用。
             # 旧实现额外调用 _verify_connection_alive()（post_screencap + _wait_job 10s），
             # 但 screencap 通道可能在游戏加载/过场时短暂延迟，导致 10s 超时误判为"控制器失效"，
@@ -1591,12 +1597,15 @@ class MaaEndRuntime:
     #   "由于长时间未操作，游戏将自动结束"
     #   按钮："知道了" 或 "点击任意位置继续"
     # 此弹窗会阻止所有后续 pipeline 操作，必须在任务间逐一检测并关闭。
+    # 注意：弹窗关闭后游戏可能仍在运行，也可能已自动退出。
+    # 需在关闭后检查游戏状态并重新启动。
     _CLOUD_IDLE_TIMEOUT_KEYWORDS = frozenset({
         "长时间未操作", "自动结束", "点击任意位置继续",
         "知道了", "提示",
         "长时间未操作", "将自动结束",
     })
     _CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT = "知道了"
+    _CLOUD_IDLE_DISMISS_RETRY_COUNT = 3
 
     def _dismiss_cloud_idle_popup(self) -> bool:
         """检测并关闭云游戏空闲断连弹窗。
@@ -1650,11 +1659,56 @@ class MaaEndRuntime:
                             )
                             click_job = self._controller.post_click(cx, cy)
                             click_job.wait()
-                            time.sleep(1.0)
+                            time.sleep(2.0)
+                            # 弹出可能还残留二次确认或其他弹窗，再做 BACK 清理
+                            for _ in range(2):
+                                self._send_key_back()
                             return True
             return False
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "云游戏空闲弹窗检测异常", error=str(exc))
+            return False
+
+    def _ensure_game_is_alive(self) -> bool:
+        """检查游戏是否仍在运行，必要时重新启动。
+
+        在队列任务间调用，确保游戏进程在继续执行任务前处于活跃状态。
+        检查链：
+        1. ADB 健康检查
+        2. 截图验证
+        3. 通过 InWorld pipeline 判断游戏是否在主世界
+        4. 若不在主世界，尝试 SceneAnyEnterWorld
+        5. 若仍失败，重新启动游戏
+
+        Returns:
+            True 若游戏已就绪（在主世界），False 若无法恢复
+        """
+        if not self._connected or self._tasker is None or self._controller is None:
+            return False
+        try:
+            # 先尝试截图验证
+            job = self._controller.post_screencap()
+            if not self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
+                self.logger.warning(LogCategory.MAIN, "游戏状态检查：截图失败，可能已退出")
+                return False
+
+            # 尝试 SceneAnyEnterWorld（已能正常工作且耗时约 40s）
+            self.logger.info(LogCategory.MAIN, "游戏状态检查：尝试回到主世界")
+            ok = self.run_pipeline("SceneAnyEnterWorld", {})
+            if ok:
+                self.logger.info(LogCategory.MAIN, "游戏状态检查：已在主世界")
+                return True
+
+            # SceneAnyEnterWorld 失败，可能游戏已退出，尝试重启
+            self.logger.warning(LogCategory.MAIN, "游戏状态检查：SceneAnyEnterWorld 失败，尝试重新启动游戏")
+            start_ok = self.run_task("AndroidOpenGame", {"ClientVersion": self._client_version})
+            if start_ok:
+                # 重启后再次尝试进入主世界
+                time.sleep(3.0)
+                return self.run_pipeline("SceneAnyEnterWorld", {})
+            return False
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "游戏状态检查异常", error=str(exc))
             return False
 
     # ──────────────────────────────────────────────
