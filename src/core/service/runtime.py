@@ -18,6 +18,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from core.foundation.constants import (
+    ADB_PATH_DEFAULT,
+    DEFAULT_DEVICE_ADDRESS,
+    GAME_PACKAGE_ENDFIELD,
+)
 from core.foundation.logger import LogCategory, get_logger
 from core.foundation.paths import get_cache_subdir, get_project_root
 
@@ -159,7 +164,7 @@ def _get_llm_client(llama_runtime: Any) -> Any:
     return LlmClient(base_url=llama_runtime.base_url)
 
 
-_GAME_PACKAGE_FALLBACK = "com.hypergryph.endfield"
+_GAME_PACKAGE_FALLBACK = GAME_PACKAGE_ENDFIELD
 
 
 def _get_game_package(config: Optional[Dict[str, Any]] = None) -> str:
@@ -176,7 +181,7 @@ class AndroidRuntimeProxy:
 
     def __init__(
         self,
-        adb_path: str = "3rd-part/adb/adb.exe",
+        adb_path: str = ADB_PATH_DEFAULT,
         device_address: Optional[str] = None,
     ):
         self._adb_path = adb_path
@@ -201,6 +206,10 @@ class AndroidRuntimeProxy:
         return client
 
 
+# 保留 __name__ 重命名以兼容 tests/test_istina_runtime.py 中的断言
+# ``type(android).__name__ == "AndroidRuntime"``：测试用反射判断类型，
+# 改为 isinstance 需要修改测试代码，超出本次重构范围。
+# 此 hack 仅影响日志/调试显示，不影响 isinstance 语义。
 AndroidRuntimeProxy.__name__ = "AndroidRuntime"
 
 
@@ -329,7 +338,7 @@ class IstinaRuntime:
             serial
             or device_cfg.get("last_connected")
             or device_cfg.get("serial")
-            or "localhost:16512"
+            or DEFAULT_DEVICE_ADDRESS
         )
         runtime = self._android_clients.get(resolved)
         if runtime is None:
@@ -338,7 +347,7 @@ class IstinaRuntime:
                 runtime = self._android_clients.get(resolved)
                 if runtime is None:
                     runtime = AndroidRuntimeProxy(
-                        adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
+                        adb_path=self._config.get("adb_path", ADB_PATH_DEFAULT),
                         device_address=resolved,
                     )
                     self._android_clients[resolved] = runtime
@@ -350,7 +359,7 @@ class IstinaRuntime:
             serial
             or device_cfg.get("last_connected")
             or device_cfg.get("serial")
-            or "localhost:16512"
+            or DEFAULT_DEVICE_ADDRESS
         )
 
     def maaend(self, serial: Optional[str] = None) -> Any:
@@ -369,7 +378,7 @@ class IstinaRuntime:
                     runtime = MaaEndRuntime(
                         maaend_root=self._config.get("maaend_root"),
                         device_address=resolved,
-                        adb_path=self._config.get("adb_path", "3rd-part/adb/adb.exe"),
+                        adb_path=self._config.get("adb_path", ADB_PATH_DEFAULT),
                         adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", True),
                         game_package=game_package,
                     )

@@ -26,6 +26,10 @@ class LogCategory:
     PERFORMANCE = "PERFORMANCE"
 
 
+# 合法日志分类集合（动态从 LogCategory 派生，避免新增分类时漏改硬编码 set）
+_VALID_CATEGORIES = frozenset(v for k, v in vars(LogCategory).items() if not k.startswith("_") and isinstance(v, str))
+
+
 # 全局日志初始化状态标记
 _logger_initialized: bool = False
 
@@ -40,16 +44,7 @@ class ProjectLogger:
             if key in kwargs:
                 logging_kwargs[key] = kwargs.pop(key)
 
-        if len(args) >= 2 and isinstance(args[0], str) and args[0] in {
-            LogCategory.MAIN,
-            LogCategory.ADB,
-            LogCategory.COMMUNICATION,
-            LogCategory.EXECUTION,
-            LogCategory.AUTHENTICATION,
-            LogCategory.GUI,
-            LogCategory.EXCEPTION,
-            LogCategory.PERFORMANCE,
-        }:
+        if len(args) >= 2 and isinstance(args[0], str) and args[0] in _VALID_CATEGORIES:
             msg = f"[{args[0]}] {args[1]}"
             fmt_args = args[2:]
         elif args:
@@ -104,8 +99,12 @@ def init_logger(
     创建日志目录和文件处理器，设置全局日志级别。
     必须在任何 get_logger() 或日志调用之前调用。
 
+    多实例支持：未显式传入 ``log_dir`` 时，使用**当前实例**的 logs 目录
+    （``<instance_root>/logs``）。``default`` 实例为 ``<project_root>/logs``，
+    其它实例为 ``<project_root>/instances/<id>/logs``。
+
     Args:
-        log_dir: 日志文件存放目录，默认为项目根目录下的 logs/
+        log_dir: 日志文件存放目录，默认为当前实例根目录下的 logs/
         log_level: 文件日志级别，默认为 INFO
         console_level: 控制台日志级别，默认为 WARNING
     """
@@ -114,11 +113,10 @@ def init_logger(
     if _logger_initialized:
         return
 
-    # 自包含路径：logger.py 位于 src/core/foundation/
-    project_root = Path(__file__).resolve().parent.parent.parent.parent
-
     if log_dir is None:
-        log_dir = project_root / "logs"
+        # 延迟导入避免循环依赖
+        from core.foundation.instance import get_instance_root
+        log_dir = get_instance_root() / "logs"
 
     log_dir.mkdir(parents=True, exist_ok=True)
 

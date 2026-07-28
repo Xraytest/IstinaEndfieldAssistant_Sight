@@ -16,8 +16,14 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from core.foundation.constants import (
+    ADB_PATH_DEFAULT,
+    DEFAULT_DEVICE_ADDRESS,
+    GAME_PACKAGE_ENDFIELD,
+)
 from core.foundation.logger import LogCategory, get_logger
 from core.foundation.paths import get_project_root
+from core.foundation.timeout_utils import run_with_timeout
 
 
 def _strip_json_comments(text: str) -> str:
@@ -27,7 +33,13 @@ def _strip_json_comments(text: str) -> str:
     so upstream task/preset/interface files shipped under 3rd-part/maaend may
     contain them. Python's ``json`` rejects comments, so we strip them outside
     of string literals before parsing. String contents are preserved verbatim.
+
+    Also strips a leading UTF-8 BOM (``\\ufeff``) if present, since some
+    upstream pipeline JSONs are saved with BOM and ``json.loads`` rejects it
+    with "Unexpected UTF-8 BOM (decode using utf-8-sig)".
     """
+    if text and text[0] == "\ufeff":
+        text = text[1:]
     result: List[str] = []
     i = 0
     n = len(text)
@@ -134,17 +146,17 @@ class MaaEndRuntime:
     def __init__(
         self,
         maaend_root: Optional[str] = None,
-        device_address: str = "localhost:16512",
-        adb_path: str = "3rd-part/adb/adb.exe",
+        device_address: str = DEFAULT_DEVICE_ADDRESS,
+        adb_path: str = ADB_PATH_DEFAULT,
         adb_restart_on_timeout: bool = True,
-        game_package: str = "com.hypergryph.endfield",
+        game_package: str = GAME_PACKAGE_ENDFIELD,
     ):
         self.logger = get_logger()
         self._maaend_root = Path(maaend_root) if maaend_root else self._default_maaend_root()
         self._device_address = device_address
         self._adb_path = str(get_project_root() / adb_path)
         self._adb_restart_on_timeout = bool(adb_restart_on_timeout)
-        self._game_package = (game_package or "").strip() or "com.hypergryph.endfield"
+        self._game_package = (game_package or "").strip() or GAME_PACKAGE_ENDFIELD
         self._resource: Optional[Any] = None
         self._tasker: Optional[Any] = None
         self._controller: Optional[Any] = None
@@ -342,7 +354,7 @@ class MaaEndRuntime:
             return False
 
     _CONNECTION_TIMEOUT_S = 20
-    _SCRECAP_TIMEOUT_S = 10
+    _SCREENCAP_TIMEOUT_S = 10
     _MAX_TASK_RETRIES = 1
 
     # 不需要「先回到主世界」前置的任务：自身负责启动游戏/恢复，或本身就是进入主世界。
@@ -353,10 +365,27 @@ class MaaEndRuntime:
         "RecoverGame", "StopApp", "StartApp",
     })
 
+    # 目标即「进入游戏/处于主世界」的启动类任务。其 pipeline 在云冷启动时可能因
+    # 加载闪屏/首页未被 OpenGame 链覆盖而报失败（假阴性），但游戏实际已加载或可由
+    # 通用 SceneAnyEnterWorld 推进到主世界。run_task 对此类任务的失败做有界纠正，
+    # 与 _run_task_once 的 False-Success（假阳性）纠正对称，避免队列首项误报失败。
+    _TASKS_OPEN_GAME = frozenset({
+        "AndroidOpenGame", "PCOpenGame", "OpenGame", "RecoverGame",
+    })
+
     # 长时间运行任务：好友拜访（53 个好友 × 加载+操作+退出 ≈ 15-25 分钟）、
     # 信用商店批量购买等。300s 看门狗会误杀，需更长超时。
+    # DijiangRewards：多子任务（接待室/制造舱/培育舱/线索/情绪恢复/种子提取）串联，实测 8-15 分钟
+    # AutoCollect：22 条路线 × (传送+VLM 导航+采集+OCR 验证+重试)，实测 20-40 分钟
+    # AutoStockpile/AutoSell/DailyRewards：含 SubTask 串联（物资调度/自动售卖/每日奖励领取），
+    # 实测 5-15 分钟，300s 看门狗在云游戏高延迟环境下会误杀
     _TASKS_LONG_RUNNING = frozenset({
         "VisitFriends",
+        "DijiangRewards",
+        "AutoCollect",
+        "AutoStockpile",
+        "AutoSell",
+        "DailyRewards",
     })
 
     def _connect_once(self) -> bool:
@@ -395,7 +424,7 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "ADB 控制器连接报告失败（输入通道不可用），尝试降级连接", address=self._device_address)
             try:
                 probe_job = self._controller.post_screencap()
-                probe_ok = self._wait_job(probe_job, timeout_s=float(self._SCRECAP_TIMEOUT_S))
+                probe_ok = self._wait_job(probe_job, timeout_s=float(self._SCREENCAP_TIMEOUT_S))
                 if probe_ok:
                     self.logger.warning(LogCategory.MAIN, "控制器降级连接成功（仅截图，无触控）", address=self._device_address)
                 else:
@@ -410,7 +439,7 @@ class MaaEndRuntime:
         # 暂时返回空帧。只要 ADB 控制器本身已连上，就视为设备已连接，GUI 应显示
         # "已连接"。screencap 后续在任务执行时会自动重试。
         screencap_job = self._controller.post_screencap()
-        if not self._wait_job(screencap_job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
+        if not self._wait_job(screencap_job, timeout_s=float(self._SCREENCAP_TIMEOUT_S)):
             self.logger.warning(LogCategory.MAIN, "首次截图失败或超时（不阻断连接）", address=self._device_address)
         self._tasker = Tasker()
         if not self._tasker.bind(self._resource, self._controller):
@@ -778,12 +807,14 @@ class MaaEndRuntime:
                 if default_case is None:
                     continue
                 value = default_case
-            override.update(self._apply_option(opt_def, value))
+            override.update(self._apply_option(opt_def, value, option_defs, options))
         base_override = task.get("pipeline_override") or {}
         merged = self._merge_overrides(base_override, override)
         return merged
 
-    def _apply_option(self, opt_def: Dict[str, Any], value: Any) -> Dict[str, Any]:
+    def _apply_option(self, opt_def: Dict[str, Any], value: Any,
+                      option_defs: Optional[Dict[str, Any]] = None,
+                      options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         result: Dict[str, Any] = {}
         opt_type = opt_def.get("type", "switch")
         cases = opt_def.get("cases", [])
@@ -793,12 +824,26 @@ class MaaEndRuntime:
                 if case.get("name") == case_name:
                     result.update(case.get("pipeline_override") or {})
                     nested_options = case.get("option") or []
-                    nested_defs = opt_def.get("option", {}) if isinstance(opt_def.get("option"), dict) else {}
+                    # 嵌套选项定义位于顶层 option_defs 中（与父选项同级），而非父选项的 "option" 字段内。
+                    # 旧代码 nested_defs = opt_def.get("option", {}) 取的是父选项的 "option" 字段，
+                    # 但任务定义中嵌套选项定义与父选项同级，必须用 option_defs 才能取到。
+                    nested_defs = option_defs if isinstance(option_defs, dict) else {}
                     for nested_name in nested_options:
-                        nested_value = value.get(nested_name) if isinstance(value, dict) else None
+                        # 用户配置可能以两种格式存储嵌套选项值：
+                        # 1. 字典格式：value = {"NestedOpt": "Yes", ...}（父选项值为 dict）
+                        # 2. 扁平格式：options = {"ParentOpt": "Yes", "NestedOpt": "Yes", ...}（嵌套选项作为顶层 key）
+                        # 旧代码仅支持格式 1，导致 GUI 以扁平格式保存的嵌套选项（如 SellProduct 的
+                        # ValleyIVRefugeeCamp/ValleyIVInfraStation 等）被静默忽略，引发"没过说过"误判。
+                        if isinstance(value, dict):
+                            nested_value = value.get(nested_name)
+                        elif isinstance(options, dict):
+                            nested_value = options.get(nested_name)
+                        else:
+                            nested_value = None
                         if nested_value is None:
                             continue
-                        result.update(self._apply_option(nested_defs.get(nested_name, {}), nested_value))
+                        result.update(self._apply_option(
+                            nested_defs.get(nested_name, {}), nested_value, option_defs, options))
                     return result
             default_case = opt_def.get("default_case")
             if default_case:
@@ -822,6 +867,23 @@ class MaaEndRuntime:
             for case in cases:
                 if case.get("name") == active_case:
                     result.update(case.get("pipeline_override") or {})
+                    # 处理嵌套选项（与 switch 类型一致）。
+                    # select 类型的 case 也可能携带 "option" 字段（如 DijiangRewards 的
+                    # SelectToGrow=Any 携带 AutoExtractSeed/SortBy/SortOrder）。
+                    # 旧代码直接 return，导致这些嵌套选项被静默忽略，引发"没过说过"误判。
+                    nested_options = case.get("option") or []
+                    nested_defs = option_defs if isinstance(option_defs, dict) else {}
+                    for nested_name in nested_options:
+                        if isinstance(value, dict):
+                            nested_value = value.get(nested_name)
+                        elif isinstance(options, dict):
+                            nested_value = options.get(nested_name)
+                        else:
+                            nested_value = None
+                        if nested_value is None:
+                            continue
+                        result.update(self._apply_option(
+                            nested_defs.get(nested_name, {}), nested_value, option_defs, options))
                     return result
             return result
         if opt_type == "input":
@@ -837,10 +899,34 @@ class MaaEndRuntime:
         resolved = json.loads(json.dumps(payload))
         for key, val in resolved.items():
             if isinstance(val, str):
-                resolved[key] = self._replace_tokens(val, value)
+                replaced = self._replace_tokens(val, value)
+                # 模板替换后，纯数字字符串需转为 int/float，否则 MaaFW pipeline
+                # 解析器会对 max_hit/timeout/threshold 等字段报 type error。
+                # 例如 "{MaxClueSend}" → "3"（string）→ 3（int）
+                resolved[key] = self._coerce_numeric(replaced)
             elif isinstance(val, dict):
                 resolved[key] = self._resolve_input_tokens(val, value)
         return resolved
+
+    def _coerce_numeric(self, text: str) -> Any:
+        """将纯数字字符串转为 int/float，非数字字符串原样返回。
+
+        MaaFW pipeline 字段如 max_hit/timeout/threshold 期望数值类型，
+        但模板替换（{MaxClueSend} → "3"）总产生字符串。此方法将 "3" → 3(int)、
+        "3.5" → 3.5(float)，同时保留 "Yes"/"全部售出" 等非数字字符串。
+        """
+        stripped = text.strip()
+        if not stripped:
+            return text
+        try:
+            return int(stripped)
+        except ValueError:
+            pass
+        try:
+            return float(stripped)
+        except ValueError:
+            pass
+        return text
 
     def _replace_tokens(self, text: str, values: Dict[str, Any]) -> str:
         result = text
@@ -859,52 +945,130 @@ class MaaEndRuntime:
                 merged[key] = value
         return merged
 
+    def _wait_for_tasker_ready(self, wait_s: float = 5.0, rebuild_on_stuck: bool = True) -> bool:
+        """等待 Tasker 退出 stopping 状态，避免 post_task/post_recognition 在
+        stopping 状态下立即失败（"runner id not found [task_id=0]"）。
+
+        MaaFW Tasker 在以下情况会进入 stopping 状态：
+        - run_pipeline 超时调用 post_stop() 释放 MaaFW
+        - 看门狗 _connection_watchdog 检测到卡死调用 post_stop()
+        - 任务异常被外部 post_stop() 中断
+
+        Tasker 不会自动从 stopping 状态恢复，必须等待内部 runner 释放或重建
+        Tasker 实例。本方法提供两个层次：
+        1. 轮询 self._tasker.stopping，最多等待 wait_s 秒
+        2. 若超时仍 stopping 且 rebuild_on_stuck=True，重建 Tasker（重新创建
+           实例并 bind resource/controller）
+
+        Returns:
+            True 若 Tasker 已就绪（不在 stopping 状态），False 若无法恢复
+        """
+        if not self._tasker:
+            return False
+        try:
+            if not getattr(self._tasker, "stopping", False):
+                return True
+        except Exception:
+            return True  # 属性不可访问时假设就绪，避免阻塞
+        self.logger.warning(LogCategory.MAIN, "Tasker 处于 stopping 状态，等待恢复", wait_s=wait_s)
+        deadline = time.monotonic() + wait_s
+        while time.monotonic() < deadline:
+            try:
+                if not getattr(self._tasker, "stopping", False):
+                    self.logger.info(LogCategory.MAIN, "Tasker 已退出 stopping 状态")
+                    return True
+            except Exception:
+                return True
+            time.sleep(0.2)
+        if not rebuild_on_stuck:
+            self.logger.warning(LogCategory.MAIN, "Tasker 仍在 stopping 状态（不重建）")
+            return False
+        # 重建 Tasker：post_stop 后 Tasker 内部 runner 可能未释放，
+        # 必须新建 Tasker 实例并重新 bind resource/controller 才能恢复
+        self.logger.warning(LogCategory.MAIN, "Tasker 仍卡在 stopping 状态，重建 Tasker 实例")
+        try:
+            old_tasker = self._tasker
+            try:
+                # 旧的 Tasker 不需要 destroy，Python GC 会处理
+                pass
+            except Exception:
+                pass
+            if Tasker is None:
+                return False
+            new_tasker = Tasker()
+            if not new_tasker.bind(self._resource, self._controller):
+                self.logger.error(LogCategory.MAIN, "重建 Tasker bind 失败")
+                return False
+            try:
+                new_tasker.set_save_on_error(True)
+            except Exception:
+                pass
+            # 重新注册 AgentClient sink（若存在）
+            if self._agent_client is not None:
+                try:
+                    self._agent_client.register_sink(self._resource, self._controller, new_tasker)
+                except Exception as exc:
+                    self.logger.warning(LogCategory.MAIN, "重建 Tasker 后 AgentClient sink 注册失败", error=str(exc))
+            self._tasker = new_tasker
+            self.logger.info(LogCategory.MAIN, "Tasker 重建成功")
+            return True
+        except Exception as exc:
+            self.logger.error(LogCategory.MAIN, "Tasker 重建失败", error=str(exc))
+            return False
+
     def _wait_job(self, job: Any, timeout_s: Optional[float] = None) -> bool:
         """等待任务完成。
 
         注意：job.wait() 返回 Job 对象自身（truthy），不是任务成功与否的布尔值。
         必须用 job.succeeded 检查任务的真实状态。
 
-        如果指定 timeout_s，使用线程 + join(timeout) 包装，避免 MaaFramework
+        如果指定 timeout_s，使用 run_with_timeout 包装，避免 MaaFramework
         并发限制导致 job.wait() 无限阻塞。超时返回 False。
         """
         if timeout_s is None:
             job.wait()
             return job.succeeded
-        import threading as _threading
-        box: dict = {"succeeded": False, "error": None}
 
-        def _do_wait() -> None:
-            try:
-                job.wait()
-                box["succeeded"] = bool(job.succeeded)
-            except BaseException as exc:
-                box["error"] = exc
+        def _do_wait() -> bool:
+            job.wait()
+            return bool(job.succeeded)
 
-        t = _threading.Thread(target=_do_wait, daemon=True, name="maafw-wait-job")
-        t.start()
-        t.join(timeout=timeout_s)
-        if t.is_alive():
-            self.logger.warning(
+        result = run_with_timeout(
+            _do_wait,
+            timeout=timeout_s,
+            name="maafw-wait-job",
+            thread_name="maafw-wait-job",
+            on_timeout=lambda n, t: self.logger.warning(
                 LogCategory.MAIN, "job.wait() 超时，放弃等待",
                 timeout_s=timeout_s,
-            )
+            ),
+        )
+        if result.is_timeout or result.is_error:
             return False
-        if box["error"] is not None:
-            return False
-        return box["succeeded"]
+        return bool(result.data)
 
     # SceneAnyEnterWorld 等导航类管道的正常执行耗时上限（秒）。
     # 实测：从主世界到主世界 ≈3s，从登录页/弹窗后回主世界 ≤30s。
-    # 超过 60s 通常是 InWorld 模板在非主世界页面误匹配导致 MaaFW next 列表
+    # 云终末地从启动器首页点击「开始游戏」到进入主世界 ≈39s（含加载+logo+点击继续），
+    # 网络波动时可能超过 60s。设为 90s 给云终末地足够加载时间，避免间歇性超时。
+    # 超过 90s 通常是 InWorld 模板在非主世界页面误匹配导致 MaaFW next 列表
     # 死循环（PostStop / DoNothing 节点 loop back）。看门狗会 post_stop 释放 MaaFW。
-    _PIPELINE_NAV_TIMEOUT_S = 60
+    _PIPELINE_NAV_TIMEOUT_S = 90
 
-    def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any]) -> bool:
+    def run_pipeline(self, entry: str, pipeline_override: Dict[str, Any], timeout_s: Optional[float] = None) -> bool:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行管道")
             return False
-        self.logger.info(LogCategory.MAIN, "开始执行自定义管道", entry=entry)
+        # 超时兜底：默认使用 _PIPELINE_NAV_TIMEOUT_S（60s），调用方可传入更短的超时
+        # （如 __ScenePrivateAnyEnterWorldSuccess 判定节点用 5s，避免 60s 等待阻塞队列）
+        effective_timeout = timeout_s if timeout_s is not None else self._PIPELINE_NAV_TIMEOUT_S
+        self.logger.info(LogCategory.MAIN, "开始执行自定义管道", entry=entry, timeout_s=effective_timeout)
+        # TASKER-READY-FIX: post_stop 后 Tasker 会进入 stopping 状态，必须等待恢复
+        # 否则 post_task/post_recognition 立即返回 task_id=0 报 "runner id not found"。
+        # 必须在 _dismiss_cloud_idle_popup 之前调用，因为后者使用 post_recognition
+        if not self._wait_for_tasker_ready(wait_s=5.0, rebuild_on_stuck=True):
+            self.logger.error(LogCategory.MAIN, "Tasker 未就绪，无法执行管道", entry=entry)
+            return False
         # 管道执行前检测并关闭云游戏空闲断连弹窗
         self._dismiss_cloud_idle_popup()
         try:
@@ -918,18 +1082,23 @@ class MaaEndRuntime:
             # 超时兜底：避免 SceneAnyEnterWorld 在 InWorld 误匹配时陷入 MaaFW
             # next 列表死循环（实测 4 分钟仍未退出）。超时后 post_stop 释放 MaaFW，
             # 让上层（_ensure_in_world_before_task / _ensure_game_is_alive）走重启路径。
-            succeeded = self._wait_job(job, timeout_s=self._PIPELINE_NAV_TIMEOUT_S)
+            succeeded = self._wait_job(job, timeout_s=effective_timeout)
             if not succeeded and job is not None:
                 self.logger.warning(
                     LogCategory.MAIN,
                     "管道执行超时，发送 post_stop 释放 MaaFW",
                     entry=entry,
-                    timeout_s=self._PIPELINE_NAV_TIMEOUT_S,
+                    timeout_s=effective_timeout,
                 )
                 try:
                     self._tasker.post_stop()
                 except Exception:
                     pass
+                # POST-STOP-WAIT: 等待 Tasker 退出 stopping 状态，避免后续调用
+                # 立即失败。run_pipeline 通常被串联调用（如 _open_game_false_negative_recover
+                # 先 SceneAnyEnterWorld 再 __ScenePrivateAnyEnterWorldSuccess），
+                # 上层调用方不会感知 stopping 状态，需要在此主动恢复。
+                self._wait_for_tasker_ready(wait_s=3.0, rebuild_on_stuck=False)
         except Exception as e:
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "自定义管道执行异常", entry=entry, error=str(e))
@@ -960,7 +1129,90 @@ class MaaEndRuntime:
             self._client_version = options["ClientVersion"]
         override = self.build_pipeline_override(task_name, options)
         entry = task.get("entry", task_name)
-        return self._run_task_with_retry(task_name, options, entry, override)
+        ok = self._run_task_with_retry(task_name, options, entry, override)
+        if (
+            not ok
+            and task_name in self._TASKS_OPEN_GAME
+            and not self._user_stop_event.is_set()
+            and self._connected
+        ):
+            # 假阴性纠正：启动类任务 pipeline 报失败，但通用 SceneAnyEnterWorld
+            # 能把游戏推进到主世界（云冷启动加载闪屏/首页未被 OpenGame 链覆盖时常见）。
+            if self._open_game_false_negative_recover(task_name):
+                return True
+        return ok
+
+    def _open_game_false_negative_recover(self, task_name: str) -> bool:
+        """启动类任务假阴性纠正：有界地用 SceneAnyEnterWorld 推进到主世界。
+
+        云终末地冷启动/空闲断连恢复时，OpenGame 通用登录链的等待节点不覆盖
+        『正在加载资源』闪屏，导致 AndroidOpenGame 在加载未完成时即报失败，但游戏
+        随后加载完成并可由 SceneAnyEnterWorld（含已验证的云首页/点击继续节点）推进到
+        主世界。此处做有界纠正：成功进入主世界则视为误判纠正返回 True；若确有异常
+        （登录失败/断网）则 SceneAnyEnterWorld 亦无法进入主世界，仍返回 False，不会
+        掩盖真实失败。仅作为 pipeline 自身驱动失败时的保底，正常路径不触发。
+
+        CLOUD-LOAD-RETRY: 云版本游戏冷启动加载可达 60-120s，单次 SceneAnyEnterWorld
+        （90s 超时）可能在加载未完成时即报失败。增加最多 3 次重试，每次间隔 10s，
+        给游戏足够的加载时间。重试期间不发送 post_stop（由 run_pipeline 内部处理）。
+        """
+        try:
+            self.logger.info(
+                LogCategory.MAIN,
+                "启动类任务报失败，尝试有界进入主世界纠正误判",
+                task=task_name,
+            )
+            # CLOUD-LOAD-RETRY: 云版本游戏加载慢，单次 SceneAnyEnterWorld 可能失败
+            # 增加重试机制，最多 3 次，每次间隔 10s
+            max_retries = 3
+            retry_interval = 10.0
+            for attempt in range(1, max_retries + 1):
+                if self._user_stop_event.is_set():
+                    return False
+                if attempt > 1:
+                    self.logger.info(
+                        LogCategory.MAIN,
+                        "误判纠正：等待游戏加载后重试",
+                        task=task_name,
+                        attempt=attempt,
+                        max_retries=max_retries,
+                        wait_s=retry_interval,
+                    )
+                    time.sleep(retry_interval)
+                if not self.run_pipeline("SceneAnyEnterWorld", {}):
+                    self.logger.warning(
+                        LogCategory.MAIN,
+                        "误判纠正：SceneAnyEnterWorld 未进入主世界",
+                        task=task_name,
+                        attempt=attempt,
+                    )
+                    continue
+                # 验证是否确实在主世界（严格判定）
+                in_world = self.run_pipeline("__ScenePrivateAnyEnterWorldSuccess", {}, timeout_s=5.0)
+                if in_world:
+                    self.logger.info(
+                        LogCategory.MAIN,
+                        "启动类任务误判纠正成功：pipeline 报失败但已进入主世界",
+                        task=task_name,
+                        attempt=attempt,
+                    )
+                    return True
+                self.logger.warning(
+                    LogCategory.MAIN,
+                    "误判纠正：严格判定未通过",
+                    task=task_name,
+                    attempt=attempt,
+                )
+            self.logger.warning(
+                LogCategory.MAIN,
+                "误判纠正：重试耗尽仍未能进入主世界（视为真实失败）",
+                task=task_name,
+                max_retries=max_retries,
+            )
+            return False
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "启动类任务误判纠正异常", task=task_name, error=str(exc))
+            return False
 
     def _run_task_with_retry(self, task_name: str, options: Dict[str, Any], entry: str, override: Dict[str, Any]) -> bool:
         for attempt in range(1 + self._MAX_TASK_RETRIES):
@@ -1014,6 +1266,11 @@ class MaaEndRuntime:
         )
         watchdog_thread.start()
         try:
+            # TASKER-READY-FIX: 前一任务看门狗可能调用 post_stop 让 Tasker 进入
+            # stopping 状态，必须等待恢复才能 post_task
+            if not self._wait_for_tasker_ready(wait_s=5.0, rebuild_on_stuck=True):
+                self.logger.error(LogCategory.MAIN, "Tasker 未就绪，无法执行任务", task=task_name, entry=entry)
+                return None
             # NODE-REG-FIX: MaaFW v5.12.x 的 MaaTaskerPostTask 对 override 中新节点
             # (不在 resource 中预先注册的节点) 无法正确解析执行，导致 Node: name="",
             # completed=False, succeeded=False。
@@ -1034,6 +1291,14 @@ class MaaEndRuntime:
             return None
         finally:
             watchdog_stop.set()
+            # WATCHDOG-POST-STOP-WAIT: 看门狗可能在 _wait_job 期间触发 post_stop
+            # 让 Tasker 进入 stopping 状态，需要主动等待恢复，避免下一任务立即失败
+            try:
+                if self._tasker is not None and getattr(self._tasker, "stopping", False):
+                    self.logger.info(LogCategory.MAIN, "任务结束检测到 Tasker stopping，等待恢复", task=task_name)
+                    self._wait_for_tasker_ready(wait_s=3.0, rebuild_on_stuck=False)
+            except Exception:
+                pass
         if succeeded:
             if self._detect_task_skipped(job, task_name, entry):
                 self.logger.warning(LogCategory.MAIN, "任务被跳过（未满足执行条件，如未到计划周期）", task=task_name)
@@ -1048,22 +1313,41 @@ class MaaEndRuntime:
                 # FS-1: 所有识别节点均未命中（OCR/TemplateMatch 全失败但 MaaFW 报成功）
                 # FS-2: 任务轨迹含 PostStop/AbortPipeline 节点（被中止但 MaaFW 仍报 Succeeded）
                 # FS-3: 节点数为 0 或所有节点 completed=False（MaaFW override 注册失败的典型症状）
+                # FS-4: 任务经 FakeTrue 空节点回落完成（无识别命中的空转成功，典型"没过说过"误判）
                 has_recognition = False
                 has_any_hit = False
                 has_post_stop = False
+                has_faketrue_completed = False
                 completed_node_count = 0
+                hit_node_names: List[str] = []
+                all_node_names: List[str] = []
                 for node in detail.nodes:
+                    node_name = getattr(node, "name", "") or ""
+                    all_node_names.append(node_name)
                     if getattr(node, "completed", False):
                         completed_node_count += 1
+                    node_name_lower = node_name.lower()
                     # PostStop 中止：action 类型为 PostStop 或节点名含 Abort/Stop
-                    node_name = (getattr(node, "name", "") or "").lower()
-                    if "abort" in node_name or "poststop" in node_name or "stop" in node_name:
+                    if "abort" in node_name_lower or "poststop" in node_name_lower or "stop" in node_name_lower:
                         has_post_stop = True
+                    # FakeTrue 空节点：无识别无动作的总为真节点，常作为 next 末尾的软失败回落
+                    if "faketrue" in node_name_lower and getattr(node, "completed", False):
+                        has_faketrue_completed = True
                     if node.recognition:
                         has_recognition = True
                         if node.recognition.hit:
                             has_any_hit = True
-                            # 不 break：需要扫描全部节点检测 PostStop
+                            hit_node_names.append(node_name)
+
+                # 节点轨迹 INFO 级日志（成功路径），便于排查"没过说过"误判
+                self.logger.info(
+                    LogCategory.MAIN,
+                    "任务节点轨迹",
+                    task=task_name,
+                    nodes=all_node_names,
+                    hit_nodes=hit_node_names,
+                    has_any_hit=has_any_hit,
+                )
 
                 false_success_reason = None
                 if has_recognition and not has_any_hit:
@@ -1072,6 +1356,8 @@ class MaaEndRuntime:
                     false_success_reason = "任务被 PostStop/Abort 中止但 MaaFW 报告成功"
                 elif completed_node_count == 0 and len(detail.nodes) > 0:
                     false_success_reason = "所有节点均未完成（MaaFW override 注册失败或 pipeline 解析错误）"
+                elif has_faketrue_completed and not has_any_hit:
+                    false_success_reason = "任务经 FakeTrue 空节点回落完成（无识别命中的空转成功）"
 
                 if false_success_reason:
                     self.logger.warning(
@@ -1084,6 +1370,7 @@ class MaaEndRuntime:
                         has_recognition=has_recognition,
                         has_any_hit=has_any_hit,
                         has_post_stop=has_post_stop,
+                        has_faketrue_completed=has_faketrue_completed,
                     )
                     return False
 
@@ -1097,6 +1384,21 @@ class MaaEndRuntime:
             detail_fail = job.get()
             if detail_fail:
                 self._log_recognition_detail(task_name, entry, detail_fail)
+                # 失败路径同样记录节点轨迹 INFO 日志，便于定位失败节点
+                fail_node_names = [getattr(n, "name", "") or "" for n in detail_fail.nodes]
+                fail_hit_names = [
+                    getattr(n, "name", "") or ""
+                    for n in detail_fail.nodes
+                    if n.recognition and n.recognition.hit
+                ]
+                self.logger.info(
+                    LogCategory.MAIN,
+                    "任务节点轨迹",
+                    task=task_name,
+                    nodes=fail_node_names,
+                    hit_nodes=fail_hit_names,
+                    has_any_hit=bool(fail_hit_names),
+                )
         except Exception:
             pass
         return False
@@ -1305,6 +1607,8 @@ class MaaEndRuntime:
         本方法通过 SceneAnyEnterWorld pipeline 尝试回到主世界，失败不阻止任务执行。
 
         注：如果 SceneAnyEnterWorld 因云游戏空闲断连弹窗阻塞，先尝试关闭弹窗再执行。
+        SceneAnyEnterWorld 返回 True 后还需验证是否确实在主世界（严格判定），
+        因为中间节点（如 __ScenePrivateCloudSplashContinue）匹配也会导致返回 True。
         """
         if not self._connected or self._tasker is None:
             return
@@ -1313,10 +1617,17 @@ class MaaEndRuntime:
             # 清理弹窗防阻塞
             self._dismiss_cloud_idle_popup()
             ok = self.run_pipeline("SceneAnyEnterWorld", {})
-            if ok:
-                self.logger.info(LogCategory.MAIN, "任务间清理：已回到主世界", before_task=task_name)
+            if not ok:
+                self.logger.warning(LogCategory.MAIN, "任务间清理：SceneAnyEnterWorld 未命中（继续执行任务）", before_task=task_name)
+                return
+            # 验证是否确实在主世界（严格判定，避免子页面误匹配）
+            # 使用 5s 超时：__ScenePrivateAnyEnterWorldSuccess 是判定节点（无 next），
+            # 节点级 timeout:2000 在 MaaFW 中不限制识别失败的等待时间，需用 job.wait 短超时兜底
+            verify_ok = self.run_pipeline("__ScenePrivateAnyEnterWorldSuccess", {}, timeout_s=5.0)
+            if verify_ok:
+                self.logger.info(LogCategory.MAIN, "任务间清理：已回到主世界（严格判定通过）", before_task=task_name)
             else:
-                self.logger.warning(LogCategory.MAIN, "任务间清理：回到主世界失败（继续执行任务）", before_task=task_name)
+                self.logger.warning(LogCategory.MAIN, "任务间清理：SceneAnyEnterWorld 返回成功但严格判定未通过（可能仍在子页面，继续执行任务）", before_task=task_name)
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "任务间清理异常（继续执行任务）", before_task=task_name, error=str(exc))
 
@@ -1351,114 +1662,6 @@ class MaaEndRuntime:
                 return base, {"_inline": payload}
         return base, {"_inline": payload}
 
-    def _recover_and_retry(self, task_name: str, options: Dict[str, Any]) -> bool:
-        """分级异常恢复：优先轻量 UI 修正，最终手段才重启游戏。
-
-        恢复层级：
-        1. 验证 ADB 连接可用（不可用则先重连）
-        2. 执行 RecoverGame 任务（StopApp → StartApp → OpenGame）
-        3. 等待游戏完全加载 + 关闭弹窗
-        4. 重试失败任务
-        """
-        # 用户主动停止：跳过 RecoverGame，避免游戏反复关闭再打开
-        if self._user_stop_event.is_set():
-            self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过 RecoverGame 异常恢复", task=task_name)
-            return False
-        self.logger.info(
-            LogCategory.MAIN,
-            "异常恢复开始：验证连接 → RecoverGame → 重试任务",
-            task=task_name,
-            client_version=self._client_version,
-        )
-        self._recovering = True
-        try:
-            if self._controller is None or self._tasker is None or not self._connected:
-                self.logger.info(LogCategory.MAIN, "异常恢复：需要完整重连")
-                if not self._reconnect_with_retry():
-                    self.logger.error(LogCategory.MAIN, "异常恢复：重连失败")
-                    return False
-
-            # 再次检查：重连过程中可能收到停止请求
-            if self._user_stop_event.is_set():
-                self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过 RecoverGame 任务执行", task=task_name)
-                return False
-
-            self.logger.info(LogCategory.MAIN, "异常恢复：执行 RecoverGame 任务")
-            recover_ok = self.run_task("RecoverGame", {"ClientVersion": self._client_version})
-            if not recover_ok:
-                self.logger.error(LogCategory.MAIN, "异常恢复失败：RecoverGame 任务失败")
-                return False
-
-            self._post_game_restart_cleanup()
-
-            # 重启清理后再次检查：清理过程中可能收到停止请求
-            if self._user_stop_event.is_set():
-                self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过原任务重试", task=task_name)
-                return False
-
-            self.logger.info(LogCategory.MAIN, "异常恢复：重试失败任务", task=task_name)
-            return self.run_task(task_name, options)
-        finally:
-            self._recovering = False
-
-    def _post_game_restart_cleanup(self) -> None:
-        """游戏重启后的清理：等待加载 + 关闭弹窗。
-
-        所有 time.sleep 改为 _user_stop_event.wait(timeout)，以便在用户请求停止时
-        立即退出，不再继续执行后续 BACK 键与等待。
-        """
-        self.logger.info(LogCategory.MAIN, "游戏重启后清理：等待加载 + 关闭弹窗")
-        # 等待游戏加载 8s，停止请求可立即打断
-        if self._user_stop_event.wait(timeout=8.0):
-            self.logger.warning(LogCategory.MAIN, "游戏重启后清理：检测到停止请求，提前退出")
-            return
-        for i in range(8):
-            if self._user_stop_event.is_set():
-                self.logger.warning(LogCategory.MAIN, "游戏重启后清理：检测到停止请求，提前退出", step=i)
-                return
-            try:
-                subprocess.run(
-                    [self._adb_path, "-s", self._device_address, "shell", "input", "keyevent", "4"],
-                    text=True, timeout=5, capture_output=True,
-                )
-                # 等待 1s，停止请求可立即打断
-                if self._user_stop_event.wait(timeout=1.0):
-                    self.logger.warning(LogCategory.MAIN, "游戏重启后清理：检测到停止请求，提前退出", step=i)
-                    return
-            except Exception:
-                pass
-        # 最终等待 3s，停止请求可立即打断
-        if self._user_stop_event.wait(timeout=3.0):
-            self.logger.warning(LogCategory.MAIN, "游戏重启后清理：检测到停止请求，提前退出")
-            return
-        self.logger.info(LogCategory.MAIN, "游戏重启后清理完成")
-
-    def _try_recover(self, task_name: str) -> bool:
-        """尝试恢复连接/设备状态，失败则重启应用。"""
-        try:
-            if self._controller is not None:
-                job = self._controller.post_screencap()
-                # RECOVER-SCREENCAP-TIMEOUT: 恢复时 screencap 也可能阻塞
-                if self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
-                    self._connected = True
-                    self.logger.info(LogCategory.MAIN, "恢复连接成功", task=task_name)
-                    return True
-        except Exception:
-            pass
-        try:
-            from core.capability.device.recovery import AndroidAppRestartPolicy
-            restart_policy = AndroidAppRestartPolicy(
-                adb_path=self._adb_path,
-                package=self._game_package,
-            )
-            ok = restart_policy.restart(serial=self._device_address)
-            if ok:
-                self._reconnect()
-                return True
-        except Exception as exc:
-            self.logger.error(LogCategory.MAIN, "恢复失败", task=task_name, error=str(exc))
-        return False
-
     def _try_recover_connection(self, task_name: str) -> bool:
         """专注于连接恢复：先尝试轻量重连，失败则完整重建。"""
         self.logger.info(LogCategory.MAIN, "尝试恢复连接", task=task_name)
@@ -1492,35 +1695,36 @@ class MaaEndRuntime:
                 self._quick_reconnect_adb()
         return False
 
-    def _retry_task(self, task_name: str, options: Dict[str, Any], entry: str) -> bool:
-        """恢复后重试当前任务一次。"""
-        if not self._connected or self._tasker is None:
-            return False
-        self.logger.info(LogCategory.MAIN, "重试任务", task=task_name)
-        try:
-            job = self._tasker.post_task(entry, self.build_pipeline_override(task_name, options) or {})
-            succeeded = self._wait_job(job)
-        except Exception as exc:
-            self._connected = False
-            self.logger.exception(LogCategory.MAIN, "重试异常", task=task_name, error=str(exc))
-            return False
-        if succeeded:
-            if self._detect_task_skipped(job, task_name, entry):
-                self.logger.warning(LogCategory.MAIN, "重试任务被跳过", task=task_name)
-                return False
-            self.logger.info(LogCategory.MAIN, "重试成功", task=task_name)
-            return True
-        self.logger.warning(LogCategory.MAIN, "重试失败", task=task_name)
-        return False
-
     def _send_key_back(self) -> bool:
+        """关闭当前弹窗/对话框（替代 ADB BACK 键）。
+
+        重要约束（见 project_memory）：
+        - 禁止使用 adb input（tap/swipe/keyevent）进行游戏交互，
+          com.hypergryph.endfield 会忽略 adb shell input 命令。
+        - 改用 MaaTouch（self._controller.post_click）点击屏幕右上角
+          关闭按钮区域 [1190, 20, 20, 20]（实测中心 (1200, 30) 有效），
+          该位置在好友列表/任务详情/菜单子页面/设置弹窗等绝大多数模态页面
+          均为关闭按钮，与 pipeline 中的 __ScenePrivateCloudFriendsListExit
+          /__ScenePrivateCloudMenuSubPageExit/__ScenePrivateCloudMissionPageExit
+          节点使用的 target 一致。
+        - 若 _controller 不可用（未连接），降级为 ADB keyevent 4 仅用于
+          系统级弹窗（非游戏内交互），作为最后兜底。
+        """
         try:
+            if self._connected and self._controller is not None:
+                # MaaTouch 点击右上角关闭按钮区域
+                click_job = self._controller.post_click(1200, 30)
+                click_job.wait()
+                time.sleep(0.8)
+                self.logger.info(LogCategory.MAIN, "已点击右上角关闭按钮（MaaTouch 替代 BACK 键）")
+                return True
+            # 兜底：仅当 MaaTouch 不可用时使用 ADB keyevent（系统级弹窗）
+            self.logger.warning(LogCategory.MAIN, "MaaTouch 不可用，降级使用 ADB BACK 键")
             subprocess.run(
                 [self._adb_path, "-s", self._device_address, "shell", "input", "keyevent", "4"],
                 text=True, timeout=5, capture_output=True,
             )
             time.sleep(0.8)
-            self.logger.info(LogCategory.MAIN, "已发送 BACK 关闭弹窗")
             return True
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "发送 BACK 键失败", error=str(exc))
@@ -1621,7 +1825,7 @@ class MaaEndRuntime:
             if self._controller is not None:
                 try:
                     job = self._controller.post_screencap()
-                    screencap_ok = self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S))
+                    screencap_ok = self._wait_job(job, timeout_s=float(self._SCREENCAP_TIMEOUT_S))
                 except Exception:
                     pass
             if screencap_ok:
@@ -1643,10 +1847,13 @@ class MaaEndRuntime:
     # 此弹窗会阻止所有后续 pipeline 操作，必须在任务间逐一检测并关闭。
     # 注意：弹窗关闭后游戏可能仍在运行，也可能已自动退出。
     # 需在关闭后检查游戏状态并重新启动。
+    # 重要：云游戏空闲断连弹窗会忽略 MaaTouch 触控（与"自动登出"弹窗一样，
+    # 截图完全无变化）。当检测到点击"知道了"后弹窗仍在，必须直接 force-stop
+    # 重启游戏（adb am force-stop + monkey 启动），不可反复尝试点击。
     _CLOUD_IDLE_TIMEOUT_KEYWORDS = frozenset({
         "长时间未操作", "自动结束", "点击任意位置继续",
         "知道了", "提示",
-        "长时间未操作", "将自动结束",
+        "将自动结束",
     })
     _CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT = "知道了"
     _CLOUD_IDLE_DISMISS_RETRY_COUNT = 3
@@ -1670,27 +1877,38 @@ class MaaEndRuntime:
         return True
 
     def _dismiss_cloud_idle_popup(self) -> bool:
-        """检测并关闭云游戏空闲断连弹窗。
+        """检测并关闭云游戏空闲断连弹窗，并推进到主世界。
 
-        使用 post_recognition OCR 检测弹窗中的"知道了"按钮，
-        若检测到则点击该按钮位置关闭弹窗。
+        云终末地空闲断连后游戏会重启到 启动页/logo 页（含"开始游戏"/"点击任意位置继续"），
+        而不是主世界。旧实现只点击"知道了"按钮就返回，导致后续 InWorld 因 logo 页的
+        "设置/修复"按钮误判为主世界（已修复：InWorld 移除了设置/修复 OCR），任务因
+        __ScenePrivateWorldEnterMenuList 在 logo 页无菜单按钮而全部失败。
+
+        现关闭弹窗后继续推进：检测并点击"开始游戏"/"点击任意位置继续"，等待加载完成，
+        确保返回 True 时游戏已在主世界或正在加载中。
 
         Returns:
-            True 若弹窗已检测并关闭，False 若无弹窗或操作失败。
+            True 若弹窗已检测并关闭（并已推进到主世界/加载中），False 若无弹窗。
         """
         if not self._connected or self._tasker is None or self._controller is None:
+            return False
+        # TASKER-READY-FIX: post_recognition 在 stopping 状态下也会失败，
+        # 需先等待 Tasker 就绪。rebuild_on_stuck=False 避免在弹窗检测路径上重建 Tasker
+        # （重建逻辑由 run_pipeline/run_task 调用方负责）
+        if not self._wait_for_tasker_ready(wait_s=3.0, rebuild_on_stuck=False):
             return False
         try:
             # 截图
             job = self._controller.post_screencap()
-            if not self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
+            if not self._wait_job(job, timeout_s=float(self._SCREENCAP_TIMEOUT_S)):
                 return False
             img = self._controller.cached_image
             if img is None:
                 return False
 
-            # OCR 全屏搜索"知道了"按钮
             from maa.pipeline import JOCR, JRecognitionType
+
+            # OCR 全屏搜索"知道了"按钮
             ocr_param = JOCR(
                 expected=[self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT],
                 roi=[0, 0, img.shape[1], img.shape[0]],
@@ -1700,74 +1918,208 @@ class MaaEndRuntime:
             detail = ocr_job.wait().get()
 
             # 检查是否找到"知道了"按钮
-            if detail:
-                for node in detail.nodes:
+            if not detail:
+                return False
+            popup_hit = False
+            for node in detail.nodes:
+                if node.recognition and node.recognition.hit:
+                    best = node.recognition.best_result
+                    if best:
+                        bx = best.box
+                        if hasattr(bx, 'x'):
+                            cx = bx.x + bx.w // 2
+                            cy = bx.y + bx.h // 2
+                        else:
+                            cx = bx[0] + bx[2] // 2
+                            cy = bx[1] + bx[3] // 2
+                        self.logger.warning(
+                            LogCategory.MAIN,
+                            "检测到云游戏空闲断连弹窗，点击关闭",
+                            button_text=self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT,
+                            target=(cx, cy),
+                        )
+                        click_job = self._controller.post_click(cx, cy)
+                        click_job.wait()
+                        time.sleep(2.0)
+                        # 弹出可能还残留二次确认或其他弹窗，再做 BACK 清理
+                        for _ in range(2):
+                            self._send_key_back()
+                        popup_hit = True
+                        break
+            if not popup_hit:
+                return False
+
+            # 验证弹窗是否已关闭：云游戏空闲断连弹窗可能忽略 MaaTouch 触控
+            # （与"自动登出"弹窗一样，截图完全无变化）。
+            # 若点击后弹窗仍在，必须 force-stop 重启游戏。
+            verify_deadline = time.time() + 6.0
+            dialog_persisted = False
+            while time.time() < verify_deadline:
+                verify_job = self._controller.post_screencap()
+                if not self._wait_job(verify_job, timeout_s=float(self._SCREENCAP_TIMEOUT_S)):
+                    time.sleep(1.0)
+                    continue
+                verify_img = self._controller.cached_image
+                if verify_img is None:
+                    time.sleep(1.0)
+                    continue
+                verify_param = JOCR(
+                    expected=["知道了", "长时间未操作", "自动结束", "自动结"],
+                    roi=[0, 0, verify_img.shape[1], verify_img.shape[0]],
+                    threshold=0.3,
+                )
+                verify_detail = self._tasker.post_recognition(
+                    JRecognitionType.OCR, verify_param, verify_img
+                ).wait().get()
+                still_visible = False
+                if verify_detail:
+                    for vnode in verify_detail.nodes:
+                        if vnode.recognition and vnode.recognition.hit:
+                            still_visible = True
+                            break
+                if not still_visible:
+                    break
+                dialog_persisted = True
+                time.sleep(1.0)
+
+            if dialog_persisted:
+                self.logger.warning(
+                    LogCategory.MAIN,
+                    "云弹窗点击无效（MaaTouch 被忽略），执行 force-stop 重启游戏",
+                )
+                try:
+                    subprocess.run(
+                        [self._adb_path, "-s", self._device_address, "shell",
+                         "am", "force-stop", self._game_package],
+                        text=True, timeout=10, capture_output=True,
+                    )
+                    time.sleep(3.0)
+                    subprocess.run(
+                        [self._adb_path, "-s", self._device_address, "shell",
+                         "monkey", "-p", self._game_package, "-c",
+                         "android.intent.category.LAUNCHER", "1"],
+                        text=True, timeout=10, capture_output=True,
+                    )
+                    self.logger.info(LogCategory.MAIN, "force-stop 重启已完成，等待游戏加载")
+                    time.sleep(12.0)
+                except Exception as exc:
+                    self.logger.warning(LogCategory.MAIN, "force-stop 重启失败", error=str(exc))
+
+            # 关闭弹窗后，游戏会重启到启动页/logo 页。需要推进到主世界，
+            # 否则后续任务会因 InWorld 不匹配（已移除设置/修复 OCR）而失败。
+            # 循环检测并点击"开始游戏"/"点击任意位置继续"，最多尝试 30s。
+            self.logger.info(LogCategory.MAIN, "云弹窗已关闭，推进游戏到主世界")
+            advance_deadline = time.time() + 30.0
+            advanced = False
+            while time.time() < advance_deadline:
+                time.sleep(2.0)
+                # 截图
+                cap_job = self._controller.post_screencap()
+                if not self._wait_job(cap_job, timeout_s=float(self._SCREENCAP_TIMEOUT_S)):
+                    continue
+                cur_img = self._controller.cached_image
+                if cur_img is None:
+                    continue
+
+                # OCR 找"开始游戏"/"点击任意位置继续"/"点击"
+                advance_param = JOCR(
+                    expected=["开始游戏", "開始遊戲", "(?i)Start\\s*Game", "(?i)Start",
+                              "点击任意位置继续", "點擊任意位置繼續", "点击", "點擊",
+                              "(?i)Continue", "(?i)Tap", "(?i)Click"],
+                    roi=[0, 0, cur_img.shape[1], cur_img.shape[0]],
+                    threshold=0.5,
+                )
+                adv_job = self._tasker.post_recognition(JRecognitionType.OCR, advance_param, cur_img)
+                adv_detail = adv_job.wait().get()
+                if not adv_detail:
+                    continue
+                advance_target = None
+                for node in adv_detail.nodes:
                     if node.recognition and node.recognition.hit:
                         best = node.recognition.best_result
                         if best:
-                            # best.box 是 tuple/list [x,y,w,h] 或 Rect 对象
                             bx = best.box
-                            if hasattr(bx, 'x'):   # Rect 对象
-                                cx = bx.x + bx.w // 2
-                                cy = bx.y + bx.h // 2
-                            else:                   # list/tuple [x,y,w,h]
-                                cx = bx[0] + bx[2] // 2
-                                cy = bx[1] + bx[3] // 2
-                            self.logger.warning(
-                                LogCategory.MAIN,
-                                "检测到云游戏空闲断连弹窗，点击关闭",
-                                button_text=self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT,
-                                target=(cx, cy),
-                            )
-                            click_job = self._controller.post_click(cx, cy)
-                            click_job.wait()
-                            time.sleep(2.0)
-                            # 弹出可能还残留二次确认或其他弹窗，再做 BACK 清理
-                            for _ in range(2):
-                                self._send_key_back()
-                            return True
-            return False
+                            if hasattr(bx, 'x'):
+                                advance_target = (bx.x + bx.w // 2, bx.y + bx.h // 2)
+                            else:
+                                advance_target = (bx[0] + bx[2] // 2, bx[1] + bx[3] // 2)
+                            break
+                if advance_target:
+                    self.logger.info(
+                        LogCategory.MAIN,
+                        "云弹窗恢复：点击推进按钮",
+                        target=advance_target,
+                    )
+                    click_job = self._controller.post_click(*advance_target)
+                    click_job.wait()
+                    advanced = True
+                    # 点击后等待加载，再循环检测是否需要再次点击
+                    time.sleep(3.0)
+                    continue
+                else:
+                    # 没有找到推进按钮，可能已在主世界或正在加载
+                    if advanced:
+                        # 已点击过推进按钮，再等一会确认
+                        time.sleep(3.0)
+                        break
+                    # 未点击过，继续等待
+                    continue
+
+            if advanced:
+                self.logger.info(LogCategory.MAIN, "云弹窗恢复：已推进到主世界/加载中")
+            else:
+                self.logger.warning(LogCategory.MAIN, "云弹窗恢复：未找到推进按钮（可能已在主世界）")
+            return True
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "云游戏空闲弹窗检测异常", error=str(exc))
             return False
 
     def _ensure_game_is_alive(self) -> bool:
-        """检查游戏是否仍在运行，必要时重新启动。
+        """检查游戏是否仍在运行，必要时尝试回到主世界。
 
         在队列任务间调用，确保游戏进程在继续执行任务前处于活跃状态。
         检查链：
         1. ADB 健康检查
         2. 截图验证
-        3. 通过 InWorld pipeline 判断游戏是否在主世界
-        4. 若不在主世界，尝试 SceneAnyEnterWorld
-        5. 若仍失败，重新启动游戏
+        3. 尝试 SceneAnyEnterWorld 回到主世界
+        4. 验证是否确实在主世界（严格判定，避免子页面误匹配）
+
+        重要约束（见 project_memory）：
+        - SceneAnyEnterWorld 返回 False 是"正常失败"（OCR/TemplateMatch 未命中、UI 变化等），
+          不得触发 RecoverGame/AndroidOpenGame 重启游戏。
+        - 仅当截图失败（游戏进程可能已退出）时才视为真正异常。
+        - 误触发重启会导致"任务刚启动就被强制关游戏"的严重 bug。
 
         Returns:
-            True 若游戏已就绪（在主世界），False 若无法恢复
+            True 若游戏已就绪（在主世界），False 若无法恢复（不重启游戏）
         """
         if not self._connected or self._tasker is None or self._controller is None:
             return False
         try:
             # 先尝试截图验证
             job = self._controller.post_screencap()
-            if not self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S)):
+            if not self._wait_job(job, timeout_s=float(self._SCREENCAP_TIMEOUT_S)):
                 self.logger.warning(LogCategory.MAIN, "游戏状态检查：截图失败，可能已退出")
                 return False
 
             # 尝试 SceneAnyEnterWorld（已能正常工作且耗时约 40s）
             self.logger.info(LogCategory.MAIN, "游戏状态检查：尝试回到主世界")
             ok = self.run_pipeline("SceneAnyEnterWorld", {})
-            if ok:
-                self.logger.info(LogCategory.MAIN, "游戏状态检查：已在主世界")
-                return True
+            if not ok:
+                # SceneAnyEnterWorld 失败 = 正常失败（未命中识别节点），
+                # 不重启游戏，让上层任务自行处理或失败
+                self.logger.warning(LogCategory.MAIN, "游戏状态检查：SceneAnyEnterWorld 未命中（正常失败，不重启游戏）")
+                return False
 
-            # SceneAnyEnterWorld 失败，可能游戏已退出，尝试重启
-            self.logger.warning(LogCategory.MAIN, "游戏状态检查：SceneAnyEnterWorld 失败，尝试重新启动游戏")
-            start_ok = self.run_task("AndroidOpenGame", {"ClientVersion": self._client_version})
-            if start_ok:
-                # 重启后再次尝试进入主世界
-                time.sleep(3.0)
-                return self.run_pipeline("SceneAnyEnterWorld", {})
+            # 验证是否确实在主世界（严格判定）
+            # SceneAnyEnterWorld 可能因中间节点（如 __ScenePrivateCloudSplashContinue）
+            # 匹配而返回 True，但实际未到达主世界（如仍在任务详情页）
+            # 使用 5s 超时：判定节点无 next，节点级 timeout 不限制识别失败等待，需短超时兜底
+            verify_ok = self.run_pipeline("__ScenePrivateAnyEnterWorldSuccess", {}, timeout_s=5.0)
+            if verify_ok:
+                self.logger.info(LogCategory.MAIN, "游戏状态检查：已在主世界（严格判定通过）")
+                return True
+            self.logger.warning(LogCategory.MAIN, "游戏状态检查：SceneAnyEnterWorld 返回成功但严格判定未通过（可能仍在子页面）")
             return False
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "游戏状态检查异常", error=str(exc))
@@ -1815,7 +2167,7 @@ class MaaEndRuntime:
             return False
         try:
             job = self._controller.post_screencap()
-            ok = self._wait_job(job, timeout_s=float(self._SCRECAP_TIMEOUT_S))
+            ok = self._wait_job(job, timeout_s=float(self._SCREENCAP_TIMEOUT_S))
             if ok:
                 return True
         except Exception:
@@ -1829,10 +2181,24 @@ class MaaEndRuntime:
         旧实现依赖 self._resource is not None，但真正断连后 _resource 已被
         _cleanup_partial 置空，导致该分支永远返回 False、恢复路径失效。
         现直接走完整 connect()，由 connect() 负责清理旧资源并重建。
+
+        关键：connect() 内部的 _connect_once() 只创建空的 Resource() 对象，
+        不加载 pipeline 和 OCR 模型。若不调用 load_resource()，重连后所有
+        OCR 任务都会因 'ocrer_ is null' 失败，pipeline 任务都会因
+        'task not exist' 失败（见 queue_cli_run_20260726_155007.log 中
+        DailyRewards 看门狗中断后的级联失败）。必须在 connect() 成功后
+        显式调用 load_resource() 重建 pipeline 与 OCR 引擎。
         """
         self.logger.info(LogCategory.MAIN, "尝试重连 MaaEnd runtime")
         try:
-            return self.connect()
+            if not self.connect():
+                return False
+            if not self.load_resource():
+                self.logger.error(LogCategory.MAIN, "重连后资源加载失败，连接不可用")
+                self._connected = False
+                return False
+            self.logger.info(LogCategory.MAIN, "重连并加载资源成功")
+            return True
         except Exception as exc:
             self.logger.error(LogCategory.MAIN, "重连失败", error=str(exc))
             return False
@@ -1879,53 +2245,48 @@ class MaaEndRuntime:
         # 2. post_screencap() 本身可能阻塞：当 _run_pipeline_with_timeout 的
         #    孤儿线程仍在运行 job.wait()（pipeline 任务未完成）时，MaaFramework
         #    内部可能拒绝并发操作，导致 post_screencap() 阻塞等待 pipeline 完成
-        # 解决方案：把 post_screencap() + 轮询 job.done 全部放入子线程，
-        # 主线程用 join(timeout) 等待，超时即放弃。子线程为 daemon，自然消亡。
+        # 解决方案：把 post_screencap() + 轮询 job.done 全部放入 run_with_timeout
+        # 的子线程，主线程用 join(timeout) 等待，超时即放弃。子线程为 daemon，自然消亡。
         if not self._connected or self._controller is None:
             return None
 
-        import threading as _threading
+        def _do_screencap() -> Optional[bytes]:
+            job = self._controller.post_screencap()
+            # 子线程内用剩余时间轮询 job.done
+            inner_deadline = time.monotonic() + float(timeout_s)
+            while not job.done:
+                if time.monotonic() >= inner_deadline:
+                    self.logger.warning(
+                        LogCategory.MAIN,
+                        "截图子线程：screencap 未在限定时间内完成",
+                        timeout_s=timeout_s,
+                    )
+                    return None
+                time.sleep(0.05)
+            if not job.succeeded:
+                self.logger.warning(LogCategory.MAIN, "截图失败（screencap 未成功），但保持连接态")
+                return None
+            cached = self._controller.cached_image
+            if cached is None:
+                return None
+            import cv2
+            success, buf = cv2.imencode(".png", cached)
+            if success:
+                return buf.tobytes()
+            return None
 
-        result_box: dict = {"data": None, "error": None}
-
-        def _do_screencap() -> None:
-            try:
-                job = self._controller.post_screencap()
-                # 子线程内用剩余时间轮询 job.done
-                inner_deadline = time.monotonic() + float(timeout_s)
-                while not job.done:
-                    if time.monotonic() >= inner_deadline:
-                        self.logger.warning(
-                            LogCategory.MAIN,
-                            "截图子线程：screencap 未在限定时间内完成",
-                            timeout_s=timeout_s,
-                        )
-                        return
-                    time.sleep(0.05)
-                if not job.succeeded:
-                    self.logger.warning(LogCategory.MAIN, "截图失败（screencap 未成功），但保持连接态")
-                    return
-                cached = self._controller.cached_image
-                if cached is None:
-                    return
-                import cv2
-                success, buf = cv2.imencode(".png", cached)
-                if success:
-                    result_box["data"] = buf.tobytes()
-            except BaseException as exc:  # noqa: BLE001
-                result_box["error"] = exc
-
-        t = _threading.Thread(target=_do_screencap, daemon=True, name="maaend-screenshot")
-        t.start()
-        t.join(timeout=timeout_s + 2.0)  # 主线程给 2s 余量
-        if t.is_alive():
-            self.logger.warning(
+        result = run_with_timeout(
+            _do_screencap,
+            timeout=timeout_s + 2.0,  # 主线程给 2s 余量
+            name="maaend-screenshot",
+            thread_name="maaend-screenshot",
+            on_timeout=lambda n, t: self.logger.warning(
                 LogCategory.MAIN,
                 "截图超时（post_screencap 阻塞或 job 不完成），放弃本次截图",
                 timeout_s=timeout_s,
-            )
+            ),
+            on_error=lambda n, e: self.logger.warning(LogCategory.MAIN, "截图异常，保持连接态", error=str(e)),
+        )
+        if result.is_timeout or result.is_error:
             return None
-        if result_box["error"] is not None:
-            self.logger.warning(LogCategory.MAIN, "截图异常，保持连接态", error=str(result_box["error"]))
-            return None
-        return result_box["data"]
+        return result.data

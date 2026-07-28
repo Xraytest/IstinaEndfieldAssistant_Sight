@@ -12,6 +12,7 @@ import threading
 from typing import Any, Dict, Optional
 
 from core.foundation.logger import LogCategory, get_logger
+from core.foundation.timeout_utils import run_with_timeout
 
 
 class LlmClientError(Exception):
@@ -148,26 +149,22 @@ class LlmClient:
         req_timeout = float(timeout) if timeout is not None else self.DEFAULT_TIMEOUT_S
         # 线程 join timeout = 首 token 超时 + 流式内容缓冲（流式响应可能很长）
         join_timeout = req_timeout + self._STREAM_JOIN_BUFFER_S
-        result_box: Dict[str, Any] = {"data": None, "error": None}
 
-        def _do_post() -> None:
-            try:
-                result_box["data"] = self._post("/chat/completions", payload, timeout=req_timeout)
-            except BaseException as exc:
-                result_box["error"] = exc
-
-        t = threading.Thread(target=_do_post, daemon=True, name="llm-chat-post")
-        t.start()
-        t.join(timeout=join_timeout)
-        if t.is_alive():
-            self._logger.warning(
+        result = run_with_timeout(
+            lambda: self._post("/chat/completions", payload, timeout=req_timeout),
+            timeout=join_timeout,
+            name="llm-chat-post",
+            thread_name="llm-chat-post",
+            on_timeout=lambda n, t: self._logger.warning(
                 "[%s] LLM chat 超时 %ss（首 token 等待 %ss），放弃本次请求",
                 LogCategory.MAIN, join_timeout, req_timeout,
-            )
+            ),
+        )
+        if result.is_timeout:
             raise LlmClientTimeout(f"chat timeout after {join_timeout}s (first-token {req_timeout}s)")
-        if result_box["error"] is not None:
-            raise result_box["error"]
-        data = result_box["data"]
+        if result.is_error:
+            raise result.error  # type: ignore[misc]
+        data = result.data
         choices = data.get("choices") or []
         if not choices:
             raise LlmClientError("LLM returned empty result: " + str(data))
