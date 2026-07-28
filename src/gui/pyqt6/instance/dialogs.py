@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from gui.pyqt6.i18n import get_locale_manager
+from gui.pyqt6.theme.theme_manager import COLORS
 from .registry import PRESET_COLORS, InstanceMeta
 
 
@@ -82,7 +83,7 @@ class NewInstanceDialog(QDialog):
             "instance_new_tip",
             "提示：新实例创建后，请在设备设置页配置对应的模拟器 serial",
         ))
-        tip.setStyleSheet("color: #8a8ea4; font-size: 11px;")
+        tip.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 11px;")
         tip.setWordWrap(True)
         layout.addWidget(tip)
 
@@ -95,6 +96,16 @@ class NewInstanceDialog(QDialog):
         layout.addWidget(btn_box)
 
         self._update_color_highlight()
+
+    def set_clone_source(self, instance_id: str) -> None:
+        """预选克隆来源实例（用于"克隆实例"入口预填来源）。
+
+        Args:
+            instance_id: 要克隆的实例 id；若不在下拉列表中则忽略。
+        """
+        idx = self._clone_combo.findData(instance_id)
+        if idx >= 0:
+            self._clone_combo.setCurrentIndex(idx)
 
     def _on_color_selected(self, color: str) -> None:
         self._selected_color = color
@@ -250,7 +261,7 @@ class ConfirmDeleteDialog(QDialog):
             ).format(name=meta.display_name)
         )
         warning.setWordWrap(True)
-        warning.setStyleSheet("color: #e03131; font-size: 12px;")
+        warning.setStyleSheet(f"color: {COLORS['danger']}; font-size: 12px;")
         layout.addWidget(warning)
 
         # 路径显示
@@ -259,7 +270,7 @@ class ConfirmDeleteDialog(QDialog):
             "instance_delete_path",
             "数据目录: {path}"
         ).format(path=str(get_instance_root(meta.id))))
-        path_label.setStyleSheet("color: #8a8ea4; font-size: 11px;")
+        path_label.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 11px;")
         path_label.setWordWrap(True)
         layout.addWidget(path_label)
 
@@ -276,14 +287,12 @@ class ConfirmDeleteDialog(QDialog):
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         btn_box.button(QDialogButtonBox.StandardButton.Ok).setText(locale.tr("instance_delete_btn", "删除"))
-        btn_box.button(QDialogButtonBox.StandardButton.Ok).setStyleSheet("background: #e03131; color: white;")
+        btn_box.button(QDialogButtonBox.StandardButton.Ok).setStyleSheet(f"background: {COLORS['danger']}; color: #ffffff;")
         btn_box.accepted.connect(self._on_accept)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
 
     def _on_accept(self) -> None:
-        if self._confirm_edit.text().strip() != self._confirm_edit.text().strip():
-            return
         # 验证输入与原始名称匹配（在调用方传入 meta.display_name 校验）
         self._confirmed = True
         self.accept()

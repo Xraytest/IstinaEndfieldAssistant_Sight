@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from gui.pyqt6.state_utils import atomic_write_json, backup_corrupt_state
 
 
 class QueueState:
@@ -74,7 +75,7 @@ class QueueState:
                 state = json.loads(self._state_path.read_text(encoding="utf-8"))
             except Exception as exc:
                 logging.getLogger(__name__).warning("QueueState load failed: %s", exc)
-                self._backup_corrupt_state()
+                backup_corrupt_state(self._state_path, logger_name=__name__)
                 return
             self._selected_task = state.get("selected_task") or self._selected_task
             self._selected_preset = state.get("selected_preset") or self._selected_preset
@@ -97,35 +98,15 @@ class QueueState:
                         "options": dict(entry.get("options") or {}),
                     })
 
-    def _backup_corrupt_state(self) -> None:
-        """将损坏的状态文件备份，避免每次启动都失败。"""
-        try:
-            backup = self._state_path.with_suffix(".json.bak")
-            counter = 0
-            while backup.exists():
-                backup = self._state_path.with_suffix(f".json.bak.{counter}")
-                counter += 1
-            os.replace(self._state_path, backup)
-        except Exception as exc:
-            logging.getLogger(__name__).warning("QueueState backup corrupt file failed: %s", exc)
-
     def persist(self) -> bool:
         with self._lock:
-            try:
-                state = {
-                    "selected_task": self._selected_task,
-                    "selected_preset": self._selected_preset,
-                    "queue_items": self._queue_items,
-                    "task_options": self._saved_task_options,
-                }
-                self._state_path.parent.mkdir(parents=True, exist_ok=True)
-                tmp_path = self._state_path.with_suffix(".tmp")
-                tmp_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-                os.replace(tmp_path, self._state_path)
-                return True
-            except Exception as exc:
-                logging.getLogger(__name__).warning("QueueState persist failed: %s", exc)
-                return False
+            state = {
+                "selected_task": self._selected_task,
+                "selected_preset": self._selected_preset,
+                "queue_items": self._queue_items,
+                "task_options": self._saved_task_options,
+            }
+            return atomic_write_json(self._state_path, state, logger_name=__name__)
 
     def clear_queue(self) -> None:
         with self._lock:

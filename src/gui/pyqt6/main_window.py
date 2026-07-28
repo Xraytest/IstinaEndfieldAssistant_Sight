@@ -29,6 +29,7 @@ from core.foundation.paths import ensure_src_path, get_project_root
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.instance import InstanceManager, InstanceSidebarWidget
+from gui.pyqt6.state_utils import QSETTINGS_APP, QSETTINGS_ORG
 from gui.pyqt6.instance.dialogs import (
     ConfirmDeleteDialog,
     NewInstanceDialog,
@@ -281,6 +282,8 @@ class MainWindow(QMainWindow):
         # 区分"真退出"与"最小化到托盘"：托盘菜单退出 / 应用退出流程设置 True，
         # closeEvent 据此走资源清理 + super().closeEvent，不再最小化并提示。
         self._force_quit: bool = False
+        # 已绑定 busy_state_changed 信号的实例 id 集合，避免重复绑定
+        self._bound_busy_instances: set = set()
         self._build_shell()
         self._restore_or_fit_window()
         self._update_responsive_mode()
@@ -294,7 +297,7 @@ class MainWindow(QMainWindow):
         self._instance_mgr.instance_deleted.connect(self._on_instance_deleted)
         self._instance_mgr.instance_meta_changed.connect(self._on_instance_meta_changed)
         # 监听活动实例的任务/连接状态变化
-        for ctx in self._instance_mgr._contexts.values():
+        for ctx in self._instance_mgr.iter_contexts():
             self._bind_context_signals(ctx)
 
         QTimer.singleShot(0, self._show_gpu_warning_if_needed)
@@ -339,7 +342,7 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, title, message)
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
+        settings = QSettings(QSETTINGS_ORG, QSETTINGS_APP)
         # 多实例：geometry 按实例 id 隔离持久化
         try:
             from core.foundation.instance import get_instance_id
@@ -361,7 +364,7 @@ class MainWindow(QMainWindow):
             maaend_page = getattr(self, "_maaend_page", None)
             if maaend_page is not None:
                 try:
-                    maaend_page._persist_state()
+                    maaend_page.persist_state()
                 except Exception as exc:
                     self._logger.warning(LogCategory.GUI, "closeEvent 持久化队列状态失败", error=str(exc))
             scheduled_page = getattr(self, "_scheduled_page", None)
@@ -490,23 +493,15 @@ class MainWindow(QMainWindow):
         )
         self._settings_page = SettingsPage()
         pages = [
-            (locale.tr("prts_title", "PRTS Intelligence (施工中)"), self._prts_page),
-            (locale.tr("maaend_title", "Standard Inference"), self._maaend_page),
-            (locale.tr("sched_title", "Scheduled Tasks"), self._scheduled_page),
-            (locale.tr("device_title", "Device"), self._device_page),
-            (locale.tr("settings_title", "Settings"), self._settings_page),
-            (locale.tr("log_title", "Logs"), LogPage()),
+            ("nav_prts", locale.tr("prts_title", "PRTS Intelligence (施工中)"), self._prts_page),
+            ("nav_maaend", locale.tr("maaend_title", "Standard Inference"), self._maaend_page),
+            ("nav_sched", locale.tr("sched_title", "Scheduled Tasks"), self._scheduled_page),
+            ("nav_device", locale.tr("device_title", "Device"), self._device_page),
+            ("nav_settings", locale.tr("settings_title", "Settings"), self._settings_page),
+            ("nav_log", locale.tr("log_title", "Logs"), LogPage()),
         ]
-        for label, page in pages:
+        for key, label, page in pages:
             item = QListWidgetItem(label)
-            key = {
-                "PRTS全智能": "nav_prts",
-                "标准推理": "nav_maaend",
-                "定时任务": "nav_sched",
-                "设备": "nav_device",
-                "设置": "nav_settings",
-                "日志": "nav_log",
-            }.get(label, label)
             item.setData(Qt.ItemDataRole.AccessibleTextRole, key)
             item.setData(Qt.ItemDataRole.AccessibleDescriptionRole, locale.tr(key, f"Switch to {label} page"))
             self._navigation_list.addItem(item)
@@ -523,7 +518,7 @@ class MainWindow(QMainWindow):
 
         self._resize_navigation_list()
         for i in range(self._navigation_list.count()):
-            if self._navigation_list.item(i).text() == "标准推理":
+            if self._navigation_list.item(i).data(Qt.ItemDataRole.AccessibleTextRole) == "nav_maaend":
                 self._navigation_list.setCurrentRow(i)
                 break
         body_layout.addWidget(shell, 1)
@@ -532,7 +527,7 @@ class MainWindow(QMainWindow):
         self._update_instance_indicator()
 
     def _restore_or_fit_window(self) -> None:
-        settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
+        settings = QSettings(QSETTINGS_ORG, QSETTINGS_APP)
         # 多实例：geometry 按实例 id 隔离
         try:
             from core.foundation.instance import get_instance_id
@@ -622,15 +617,15 @@ class MainWindow(QMainWindow):
         检测到新 daemon 后无缝切换到新 mmap，实现 scrcpy 持续传输。
         """
         self._logger.warning(LogCategory.GUI, "CLI 崩溃，保持运行状态并计划自动重连", crash_count=crash_count)
-        if not self._maaend_page._connected:
+        if not self._maaend_page.is_connected:
             return
         QTimer.singleShot(1500, self._auto_reconnect_after_crash)
 
     def _auto_reconnect_after_crash(self) -> None:
         """CLI 崩溃重启后自动重新连接设备，恢复 scrcpy 传输。"""
-        if not self._maaend_page._connected:
+        if not self._maaend_page.is_connected:
             return
-        params = self._maaend_page._resolve_connect_params()
+        params = self._maaend_page.resolve_connect_params()
         serial = params.get("serial") if params else None
         if not serial:
             serial = self._resolve_preview_serial()
@@ -672,9 +667,9 @@ class MainWindow(QMainWindow):
             scheduler = ctx.scheduler
             iid = ctx.id
             busy_signal = getattr(scheduler, "busy_state_changed", None)
-            if busy_signal is not None and not getattr(scheduler, "_iea_bound_completed", False):
+            if busy_signal is not None and iid not in self._bound_busy_instances:
                 busy_signal.connect(lambda busy, _iid=iid: self._on_scheduler_busy_changed(_iid, busy))
-                scheduler._iea_bound_completed = True
+                self._bound_busy_instances.add(iid)
         except Exception:
             pass
 
@@ -861,10 +856,7 @@ class MainWindow(QMainWindow):
             return
         dlg = NewInstanceDialog(self._instance_mgr.list_metas(), parent=self)
         # 预填：克隆来源锁定为源实例
-        for i in range(dlg._clone_combo.count()):
-            if dlg._clone_combo.itemData(i) == instance_id:
-                dlg._clone_combo.setCurrentIndex(i)
-                break
+        dlg.set_clone_source(instance_id)
         dlg.setWindowTitle(locale.tr("instance_clone_title", "克隆实例"))
         if dlg.exec() != QDialog.DialogCode.Accepted:
             return

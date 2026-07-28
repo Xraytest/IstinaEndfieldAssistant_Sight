@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 from core.foundation.paths import get_project_root
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.hero import HeroHeader
+from gui.pyqt6.theme.hero import create_scrolled_page
 from gui.pyqt6.theme.widget_styles import LIST_STYLE
 
 locale = get_locale_manager()
@@ -47,23 +47,12 @@ class DeviceSettingsPage(QWidget):
         self._refresh_devices()
 
     def _setup_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        root.addWidget(scroll)
-
-        content = QWidget()
-        scroll.setWidget(content)
-        content_root = QVBoxLayout(content)
-        content_root.setContentsMargins(16, 16, 16, 16)
-        content_root.setSpacing(12)
-
-        header = HeroHeader(locale.tr("device_title", "Device"), locale.tr("device_subtitle", "Manage ADB device connections and auto-reconnect."), content)
-        content_root.addWidget(header)
+        root, content_root = create_scrolled_page(
+            self,
+            locale.tr("device_title", "Device"),
+            locale.tr("device_subtitle", "Manage ADB device connections and auto-reconnect."),
+            spacing=12,
+        )
 
         connection_card = QGroupBox(locale.tr("connection_management", "Connection Management"))
         connection_layout = QVBoxLayout(connection_card)

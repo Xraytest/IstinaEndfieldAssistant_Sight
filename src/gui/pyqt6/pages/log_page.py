@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 from core.foundation.paths import get_project_root
 from gui.pyqt6.i18n import get_locale_manager
 from gui.pyqt6.responsive import elide_text
-from gui.pyqt6.theme.hero import HeroHeader
+from gui.pyqt6.theme.hero import create_scrolled_page
 from gui.pyqt6.theme.widget_styles import COMBO_STYLE, INPUT_STYLE
 from gui.pyqt6.theme.theme_manager import COLORS
 
@@ -136,23 +136,12 @@ class LogPage(QWidget):
         self._load_selected_log()
 
     def _setup_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        root.addWidget(scroll)
-
-        content = QWidget()
-        scroll.setWidget(content)
-        content_root = QVBoxLayout(content)
-        content_root.setContentsMargins(16, 16, 16, 16)
-        content_root.setSpacing(14)
-
-        header = HeroHeader(locale.tr("log_title", "Logs"), locale.tr("log_subtitle", "Display all log file contents."), content)
-        content_root.addWidget(header)
+        root, content_root = create_scrolled_page(
+            self,
+            locale.tr("log_title", "Logs"),
+            locale.tr("log_subtitle", "Display all log file contents."),
+            spacing=14,
+        )
 
         action_row = QHBoxLayout()
         self._path_label = QLabel("")

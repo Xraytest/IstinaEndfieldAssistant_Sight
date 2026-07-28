@@ -65,12 +65,22 @@ class InstanceContext(QObject):
         self._meta = meta
         self._logger = get_logger(f"instance.{meta.id}")
 
+        # 解析实例私有的 config 目录并确保存在
+        # default 实例 -> <project_root>/config/（向后兼容）
+        # 其他实例  -> <project_root>/instances/<id>/config/
+        config_dir = get_instance_root(meta.id) / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+
         # 在当前线程临时切换实例上下文，构造实例私有组件
         prev_iid = self._set_thread_context()
         try:
             self._bridge = CLIBridge(parent=self, instance_id=meta.id)
-            self._queue_state = QueueState(instance_id=meta.id)
-            self._task_store = ScheduledTaskStore(instance_id=meta.id)
+            self._queue_state = QueueState(
+                state_path=config_dir / "maaend_task_state.json"
+            )
+            self._task_store = ScheduledTaskStore(
+                state_path=config_dir / "scheduled_tasks.json"
+            )
             self._scheduler = ScheduledTaskScheduler(
                 self._task_store, self._bridge, parent=self,
             )
@@ -289,6 +299,14 @@ class InstanceManager(QObject):
 
     def has_context(self, instance_id: str) -> bool:
         return instance_id in self._contexts
+
+    def iter_contexts(self):
+        """迭代所有已加载的实例上下文（不触发懒加载）。
+
+        供外部模块遍历已构造的 InstanceContext，避免直接访问 ``_contexts``
+        私有字典破坏封装。
+        """
+        return list(self._contexts.values())
 
     # ------------------------------------------------------------------
     # 切换活动实例

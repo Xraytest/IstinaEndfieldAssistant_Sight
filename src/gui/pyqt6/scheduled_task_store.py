@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from gui.pyqt6.state_utils import atomic_write_json, backup_corrupt_state
 
 
 WEEKDAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]  # 周一到周日
@@ -183,7 +184,7 @@ class ScheduledTaskStore:
                 data = json.loads(self._state_path.read_text(encoding="utf-8"))
             except Exception as exc:
                 logging.getLogger(__name__).warning("ScheduledTaskStore load failed: %s", exc)
-                self._backup_corrupt_state()
+                backup_corrupt_state(self._state_path, logger_name=__name__)
                 self._tasks = []
                 return
             tasks_data = data.get("tasks") if isinstance(data, dict) else None
@@ -194,31 +195,12 @@ class ScheduledTaskStore:
                         continue
                     self._tasks.append(ScheduledTask.from_dict(entry))
 
-    def _backup_corrupt_state(self) -> None:
-        try:
-            backup = self._state_path.with_suffix(".json.bak")
-            counter = 0
-            while backup.exists():
-                backup = self._state_path.with_suffix(f".json.bak.{counter}")
-                counter += 1
-            os.replace(self._state_path, backup)
-        except Exception as exc:
-            logging.getLogger(__name__).warning("ScheduledTaskStore backup corrupt file failed: %s", exc)
-
     def persist(self) -> bool:
         with self._lock:
-            try:
-                payload = {
-                    "tasks": [t.to_dict() for t in self._tasks],
-                }
-                self._state_path.parent.mkdir(parents=True, exist_ok=True)
-                tmp_path = self._state_path.with_suffix(".tmp")
-                tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-                os.replace(tmp_path, self._state_path)
-                return True
-            except Exception as exc:
-                logging.getLogger(__name__).warning("ScheduledTaskStore persist failed: %s", exc)
-                return False
+            payload = {
+                "tasks": [t.to_dict() for t in self._tasks],
+            }
+            return atomic_write_json(self._state_path, payload, logger_name=__name__)
 
 
 def compute_next_run(

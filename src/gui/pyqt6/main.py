@@ -19,7 +19,7 @@ _MAAFW_DLL_DIR = Path(__file__).resolve().parent.parent.parent.parent / "3rd-par
 if _MAAFW_DLL_DIR.is_dir() and os.environ.get("MAAFW_BINARY_PATH") is None:
     os.environ["MAAFW_BINARY_PATH"] = str(_MAAFW_DLL_DIR.resolve())
 
-from PyQt6.QtGui import QFont, QPixmapCache  # noqa: E402
+from PyQt6.QtGui import QPixmapCache  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 from core.foundation.paths import ensure_src_path  # noqa: E402
@@ -32,22 +32,6 @@ ensure_src_path(__file__)
 
 # 必须在 QApplication() 之前接管 Qt 日志，否则最早的字体探测噪声已打印到 stderr
 install_qt_message_filter()
-
-# 性能优化：全局 QFont 缓存，避免重复创建等价 QFont 对象
-_FONT_CACHE: dict = {}
-
-
-def get_cached_font(family: str = "Microsoft YaHei UI", point_size: int = -1, bold: bool = False) -> QFont:
-    """获取缓存的 QFont 实例。QFont 隐式共享，缓存键值命中时零构造开销。"""
-    key = (family, point_size, bold)
-    f = _FONT_CACHE.get(key)
-    if f is None:
-        f = QFont(family)
-        if point_size > 0:
-            f.setPointSize(point_size)
-        f.setBold(bold)
-        _FONT_CACHE[key] = f
-    return f
 
 
 def run_application() -> None:

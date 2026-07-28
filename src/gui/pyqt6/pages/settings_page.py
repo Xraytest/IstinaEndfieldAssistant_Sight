@@ -31,7 +31,8 @@ from PyQt6.QtWidgets import (
 
 from core.foundation.paths import get_project_root
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.hero import HeroHeader
+from gui.pyqt6.theme.hero import create_scrolled_page
+from gui.pyqt6.theme.theme_manager import COLORS
 
 locale = get_locale_manager()
 
@@ -63,23 +64,11 @@ class SettingsPage(QWidget):
         self._load_settings()
 
     def _setup_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        root.addWidget(scroll)
-
-        content = QWidget()
-        scroll.setWidget(content)
-        content_root = QVBoxLayout(content)
-        content_root.setContentsMargins(16, 16, 16, 16)
-        content_root.setSpacing(14)
-
-        header = HeroHeader(locale.tr("settings_interface", "Settings"), locale.tr("settings_interface", "Interface theme settings"), content)
-        content_root.addWidget(header)
+        root, content_root = create_scrolled_page(
+            self,
+            locale.tr("settings_interface", "Settings"),
+            locale.tr("settings_interface", "Interface theme settings"),
+        )
 
         language_card = QGroupBox(locale.tr("settings_language", "Language"))
         language_form = QFormLayout(language_card)
@@ -245,7 +234,7 @@ class SettingsPage(QWidget):
             "Provider change takes effect on next runtime startup (mutually exclusive, no hot-switch)."
         ))
         self._provider_hint.setWordWrap(True)
-        self._provider_hint.setStyleSheet("color: #8a8f99; font-size: 11px;")
+        self._provider_hint.setStyleSheet(f"color: {COLORS['text_secondary']}; font-size: 11px;")
         llm_layout.addWidget(self._provider_hint)
 
         dev_layout.addWidget(llm_card)

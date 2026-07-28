@@ -11,6 +11,8 @@ from typing import Dict, Optional
 from PyQt6.QtCore import QLocale, QSettings, QTranslator
 from PyQt6.QtWidgets import QApplication
 
+from gui.pyqt6.state_utils import QSETTINGS_APP, QSETTINGS_ORG
+
 
 class LocaleManager:
     """Manages application translations and language preferences."""
@@ -21,7 +23,7 @@ class LocaleManager:
         self._locales_dir = locales_dir
         self._translations: Dict[str, Dict[str, str]] = {}
         self._current_locale: str = "zh_CN"
-        self._settings = QSettings("ArkStudio", "IstinaEndfieldAssistant")
+        self._settings = QSettings(QSETTINGS_ORG, QSETTINGS_APP)
         # I18N-1: 持有 translator 引用，防止被 GC 回收导致翻译失效
         self._qt_translator: Optional[QTranslator] = None
         self._load_all()

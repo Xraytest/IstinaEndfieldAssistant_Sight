@@ -83,81 +83,17 @@ from gui.pyqt6.theme.widget_styles import (
 
 locale = get_locale_manager()
 
-NAME_ZH = {
-    # presets
-    "DailyFull": "全套日常",
-    "QuickDaily": "快速日常",
-    "RealtimeAssist": "实时辅助",
-    # tasks from interface.json imports
-    "SellProduct": "🛒售卖产品",
-    "SeizeDeliveryJobs": "🏍️抢委托送货",
-    "DeliveryJobs": "🚚转交委托",
-    "AutoStockpile": "📦自动囤货",
-    "AutoStockStaple": "🏪购买稳定物资",
-    "AutoSell": "💰售卖弹性物资",
-    "EnvironmentMonitoring": "🌿环境监测",
-    "GearAssembly": "🔧装备制造",
-    "WeaponUpgrade": "🔫升级武器",
-    "BatchUseDetector": "🧭批量探测器",
-    "EssenceFilter": "🔒基质筛选锁定",
-    "ResourceRecycleStation": "🦉资源回收站",
-    "AutoCollect": "🧺自动采集",
-    "AutoEcoFarm": "🌾生态农场",
-    "PuzzleSolver": "🧩解拼图",
-    "SwitchTeam": "👥切换编队",
-    "ImportBluePrints": "📐一键导入蓝图",
-    "AutoUseSpMedication": "💊应急理智加强剂",
-    "AutoEssence": "🎱基质刷取",
-    "MaterialFarm": "🧱材料刷取",
-    "MaterialCollect": "🧺材料收取",
-    "ReadAllTasks": "📋读取全部任务列表",
-    "TaskExecute": "🧠任务执行",
-    "ProtocolSpace": "⚔️协议空间",
-    "DijiangRewards": "🎁基建任务",
-    "VisitFriends": "🤝拜访好友",
-    "GiftOperator": "🎁赠送干员礼物",
-    "BatchAddFriends": "👥批量添加好友",
-    "PullCountCalculator": "🧮抽数计算",
-    "BakerEntry": "💬会话消息嘴替",
-    "ReadAllWiki": "📖百科已读",
-    "DailyRewards": "📅日常奖励领取",
-    "ClaimSimulationRewards": "📦领取模拟空间奖励",
-    "TrialOfSwordmancy": "🗡️选剑演武",
-    "CreditShoppingN2": "🛍️信用点购物",
-    "AccountSwitch": "自动切换账号",
-    "WebEvent202605": "🎁自动共贺庆典网页活动",
-    "AndroidOpenGame": "🎮打开游戏",
-    "CloseGame": "❌关闭游戏",
-    "RecoverGame": "🔄异常处理",
-    "RealTimeTask": "🤖实时开荒辅助",
-    "ItemTransfer": "🐌库存转移",
-    "Crafting": "🧪简易制作",
-    "SimpleProductionBatchStart": "🔨批量简易制作",
-    "ReceiveProdManual": "🌾简制手册领取",
-    "StashBackpack": "🎒存放背包",
-}
-
 
 def _zh(name: str) -> str:
+    """获取任务/预设的本地化显示名。
+
+    通过 ``task_name_<name>`` 键从 i18n locale 文件查找；
+    未命中时回退到原始 ``name``（通常是 interface.json 中的英文标识）。
+    """
     if not name:
         return name
-    return NAME_ZH.get(name, name)
+    return locale.tr(f"task_name_{name}", name)
 
-
-# MaaEnd interface.json group → Chinese label (mirrors interface.json "group" section)
-GROUP_ZH = {
-    "regional_development": "🏗️地区建设",
-    "valuables_vault": "💎贵重品库",
-    "open_world": "🌍大世界",
-    "sanity_sink": "🧠理智消耗",
-    "full_intelligence": "🧠全智能",
-    "dijiang_ship": "🚢帝江号",
-    "backpack": "🎒背包",
-    "other_menu": "📋其他菜单",
-    "realtime": "🤖实时辅助",
-    "setting": "⚙️设置",
-    "_ungrouped": "📦未分组",
-}
 
 # Tasks that should not appear in the standard task list (internal/preliminary)
 _HIDDEN_TASK_NAMES = {"GameSetting"}
@@ -181,7 +117,12 @@ _GROUP_ORDER = [
 
 
 def _group_label(group_name: str) -> str:
-    return GROUP_ZH.get(group_name, group_name)
+    """获取任务分组的本地化显示名。
+
+    通过 ``task_group_<group_name>`` 键从 i18n locale 文件查找；
+    未命中时回退到原始 ``group_name``。
+    """
+    return locale.tr(f"task_group_{group_name}", group_name)
 
 
 _OPTION_LOCALE_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / "3rd-part" / "maaend" / "locales" / "interface" / "zh_cn.json"
@@ -498,6 +439,22 @@ class MaaEndControlPage(QWidget):
         except Exception:
             pass
         return {}
+
+    # ------------------------------------------------------------------
+    # 公有 API（供 MainWindow 等外部模块使用，避免访问私有成员）
+    # ------------------------------------------------------------------
+    @property
+    def is_connected(self) -> bool:
+        """设备是否已连接。"""
+        return self._connected
+
+    def resolve_connect_params(self) -> Dict[str, Any]:
+        """解析当前设备连接参数（serial 等），供外部模块发起重连。"""
+        return self._resolve_connect_params()
+
+    def persist_state(self) -> None:
+        """持久化队列状态到磁盘（供 closeEvent 等外部流程调用）。"""
+        self._persist_state()
 
     # ------------------------------------------------------------------
     # UI setup
@@ -1870,7 +1827,7 @@ class MaaEndControlPage(QWidget):
             self._queue_state.set_selected_preset(self._selected_preset)
             self._queue_state.persist()
         except Exception as e:
-            self.log_message.emit(locale.tr("persist", "Persist"), f"{locale.tr("save_failed", "Save Failed")}: {e}")
+            self.log_message.emit(locale.tr("persist", "Persist"), f"{locale.tr('save_failed', 'Save Failed')}: {e}")
 
     def _resolve_metadata_cache_path(self) -> Path:
         try:

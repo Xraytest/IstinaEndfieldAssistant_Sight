@@ -48,7 +48,7 @@ from gui.pyqt6.scheduled_task_store import (
     ScheduledTask,
     ScheduledTaskStore,
 )
-from gui.pyqt6.theme.hero import HeroHeader
+from gui.pyqt6.theme.hero import create_scrolled_page
 from gui.pyqt6.theme.widget_styles import TABLE_STYLE
 
 if TYPE_CHECKING:
@@ -346,27 +346,12 @@ class ScheduledTasksPage(QWidget):
         self._maaend_page = page
 
     def _setup_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        root.addWidget(scroll)
-
-        content = QWidget()
-        scroll.setWidget(content)
-        content_root = QVBoxLayout(content)
-        content_root.setContentsMargins(16, 16, 16, 16)
-        content_root.setSpacing(12)
-
-        header = HeroHeader(
+        root, content_root = create_scrolled_page(
+            self,
             locale.tr("sched_title", "Scheduled Tasks"),
             locale.tr("sched_subtitle", "Manage scheduled task queue executions. Tasks can target the current queue or a preset."),
-            content,
+            spacing=12,
         )
-        content_root.addWidget(header)
 
         # 工具栏
         toolbar = QHBoxLayout()

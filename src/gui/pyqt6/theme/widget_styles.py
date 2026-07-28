@@ -29,6 +29,9 @@ _ACCENT_GOLD = COLORS["accent_gold"]
 _TEXT_PRIMARY = COLORS["text_primary"]
 _TEXT_SECONDARY = COLORS["text_secondary"]
 _BG_CARD = COLORS["bg_card"]
+_BG_PRIMARY = COLORS["bg_primary"]
+_BG_TERTIARY = COLORS["bg_tertiary"]
+_CANVAS_BG = COLORS["canvas_bg"]
 _BORDER = COLORS["border_color"]
 _BORDER_LIGHT = COLORS["border_light"]
 _FONT = FONTS["family"]
@@ -62,10 +65,6 @@ WHITE_STYLE = (
 # 完成且未读状态：绿色
 GREEN_STYLE = (
     f"color: #22c55e; font-size: {_SIZE_BASE}px;"
-    f" font-family: '{_FONT}'; padding: 3px 0;"
-)
-BLUE_STYLE = (
-    f"color: {_PRIMARY}; font-size: {_SIZE_BASE}px;"
     f" font-family: '{_FONT}'; padding: 3px 0;"
 )
 YELLOW_STYLE = (
@@ -116,7 +115,7 @@ CARD_STYLE = f"""
         padding-top: 18px;
     }}
     QGroupBox:hover {{
-        border: 1px solid rgba(25, 209, 255, 0.35);
+        border: 1px solid {_rgba(_PRIMARY, 0.35)};
         background-color: {_BG_CARD};
     }}
     QGroupBox::title {{
@@ -138,19 +137,19 @@ PANEL_STYLE = f"""
 
 LIST_STYLE = f"""
     QListWidget {{
-        background-color: rgba(10, 10, 15, 0.90);
+        background-color: {_rgba(_BG_PRIMARY, 0.90)};
         border: 1px solid {_BORDER_LIGHT};
         color: {_TEXT_PRIMARY}; font-family: '{_FONT}'; font-size: {_SIZE_BASE}px;
     }}
     QListWidget::item {{ padding: 3px 6px; }}
-    QListWidget::item:hover {{ background-color: rgba(25, 209, 255, 0.08); border-left: 2px solid rgba(25, 209, 255, 0.35); }}
+    QListWidget::item:hover {{ background-color: {_rgba(_PRIMARY, 0.08)}; border-left: 2px solid {_rgba(_PRIMARY, 0.35)}; }}
     QListWidget::item:selected {{ background-color: {_rgba(_PRIMARY, 0.10)}; color: {_PRIMARY}; border-left: 2px solid {_PRIMARY}; }}
 """
 
 LOG_STYLE = f"""
     QTextEdit {{
-        background-color: rgba(10, 10, 15, 0.90);
-        color: #e0e0e8;
+        background-color: {_rgba(_BG_PRIMARY, 0.90)};
+        color: {_TEXT_PRIMARY};
         border: 1px solid {_BORDER_LIGHT};
         border-radius: 2px;
         font-size: 11px; font-family: '{_FONT}'; padding: 2px 4px;
@@ -159,7 +158,7 @@ LOG_STYLE = f"""
 
 INPUT_STYLE = f"""
     QLineEdit, QSpinBox, QComboBox {{
-        background-color: rgba(16, 16, 26, 0.85);
+        background-color: {_rgba(_BG_TERTIARY, 0.85)};
         color: {_TEXT_PRIMARY}; border: 1px solid {_BORDER};
         border-radius: 2px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; padding: 4px 10px; min-height: 28px;
     }}
@@ -174,26 +173,26 @@ CHECK_STYLE = f"""
 
 COMBO_STYLE = f"""
     QComboBox {{
-        background-color: rgba(10, 10, 15, 0.80); color: {_TEXT_PRIMARY}; border: 1px solid {_BORDER};
+        background-color: {_rgba(_BG_PRIMARY, 0.80)}; color: {_TEXT_PRIMARY}; border: 1px solid {_BORDER};
         border-radius: 2px; padding: 4px 10px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; min-height: 28px;
     }}
     QComboBox::drop-down {{ border: none; width: 28px; }}
     QComboBox::down-arrow {{ image: none; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid {_PRIMARY}80; width: 0; height: 0; }}
-    QComboBox QAbstractItemView {{ background-color: rgba(12, 12, 20, 0.95); color: {_TEXT_PRIMARY}; border: 1px solid {_BORDER}; selection-background-color: {_PRIMARY}26; }}
+    QComboBox QAbstractItemView {{ background-color: {_rgba(_BG_PRIMARY, 0.95)}; color: {_TEXT_PRIMARY}; border: 1px solid {_BORDER}; selection-background-color: {_PRIMARY}26; }}
 """
 
 TABLE_STYLE = f"""
-    QTableWidget {{ background-color: rgba(16, 16, 26, 0.85); border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; gridline-color: {_BORDER_LIGHT}; }}
+    QTableWidget {{ background-color: {_rgba(_BG_TERTIARY, 0.85)}; border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; gridline-color: {_BORDER_LIGHT}; }}
     QTableWidget::item {{ padding: 6px; }}
-    QTableWidget::item:hover {{ background-color: rgba(25, 209, 255, 0.08); }}
+    QTableWidget::item:hover {{ background-color: {_rgba(_PRIMARY, 0.08)}; }}
     QTableWidget::item:selected {{ background-color: {_rgba(_PRIMARY, 0.12)}; color: #000000; border-left: 3px solid {_PRIMARY}; }}
     QHeaderView::section {{ background-color: {_PRIMARY}14; color: {_PRIMARY}; font-size: 11px; font-weight: bold; padding: 6px; border: none; }}
 """
 
 TREE_STYLE = f"""
-    QTreeWidget {{ background-color: rgba(10, 10, 15, 0.90); border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; outline: none; }}
+    QTreeWidget {{ background-color: {_rgba(_BG_PRIMARY, 0.90)}; border: 1px solid {_BORDER_LIGHT}; border-radius: 2px; color: {_TEXT_PRIMARY}; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; outline: none; }}
     QTreeWidget::item {{ padding: 3px 6px; min-height: 26px; }}
-    QTreeWidget::item:hover {{ background-color: rgba(25, 209, 255, 0.08); border-left: 2px solid rgba(25, 209, 255, 0.35); }}
+    QTreeWidget::item:hover {{ background-color: {_rgba(_PRIMARY, 0.08)}; border-left: 2px solid {_rgba(_PRIMARY, 0.35)}; }}
     QTreeWidget::item:selected {{ background-color: {_rgba(_PRIMARY, 0.10)}; color: {_PRIMARY}; border-left: 2px solid {_PRIMARY}; }}
     QTreeWidget::branch:has-siblings:!adjoins-item {{ border-image: none; }}
     QTreeWidget::branch:has-siblings:adjoins-item {{ border-image: none; }}
@@ -208,12 +207,12 @@ SUB_OPTION_STYLE = f"color: {_TEXT_SECONDARY}; font-size: {_SIZE_BASE - 1}px; fo
 DESC_LABEL_STYLE = f"color: {_TEXT_SECONDARY}; font-size: {_SIZE_BASE - 2}px; font-family: '{_FONT}'; padding: 1px 0 3px 0; font-style: italic;"
 
 INPUT_INVALID_STYLE = f"""
-    QLineEdit {{ background-color: rgba(40, 10, 10, 0.60); color: {_TEXT_PRIMARY}; border: 1px solid {_DANGER}; border-radius: 2px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; padding: 4px 10px; min-height: 28px; }}
+    QLineEdit {{ background-color: {_rgba(_DANGER, 0.20)}; color: {_TEXT_PRIMARY}; border: 1px solid {_DANGER}; border-radius: 2px; font-size: {_SIZE_BASE}px; font-family: '{_FONT}'; padding: 4px 10px; min-height: 28px; }}
 """
 
 PREVIEW_STYLE = f"""
     QLabel {{
-        background-color: rgba(8, 8, 12, 0.95);
+        background-color: {_rgba(_CANVAS_BG, 0.95)};
         border: 1px solid {_BORDER_LIGHT};
         border-radius: 4px;
         padding: 2px;
@@ -230,7 +229,7 @@ SKELETON_STYLE = f"""
 
 LOADING_OVERLAY_STYLE = f"""
     QFrame {{
-        background-color: rgba(10, 10, 15, 0.85);
+        background-color: _rgba(_BG_PRIMARY, 0.85);
         border: none;
     }}
     QLabel {{
@@ -241,16 +240,16 @@ LOADING_OVERLAY_STYLE = f"""
     }}
 """
 
-SPLITTER_HANDLE_STYLE = "QSplitter::handle { width: 1px; background: rgba(25, 209, 255, 0.12); }"
+SPLITTER_HANDLE_STYLE = f"QSplitter::handle {{ width: 1px; background: {_rgba(_PRIMARY, 0.12)}; }}"
 SCROLL_AREA_TRANSPARENT_STYLE = "QScrollArea { border: none; background: transparent; }"
 PROGRESS_BAR_STYLE = f"""
     QProgressBar {{
-        background-color: rgba(16, 16, 26, 0.85);
-        border: 1px solid rgba(25, 209, 255, 0.15);
+        background-color: {_rgba(_BG_TERTIARY, 0.85)};
+        border: 1px solid {_rgba(_PRIMARY, 0.15)};
         border-radius: 4px;
         height: 16px;
         text-align: center;
-        color: #9090a8;
+        color: {_TEXT_SECONDARY};
         font-size: 10px;
         font-family: '{_FONT}';
     }}
@@ -265,16 +264,16 @@ PROGRESS_BAR_STYLE = f"""
 # ---------------------------------------------------------------------------
 BTN_ACTIVE = f"""
     QPushButton {{
-        background-color: {_rgba(_PRIMARY_LIGHT, 0.18)};
+        background-color: {_rgba(_PRIMARY_LIGHT, 0.28)};
         color: #ffffff;
-        border: 2px solid {_rgba(_PRIMARY, 0.50)};
+        border: 2px solid {_PRIMARY};
         border-radius: 2px;
         padding: 3px 10px;
         font-size: 11px; font-family: '{_FONT}'; font-weight: bold; letter-spacing: 1px;
         min-height: 24px;
     }}
-    QPushButton:hover {{ background-color: {_rgba(_PRIMARY_LIGHT, 0.30)}; border-color: {_rgba(_PRIMARY, 0.70)}; }}
-    QPushButton:pressed {{ background-color: {_rgba(_PRIMARY_LIGHT, 0.45)}; border-color: {_rgba(_PRIMARY, 0.90)}; }}
+    QPushButton:hover {{ background-color: {_rgba(_PRIMARY_LIGHT, 0.40)}; border-color: {_PRIMARY}; }}
+    QPushButton:pressed {{ background-color: {_rgba(_PRIMARY_LIGHT, 0.55)}; border-color: {_PRIMARY}; }}
 """
 
 BTN_DEFAULT = f"""

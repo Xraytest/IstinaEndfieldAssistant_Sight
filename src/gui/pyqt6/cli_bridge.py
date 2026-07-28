@@ -274,7 +274,6 @@ class CLIBridge(QObject):
             return
         if self._process.state() == QProcess.ProcessState.NotRunning:
             return
-        import shlex
 
         line = shlex.join(self._current_command) + "\n"
         self._logger.debug(LogCategory.GUI, "写入 CLI 命令", command=line.strip())

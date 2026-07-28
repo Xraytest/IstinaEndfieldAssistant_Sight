@@ -7,6 +7,8 @@ from PyQt6.QtCore import QEvent, QObject, QSize, Qt
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QWidget
 
+from gui.pyqt6.theme.theme_manager import COLORS
+
 
 @dataclass(frozen=True)
 class UiBreakpoints:
@@ -104,7 +106,7 @@ def fade_widget(widget: QWidget, duration: int = 200) -> None:
     # 与原方案透明态露出色相同（视觉帧帧对应）
     overlay = QWidget(widget)
     overlay.setAutoFillBackground(True)
-    overlay.setStyleSheet("background-color: #161820;")
+    overlay.setStyleSheet(f"background-color: {COLORS['bg_tertiary']};")
     overlay.setGeometry(widget.rect())
     overlay.show()
     overlay.raise_()

@@ -21,7 +21,8 @@ from PyQt6.QtWidgets import (
 
 from gui.pyqt6.cli_bridge import CLIBridge
 from gui.pyqt6.i18n import get_locale_manager
-from gui.pyqt6.theme.hero import HeroHeader
+from gui.pyqt6.theme.hero import create_scrolled_page
+from gui.pyqt6.theme.theme_manager import COLORS
 from gui.pyqt6.theme.widget_styles import BLUE_STYLE, RED_STYLE
 
 locale = get_locale_manager()
@@ -70,33 +71,18 @@ class PrtsFullIntelligencePage(QWidget):
     # ------------------------------------------------------------------
 
     def _setup_ui(self) -> None:
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        scroll = QScrollArea(self)
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        root.addWidget(scroll)
-
-        content = QWidget()
-        scroll.setWidget(content)
-        content_root = QVBoxLayout(content)
-        content_root.setContentsMargins(16, 16, 16, 16)
-        content_root.setSpacing(10)
-
-        header = HeroHeader(
+        root, content_root = create_scrolled_page(
+            self,
             locale.tr("prts_title", "PRTS Intelligence (施工中)"),
             locale.tr("prts_subtitle", "VLM 驱动的全自动游戏 CoPilot — 视觉语言模型自主导航与决策。"),
-            content,
+            spacing=10,
         )
-        content_root.addWidget(header)
 
         # 施工中横幅
         banner = QLabel(locale.tr("prts_under_construction", "⚠ 此页面正在施工中，功能尚未完全实现。"))
         banner.setProperty("variant", "warning")
         banner.setWordWrap(True)
-        banner.setStyleSheet("background-color: #fff3cd; color: #856404; padding: 8px 12px; border-radius: 6px; font-weight: 500;")
+        banner.setStyleSheet(f"background-color: {COLORS['accent_gold_glow']}; color: {COLORS['warning']}; padding: 8px 12px; border-radius: 6px; font-weight: 500;")
         content_root.addWidget(banner)
 
         # 顶部控制栏：启动/停止 + 状态
