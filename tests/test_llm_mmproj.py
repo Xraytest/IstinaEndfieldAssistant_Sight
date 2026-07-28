@@ -37,7 +37,7 @@ def test_llm_client_embeds_image_as_data_uri(monkeypatch) -> None:
 
     captured: Dict[str, Any] = {}
 
-    def fake_post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def fake_post(self, path: str, payload: Dict[str, Any], timeout: Any = None, **kwargs: Any) -> Dict[str, Any]:
         captured["path"] = path
         captured["payload"] = payload
         return {"choices": [{"message": {"content": "ok"}}]}

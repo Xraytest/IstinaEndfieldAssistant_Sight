@@ -18,7 +18,15 @@ def _create_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bridge=None) -
     from gui.pyqt6.i18n import get_locale_manager
 
     monkeypatch.setattr(_mod.MaaEndControlPage, "_delayed_init", lambda self: None)
-    monkeypatch.setattr(get_locale_manager(), "tr", lambda key, default="": default)
+    # Delegate task_name_* and task_group_* lookups to the real locale manager
+    # (needed by _zh()/_group_label() which use locale.tr for i18n), while
+    # returning the default for all other keys to keep tests deterministic.
+    _real_tr = get_locale_manager().tr
+    def _partial_tr(key, default=""):
+        if key.startswith("task_name_") or key.startswith("task_group_"):
+            return _real_tr(key, default)
+        return default
+    monkeypatch.setattr(get_locale_manager(), "tr", _partial_tr)
     monkeypatch.setattr("core.foundation.paths.get_project_root", lambda: tmp_path)
 
     if bridge is None:
