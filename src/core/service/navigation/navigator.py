@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -235,7 +235,7 @@ class Navigator:
         zone_override: Optional[str] = None,
         llm_client: Optional[LlmClient] = None,
         max_steps: int = 40,
-        keyevent_fn: Optional[callable] = None,
+        keyevent_fn: Optional[Callable] = None,
         step_timeout: Optional[float] = None,
         target_radius: Optional[float] = None,
     ) -> Dict[str, Any]:
@@ -314,7 +314,7 @@ class Navigator:
         entity_name: str,
         llm_client: Optional[LlmClient] = None,
         max_steps: int = 40,
-        keyevent_fn: Optional[callable] = None,
+        keyevent_fn: Optional[Callable] = None,
         limit: int = 10,
         step_timeout: Optional[float] = None,
         target_radius: Optional[float] = None,
@@ -345,9 +345,9 @@ class Navigator:
         self,
         llm_client: Optional[LlmClient] = None,
         max_steps: int = 40,
-        keyevent_fn: Optional[callable] = None,
+        keyevent_fn: Optional[Callable] = None,
         step_timeout: Optional[float] = None,
-        ocr_fn: Optional[callable] = None,
+        ocr_fn: Optional[Callable] = None,
     ) -> Dict[str, Any]:
         """Navigate by following on-screen quest tracking markers using VLM.
 
@@ -402,7 +402,7 @@ class Navigator:
         map_name: str = "",
         llm_client: Optional[LlmClient] = None,
         max_steps: int = 60,
-        keyevent_fn: Optional[callable] = None,
+        keyevent_fn: Optional[Callable] = None,
         step_timeout: Optional[float] = None,
         target_radius: Optional[float] = None,
     ) -> Dict[str, Any]:

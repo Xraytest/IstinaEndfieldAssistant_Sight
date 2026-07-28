@@ -37,6 +37,7 @@ import numpy as np
 
 from core.capability.llm import LlmClient
 from core.foundation.logger import get_logger
+from core.foundation.timeout_utils import run_with_timeout
 
 from .map_data_loader import MapDataLoader
 from .minimap_locator import MapPosition, MinimapLocator
@@ -369,26 +370,17 @@ class VlmWalkNavigator:
 
     def _grab_frame_bytes(self) -> Optional[bytes]:
         """获取截图原始字节（带 15s 超时保护），用于 OCR 验证。"""
-        import threading as _threading
-
-        result_box: Dict[str, Any] = {"data": None, "error": None}
-
-        def _do_shot() -> None:
-            try:
-                result_box["data"] = self._screenshot_fn()
-            except Exception as exc:  # noqa: BLE001
-                result_box["error"] = exc
-
-        t = _threading.Thread(target=_do_shot, daemon=True, name="grab-frame-bytes")
-        t.start()
-        t.join(timeout=15.0)
-        if t.is_alive():
-            self._logger.warning("grab_frame_bytes 超时 15s")
+        result = run_with_timeout(
+            self._screenshot_fn,
+            timeout=15.0,
+            name="grab-frame-bytes",
+            thread_name="grab-frame-bytes",
+            on_timeout=lambda n, t: self._logger.warning("grab_frame_bytes 超时 15s"),
+            on_error=lambda n, e: self._logger.warning("grab_frame_bytes failed: %s", e),
+        )
+        if result.is_timeout or result.is_error:
             return None
-        if result_box["error"] is not None:
-            self._logger.warning("grab_frame_bytes failed: %s", result_box["error"])
-            return None
-        return result_box["data"]
+        return result.data
 
     # ------------------------------------------------------------------
     # Public API
@@ -1103,26 +1095,7 @@ class VlmWalkNavigator:
         # GRAB-FRAME-HARD-TIMEOUT: 截图调用必须有时限保护。
         # 即使底层 screenshot_fn 自身无超时（如 maaend.screenshot 旧版的 job.wait()），
         # 也通过线程+Event.wait() 强制 15s 上限，避免 VLM 循环因截图卡死而整个进程假死。
-        import threading as _threading
-
-        result_box: Dict[str, Any] = {"data": None, "error": None}
-
-        def _do_shot() -> None:
-            try:
-                result_box["data"] = self._screenshot_fn()
-            except Exception as exc:  # noqa: BLE001
-                result_box["error"] = exc
-
-        t = _threading.Thread(target=_do_shot, daemon=True, name="grab-frame")
-        t.start()
-        t.join(timeout=15.0)
-        if t.is_alive():
-            self._logger.warning("grab_frame 超时 15s，放弃本次截图")
-            return None
-        if result_box["error"] is not None:
-            self._logger.warning("grab_frame failed: %s", result_box["error"])
-            return None
-        data = result_box["data"]
+        data = self._grab_frame_bytes()
         if data is None:
             return None
         arr = np.frombuffer(data, dtype=np.uint8)
