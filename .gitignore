@@ -53,12 +53,17 @@ temp_*.json
 .codebuddy/plans/
 .codebuddy/automations/
 .codebuddy/commands/
+.design/
+.qoder/
+.trae/
+memory/
 *.png
 *.jpg
 *.jpeg
 game_knowledge_base.json
 yolo11n.pt
 terminal_*
+assets/pipelines/paired-client-windows-x64.exe
 
 # --- Cache subdirectory documentation ---
 # cache/
