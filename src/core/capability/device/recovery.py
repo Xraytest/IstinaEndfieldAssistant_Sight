@@ -6,27 +6,33 @@ from __future__ import annotations
 
 import subprocess
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from core.foundation.constants import ADB_PATH_DEFAULT, GAME_PACKAGE_ENDFIELD
 from core.foundation.logger import LogCategory, get_logger
+
+if TYPE_CHECKING:
+    from core.capability.device.adb_manager import ADBDeviceManager
 
 
 class AndroidAppRestartPolicy:
     """Android 应用无响应时的重启策略。"""
 
-    DEFAULT_PACKAGE = "com.hypergryph.endfield"
+    DEFAULT_PACKAGE = GAME_PACKAGE_ENDFIELD
 
     def __init__(
         self,
-        adb_path: str = "3rd-part/adb/adb.exe",
+        adb_path: str = ADB_PATH_DEFAULT,
         package: str = DEFAULT_PACKAGE,
         activity: Optional[str] = None,
         wait_after_launch: float = 3.0,
+        adb_manager: Optional["ADBDeviceManager"] = None,
     ):
         self._adb_path = str(adb_path)
         self._package = package
         self._activity = activity
         self._wait_after_launch = wait_after_launch
+        self._adb_manager = adb_manager
         self._logger = get_logger(__name__)
 
     @classmethod
@@ -44,7 +50,7 @@ class AndroidAppRestartPolicy:
         if kwargs.get("package"):
             package = kwargs["package"]
         return cls(
-            adb_path=kwargs.get("adb_path", "3rd-part/adb/adb.exe"),
+            adb_path=kwargs.get("adb_path", ADB_PATH_DEFAULT),
             package=package,
             activity=kwargs.get("activity"),
             wait_after_launch=float(kwargs.get("wait_after_launch", 3.0)),
@@ -81,6 +87,10 @@ class AndroidAppRestartPolicy:
             return False
 
     def _resolve_adb(self, serial: Optional[str]) -> list[str]:
+        # 优先复用 adb_manager.build_adb_cmd（路径解析与 -s 拼接与 adb_manager 一致），
+        # 未注入时回退到本地 adb_path 拼接（向后兼容）。
+        if self._adb_manager is not None:
+            return self._adb_manager.build_adb_cmd(serial=serial)
         cmd = [self._adb_path]
         if serial:
             cmd += ["-s", serial]

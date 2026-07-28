@@ -42,11 +42,10 @@ import numpy as np
 
 from core.capability.device.adb_manager import ADBDeviceInfo, ADBDeviceManager
 from core.capability.device.touch_manager import TouchManager
+from core.foundation.constants import ADB_PATH_DEFAULT
 from core.foundation.logger import get_logger
 from core.foundation.paths import get_cache_subdir, get_project_root
 from core.foundation.shell_security import (
-    ALLOWED_SHELL_PREFIXES as _ALLOWED_SHELL_PREFIXES,
-    KNOWN_KEYEVENT_NAMES as _KNOWN_KEYEVENT_NAMES,
     is_allowed_shell_cmd as _is_allowed_shell_cmd,
     is_valid_keyevent as _is_valid_keyevent,
 )
@@ -546,7 +545,7 @@ class _Daemon:
         self._mmap_path = mmap_path
         self._logger = get_logger(__name__)
         self._adb_manager = ADBDeviceManager(adb_path=adb_path)
-        self._touch = TouchManager(adb_path=adb_path, device_address=serial)
+        self._touch = TouchManager(adb_path=adb_path, device_address=serial, adb_manager=self._adb_manager)
         self._lock = threading.Lock()
         self._listener: Any = None
         self._running = False
@@ -875,7 +874,7 @@ class _Daemon:
 class AndroidRuntime:
     """跨进程单例客户端连接器，向守护进程发 JSON-RPC 请求。"""
 
-    def __init__(self, serial: str, adb_path: str = "3rd-part/adb/adb.exe"):
+    def __init__(self, serial: str, adb_path: str = ADB_PATH_DEFAULT):
         self._serial = serial
         self._adb_path = str(get_project_root() / adb_path)
         safe_serial = serial.replace(":", "_")

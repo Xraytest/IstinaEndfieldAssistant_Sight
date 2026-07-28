@@ -16,24 +16,33 @@
 
 from __future__ import annotations
 
-import threading
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
+from core.foundation.constants import ADB_PATH_DEFAULT
 from core.foundation.logger import LogCategory, get_logger
+
+if TYPE_CHECKING:
+    from core.capability.device.adb_manager import ADBDeviceManager
 
 
 class TouchManager:
     """非 MaaTouch 通道的 fallback 触控管理器
 
-    ⚠️ 此实现走 adb shell input（AdbShell 通道），延迟高、易被反外挂检测、
+    ⚠️ 此实现走 adb shell input（AdbShell 通道），延迟高、易被反外控检测、
     无法被 MaaFW input_method 状态机管理。生产任务严禁使用。
 
     生产任务必须走 MaaTouch：MaaEndRuntime._controller.post_click/post_swipe。
     """
 
-    def __init__(self, adb_path: str = "3rd-part/adb/adb.exe", device_address: Optional[str] = None):
+    def __init__(
+        self,
+        adb_path: str = ADB_PATH_DEFAULT,
+        device_address: Optional[str] = None,
+        adb_manager: Optional["ADBDeviceManager"] = None,
+    ):
         self._adb_path = adb_path
         self._device_address = device_address
+        self._adb_manager = adb_manager
         self._logger = get_logger(__name__)
 
     def tap(self, x: int, y: int, serial: Optional[str] = None) -> None:
@@ -53,33 +62,14 @@ class TouchManager:
             raise
 
     def _adb_base_args(self, serial: Optional[str]) -> list:
+        # 优先复用 adb_manager.build_adb_cmd（保持路径解析与 -s 拼接一致），
+        # 未注入时回退到本地 adb_path 拼接（向后兼容）。
+        if self._adb_manager is not None:
+            return self._adb_manager.build_adb_cmd(serial=serial)
         args = [self._adb_path]
         if serial:
             args += ["-s", serial]
         return args
-
-    def long_press(self, x: int, y: int, duration_ms: int = 1000, serial: Optional[str] = None) -> None:
-        try:
-            self._swipe_adb(x, y, x, y, duration_ms, serial)
-        except Exception as e:
-            self._logger.error(LogCategory.EXECUTION, "长按失败", x=x, y=y, error=str(e))
-            raise
-
-    def back(self, serial: Optional[str] = None) -> None:
-        import subprocess
-        args = self._adb_base_args(serial) + ["shell", "input", "keyevent", "KEYCODE_BACK"]
-        subprocess.check_output(args, timeout=10)
-
-    _instance = None
-    _lock = threading.Lock()
-
-    @classmethod
-    def get_instance(cls, adb_path: str = "3rd-part/adb/adb.exe", device_address: Optional[str] = None) -> "TouchManager":
-        if cls._instance is None:
-            with cls._lock:  # D10: 双重检查锁，避免并发首访创建多实例
-                if cls._instance is None:
-                    cls._instance = cls(adb_path, device_address)
-        return cls._instance
 
     def _tap_adb(self, x: int, y: int, serial: Optional[str]) -> None:
         # ⚠️ adb shell input tap：AdbShell 通道，fallback。

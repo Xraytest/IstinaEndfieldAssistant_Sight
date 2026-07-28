@@ -1,16 +1,13 @@
 """ADB 设备管理器 - 通道职责分工
 
 ⚠️ 通道职责（严重红线）：
-  - 图像（screencap）：⚠️ 严禁作为生产任务的图像通道！
-    严禁使用本类 screencap() 拉取生产任务截图。生产任务统一走 scrcpy
-    （_ScrcpySession，见 core/capability/device/android_runtime.py）。
-    本 screencap() 仅在 AndroidRuntime 守护进程无法启动 scrcpy 时
-    作为极端兜底使用，且调用方必须明确承担延迟 200-500ms 的后果。
+  - 图像（screencap）：本类不再提供 screencap 能力。
+    生产任务统一走 scrcpy（_ScrcpySession，见 core/capability/device/android_runtime.py）。
   - 触控：本类的 shell() 仅用于非生产 adb shell 命令（如 am start），
     生产任务触控必须走 MaaTouch（MaaEndRuntime._controller.post_*）。
   - shell：仅允许白名单前缀（ALLOWED_SHELL_PREFIXES），防止注入。
 
-提供 ADB 设备扫描、连接、命令执行和极简兜底截图能力。
+提供 ADB 设备扫描、连接、命令执行能力。
 """
 
 from __future__ import annotations
@@ -19,6 +16,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
+from core.foundation.constants import ADB_PATH_DEFAULT
 from core.foundation.logger import LogCategory, get_logger
 from core.foundation.shell_security import is_allowed_shell_cmd
 
@@ -40,7 +38,7 @@ class ADBDeviceManager:
     使用 adbutils 或 adb.exe 子进程进行设备管理。
     """
 
-    def __init__(self, adb_path: str = "3rd-part/adb/adb.exe", timeout: int = 10):
+    def __init__(self, adb_path: str = ADB_PATH_DEFAULT, timeout: int = 10):
         self._adb_path = str(adb_path)
         self._timeout = timeout
         self._logger = get_logger(__name__)
@@ -108,24 +106,6 @@ class ADBDeviceManager:
         except Exception:
             return self._shell_via_subprocess(cmd, serial)
 
-    def screencap(self, serial: Optional[str] = None) -> bytes:
-        """⚠️ 极端兜底截图（不推荐作为生产任务图像通道）
-
-        生产任务统一走 scrcpy（android_runtime.py._ScrcpySession）。
-        本方法仅在 scrcpy 会话无法启动时作为兜底，调用方必须接受 200-500ms 延迟。
-        严禁：把本方法作为生产任务（VisitFriends/AutoCollect 等）的图像通道。
-        """
-        try:
-            import adbutils
-
-            adb = adbutils.AdbClient(host="127.0.0.1", port=5037)
-            device = adb.device(serial=serial or self._first_device_serial())
-            if device is None:
-                raise RuntimeError("未找到 ADB 设备")
-            return device.screencap()
-        except Exception:
-            return self._screencap_via_subprocess(serial)
-
     def _first_device_serial(self) -> Optional[str]:
         devices = self.get_devices()
         for device in devices:
@@ -144,27 +124,25 @@ class ADBDeviceManager:
         return subprocess.check_output(args, text=True, timeout=self._timeout)
 
     def run_adb(self, args: List[str], serial: Optional[str] = None) -> str:
-        adb = self._resolve_adb_path()
-        cmd = [adb]
-        if serial:
-            cmd += ["-s", serial]
-        cmd += args
+        cmd = self.build_adb_cmd(*args, serial=serial)
         return subprocess.check_output(cmd, text=True, timeout=self._timeout)
 
-    def _screencap_via_subprocess(self, serial: Optional[str] = None) -> bytes:
-        adb = self._resolve_adb_path()
-        args = [adb]
+    def build_adb_cmd(self, *args: str, serial: Optional[str] = None) -> list:
+        """构建 adb 命令参数列表（按需含 -s serial）。
+
+        Args:
+            args: adb 子命令及其参数（如 "shell", "am", "force-stop", pkg）。
+            serial: 设备 serial；为 None 时省略 -s 段（subprocess 调用 adb 时
+                仅在多设备场景才需要 -s，单设备时 adb 自动选择）。
+
+        Returns:
+            完整的 argv 列表，可直接传给 subprocess.check_output。
+        """
+        cmd: list = [self._resolve_adb_path()]
         if serial:
-            args += ["-s", serial]
-        args += ["shell", "screencap", "-p"]
-        data = subprocess.check_output(args, timeout=self._timeout)
-        # B1/D4: 仅剥离 ADB 在 Windows 下可能插入的「前导 CRLF」；绝不对二进制 PNG
-        # 数据做全局 CRLF 替换，否则会破坏 PNG 内部字节导致解码失败。同时校验 PNG 幻数。
-        if data[:2] == b"\r\n" and data[2:6] == b"\x89PNG":
-            data = data[2:]
-        if data[:4] != b"\x89PNG":
-            self._logger.warning(LogCategory.ADB, "screencap 返回数据不是合法 PNG", size=len(data))
-        return data
+            cmd += ["-s", serial]
+        cmd += list(args)
+        return cmd
 
     def version(self) -> str:
         output = subprocess.check_output([self._resolve_adb_path(), "version"], text=True, timeout=self._timeout)
