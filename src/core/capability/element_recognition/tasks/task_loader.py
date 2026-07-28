@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any, Dict, Optional
 
+from core.foundation.logger import get_logger
 from core.foundation.paths import get_project_root
 
 from ..pipeline import PipelineLoader
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TaskLoader:

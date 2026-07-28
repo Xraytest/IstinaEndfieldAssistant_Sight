@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-import logging
 import time
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from core.foundation.logger import get_logger
+
 from .matcher import TemplateMatcher
 from .pipeline_node import NodeAction, PipelineGraph, PipelineNode, RecognitionType
 from .template_registry import TemplateRegistry
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 MAAFW_AVAILABLE = False
 try:

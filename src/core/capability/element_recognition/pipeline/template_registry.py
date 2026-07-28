@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -8,9 +7,10 @@ from typing import Dict, List, Optional, Set
 import cv2
 import numpy as np
 
+from core.foundation.logger import get_logger
 from core.foundation.paths import get_project_root
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TemplateRegistry:

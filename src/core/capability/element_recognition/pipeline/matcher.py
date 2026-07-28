@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-import logging
 from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 
+from core.foundation.logger import get_logger
+
 from .template_registry import TemplateRegistry
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _to_gray(screen: np.ndarray) -> np.ndarray:

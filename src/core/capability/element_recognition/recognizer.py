@@ -13,12 +13,13 @@
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+
+from core.foundation.logger import get_logger
 
 from .backends.color_backend import ColorBackend
 from .backends.ocr_backend import OCRBackend
@@ -26,7 +27,7 @@ from .backends.template_backend import TemplateBackend
 from .backends.yolo_backend import YOLOBackend
 from .element_info import PAGE_TYPES, ElementInfo, PageInfo
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EndfieldElementRecognizer:

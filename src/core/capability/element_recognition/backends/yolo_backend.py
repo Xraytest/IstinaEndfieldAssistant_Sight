@@ -6,14 +6,15 @@ YOLO 后端 — 包装 YOLO11n 通用物体检测
 """
 from __future__ import annotations
 
-import logging
 from typing import List, Optional
 
 import numpy as np
 
+from core.foundation.logger import get_logger
+
 from ..element_info import ElementInfo
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class YOLOBackend:

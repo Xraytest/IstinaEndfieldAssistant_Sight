@@ -8,12 +8,13 @@ PipelineRunner + TemplateMatcher 执行匹配，
 from __future__ import annotations
 
 import json
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
+
+from core.foundation.logger import get_logger
 
 from ..element_info import ElementInfo
 from ..pipeline import (
@@ -24,7 +25,7 @@ from ..pipeline import (
     TemplateMatcher as PipelineTemplateMatcher,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class TemplateBackend:

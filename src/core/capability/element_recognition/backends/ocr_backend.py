@@ -5,14 +5,15 @@ OCR 后端 — 优先使用 maafw 内置 OCR，回退到 MaaEndOCR / OCRManager
 """
 from __future__ import annotations
 
-import logging
 from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
+from core.foundation.logger import get_logger
+
 from ..element_info import ElementInfo
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 MAAFW_OCR_AVAILABLE = False
 try:

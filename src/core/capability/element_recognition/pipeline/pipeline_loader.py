@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import json
 import threading
-import logging
 from pathlib import Path
 from typing import Optional, Set
 
+from core.foundation.logger import get_logger
 from core.foundation.paths import get_project_root
 
 from .pipeline_node import PipelineGraph, PipelineNode
 from .template_registry import TemplateRegistry
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PipelineLoader:
