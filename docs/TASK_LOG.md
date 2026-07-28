@@ -3230,3 +3230,15 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - `_PIPELINE_NAV_TIMEOUT_S = 60` 为经验值，若未来 SceneAnyEnterWorld 复杂度增加可能需要调大
   - FS-2 检测依赖节点名含 `abort`/`poststop`/`stop` 的启发式，若 MaaFW 未来变更节点命名约定需同步更新
   - 未修复 VisitFriends 模板过期问题（与 2026-07-13 TMPL-01 一致，需系统性更新模板，不在本次范围内）
+
+## 2026-07-28 11:50
+
+- **User Request**: 清理项目不被需要的内容，先列出而不删除
+- **Outcome**: 完成项目全量扫描，产出候选清理清单（仅列出、未删除任何文件）。清单按置信度分为 A 级可安全删除（约 720 MB：根目录调试截图 22 个、_maatouch_shots/、cache/ 下 88 个一次性诊断脚本与 1300+ 张诊断截图、.tmp_adr_diff.txt、pytest_output_settings.txt、META-INF/ 等）、B 级建议确认（约 320 MB：cache/frames_* 历史帧序列、video_frames/、过期 logs 与 analysis）、C 级不可删除（sitecustomize.py、.tmp/、cache/ipc|device|maaend|recordings、instances/、release_staging/ 等运行时或发布必需内容，release_staging 约 3.9 GB 仅在确认无发布计划时可清理）。
+- **Files Modified**: 无（仅新增本条日志记录）
+
+## 2026-07-28 15:55
+
+- **User Request**: 删除 A+B+C(4)(6)（即候选清理清单中 A 级全部、B 级全部、cache/recordings/、release_staging/）
+- **Outcome**: 清理完成，实际释放约 12.86 GB。已删除：根目录 24 个调试文件、_maatouch_shots/、META-INF/、.uploads/、reports/、release_staging/（3.87 GB）、cache/recordings/（8.48 GB）、cache/frames_*（5 组）、cache/video_frames/、cache/diag_unknown_page/、cache/analysis/、cache/screenshots/、cache 根目录 446 个散落诊断文件、logs/ 旧日志 44 个（保留 main.log 与 main_prev.log）。跳过 1 项：.tmp_to_delete_318783983/ 下两个 0 字节空子目录因 ACL 拒绝访问需管理员权限手动删除。验证结果：15 个保留路径完好，ruff 检查仅剩 60 个既有代码风格警告（与本次删除无关），pytest 成功收集 187 个用例、无 ImportError，项目健康。
+- **Files Modified**: 无代码修改（仅删除临时/派生产物；新增本条日志记录）

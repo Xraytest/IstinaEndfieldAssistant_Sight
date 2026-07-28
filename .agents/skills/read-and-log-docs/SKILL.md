@@ -1,6 +1,6 @@
 ---
 name: read-and-log-docs
-description: "在项目对话开始时必须先读取全部项目文档；完成用户要求后将任务需求写入 docs/TASK_LOG.md，若与现有文档冲突则先提出并询问用户。"
+description: "在项目对话开始时必须先读取全部项目文档;完成用户要求后将任务需求写入 docs/TASK_LOG.md,若与现有文档冲突则先提出并询问用户。"
 metadata:
   author: user
   version: "1.0.0"
@@ -10,20 +10,16 @@ metadata:
 
 ## MANDATORY: Conversation Start Rule
 
-每次与该项目的用户开始对话时，**必须先读取**以下全部文件：
+每次与该项目的用户开始对话时,**必须先读取**以下全部文件:
 
 - `CLAUDE.md`
 - `docs/ARCHITECTURE.md`
-- `docs/RUNTIME_DEVICE_AND_MAAEND.md`
-- `docs/GUI_CLI_AND_AUTOMATION.md`
-- `docs/LLM_AND_NAVIGATION.md`
-- `docs/RECOGNITION_PIPELINE_AND_TASKS.md`
-- `docs/CODE_QUALITY_AND_CLEANUP.md`
+- `docs/README.md`
 - `docs/WORKFLOW.md`
 
 读取结果用于指导后续所有工具调用、代码修改与实现规划。
 
-若项目文档范围发生变化，需同步更新本 skill 的文件列表。
+若项目文档范围发生变化,需同步更新本 skill 的文件列表;新增文档时,先确认文件存在再写入清单,避免引用不存在的路径。
 
 ---
 
