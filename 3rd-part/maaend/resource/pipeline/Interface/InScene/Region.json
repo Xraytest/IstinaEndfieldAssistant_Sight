@@ -430,29 +430,11 @@
         ]
     },
     "InWorld": {
-        "desc": "在大世界界面",
+        "desc": "在大世界界面。仅保留上游的两个模板分支：云终末地客户端叠层的『公告/设置/修复』按钮在标题页（点击任意位置继续）同样可见，若用其 OCR 作为 InWorld 分支会导致 EnterGame 在标题页误判已进入主世界（AndroidOpenGame 假成功）。实测云版本主世界 ProtosyncMenuButton 模板匹配稳定命中，无需 OCR 兜底。",
         "recognition": "Or",
         "any_of": [
             "ProtosyncMenuButton",
-            "RegionalDevelopmentButton",
-            {
-                "recognition": "OCR",
-                "roi": [1150, 60, 110, 50],
-                "expected": [
-                    "设置",
-                    "設置"
-                ],
-                "threshold": 0.7
-            },
-            {
-                "recognition": "OCR",
-                "roi": [1150, 115, 110, 50],
-                "expected": [
-                    "修复",
-                    "修復"
-                ],
-                "threshold": 0.7
-            }
+            "RegionalDevelopmentButton"
         ],
         "pre_delay": 0,
         "post_delay": 0,
