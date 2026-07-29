@@ -283,9 +283,9 @@
         }
     },
     "InMenuList": {
-        "desc": "在菜单列表界面",
-        "recognition": "And",
-        "all_of": [
+        "desc": "在菜单列表界面。菜单按钮在顶部居中位置（不同客户端位置略有差异），云版本『ENDFIELD』logo 在底部居中。",
+        "recognition": "Or",
+        "any_of": [
             {
                 "recognition": "OCR",
                 "roi": [
@@ -296,6 +296,18 @@
                 ],
                 "expected": [
                     "FIELD",
+                    "ENDFIELD"
+                ]
+            },
+            {
+                "recognition": "OCR",
+                "roi": [
+                    410,
+                    660,
+                    460,
+                    60
+                ],
+                "expected": [
                     "ENDFIELD"
                 ]
             },
