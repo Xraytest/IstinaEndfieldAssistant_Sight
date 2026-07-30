@@ -2136,29 +2136,57 @@ class IstinaRuntime:
                     route=route, attempt=attempt_idx, max_rounds=max_rounds,
                 )
 
-                # 1. 传送（VLM 驱动：SceneEnterMap* + VLM 点击传送点）
-                # pipeline 只负责进入地图视图，VLM 负责点击传送点完成实际传送。
-                # 传送失败时不继续 VLM 导航（避免在错误地图转圈），直接重试。
-                target_area = self._teleport_node_to_area(teleport_node)
+                # 1. 传送：先直接执行路线指定的 SceneEnterWorld* 节点（精确传送点），
+                #    失败则回退到区域级 _vlm_teleport_to_area。
+                #    注意：不能仅检查"是否已在目标区域"就跳过传送，因为同一区域内
+                #    有多个传送点（如武陵城有1/2/5/7号传送点），需要精确到路线指定的传送点。
                 teleport_ok = False
-                if target_area and target_area in self._TASK_AREA_MAP_NODE:
-                    tp_result = self._vlm_teleport_to_area(
-                        android, serial, target_area, runtime=runtime,
-                    )
-                    teleport_ok = tp_result.get("ok", False)
+                tp_reason = ""
+
+                # 1a. 直接执行路线指定的 SceneEnterWorld* 节点（带数字后缀，精确传送点）
+                try:
                     self._logger.info(
-                        LogCategory.MAIN, "VLM 传送执行结束",
-                        route=route, attempt=attempt_idx,
-                        teleport=teleport_node, target_area=target_area,
-                        teleport_ok=teleport_ok, reason=tp_result.get("reason"),
+                        LogCategory.MAIN, "采集传送：直接执行路线指定节点",
+                        route=route, node=teleport_node,
                     )
-                    # 等待传送加载完成
-                    time.sleep(3.0)
-                else:
+                    ok_direct = self._run_pipeline_with_timeout(
+                        runtime, teleport_node, {}, timeout=30.0,
+                    )
+                    time.sleep(3.5)  # 等待传送加载完成
+                    if ok_direct and self._is_in_big_world(serial):
+                        teleport_ok = True
+                        tp_reason = "direct_node"
+                        self._logger.info(
+                            LogCategory.MAIN, "采集传送成功（直接节点）",
+                            route=route, node=teleport_node,
+                        )
+                except Exception as exc:
                     self._logger.warning(
-                        LogCategory.MAIN, "无法映射传送节点到区域名",
-                        route=route, teleport=teleport_node,
+                        LogCategory.MAIN, "直接传送节点异常",
+                        route=route, node=teleport_node, error=str(exc),
                     )
+
+                # 1b. 回退：区域级 _vlm_teleport_to_area
+                if not teleport_ok:
+                    target_area = self._teleport_node_to_area(teleport_node)
+                    if target_area and target_area in self._TASK_AREA_MAP_NODE:
+                        tp_result = self._vlm_teleport_to_area(
+                            android, serial, target_area, runtime=runtime,
+                        )
+                        teleport_ok = tp_result.get("ok", False)
+                        tp_reason = tp_result.get("reason", "area_fallback")
+                        self._logger.info(
+                            LogCategory.MAIN, "VLM 传送执行结束（回退）",
+                            route=route, attempt=attempt_idx,
+                            teleport=teleport_node, target_area=target_area,
+                            teleport_ok=teleport_ok, reason=tp_result.get("reason"),
+                        )
+                        time.sleep(3.0)
+                    else:
+                        self._logger.warning(
+                            LogCategory.MAIN, "无法映射传送节点到区域名",
+                            route=route, teleport=teleport_node,
+                        )
 
                 # 传送失败：清理界面后直接进入下一轮重试（不继续 VLM 导航）
                 # 清理策略：多次 BACK 关闭地图/弹窗/任务追踪提示，回到主城3D场景
@@ -6543,6 +6571,7 @@ class IstinaRuntime:
         屏幕分辨率缓存于 _SCREEN_SIZE_CACHE，避免每次 keyevent 都截屏。
         """
         try:
+            android = self.android(None)
             screen_size = self._get_screen_size_cached()
             # 移动键映射到 swipe 摇杆操作
             # 摇杆中心通过截屏重心分析确定为 (220, 560)，拖动距离 90px

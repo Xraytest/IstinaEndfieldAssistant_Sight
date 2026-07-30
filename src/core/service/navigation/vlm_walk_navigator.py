@@ -224,68 +224,58 @@ You are controlling a character in a 3D open-world game to collect resources.
 
 Your task: navigate to collection points and collect the specified resources.
 
-IMPORTANT NAVIGATION STRATEGY (do NOT blindly follow coordinates):
+NAVIGATION STRATEGY:
 - The Waypoints are REFERENCE ONLY — they show the general direction and area.
-- Your PRIMARY navigation method is VISUAL: look around the screen for resource
-  point indicators (quest markers, glowing beams, floating arrows, resource node
-  labels, minimap directional markers).
-- At each step: TURN THE CAMERA to look around (horizontally, level/pitch view)
-  in a full 360° sweep if needed, searching for visual indicators of resource
-  points. Do NOT just walk forward based on coordinates alone.
-- When you see a resource point indicator (glowing beam, arrow, marker, or the
-  collect item's name floating above a node), walk toward it.
-- Use the minimap to confirm the rough direction, then use the main screen view
-  to actually navigate by following the visual indicator.
-- The final waypoints are near collection points — when close, SLOW DOWN and
-  look around carefully (turn left/right repeatedly) to find the resource node.
+- Your PRIMARY goal is to MOVE toward the collection area. Do NOT stand still
+  turning endlessly. Walking forward is almost always better than turning.
+- At the START: do ONE turn_left or turn_right to check surroundings, then
+  IMMEDIATELY start walking forward toward the target direction. Do NOT do
+  more than 2 consecutive turns without walking forward.
+- When you see a resource point indicator (glowing beam, arrow, marker, or
+  collect item name floating above a node), walk toward it using "forward".
+- Use the minimap direction (distance to target) to decide: if distance is
+  decreasing, keep going forward. If not, do ONE turn then walk forward again.
+- The final waypoints are near collection points — when close (distance < 100),
+  slow down and look for the resource node on screen.
+
+CRITICAL RULES (to avoid getting stuck):
+1. NEVER do more than 2 consecutive turn actions. After 2 turns, you MUST
+   use "forward" to walk, even if you're not sure of the exact direction.
+2. Walking forward explores the map and changes the view. Turning alone
+   keeps you in the same spot. Always prefer forward over turning.
+3. If distance_to_end is very large (>300), walk forward toward the target
+   direction. Don't waste steps turning — the target is far away.
+4. If you're stuck (distance not changing), try forward for 2-3 seconds.
 
 COLLECTION PROCESS:
 - At a collection point, look for a resource node on screen. The node often
-  shows a text label matching one of the Collect Items names
-  (e.g. "映火荞花", "萤壳虫", "灼壳虫").
-- When you see a collectible resource node on screen, use "interact" to press F.
-- After interacting, if you see floating "获得" text or a collection
-  confirmation, use "arrived" to signal success.
-- If the first interact does not collect (no "获得" text), turn to find another
-  resource node and try again.
-
-CONTEXT YOU RECEIVE:
-- Current Position: your coordinates on the minimap (rough reference)
-- Map: the minimap identifier
-- Waypoints: ordered list of (x, y) reference coordinates
-- Next Target: the next reference waypoint (general direction only)
-- Collect Items: names of resources to look for and collect (landmarks)
-- Last Action: what you did last step
-- Step Count: current step / total steps
+  shows a text label matching one of the Collect Items names.
+- When you see a collectible resource node, use "interact" to press F.
+- After interacting, if you see "获得" text, use "arrived" to signal success.
 
 Available actions (output ONLY a single JSON object):
-{"action": "forward", "duration": 1.5}  — walk forward (1-5 seconds)
+{"action": "forward", "duration": 2.0}  — walk forward (1-5 seconds)
 {"action": "left", "duration": 1.5}     — strafe left
 {"action": "right", "duration": 1.5}    — strafe right
 {"action": "backward", "duration": 1.5} — walk back
-{"action": "turn_left"}                  — rotate camera ~45° left (use this to look around)
-{"action": "turn_right"}                — rotate camera ~45° right (use this to look around)
+{"action": "turn_left"}                  — rotate camera ~45° left
+{"action": "turn_right"}                — rotate camera ~45° right
 {"action": "interact"}                  — press F to collect/interact
 {"action": "stop"}                       — stop and observe
 {"action": "arrived"}                    — collection done
 
-Rules:
-- Prefer VISUAL navigation over coordinate following.
-- When unsure of direction, use turn_left/turn_right to look around 360°.
-- Use short movements (1-2s) and re-check the view each step.
-- Output ONLY the JSON, no extra text.
-
-Example — at start, look around to find the indicator:
+Example — first step, check surroundings then move:
 {"action": "turn_right"}
 
+Example — second step, ALWAYS walk forward after a turn:
+{"action": "forward", "duration": 2.0}
+
 Example — saw a glowing beam/arrow toward the target:
-{"action": "forward", "duration": 1.5}
+{"action": "forward", "duration": 2.0}
 
-Example — at collection point, see resource node with item name:
+Example — at collection point, see resource node:
 {"action": "interact"}
-
-Example — collection confirmed (saw "获得" text):
-{"action": "arrived"}\
+\
 """
 
 
@@ -887,6 +877,9 @@ class VlmWalkNavigator:
         # FAST-FAIL-ON-TIMEOUT: 连续 vlm_timeout 计数器
         consecutive_timeouts = 0
         max_consecutive = self._config.max_consecutive_vlm_timeouts
+        # ANTI-TURN-LOOP: 连续转向计数器，防止 VLM 卡在原地反复转向
+        consecutive_turns = 0
+        _MAX_CONSECUTIVE_TURNS = 3
 
         # 起点坐标（第一个 waypoint）和终点坐标（最后一个 waypoint）作参考
         start_x, start_y = waypoints[0]
@@ -950,16 +943,22 @@ class VlmWalkNavigator:
 
             img_b64 = self._frame_to_base64(frame)
             last_action = history[-1]["action"] if history else "none"
+            turn_warning = ""
+            if consecutive_turns >= 2:
+                turn_warning = (
+                    f"WARNING: You have turned {consecutive_turns} times in a row. "
+                    f"You MUST walk forward now to make progress!\n"
+                )
             context = (
                 f"{pos_info}"
+                f"{turn_warning}"
                 f"Map: {map_name}\n"
                 f"Reference Waypoints (general path, NOT strict): {wp_str}\n"
                 f"Collect Items (look for these on screen): {items_str}\n"
                 f"Last Action: {last_action}\n"
                 f"Step Count: {step_idx + 1}/{steps}\n"
-                f"NAVIGATE BY VISUAL INDICATORS: turn the camera to look around 360° "
-                f"for resource point indicators (glowing beams, arrows, markers, item name labels). "
-                f"When you see an indicator, walk toward it. At the collection point, press F to collect. "
+                f"IMPORTANT: Walk FORWARD to reach the target. Only turn 1-2 times to check direction, "
+                f"then walk forward. Do NOT keep turning in place.\n"
                 f"Output ONLY the JSON action."
             )
 
@@ -1026,6 +1025,19 @@ class VlmWalkNavigator:
                 history.append({"step": step_idx, "action": "arrived"})
                 self._logger.info("VLM collect arrived at step %d", step_idx)
                 break
+
+            # ANTI-TURN-LOOP: 连续转向超过阈值时强制 forward
+            if action["action"] in ("turn_left", "turn_right"):
+                consecutive_turns += 1
+                if consecutive_turns > _MAX_CONSECUTIVE_TURNS:
+                    self._logger.warning(
+                        "VLM collect 连续 %d 次转向，强制 forward（防卡死）",
+                        consecutive_turns,
+                    )
+                    action = {"action": "forward", "duration": 2.0}
+                    consecutive_turns = 0
+            else:
+                consecutive_turns = 0
 
             self._execute_action(action)
             history.append({**action, "step": step_idx})

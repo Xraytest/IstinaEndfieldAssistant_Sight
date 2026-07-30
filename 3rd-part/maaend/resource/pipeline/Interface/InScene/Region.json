@@ -442,23 +442,11 @@
         ]
     },
     "InWorld": {
-        "desc": "在大世界界面。ProtosyncMenuButton/RegionalDevelopmentButton 模板在菜单列表的『协议同步/地区建设』菜单项中也会命中（云版本菜单列表与主世界共享部分 UI 元素），单靠这两个模板会把菜单列表误判为主世界，导致 SceneAnyEnterWorld 误报成功（任务结束后卡菜单列表无法恢复）。新增『探索』OCR（小地图左上方，仅主世界可见）作为主世界独有标识，与现有模板 AND 组合。",
-        "recognition": "And",
-        "all_of": [
-            {
-                "recognition": "Or",
-                "any_of": [
-                    "ProtosyncMenuButton",
-                    "RegionalDevelopmentButton"
-                ]
-            },
-            {
-                "recognition": "OCR",
-                "roi": [0, 0, 250, 80],
-                "expected": ["探索"],
-                "threshold": 0.7
-            }
-        ],
+        "desc": "在大世界界面。云版本 UI 布局与常规版本不同：菜单按钮（地区建设/装备加工等）在屏幕右侧而非左侧，导致 ProtosyncMenuButton(ROI[-200,0,200,200])/RegionalDevelopmentButton(ROI[164,3,232,84]) 模板无法匹配。改用纯 OCR 识别主世界左上角小地图区域的『探索』文本（ROI [0,0,250,80]，与 __ScenePrivateAnyEnterWorldSuccess 中的探索判定一致）。注意：不能使用底部 HUD 的『探索等级』（ROI [200,480,300,80]），因为菜单列表页也有『O探索等级』文本在该区域，会导致误判。菜单列表/地图视图左上角是『//武陵』（区域指示器），不是『探索』，因此本 ROI 能正确区分主世界与菜单列表/地图。",
+        "recognition": "OCR",
+        "roi": [0, 0, 250, 80],
+        "expected": ["探索"],
+        "threshold": 0.7,
         "pre_delay": 0,
         "post_delay": 0,
         "rate_limit": 0
