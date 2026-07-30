@@ -1595,22 +1595,30 @@ class IstinaRuntime:
             "fallback_entry": "AutoCollectRoute1Start",
         },
         "Route2": {
-            "teleport": "SceneEnterWorldWulingWulingCity2",
+            # 原 SceneEnterWorldWulingWulingCity2 (锚点 636.1, 538.8 "待修缮区")
+            # 在云终末地实际进入"据点建设·盈天台建设站"子场景（not 主世界），
+            # VLM 导航在子场景失效。改用 C1 "界石坪" 主世界锚点 (212.7, 515.6)。
+            # waypoints 起点已加入 C1 锚点（213, 516），VLM 从 C1 出发后按
+            # 路径依次前往各 GotoFind 采集点。原始第一个 waypoint (636, 537)
+            # 保留作为路径中段过路点，整体路径自西向东连接 C1 → GotoFind1-9。
+            "teleport": "SceneEnterWorldWulingWulingCity1",
             "map_name": "map02_lv002",
             "collect_items": ["原木"],
             "waypoints": [
-                (636.0, 537.0), (631.0, 533.3), (587.3, 533.2), (587.3, 530.8),
-                (589.7, 527.0), (592.3, 519.6), (598.4, 510.7), (596.0, 503.3),
-                (588.5, 494.5), (583.5, 489.5), (578.5, 484.4), (573.5, 479.5),
-                (566.0, 477.1), (533.5, 472.0),  # GotoFind1
-                (531.1, 465.7),  # GotoFind2
-                (529.8, 469.6),  # GotoFind3
-                (532.2, 472.0),  # GotoFind4
-                (532.3, 475.8),  # GotoFind5
-                (533.5, 478.2),  # GotoFind6
-                (531.1, 476.9),  # GotoFind7
-                (526.1, 475.8),  # GotoFind8
-                (524.8, 473.1),  # GotoFind9
+                (213.0, 516.0),   # C1 界石坪（传送点）
+                (250.0, 510.0),   # 路径过渡
+                (350.0, 500.0),   # 路径过渡
+                (450.0, 490.0),   # 路径过渡
+                (533.5, 472.0),   # GotoFind1（原 waypoint 终点）
+                (531.1, 465.7),   # GotoFind2
+                (529.8, 469.6),   # GotoFind3
+                (532.2, 472.0),   # GotoFind4
+                (532.3, 475.8),   # GotoFind5
+                (533.5, 478.2),   # GotoFind6
+                (531.1, 476.9),   # GotoFind7
+                (526.1, 475.8),   # GotoFind8
+                (524.8, 473.1),   # GotoFind9
+                (636.0, 537.0),   # 原始首个 waypoint（保留作为路径过路点）
             ],
             "fallback_entry": "AutoCollectRoute2Start",
         },
@@ -4235,7 +4243,40 @@ class IstinaRuntime:
                 "steps": steps}
 
     def _is_in_big_world(self, serial: Optional[str]) -> bool:
-        """通过 OCR 检测当前是否在大世界（非地图视图/区域总览）。"""
+        """通过 OCR 检测当前是否在大世界（非地图视图/区域总览/据点建设子场景）。
+
+        实现策略（与 Region.json InWorld 节点保持一致）：
+        1. **主世界独有 UI 元素检测**：左上角 [0, 0, 250, 80] ROI 内必须出现
+           "探索" 文本（这是大世界 HUD 的"探索"标签/小地图提示）。
+           该 ROI 在据点建设子场景、菜单列表页、地图视图均不会出现"探索"。
+        2. **地图视图特征词排除**：OCR 全屏若出现 "标记显示管理"、"地区总览"、
+           "//武陵" 等地图视图独有 UI 元素，则视为非大世界。
+        3. **不再使用"据点建设"等子场景关键词**：该文本会在主世界作为任务提示
+           持续显示（例如传送锚点 (636.1, 538.8) "待修缮区"对应
+           "据点建设·盈天台建设站"任务，即使角色已在主世界，任务面板仍会显示
+           此文本），误判率 100%。改为依赖"探索"正面信号。
+        """
+        # Step 1: 大世界独有 ROI 检测（探索标签）
+        try:
+            roi_result = self.execute(
+                "scene.elements",
+                {"serial": serial, "enable_ocr": True,
+                 "enable_template": False, "enable_color": False,
+                 "roi": [0, 0, 250, 80]},
+            )
+        except Exception:
+            return False
+        if not isinstance(roi_result, dict) or roi_result.get("status") != "success":
+            return False
+        roi_labels = [
+            str(e.get("label", ""))
+            for e in roi_result.get("elements", [])
+            if isinstance(e, dict)
+        ]
+        if not any("探索" in lab for lab in roi_labels):
+            return False
+
+        # Step 2: 全屏 OCR 检测地图视图特征词
         try:
             ocr_result = self.execute(
                 "scene.elements",
@@ -4248,13 +4289,15 @@ class IstinaRuntime:
             return False
         elements = ocr_result.get("elements", [])
         labels = [str(e.get("label", "")) for e in elements if isinstance(e, dict)]
-        # 地图视图/区域总览特征词（出现任一即视为非大世界）
+        # 地图视图独有 UI 元素（注意：不能包含"据点建设"等可能在主世界任务提示中出现的词）
         _MAP_VIEW_KEYWORDS = (
             "//四号谷地", "//武陵", "// 武陵", "标记显示管理", "取消追踪", "地区总览",
-            # 区域总览特有（区别于大世界 HUD）
-            "地区建设等级", "O.M.V.帝江号",
+            "地区建设等级",
         )
-        return self._is_in_big_world_by_elements(labels, _MAP_VIEW_KEYWORDS)
+        if any(any(kw in label for label in labels) for kw in _MAP_VIEW_KEYWORDS):
+            return False
+
+        return True
 
     @staticmethod
     def _is_in_big_world_by_elements(labels: List[str], map_view_keywords: tuple) -> bool:

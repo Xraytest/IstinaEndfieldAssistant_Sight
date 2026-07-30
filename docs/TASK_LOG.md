@@ -3242,3 +3242,51 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **User Request**: 删除 A+B+C(4)(6)（即候选清理清单中 A 级全部、B 级全部、cache/recordings/、release_staging/）
 - **Outcome**: 清理完成，实际释放约 12.86 GB。已删除：根目录 24 个调试文件、_maatouch_shots/、META-INF/、.uploads/、reports/、release_staging/（3.87 GB）、cache/recordings/（8.48 GB）、cache/frames_*（5 组）、cache/video_frames/、cache/diag_unknown_page/、cache/analysis/、cache/screenshots/、cache 根目录 446 个散落诊断文件、logs/ 旧日志 44 个（保留 main.log 与 main_prev.log）。跳过 1 项：.tmp_to_delete_318783983/ 下两个 0 字节空子目录因 ACL 拒绝访问需管理员权限手动删除。验证结果：15 个保留路径完好，ruff 检查仅剩 60 个既有代码风格警告（与本次删除无关），pytest 成功收集 187 个用例、无 ImportError，项目健康。
 - **Files Modified**: 无代码修改（仅删除临时/派生产物；新增本条日志记录）
+
+## 2026-07-30 07:09
+
+- **User Request**: 已经卡死，检查
+- **Outcome**: 检查发现游戏卡在『长时间未操作自动登出』弹窗，force-stop + monkey 重启云终末地（需同时 stop com.hypergryph.cloud.endfield wrapper + com.hypergryph.endfield 游戏包）。OpenGame + VisitFriends 通过。DijiangRewards 失败，根因是 InWorld 模板（ProtosyncMenuButton/RegionalDevelopmentButton）在菜单列表的『协议同步/地区建设』菜单项中也会命中，导致 SceneAnyEnterWorld 误判通过。修复：InWorld 改为 And(模板 OR, 『探索』OCR) -『探索』标签仅在主世界小地图可见，菜单列表无此标签
+- **Files Modified**: 3rd-part/maaend/resource/pipeline/Interface/InScene/Region.json (InWorld 识别逻辑)
+
+## 2026-07-30 15:18
+
+- **User Request**: 地点完全错误的，调试过程中你也需要关注画面
+- **诊断**（重点看 `.tmp/screen_now.png`、`after_walk.png`、`snap_after_teleport.png`）：
+  - AutoCollect Route2 当前传送节点 `SceneEnterWorldWulingWulingCity2` 注释为『武陵城-待修缮区』(BigMapPick 锚点 636.1, 538.8)。
+  - 实际传送后角色进入了『据点建设·盈天台建设站』子场景（outpost construction sub-scene，OCR 可见『据点建设·盈天台建设站 - 提升据点发展值至当前上限 - 可打开据点信息界面查看详情』，左上 tab 切到『工业』）。
+  - 子场景是无法回退的主世界之外的界面：尝试 ESC/BACK/M/Tab/Menu/小地图点击/顶部条点击/前进走/从地图传送 均无法退出（user 多次尝试均失败）。
+  - `_is_in_big_world` 的 `_MAP_VIEW_KEYWORDS` 不含『据点建设/建设站』等子场景特征词，OCR 又能命中『探索』tab 文字，导致传送后误判主世界 = True。
+  - VLM 紧接着在子场景里 `walk_collect` 步进 8 步后 stuck（`vlm_walk_navigator` 触底日志『stuck detected at step 8』），整个 Route2 任务失败。
+- **修复**:
+  1. **`runtime._is_in_big_world._MAP_VIEW_KEYWORDS` 新增**：『据点建设』『提升据点发展值』『据点信息界面』『建设站』。任一出现即返回 False，避免子场景被误判主世界。
+  2. **`Route2` 传送节点切换**：`SceneEnterWorldWulingWulingCity2`（待修缮区 / 子场景）→ `SceneEnterWorldWulingWulingCity1`（界石坪 C1 / 主世界，锚点 212.7, 515.6）。waypoints 起点 (213, 516) 改为 C1 实际位置，加入 C1→GotoFind1 的过渡点 (250,510)/(350,500)/(450,490)，GotoFind1-9 保持原 (525-533, 465-478) 采集点不变，原首个 waypoint (636, 537) 保留为路径过路点。
+  3. **`AutoCollectRoute2.json` 位置断言同步**：`MapTrackerAssertLocation.expected.target` 从 `[632, 535, 20, 20]` 改为 `[213, 516, 20, 20]`，匹配新 C1 锚点。
+- **未验证**：本会话窗口设备 127.0.0.1:16416 离线（ping 通但 ADB 端口 10061 拒绝连接），需用户重连模拟器后跑 Route2 端到端确认传送点与采集路径正确。
+- **Files Modified**:
+  - `src/core/service/runtime.py`（`_is_in_big_world` 关键词 + Route2 teleport/waypoints）
+  - `3rd-part/maaend/resource/pipeline/AutoCollect/AutoCollectRoute2.json`（AssertLocation target 改 C1 坐标）
+  - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-07-30 17:30
+
+- **User Request**: 地点完全错误的，调试过程中你也需要关注画面（继续 Route2 验证）
+- **设备**: 127.0.0.1:16416（云终末地 16512 端口也试过）
+- **模拟器启动流程**: 手动 `Start-Process "C:\Program Files\Netease\MuMu\nx_main\MuMuNxMain.exe" -ArgumentList "-v 1 --engine_series=15.0"`，等 30s 后 `adb connect 127.0.0.1:16416`。配置在 `config/client_config.json` 的 `device.emulator.path/args`。
+- **新发现**: 上次的"据点建设子场景"修复**误判严重**。修复后实测：
+  - 角色已成功传送至主世界（界石坪 C1 区域，画面有 NPC、传送锚点装置、"探索" tab 亮起），但左上"据点建设·盈天台建设站"任务提示（这是任务面板的 fixed UI，不是子场景）始终显示。
+  - `InWorld` 节点（Region.json OCR 探索 ROI [0,0,250,80]）正确返回 **True**。
+  - `_is_in_big_world` 误判为 **False**（因为"据点建设"等关键词在该任务提示中匹配）。
+  - VLM 导航在主世界但被 `_is_in_big_world` 误判为子场景，会被各种"退子场景"逻辑误触发，导致整条 Route2 失败。
+- **修复**（`runtime._is_in_big_world`）：
+  1. **删除"据点建设/提升据点发展值/据点信息界面/建设站"关键词**：这些词会在主世界作为任务提示持续显示，误判率 100%。
+  2. **改用 Region.json InWorld 的同款检测**：左上 [0,0,250,80] ROI 内必须出现"探索"才视为大世界（与 `Region.json` `InWorld` 节点语义对齐）。
+  3. **保留"标记显示管理/地区总览//武陵"等地图视图独有 UI 关键词**作为负面信号。
+- **验证**:
+  - `_is_in_big_world(SERIAL)` 在界石坪 C1 主世界（含"据点建设"任务提示）正确返回 **True** ✓
+  - `InWorld` Region.json 节点 OCR match=True ✓
+  - 视觉确认：传送锚点装置 + NPC + "探索" tab 亮起 ✓
+- **未验证**: Route2 端到端采集流程（受云终末地游戏内 UI 子场景识别影响，传送后子场景残留 UI 的处理仍需实际跑一次 Route2 验证）。
+- **Files Modified**:
+  - `src/core/service/runtime.py`（`_is_in_big_world` 改用 ROI 探索检测 + 移除据点建设误判关键词）
+  - `docs/TASK_LOG.md`（本条记录）
