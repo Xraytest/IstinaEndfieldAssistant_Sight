@@ -113,6 +113,7 @@ if _DEFAULT_DLL_DIR is not None and os.environ.get("MAAFW_BINARY_PATH") is None:
 MAAFW_AVAILABLE = False
 try:
     from maa.agent_client import AgentClient
+    from maa.context import ContextEventSink
     from maa.controller import AdbController, ControllerEventSink
     from maa.define import MaaAdbInputMethodEnum, MaaAdbScreencapMethodEnum, MaaLoggingLevel
     from maa.event_sink import NotificationType
@@ -125,6 +126,7 @@ except ImportError:
     Resource = None  # type: ignore[misc,assignment]
     Tasker = None  # type: ignore[misc,assignment]
     AdbController = None  # type: ignore[misc,assignment]
+    ContextEventSink = None  # type: ignore[misc,assignment]
     ControllerEventSink = None  # type: ignore[misc,assignment]
     NotificationType = None  # type: ignore[misc,assignment]
     Toolkit = None  # type: ignore[misc,assignment]
@@ -231,6 +233,43 @@ class _InputObservationSink(ControllerEventSink if ControllerEventSink is not No
         )
 
 
+class _TaskActionObservationSink(ContextEventSink if ContextEventSink is not None else object):
+    """Observe pipeline inputs via Tasker context ``Node.Action.Succeeded``.
+
+    本 MaaFW 构建对 pipeline 内部 Click/Swipe 不发出 Controller.Action 通知
+    （仅连接类 inactive 动作），controller sink 因此观测不到 pipeline 输入；
+    而 Tasker 上下文事件的 action_details 含真实输入类型与坐标，是
+    「每次 input 后检查 OCR」的可靠观测点。
+    """
+
+    def __init__(self, runtime: "MaaEndRuntime") -> None:
+        self._runtime = runtime
+        self._seen_action_ids: set[str] = set()
+
+    def on_raw_notification(self, context: Any, msg: str, details: Dict[str, Any]) -> None:
+        if str(msg) != "Node.Action.Succeeded" or not isinstance(details, dict):
+            return
+        action_details = details.get("action_details")
+        if not isinstance(action_details, dict):
+            return
+        action = str(action_details.get("action", "") or "").rsplit(".", 1)[-1]
+        if action not in _INPUT_ACTIONS:
+            return
+        event_key = f"{details.get('task_id', 0)}:{action_details.get('action_id', 0)}"
+        if event_key in self._seen_action_ids:
+            return
+        self._seen_action_ids.add(event_key)
+        if len(self._seen_action_ids) > 2048:
+            self._seen_action_ids.clear()
+        inner = action_details.get("detail")
+        param: Dict[str, Any] = {
+            "node": str(details.get("name", "") or ""),
+            "box": action_details.get("box"),
+            "point": inner.get("point") if isinstance(inner, dict) else None,
+        }
+        self._runtime._enqueue_input_observation(None, action, param, {})
+
+
 class MaaEndRuntime:
     """Thin wrapper around MaaFramework that behaves like MaaEnd's runner."""
 
@@ -256,6 +295,8 @@ class MaaEndRuntime:
         self._controller: Optional[Any] = None
         self._input_sink: Optional[Any] = None
         self._input_sink_id: Optional[int] = None
+        self._task_action_sink: Optional[Any] = None
+        self._task_action_sink_id: Optional[int] = None
         self._input_observation_queue: Queue[tuple[Any, str, Dict[str, Any], Dict[str, Any]]] = Queue(maxsize=128)
         self._input_observation_stop = threading.Event()
         self._input_observation_thread: Optional[threading.Thread] = None
@@ -651,10 +692,31 @@ class MaaEndRuntime:
                 self.logger.warning(LogCategory.MAIN, "MaaFW 输入观测 sink 注册失败")
             else:
                 self.logger.info(LogCategory.MAIN, "MaaFW 输入观测 sink 已注册", sink_id=self._input_sink_id)
+            self._register_task_action_sink()
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "MaaFW 输入观测 sink 初始化异常", error=str(exc))
             self._input_sink = None
             self._input_sink_id = None
+
+    def _register_task_action_sink(self) -> None:
+        """注册 Tasker 上下文 sink：观测 pipeline 内部输入（Node.Action.Succeeded）。"""
+        if ContextEventSink is None or self._tasker is None:
+            return
+        try:
+            self._task_action_sink = _TaskActionObservationSink(self)
+            self._task_action_sink_id = self._tasker.add_context_sink(self._task_action_sink)
+            if self._task_action_sink_id is None:
+                self.logger.warning(LogCategory.MAIN, "MaaFW 任务输入观测 sink 注册失败")
+            else:
+                self.logger.info(
+                    LogCategory.MAIN,
+                    "MaaFW 任务输入观测 sink 已注册",
+                    sink_id=self._task_action_sink_id,
+                )
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "MaaFW 任务输入观测 sink 初始化异常", error=str(exc))
+            self._task_action_sink = None
+            self._task_action_sink_id = None
 
     def _stop_input_observer(self) -> None:
         self._input_observation_stop.set()
@@ -665,6 +727,13 @@ class MaaEndRuntime:
             self.logger.debug(LogCategory.MAIN, "移除输入观测 sink 失败", error=str(exc))
         self._input_sink_id = None
         self._input_sink = None
+        try:
+            if self._task_action_sink_id is not None and self._tasker is not None:
+                self._tasker.remove_context_sink(self._task_action_sink_id)
+        except Exception as exc:
+            self.logger.debug(LogCategory.MAIN, "移除任务输入观测 sink 失败", error=str(exc))
+        self._task_action_sink_id = None
+        self._task_action_sink = None
         thread = self._input_observation_thread
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=2.0)
@@ -697,11 +766,15 @@ class MaaEndRuntime:
             try:
                 # 等待云游戏渲染一帧；不在 MaaFW sink 回调线程内重入。
                 time.sleep(0.12)
-                cap_job = controller.post_screencap()
+                live_controller = self._controller if self._controller is not None else controller
+                if live_controller is None:
+                    self.logger.warning(LogCategory.MAIN, "输入后截图无可用控制器", action=action)
+                    continue
+                cap_job = live_controller.post_screencap()
                 if not self._wait_job(cap_job, timeout_s=3.0):
                     self.logger.warning(LogCategory.MAIN, "输入后截图失败", action=action, param=param)
                     continue
-                image = controller.cached_image
+                image = live_controller.cached_image
                 if image is None or self._tasker is None:
                     self.logger.warning(LogCategory.MAIN, "输入后 OCR 无图像或 Tasker 不可用", action=action)
                     continue
@@ -1275,12 +1348,7 @@ class MaaEndRuntime:
         # 必须新建 Tasker 实例并重新 bind resource/controller 才能恢复
         self.logger.warning(LogCategory.MAIN, "Tasker 仍卡在 stopping 状态，重建 Tasker 实例")
         try:
-            old_tasker = self._tasker
-            try:
-                # 旧的 Tasker 不需要 destroy，Python GC 会处理
-                pass
-            except Exception:
-                pass
+            # 旧的 Tasker 不需要 destroy，Python GC 会处理
             if Tasker is None:
                 return False
             new_tasker = Tasker()
@@ -1298,6 +1366,10 @@ class MaaEndRuntime:
                 except Exception as exc:
                     self.logger.warning(LogCategory.MAIN, "重建 Tasker 后 AgentClient sink 注册失败", error=str(exc))
             self._tasker = new_tasker
+            # 重建后旧 Tasker 上的上下文 sink 已失效，重新注册输入观测。
+            self._task_action_sink_id = None
+            self._task_action_sink = None
+            self._register_task_action_sink()
             self.logger.info(LogCategory.MAIN, "Tasker 重建成功")
             return True
         except Exception as exc:
@@ -2157,7 +2229,7 @@ class MaaEndRuntime:
         try:
             self._kill_adb()
             time.sleep(1)
-            for attempt in range(2):
+            for _attempt in range(2):
                 try:
                     subprocess.run(
                         [self._adb_path, "connect", self._device_address],

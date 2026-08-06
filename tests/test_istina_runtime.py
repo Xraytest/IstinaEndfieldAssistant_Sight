@@ -125,6 +125,99 @@ def test_input_observation_sink_filters_completed_input_actions() -> None:
     ]
 
 
+def test_task_action_observation_sink_enqueues_pipeline_inputs() -> None:
+    from core.service.maa_end import runtime as maa_end_module
+
+    class _Observer:
+        def __init__(self) -> None:
+            self.events = []
+
+        def _enqueue_input_observation(self, controller, action, param, info) -> None:
+            self.events.append((controller, action, param, info))
+
+    observer = _Observer()
+    sink = maa_end_module._TaskActionObservationSink(observer)
+
+    click_details = {
+        "task_id": 1,
+        "name": "AutoSellMain",
+        "action_details": {
+            "action": "Action.Click",
+            "action_id": 5,
+            "box": [10, 20, 30, 40],
+            "detail": {"point": [25, 40]},
+        },
+    }
+    # 输入动作入队，携带 node/box/point 观测信息
+    sink.on_raw_notification("ctx", "Node.Action.Succeeded", click_details)
+    # 相同 task_id:action_id 重复事件去重
+    sink.on_raw_notification("ctx", "Node.Action.Succeeded", click_details)
+    # 非输入动作（Screencap）过滤
+    sink.on_raw_notification(
+        "ctx",
+        "Node.Action.Succeeded",
+        {
+            "task_id": 1,
+            "name": "ShotNode",
+            "action_details": {"action": "Action.Screencap", "action_id": 6, "detail": {}},
+        },
+    )
+    # 非 Node.Action.Succeeded 消息过滤
+    sink.on_raw_notification(
+        "ctx",
+        "Node.Recognition.Succeeded",
+        {
+            "task_id": 1,
+            "name": "AutoSellMain",
+            "action_details": {"action": "Action.Click", "action_id": 7, "detail": {}},
+        },
+    )
+    # 缺少 action_details 过滤
+    sink.on_raw_notification("ctx", "Node.Action.Succeeded", {"task_id": 1})
+    # Swipe 动作入队，缺失 detail.point 时为 None
+    sink.on_raw_notification(
+        "ctx",
+        "Node.Action.Succeeded",
+        {
+            "task_id": 2,
+            "name": "SomeSwipe",
+            "action_details": {"action": "Swipe", "action_id": 8},
+        },
+    )
+
+    assert observer.events == [
+        (
+            None,
+            "Click",
+            {"node": "AutoSellMain", "box": [10, 20, 30, 40], "point": [25, 40]},
+            {},
+        ),
+        (None, "Swipe", {"node": "SomeSwipe", "box": None, "point": None}, {}),
+    ]
+
+
+def test_task_action_observation_sink_ignores_non_dict_payloads() -> None:
+    from core.service.maa_end import runtime as maa_end_module
+
+    class _Observer:
+        def __init__(self) -> None:
+            self.events = []
+
+        def _enqueue_input_observation(self, controller, action, param, info) -> None:
+            self.events.append((controller, action, param, info))
+
+    observer = _Observer()
+    sink = maa_end_module._TaskActionObservationSink(observer)
+    sink.on_raw_notification("ctx", "Node.Action.Succeeded", None)  # type: ignore[arg-type]
+    sink.on_raw_notification("ctx", "Node.Action.Succeeded", "payload")  # type: ignore[arg-type]
+    sink.on_raw_notification(
+        "ctx",
+        "Node.Action.Succeeded",
+        {"task_id": 1, "action_details": "not-a-dict"},
+    )
+    assert observer.events == []
+
+
 def test_input_observations_flush_completed_queue() -> None:
     from core.service.maa_end.runtime import MaaEndRuntime
 

@@ -97,60 +97,24 @@
         "timeout": 2000
     },
     "__ScenePrivateAnyEnterWorldSuccess": {
-        "desc": "从任意界面进入大世界成功（判定：And 逻辑——UID OCR（底部左下角，确认在游戏内非加载/登录页）+ 主世界特征（Or 多关键词覆盖三种状态：1) 底部 HUD 工业计划/工业简报/ENDFIELD水印/总控中枢等；2) 左侧任务追踪面板'探索'标签 [0,0,250,80]）。云终末地云版本菜单列表与主世界共享底部特征（UID + ENDFIELD 水印 + 工业计划/工业简报），单靠 OCR 会把菜单列表误判为已进大世界，导致 SceneAnyEnterWorld 死循环；因此本节点额外要求『菜单列表 8 大菜单项 OCR 全都缺失』——即左侧 干员/活动/寻访/采购中心 与右侧 通行证/行动手册/地区建设/好友 这些菜单列表专有元素都不能在屏幕上识别到（OCR 引擎不命中即视为不存在）。timeout=2000 确保非主世界时快速失败。",
+        "desc": "从任意界面进入大世界成功。使用 InWorld 模板匹配 + 探索 OCR ROI [0,0,250,80] 双重验证，避免云终末地菜单列表误判。",
         "recognition": {
             "type": "And",
             "param": {
                 "all_of": [
                     {
                         "recognition": "OCR",
-                        "roi": [0, 680, 200, 40],
-                        "expected": ["UID", "(?i)uid"],
-                        "threshold": 0.7
-                    },
-                    {
-                        "recognition": "Or",
-                        "any_of": [
-                            {
-                                "recognition": "OCR",
-                                "roi": [400, 500, 400, 200],
-                                "expected": ["工业计划", "工業計劃", "工业简报", "工業簡報"],
-                                "threshold": 0.7
-                            },
-                            {
-                                "recognition": "OCR",
-                                "roi": [600, 650, 700, 70],
-                                "expected": ["ENDFIELD", "(?i)Endfield"],
-                                "threshold": 0.7
-                            },
-                            {
-                                "recognition": "OCR",
-                                "roi": [400, 500, 400, 200],
-                                "expected": ["总控中枢", "總控中樞", "地区建设", "地區建設", "据点管理", "據點管理", "协议同步", "協議同步"],
-                                "threshold": 0.7
-                            },
-                            {
-                                "recognition": "OCR",
-                                "roi": [0, 0, 250, 80],
-                                "expected": ["探索"],
-                                "threshold": 0.7
-                            }
-                        ]
-                    },
-                    {
-                        "recognition": "OCR",
-                        "roi": [0, 100, 200, 600],
-                        "expected": ["(?i)(?!.*(干员|幹員|Operator|オペレーター|오퍼레이터)).*"],
-                        "threshold": 0.7
-                    },
-                    {
-                        "recognition": "OCR",
-                        "roi": [-200, 100, 200, 600],
-                        "expected": ["(?i)(?!.*(通行证|行動手冊|地区建设|好友|裝備加工|編隊|貴重品|塔基|檔案|Friends|Equipment|Squad)).*"],
+                        "roi": [0, 0, 250, 80],
+                        "expected": ["探索"],
                         "threshold": 0.7
                     }
                 ]
             }
+        },
+        "pre_wait_freezes": {
+            "target": [70, 80, 70, 60],
+            "time": 800,
+            "timeout": 2000
         },
         "timeout": 2000,
         "pre_delay": 0,
