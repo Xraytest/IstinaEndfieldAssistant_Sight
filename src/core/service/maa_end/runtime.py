@@ -923,7 +923,7 @@ class MaaEndRuntime:
         所有 pipeline JSON，对含注释的文件剥除注释后原地写回，使资源加载自愈。
         重新同步 3rd-part 资源后再次调用会自动修复。
         """
-        pipeline_dir = self._resolve_asset_path("resource", "pipeline")
+        pipeline_dir = self._resolve_asset_path(self._primary_resource_name(), "pipeline")
         if not pipeline_dir.is_dir():
             return
         for json_path in pipeline_dir.rglob("*.json"):
@@ -1290,7 +1290,15 @@ class MaaEndRuntime:
             self._client_version = options["ClientVersion"]
         override = self.build_pipeline_override(task_name, options)
         entry = task.get("entry", task_name)
+        if task_name not in self._TASKS_SKIP_ENTER_WORLD:
+            if not self._ensure_in_world_before_task(task_name):
+                self.logger.error(LogCategory.MAIN, "任务前未确认主世界", task=task_name)
+                return False
         ok = self._run_task_with_retry(task_name, options, entry, override)
+        if ok and task_name not in self._TASKS_SKIP_ENTER_WORLD:
+            ok = self._verify_in_world_by_ocr()
+            if not ok:
+                self.logger.error(LogCategory.MAIN, "任务返回成功但后置 OCR 未确认主世界", task=task_name)
         if (
             not ok
             and task_name in self._TASKS_OPEN_GAME
@@ -1706,16 +1714,10 @@ class MaaEndRuntime:
             if not self._ensure_queue_connection(name, idx, total):
                 failures.append(name)
                 break
-            # 任务间清理：非首个任务且非 OpenGame/RecoverGame，先回到主世界，
-            # 避免前一任务留下的页面状态（如信用商店）导致 InWorld 误匹配。
-            # 根因：InWorld=Or(ProtosyncMenuButton,RegionalDevelopmentButton,InWorldOcrText)，
-            # InWorldOcrText 匹配 UID，而 UID 在商店/好友列表等页面也可见，导致
-            # __ScenePrivateWorldEnterMenuRegionalDevelopment 的 And(InWorld) 在非主世界
-            # 页面误匹配，后续子任务尝试从主世界打开菜单列表失败（ SellProduct FAIL 根因）。
-            if idx > 0 and name not in self._TASKS_SKIP_ENTER_WORLD:
-                self._ensure_in_world_before_task(name)
+            # run_task() 统一负责任务前主世界 guard，避免队列路径和直跑路径行为不一致。
             self.logger.info(LogCategory.MAIN, "队列进度", current=idx + 1, total=total, task=name)
-            if not self.run_task(name, options):
+            task_ok = self.run_task(name, options)
+            if not task_ok:
                 failures.append(name)
                 self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name, failed_index=idx + 1)
                 # 用户主动停止：中止队列（不再继续后续任务）
@@ -1760,20 +1762,71 @@ class MaaEndRuntime:
         self.logger.error(LogCategory.MAIN, "队列连接恢复失败，中止剩余任务", remaining=total - idx)
         return False
 
-    def _ensure_in_world_before_task(self, task_name: str) -> None:
-        """任务间清理：通过轻量 BACK 关闭弹窗/子页面。
+    _WORLD_REQUIRED_OCR = frozenset({"探索", "UID"})
+    _WORLD_BLOCKING_OCR = frozenset({
+        "事务总览", "据点", "联络干员", "物资调度", "仓储节点",
+        "自动结束", "知道了", "6095",
+    })
 
-        前一任务可能留下非主世界页面状态（如信用商店、好友列表）。
-        MaaFW 管线截图（SceneAnyEnterWorld）在云终末地模拟器上不可靠（Image empty），
-        因此本方法只做轻量 BACK 恢复，不做管线验证。失败不阻止任务执行。
-        """
-        if not self._connected or self._tasker is None:
-            return
-        self.logger.info(LogCategory.MAIN, "任务间清理：轻量恢复 UI", before_task=task_name)
+    def _verify_in_world_by_ocr(self) -> bool:
+        """Use a lightweight Controller screenshot + OCR world-state guard."""
+        if not self._connected or self._controller is None or self._tasker is None:
+            return False
         try:
-            self._lightweight_recover_ui()
+            cap_job = self._controller.post_screencap()
+            if not self._wait_job(cap_job, timeout_s=4.0):
+                return False
+            image = self._controller.cached_image
+            if image is None:
+                return False
+            from maa.pipeline import JOCR, JRecognitionType
+            ocr_param = JOCR(
+                expected=[".+"],
+                roi=[0, 0, int(image.shape[1]), int(image.shape[0])],
+                threshold=0.3,
+            )
+            detail = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image).wait().get()
+            text_parts: List[str] = []
+            if detail:
+                for node in detail.nodes:
+                    rec = getattr(node, "recognition", None)
+                    for result in getattr(rec, "all_results", []) if rec else []:
+                        value = str(getattr(result, "text", "") or "").strip()
+                        if value:
+                            text_parts.append(value)
+            text = "".join(text_parts)
+            required_hit = "探索" in text and ("UID" in text or "1439188325" in text)
+            blocked = [word for word in self._WORLD_BLOCKING_OCR if word in text]
+            ok = required_hit and not blocked
+            self.logger.info(
+                LogCategory.MAIN,
+                "任务边界主世界 OCR",
+                ok=ok,
+                required_hit=required_hit,
+                blocked=blocked,
+                ocr=text[:300],
+            )
+            return ok
         except Exception as exc:
-            self.logger.warning(LogCategory.MAIN, "任务间清理异常（继续执行任务）", before_task=task_name, error=str(exc))
+            self.logger.warning(LogCategory.MAIN, "任务边界主世界 OCR 异常", error=str(exc))
+            return False
+
+    def _ensure_in_world_before_task(self, task_name: str) -> bool:
+        """Close overlays, then require an explicit main-world OCR confirmation."""
+        if not self._connected or self._tasker is None:
+            return False
+        self.logger.info(LogCategory.MAIN, "任务间清理：先验证当前 UI", before_task=task_name)
+        try:
+            # 已在主世界时不发送 BACK，避免把云游戏从主世界退出。
+            if self._verify_in_world_by_ocr():
+                return True
+            self.logger.info(LogCategory.MAIN, "任务间清理：关闭覆盖层后重试", before_task=task_name)
+            if not self._lightweight_recover_ui():
+                return False
+            return self._verify_in_world_by_ocr()
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "任务间清理异常", before_task=task_name, error=str(exc))
+            return False
 
     def run_preset(self, preset_name: str) -> bool:
         """应用预设到队列并执行队列（便捷封装）。

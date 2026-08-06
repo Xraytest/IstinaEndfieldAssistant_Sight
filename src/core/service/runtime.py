@@ -384,13 +384,14 @@ class IstinaRuntime:
                 if runtime is None:
                     from core.service.maa_end.runtime import MaaEndRuntime
                     game_package = _get_game_package(self._config)
+                    client_version = "CloudCN" if game_package == GAME_PACKAGE_CLOUD_ENDFIELD else "CN"
                     runtime = MaaEndRuntime(
                         maaend_root=self._config.get("maaend_root"),
                         device_address=resolved,
                         adb_path=self._config.get("adb_path", ADB_PATH_DEFAULT),
                         adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", True),
                         game_package=game_package,
-                        client_version="CN",
+                        client_version=client_version,
                     )
                     self._maaend_clients[resolved] = runtime
         return runtime
@@ -735,9 +736,8 @@ class IstinaRuntime:
         if not self._ensure_maaend_ready(runtime):
             return False
         before_task = str(params.get("before_task") or "").strip()
-        runtime._ensure_in_world_before_task(before_task or "unknown")
-        # 清理失败不阻断队列（与 run_queue 行为一致）
-        return True
+        ok = runtime._ensure_in_world_before_task(before_task or "unknown")
+        return bool(ok)
 
     def _run_preset(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")
