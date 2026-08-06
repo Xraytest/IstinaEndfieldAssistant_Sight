@@ -13,9 +13,18 @@ if str(SRC_DIR) not in sys.path:
 
 
 @pytest.fixture(autouse=True)
-def _disable_broken_project_logging() -> None:
+def _disable_broken_project_logging(monkeypatch: pytest.MonkeyPatch) -> None:
     for method in ("debug", "info", "warning", "error", "critical", "log", "exception"):
         setattr(logging.Logger, method, lambda self, *args, **kwargs: None)
+    # Runtime routing tests use fake MaaEnd objects and must not enter the
+    # real 90-second cloud-game startup/OCR polling loop.
+    from core.service.runtime import IstinaRuntime
+    monkeypatch.setattr(IstinaRuntime, "_ensure_game_in_world", lambda self, *args: True)
+    monkeypatch.setattr(
+        IstinaRuntime,
+        "_auto_collect_run",
+        lambda self, params: {"status": "success", "command": "auto.collect"},
+    )
 
 
 def test_istina_runtime_can_be_instantiated() -> None:
@@ -26,6 +35,45 @@ def test_istina_runtime_can_be_instantiated() -> None:
     assert isinstance(runtime.config, dict)
 
 
+def test_scale_for_screen_uses_cloud_landscape_reference() -> None:
+    from core.service.runtime import IstinaRuntime
+
+    assert IstinaRuntime._scale_for_screen((1094, 633), (1280, 720)) == (1094, 633)
+    assert IstinaRuntime._scale_for_screen((1094, 633), (2560, 1440)) == (2188, 1266)
+
+
+def test_cloud_package_overrides_stale_config() -> None:
+    from core.service.runtime import _get_game_package
+    from core.foundation.constants import GAME_PACKAGE_CLOUD_ENDFIELD
+
+    assert _get_game_package({"device": {"package": "com.hypergryph.endfield"}}, "CloudCN") == GAME_PACKAGE_CLOUD_ENDFIELD
+
+
+def test_input_observation_sink_filters_completed_input_actions() -> None:
+    from types import SimpleNamespace
+    from core.service.maa_end import runtime as maa_end_module
+
+    class _Observer:
+        def __init__(self) -> None:
+            self.events = []
+
+        def _enqueue_input_observation(self, controller, action, param, info) -> None:
+            self.events.append((controller, action, param, info))
+
+    observer = _Observer()
+    sink = maa_end_module._InputObservationSink(observer)
+    sink.on_controller_action("ctrl", maa_end_module.NotificationType.Succeeded, SimpleNamespace(
+        action="Click", param={"x": 1}, info={"node": "A"}
+    ))
+    sink.on_controller_action("ctrl", maa_end_module.NotificationType.Starting, SimpleNamespace(
+        action="Swipe", param={}, info={}
+    ))
+    sink.on_controller_action("ctrl", maa_end_module.NotificationType.Succeeded, SimpleNamespace(
+        action="Screenshot", param={}, info={}
+    ))
+    assert observer.events == [("ctrl", "Click", {"x": 1}, {"node": "A"})]
+
+
 def test_android_returns_android_runtime() -> None:
     from core.service.runtime import IstinaRuntime
 
@@ -33,6 +81,15 @@ def test_android_returns_android_runtime() -> None:
     android = runtime.android()
     assert android is not None
     assert type(android).__name__ == "AndroidRuntime"
+
+
+def test_maaend_resource_profile_switches_before_connect() -> None:
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    runtime = MaaEndRuntime(client_version="CN")
+    runtime.set_client_version("CloudCN")
+    assert runtime.client_version == "CloudCN"
+    assert runtime._primary_resource_name() == "resource_cloud"
 
 
 def test_maaend_returns_maa_end_runtime() -> None:
@@ -117,7 +174,7 @@ def test_execute_routes_system_disconnect() -> None:
     assert runtime.connected is False
 
 
-def test_execute_routes_daily_run() -> None:
+def test_execute_routes_daily_run(monkeypatch: pytest.MonkeyPatch) -> None:
     from core.service.runtime import IstinaRuntime
 
     runtime = IstinaRuntime()
@@ -126,6 +183,7 @@ def test_execute_routes_daily_run() -> None:
         run_pipeline_result=True,
         run_preset_result=True,
     )
+    monkeypatch.setattr(runtime, "_ensure_game_in_world", lambda *args: True)
     result = runtime.execute("daily.run", {"options": {"a": 1}})
     assert isinstance(result, dict)
     assert result.get("status") == "success"

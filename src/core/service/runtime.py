@@ -21,6 +21,7 @@ import numpy as np
 from core.foundation.constants import (
     ADB_PATH_DEFAULT,
     DEFAULT_DEVICE_ADDRESS,
+    GAME_PACKAGE_CLOUD_ENDFIELD,
     GAME_PACKAGE_ENDFIELD,
 )
 from core.foundation.logger import LogCategory, get_logger
@@ -167,8 +168,16 @@ def _get_llm_client(llama_runtime: Any) -> Any:
 _GAME_PACKAGE_FALLBACK = GAME_PACKAGE_ENDFIELD
 
 
-def _get_game_package(config: Optional[Dict[str, Any]] = None) -> str:
-    """从 client_config 读取游戏包名，缺失时回退到默认值。"""
+def _get_game_package(
+    config: Optional[Dict[str, Any]] = None,
+    client_version: Optional[str] = None,
+) -> str:
+    """从配置或客户端版本解析游戏包名。
+
+    CloudCN 必须优先使用云终末地包名，即使旧配置没有显式 ``device.package``。
+    """
+    if isinstance(client_version, str) and client_version.strip().lower() == "cloudcn":
+        return GAME_PACKAGE_CLOUD_ENDFIELD
     if not isinstance(config, dict):
         return _GAME_PACKAGE_FALLBACK
     device = config.get("device") or {}
@@ -381,9 +390,25 @@ class IstinaRuntime:
                         adb_path=self._config.get("adb_path", ADB_PATH_DEFAULT),
                         adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", True),
                         game_package=game_package,
+                        client_version="CN",
                     )
                     self._maaend_clients[resolved] = runtime
         return runtime
+
+    def _set_client_version(self, runtime: Any, options: Dict[str, Any]) -> str:
+        """Select client profile before MaaEnd connects and loads resources."""
+        configured = options.get("ClientVersion")
+        if configured is None:
+            version = str(getattr(runtime, "client_version", "CN") or "CN").strip() or "CN"
+        else:
+            version = str(configured).strip() or "CN"
+        setter = getattr(runtime, "set_client_version", None)
+        if callable(setter):
+            setter(version)
+        if version.lower() == "cloudcn":
+            # A stale local package in client_config must not override CloudCN.
+            runtime._game_package = GAME_PACKAGE_CLOUD_ENDFIELD
+        return version
 
     def scene(self) -> Any:
         if self._scene_svc is None:
@@ -693,6 +718,7 @@ class IstinaRuntime:
         options = params.get("options") or {}
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return False
         return bool(runtime.run_task(name, options))
@@ -716,7 +742,9 @@ class IstinaRuntime:
     def _run_preset(self, params: Dict[str, Any]) -> bool:
         name = params.get("name")
         serial = params.get("serial")
+        options = params.get("options") or {}
         runtime = self.maaend(serial)
+        self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return False
         return bool(runtime.run_preset(name))
@@ -841,6 +869,7 @@ class IstinaRuntime:
         client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        client_version = self._set_client_version(runtime, {"ClientVersion": client_version})
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
@@ -874,13 +903,13 @@ class IstinaRuntime:
     def _ensure_game_in_world(self, runtime: Any, serial: Optional[str], client_version: str) -> bool:
         """启动游戏并等待进入大世界。
 
-        优化：游戏进程已运行时优先用 EnterGame + OCR 备用判据验证，跳过 AndroidOpenGame
-        （AndroidOpenGame 内部 OpenGame 节点会因 InWorld 模板过时无限循环）。
+        策略：直接启动游戏进程（绕过 MaaFW 管线，管线截图在云终末地上不可靠），
+        然后用 OCR 备用判据验证是否已进入大世界（scene.elements 截图路径可靠）。
         """
+        package = _get_game_package(self._config, client_version)
         game_running = False
         try:
             android = self.android(serial)
-            package = _get_game_package(self._config)
             pid = android.shell(f"pidof {package}").strip()
             if not pid:
                 # pidof 可能不存在于精简 Android 环境（如云终末地），回退到 ps|grep
@@ -897,44 +926,55 @@ class IstinaRuntime:
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "检查游戏进程失败", error=str(exc))
 
-        # 游戏已运行：直接验证是否在大世界，跳过 AndroidOpenGame
+        # 游戏已运行：用 OCR 验证是否在大世界
         if game_running:
-            if self._wait_for_in_world(runtime, interval=2, max_attempts=5):
-                return True
             if self._verify_in_world_by_ocr(serial):
-                self._logger.info(
-                    LogCategory.MAIN,
-                    "OCR 备用判据确认已在大世界，跳过 AndroidOpenGame",
-                )
+                self._logger.info(LogCategory.MAIN, "OCR 确认已在大世界")
                 return True
-            self._logger.warning(
-                LogCategory.MAIN,
-                "游戏已运行但不在大世界，回退到 AndroidOpenGame 流程",
-            )
+            self._logger.warning(LogCategory.MAIN, "游戏已运行但 OCR 未确认大世界，尝试重启")
 
-        # 游戏未运行或不在大世界：调用 AndroidOpenGame 启动游戏
-        if not runtime.run_task("AndroidOpenGame", {"ClientVersion": client_version}):
-            self._logger.error(LogCategory.MAIN, "AndroidOpenGame 执行失败")
-            # AndroidOpenGame 失败时再尝试 OCR 备用判据（可能游戏实际已进入大世界
-            # 但 OpenGame 节点因模板过时未能识别）
+        # 启动游戏（直接启动，不用 MaaFW 管线）
+        try:
+            android = self.android(serial)
+            self._logger.info(LogCategory.MAIN, "启动游戏", package=package)
+            android.shell(f"monkey -p {package} -c android.intent.category.LAUNCHER 1")
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "monkey 启动失败，尝试 am start", error=str(exc))
+            try:
+                android.shell(f"am start -n {package}/com.hypergryph.cloud.cloudgame.view.PlayGameActivity")
+            except Exception as exc2:
+                self._logger.error(LogCategory.MAIN, "启动游戏失败", error=str(exc2))
+
+        # 等待游戏进入大世界（用 OCR 验证）
+        for attempt in range(30):
+            time.sleep(3)
             if self._verify_in_world_by_ocr(serial):
-                self._logger.info(
-                    LogCategory.MAIN,
-                    "AndroidOpenGame 失败但 OCR 备用判据确认已在大世界",
-                )
+                self._logger.info(LogCategory.MAIN, "OCR 确认已进入大世界", attempt=attempt + 1)
                 return True
-            return False
-
-        # 额外等待大世界稳定，防止部分加载界面导致后续任务误判
-        if self._wait_for_in_world(runtime, interval=2):
-            return True
-        # EnterGame 模板匹配过时时，用 OCR 备用判据验证画面是否已在主城
-        if self._verify_in_world_by_ocr(serial):
-            self._logger.info(
-                LogCategory.MAIN,
-                "OCR 备用判据确认已在大世界，跳过 EnterGame 模板匹配",
-            )
-            return True
+            # 检查是否还在启动页/首页，若是则点击开始游戏
+            try:
+                texts_now = []
+                res = self.execute("scene.elements", {"serial": serial, "enable_ocr": True, "enable_template": False, "enable_color": False})
+                if isinstance(res, dict) and res.get("status") == "success":
+                    texts_now = [e.get("label", "") for e in res.get("elements", []) if isinstance(e, dict) and e.get("source") == "ocr"]
+                if "开始游戏" in "".join(texts_now):
+                    self._logger.info(LogCategory.MAIN, "检测到首页，点击开始游戏")
+                    # 云终末地实际渲染基于 1280x720 横屏；参考点已由实时 OCR/截图校准。
+                    screen_size = self._get_screen_size_cached(serial)
+                    tap_x, tap_y = self._scale_for_screen((1094, 633), screen_size)
+                    self._logger.info(
+                        LogCategory.MAIN,
+                        "点击云终末地开始游戏",
+                        coord=(tap_x, tap_y),
+                        screen_size=screen_size,
+                    )
+                    try:
+                        android.tap(tap_x, tap_y, serial=serial)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        self._logger.error(LogCategory.MAIN, "等待进入大世界超时")
         return False
 
     def _wait_for_in_world(self, runtime: Any, interval: int = 2, max_attempts: int = 15) -> bool:
@@ -2031,6 +2071,7 @@ class IstinaRuntime:
         client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        self._set_client_version(runtime, {"ClientVersion": client_version})
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",

@@ -15,6 +15,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from queue import Empty, Queue
 
 from core.foundation.constants import (
     ADB_PATH_DEFAULT,
@@ -112,8 +113,9 @@ if _DEFAULT_DLL_DIR is not None and os.environ.get("MAAFW_BINARY_PATH") is None:
 MAAFW_AVAILABLE = False
 try:
     from maa.agent_client import AgentClient
-    from maa.controller import AdbController
+    from maa.controller import AdbController, ControllerEventSink
     from maa.define import MaaAdbInputMethodEnum, MaaAdbScreencapMethodEnum, MaaLoggingLevel
+    from maa.event_sink import NotificationType
     from maa.resource import Resource
     from maa.tasker import Tasker
     from maa.toolkit import Toolkit
@@ -123,6 +125,8 @@ except ImportError:
     Resource = None  # type: ignore[misc,assignment]
     Tasker = None  # type: ignore[misc,assignment]
     AdbController = None  # type: ignore[misc,assignment]
+    ControllerEventSink = None  # type: ignore[misc,assignment]
+    NotificationType = None  # type: ignore[misc,assignment]
     Toolkit = None  # type: ignore[misc,assignment]
     MaaAdbScreencapMethodEnum = None  # type: ignore[misc,assignment]
     MaaAdbInputMethodEnum = None  # type: ignore[misc,assignment]
@@ -140,6 +144,33 @@ if AgentClient is not None:
     AgentClient.__del__ = _safe_agent_client_del
 
 
+_INPUT_ACTIONS = frozenset({
+    "Click", "Swipe", "Scroll", "ClickKey", "KeyDown", "KeyUp",
+    "TouchDown", "TouchUp", "TouchMove", "LongPress", "LongPressKey",
+    "InputText", "MultiSwipe",
+})
+
+
+class _InputObservationSink(ControllerEventSink if ControllerEventSink is not None else object):
+    """Forward completed MaaFW controller actions to a non-blocking observer."""
+
+    def __init__(self, runtime: "MaaEndRuntime") -> None:
+        self._runtime = runtime
+
+    def on_controller_action(self, controller: Any, noti_type: Any, detail: Any) -> None:
+        if NotificationType is not None and noti_type != NotificationType.Succeeded:
+            return
+        action = str(getattr(detail, "action", "") or "")
+        if action not in _INPUT_ACTIONS:
+            return
+        self._runtime._enqueue_input_observation(
+            controller,
+            action,
+            getattr(detail, "param", {}) or {},
+            getattr(detail, "info", {}) or {},
+        )
+
+
 class MaaEndRuntime:
     """Thin wrapper around MaaFramework that behaves like MaaEnd's runner."""
 
@@ -150,6 +181,7 @@ class MaaEndRuntime:
         adb_path: str = ADB_PATH_DEFAULT,
         adb_restart_on_timeout: bool = True,
         game_package: str = GAME_PACKAGE_ENDFIELD,
+        client_version: str = "CN",
     ):
         self.logger = get_logger()
         self._maaend_root = Path(maaend_root) if maaend_root else self._default_maaend_root()
@@ -157,9 +189,16 @@ class MaaEndRuntime:
         self._adb_path = str(get_project_root() / adb_path)
         self._adb_restart_on_timeout = bool(adb_restart_on_timeout)
         self._game_package = (game_package or "").strip() or GAME_PACKAGE_ENDFIELD
+        self._client_version = (client_version or "CN").strip() or "CN"
+        self._resource_profile = self._resource_profile_for_version(self._client_version)
         self._resource: Optional[Any] = None
         self._tasker: Optional[Any] = None
         self._controller: Optional[Any] = None
+        self._input_sink: Optional[Any] = None
+        self._input_sink_id: Optional[int] = None
+        self._input_observation_queue: Queue[tuple[Any, str, Dict[str, Any], Dict[str, Any]]] = Queue(maxsize=128)
+        self._input_observation_stop = threading.Event()
+        self._input_observation_thread: Optional[threading.Thread] = None
         self._agent_client: Optional[Any] = None
         self._agent_process: Optional[subprocess.Popen] = None
         self._interface: Optional[Dict[str, Any]] = None
@@ -175,7 +214,6 @@ class MaaEndRuntime:
         # _recovering 标志：仅 _recover_and_retry 被显式调用时置位，防止 RecoverGame 自身失败时递归
         # 注意：run_task 不再对识别未命中（正常失败）自动触发异常恢复，与 run_pipeline 一致
         self._recovering = False
-        self._client_version = "CN"
         # 用户主动停止事件：由 request_stop() 设置，_run_task_with_retry/_recover_and_retry/
         # _post_game_restart_cleanup 在关键节点检查，避免停止后仍执行 RecoverGame 流程。
         # 当前 CLI 子进程模式下，GUI 通过 kill QProcess 直接终止子进程即可生效；
@@ -191,6 +229,26 @@ class MaaEndRuntime:
 
     def _default_maaend_root(self) -> Path:
         return get_project_root() / "3rd-part" / "maaend"
+
+    @staticmethod
+    def _resource_profile_for_version(client_version: str) -> str:
+        return "cloud" if str(client_version).strip().lower() == "cloudcn" else "default"
+
+    def set_client_version(self, client_version: str) -> None:
+        """Select the primary MaaEnd resource bundle before loading it."""
+        normalized = (client_version or "CN").strip() or "CN"
+        profile = self._resource_profile_for_version(normalized)
+        if profile != self._resource_profile and self._connected:
+            raise RuntimeError("不能在已连接的 MaaEnd runtime 上切换客户端资源版本")
+        self._client_version = normalized
+        self._resource_profile = profile
+
+    @property
+    def client_version(self) -> str:
+        return self._client_version
+
+    def _primary_resource_name(self) -> str:
+        return "resource_cloud" if self._resource_profile == "cloud" else "resource"
 
     def _resolve_asset_path(self, *parts: str) -> Path:
         """Resolve a path relative to the MaaEnd root, supporting both
@@ -404,10 +462,11 @@ class MaaEndRuntime:
             if MaaAdbInputMethodEnum
             else (4 | 2 | 1)  # Maatouch | Minitouch | AdbShell
         )
-        # ★ 截图通道：Default（-57 = All & ~{0..5}）仅保留 EmulatorExtras(64)。
-        # 任务级 screenshot 由 MaaFW 控制器直接拉帧；GUI 实时预览/录制由
-        # android_runtime.py 的 scrcpy 通道独立提供（不依赖 MaaFW 控制器）。
-        screencap_methods = int(MaaAdbScreencapMethodEnum.Default if MaaAdbScreencapMethodEnum else 0)
+        # ★ 截图通道：EncodeToFileAndPull(1) = screencap -p >文件后拉取。
+        # MuMu 等精简 Android 模拟器上 exec-out(RawWithGzip/Encode) 返回 0 字节，
+        # 只有 EncodeToFileAndPull 可用。Default(-57)仅保留 EmulatorExtras(64)，
+        # 在云终末地等模拟器上不可用。
+        screencap_methods = int(MaaAdbScreencapMethodEnum.EncodeToFileAndPull if MaaAdbScreencapMethodEnum else 1)
         self._controller = AdbController(
             adb_path=Path(self._adb_path),
             address=self._device_address,
@@ -446,6 +505,8 @@ class MaaEndRuntime:
             self.logger.error(LogCategory.MAIN, "Tasker 绑定失败")
             self._cleanup_partial()
             return False
+        # 输入观测只在 Tasker/Controller 已绑定后注册，回调本身不执行同步 OCR。
+        self._start_input_observer()
         # ERRSCREEN-01: Enable on_error screenshot saving so failed recognition
         # nodes save a screenshot to config/debug/on_error/ for analysis.
         try:
@@ -512,8 +573,108 @@ class MaaEndRuntime:
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "taskkill adb.exe 失败", error=str(exc))
 
+    def _start_input_observer(self) -> None:
+        if ControllerEventSink is None or self._controller is None:
+            return
+        try:
+            self._input_observation_stop.clear()
+            if self._input_observation_thread is None or not self._input_observation_thread.is_alive():
+                self._input_observation_thread = threading.Thread(
+                    target=self._input_observation_worker,
+                    name="maa-input-ocr",
+                    daemon=True,
+                )
+                self._input_observation_thread.start()
+            self._input_sink = _InputObservationSink(self)
+            self._input_sink_id = self._controller.add_sink(self._input_sink)
+            if self._input_sink_id is None:
+                self.logger.warning(LogCategory.MAIN, "MaaFW 输入观测 sink 注册失败")
+            else:
+                self.logger.info(LogCategory.MAIN, "MaaFW 输入观测 sink 已注册", sink_id=self._input_sink_id)
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "MaaFW 输入观测 sink 初始化异常", error=str(exc))
+            self._input_sink = None
+            self._input_sink_id = None
+
+    def _stop_input_observer(self) -> None:
+        self._input_observation_stop.set()
+        try:
+            if self._input_sink_id is not None and self._controller is not None:
+                self._controller.remove_sink(self._input_sink_id)
+        except Exception as exc:
+            self.logger.debug(LogCategory.MAIN, "移除输入观测 sink 失败", error=str(exc))
+        self._input_sink_id = None
+        self._input_sink = None
+        thread = self._input_observation_thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=2.0)
+        self._input_observation_thread = None
+        while True:
+            try:
+                self._input_observation_queue.get_nowait()
+            except Empty:
+                break
+
+    def _enqueue_input_observation(
+        self,
+        controller: Any,
+        action: str,
+        param: Dict[str, Any],
+        info: Dict[str, Any],
+    ) -> None:
+        try:
+            self._input_observation_queue.put_nowait((controller, action, param, info))
+        except Exception:
+            self.logger.warning(LogCategory.MAIN, "输入观测队列已满，丢弃动作", action=action)
+
+    def _input_observation_worker(self) -> None:
+        while not self._input_observation_stop.is_set():
+            try:
+                controller, action, param, info = self._input_observation_queue.get(timeout=0.2)
+            except Empty:
+                continue
+            try:
+                # 等待云游戏渲染一帧；不在 MaaFW sink 回调线程内重入。
+                time.sleep(0.12)
+                cap_job = controller.post_screencap()
+                if not self._wait_job(cap_job, timeout_s=3.0):
+                    self.logger.warning(LogCategory.MAIN, "输入后截图失败", action=action, param=param)
+                    continue
+                image = controller.cached_image
+                if image is None or self._tasker is None:
+                    self.logger.warning(LogCategory.MAIN, "输入后 OCR 无图像或 Tasker 不可用", action=action)
+                    continue
+                from maa.pipeline import JOCR, JRecognitionType
+                ocr_param = JOCR(
+                    expected=[".+"],
+                    roi=[0, 0, int(image.shape[1]), int(image.shape[0])],
+                    threshold=0.3,
+                )
+                ocr_job = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image)
+                detail = ocr_job.wait().get()
+                labels: List[str] = []
+                if detail:
+                    for node in detail.nodes:
+                        rec = getattr(node, "recognition", None)
+                        for result in getattr(rec, "all_results", []) if rec else []:
+                            text = str(getattr(result, "text", "") or "").strip()
+                            if text:
+                                labels.append(text)
+                self.logger.info(
+                    LogCategory.MAIN,
+                    "输入后 OCR",
+                    action=action,
+                    param=param,
+                    info=info,
+                    ocr="".join(labels)[:500],
+                    ocr_count=len(labels),
+                )
+            except Exception as exc:
+                self.logger.warning(LogCategory.MAIN, "输入后 OCR 观测异常", action=action, error=str(exc))
+
     def _cleanup_partial(self) -> None:
         """Clean up partially-created resources after a failed connect()."""
+        self._stop_input_observer()
         # C7/N10: 连接失败时显式释放 MaaFW 原生资源，避免泄漏
         for attr in ("_resource", "_controller"):
             val = getattr(self, attr, None)
@@ -688,7 +849,7 @@ class MaaEndRuntime:
         if not self._connected or self._resource is None:
             return False
         try:
-            resource_dir = self._resolve_asset_path("resource")
+            resource_dir = self._resolve_asset_path(self._primary_resource_name())
             # nodes.json 是 IEA 把全部任务 pipeline 聚合后的冗余副本，与
             # resource*/pipeline 下分散的任务文件大量重名；MaaFW 会递归加载各 resource
             # 目录全部 JSON 并因 "key already exists" 整体失败。加载前将各 pipeline 目录
@@ -1600,34 +1761,17 @@ class MaaEndRuntime:
         return False
 
     def _ensure_in_world_before_task(self, task_name: str) -> None:
-        """任务间清理：执行 SceneAnyEnterWorld 回到主世界。
+        """任务间清理：通过轻量 BACK 关闭弹窗/子页面。
 
-        前一任务可能留下非主世界页面状态（如信用商店、好友列表），导致下一任务的
-        InWorld 识别误匹配（InWorldOcrText 匹配 UID，UID 在多个页面可见）。
-        本方法通过 SceneAnyEnterWorld pipeline 尝试回到主世界，失败不阻止任务执行。
-
-        注：如果 SceneAnyEnterWorld 因云游戏空闲断连弹窗阻塞，先尝试关闭弹窗再执行。
-        SceneAnyEnterWorld 返回 True 后还需验证是否确实在主世界（严格判定），
-        因为中间节点（如 __ScenePrivateCloudSplashContinue）匹配也会导致返回 True。
+        前一任务可能留下非主世界页面状态（如信用商店、好友列表）。
+        MaaFW 管线截图（SceneAnyEnterWorld）在云终末地模拟器上不可靠（Image empty），
+        因此本方法只做轻量 BACK 恢复，不做管线验证。失败不阻止任务执行。
         """
         if not self._connected or self._tasker is None:
             return
-        self.logger.info(LogCategory.MAIN, "任务间清理：尝试回到主世界", before_task=task_name)
+        self.logger.info(LogCategory.MAIN, "任务间清理：轻量恢复 UI", before_task=task_name)
         try:
-            # 清理弹窗防阻塞
-            self._dismiss_cloud_idle_popup()
-            ok = self.run_pipeline("SceneAnyEnterWorld", {})
-            if not ok:
-                self.logger.warning(LogCategory.MAIN, "任务间清理：SceneAnyEnterWorld 未命中（继续执行任务）", before_task=task_name)
-                return
-            # 验证是否确实在主世界（严格判定，避免子页面误匹配）
-            # 使用 5s 超时：__ScenePrivateAnyEnterWorldSuccess 是判定节点（无 next），
-            # 节点级 timeout:2000 在 MaaFW 中不限制识别失败的等待时间，需用 job.wait 短超时兜底
-            verify_ok = self.run_pipeline("__ScenePrivateAnyEnterWorldSuccess", {}, timeout_s=5.0)
-            if verify_ok:
-                self.logger.info(LogCategory.MAIN, "任务间清理：已回到主世界（严格判定通过）", before_task=task_name)
-            else:
-                self.logger.warning(LogCategory.MAIN, "任务间清理：SceneAnyEnterWorld 返回成功但严格判定未通过（可能仍在子页面，继续执行任务）", before_task=task_name)
+            self._lightweight_recover_ui()
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "任务间清理异常（继续执行任务）", before_task=task_name, error=str(exc))
 
