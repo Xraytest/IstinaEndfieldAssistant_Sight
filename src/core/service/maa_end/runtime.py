@@ -302,6 +302,8 @@ class MaaEndRuntime:
         self._input_observation_thread: Optional[threading.Thread] = None
         self._agent_client: Optional[Any] = None
         self._agent_process: Optional[subprocess.Popen] = None
+        self._agent_log_file: Any = None
+        self._agent_log_path: Optional[Path] = None
         self._interface: Optional[Dict[str, Any]] = None
         self._tasks: Dict[str, Dict[str, Any]] = {}
         self._presets: Dict[str, Dict[str, Any]] = {}
@@ -757,56 +759,81 @@ class MaaEndRuntime:
         except Exception:
             self.logger.warning(LogCategory.MAIN, "输入观测队列已满，丢弃动作", action=action)
 
+    _OBSERVATION_BATCH_MAX = 8
+
     def _input_observation_worker(self) -> None:
+        """逐输入记录 OCR；截图+OCR 在一批待处理输入上摊销。
+
+        pipeline 输入速率可高于单次截图+OCR 的处理速率（云终末地 OCR ≈1s）。
+        若逐条处理会形成积压、OCR 滞后于真实画面。这里先取一条，再尽量收拢
+        当前已积压的输入为一批，仅截图+OCR 一次，并为批内每条输入单独记录
+        同一帧 OCR（`batch` 字段标明批量大小），保证「每次 input 都有 OCR
+        记录」且不丢事件，同时维持实时性。
+        """
         while not self._input_observation_stop.is_set():
             try:
-                controller, action, param, info = self._input_observation_queue.get(timeout=0.2)
+                first = self._input_observation_queue.get(timeout=0.2)
             except Empty:
                 continue
+            batch = [first]
+            # 收拢已积压的输入（非阻塞），上限避免单批过大。
+            while len(batch) < self._OBSERVATION_BATCH_MAX:
+                try:
+                    batch.append(self._input_observation_queue.get_nowait())
+                except Empty:
+                    break
+            batch_size = len(batch)
             try:
                 # 等待云游戏渲染一帧；不在 MaaFW sink 回调线程内重入。
                 time.sleep(0.12)
+                controller = batch[-1][0]
                 live_controller = self._controller if self._controller is not None else controller
-                if live_controller is None:
-                    self.logger.warning(LogCategory.MAIN, "输入后截图无可用控制器", action=action)
-                    continue
-                cap_job = live_controller.post_screencap()
-                if not self._wait_job(cap_job, timeout_s=3.0):
-                    self.logger.warning(LogCategory.MAIN, "输入后截图失败", action=action, param=param)
-                    continue
-                image = live_controller.cached_image
-                if image is None or self._tasker is None:
-                    self.logger.warning(LogCategory.MAIN, "输入后 OCR 无图像或 Tasker 不可用", action=action)
-                    continue
-                from maa.pipeline import JOCR, JRecognitionType
-                ocr_param = JOCR(
-                    expected=[".+"],
-                    roi=[0, 0, int(image.shape[1]), int(image.shape[0])],
-                    threshold=0.3,
-                )
-                ocr_job = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image)
-                detail = ocr_job.wait().get()
                 labels: List[str] = []
-                if detail:
-                    for node in detail.nodes:
-                        rec = getattr(node, "recognition", None)
-                        for result in getattr(rec, "all_results", []) if rec else []:
-                            text = str(getattr(result, "text", "") or "").strip()
-                            if text:
-                                labels.append(text)
-                self.logger.info(
-                    LogCategory.MAIN,
-                    "输入后 OCR",
-                    action=action,
-                    param=param,
-                    info=info,
-                    ocr="".join(labels)[:500],
-                    ocr_count=len(labels),
-                )
+                ocr_ok = False
+                if live_controller is None:
+                    self.logger.warning(LogCategory.MAIN, "输入后截图无可用控制器", batch=batch_size)
+                else:
+                    cap_job = live_controller.post_screencap()
+                    if not self._wait_job(cap_job, timeout_s=3.0):
+                        self.logger.warning(LogCategory.MAIN, "输入后截图失败", batch=batch_size)
+                    else:
+                        image = live_controller.cached_image
+                        if image is None or self._tasker is None:
+                            self.logger.warning(LogCategory.MAIN, "输入后 OCR 无图像或 Tasker 不可用", batch=batch_size)
+                        else:
+                            from maa.pipeline import JOCR, JRecognitionType
+                            ocr_param = JOCR(
+                                expected=[".+"],
+                                roi=[0, 0, int(image.shape[1]), int(image.shape[0])],
+                                threshold=0.3,
+                            )
+                            ocr_job = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image)
+                            detail = ocr_job.wait().get()
+                            if detail:
+                                for node in detail.nodes:
+                                    rec = getattr(node, "recognition", None)
+                                    for result in getattr(rec, "all_results", []) if rec else []:
+                                        text = str(getattr(result, "text", "") or "").strip()
+                                        if text:
+                                            labels.append(text)
+                            ocr_ok = True
+                ocr_text = "".join(labels)[:500]
+                for _controller, action, param, info in batch:
+                    self.logger.info(
+                        LogCategory.MAIN,
+                        "输入后 OCR",
+                        action=action,
+                        param=param,
+                        info=info,
+                        ocr=ocr_text if ocr_ok else "<screencap/ocr unavailable>",
+                        ocr_count=len(labels) if ocr_ok else 0,
+                        batch=batch_size,
+                    )
             except Exception as exc:
-                self.logger.warning(LogCategory.MAIN, "输入后 OCR 观测异常", action=action, error=str(exc))
+                self.logger.warning(LogCategory.MAIN, "输入后 OCR 观测异常", batch=batch_size, error=str(exc))
             finally:
-                self._input_observation_queue.task_done()
+                for _ in batch:
+                    self._input_observation_queue.task_done()
 
     def _flush_input_observations(self, timeout_s: float = 8.0) -> bool:
         """Wait for all successful input events to receive OCR observation."""
@@ -874,6 +901,7 @@ class MaaEndRuntime:
                 self._agent_process = None
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "清理 agent_process 失败", error=str(exc))
+        self._close_agent_log()
         try:
             if self._controller is not None:
                 self._controller = None
@@ -958,11 +986,23 @@ class MaaEndRuntime:
                 agent_env["MAAFW_BINARY_PATH"] = str(agent_dll_dir.resolve())
             elif _DEFAULT_DLL_DIR is not None:
                 agent_env["MAAFW_BINARY_PATH"] = str(_DEFAULT_DLL_DIR.resolve())
+            # go-service 的 zerolog 全部走 stderr；旧实现 DEVNULL 把自定义
+            # action/recognition 的失败原因全部丢弃，导致 AutoSell 等 Go 动作
+            # 失败时无从定位。重定向到 .tmp/go_service.log 供诊断读取。
+            try:
+                from core.foundation.paths import get_project_root as _root
+                agent_log_dir = _root() / ".tmp"
+                agent_log_dir.mkdir(parents=True, exist_ok=True)
+                self._agent_log_path = agent_log_dir / "go_service.log"
+                self._agent_log_file = open(self._agent_log_path, "ab", buffering=0)
+                self.logger.info(LogCategory.MAIN, "go-service 日志重定向", path=str(self._agent_log_path))
+            except Exception:
+                self._agent_log_file = subprocess.DEVNULL
             process = subprocess.Popen(
                 [str(agent_exe), agent_id],
                 cwd=str(agent_root),
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=self._agent_log_file,
                 env=agent_env,
             )
             # 等待 go-service 进程就绪：轮询确认进程未立即退出
@@ -996,6 +1036,16 @@ class MaaEndRuntime:
                     pass
             self._agent_client = None
             self._agent_process = None
+            self._close_agent_log()
+
+    def _close_agent_log(self) -> None:
+        log_file = getattr(self, "_agent_log_file", None)
+        if log_file is not None and log_file is not subprocess.DEVNULL:
+            try:
+                log_file.close()
+            except Exception:
+                pass
+        self._agent_log_file = None
 
     def load_resource(self) -> bool:
         if not self._connected or self._resource is None:
@@ -1624,7 +1674,10 @@ class MaaEndRuntime:
             if self._user_stop_event.is_set():
                 self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过异常恢复", task=task_name)
                 return False
-            if self._connected and self._lightweight_recover_ui():
+            # 用自适应恢复替代旧的盲 BACK×3：逐次点击右上角关闭按钮并 OCR 验证，
+            # 到主世界即停。盲 BACK 在覆盖层数不匹配时会把 UI 带到不一致状态
+            #（实测 AutoSell 重试时遗留售卖页，导致第二次尝试的导航子任务卡死）。
+            if self._connected and self._recover_to_world():
                 self.logger.info(LogCategory.MAIN, "轻量恢复完成，重试任务", task=task_name)
                 retry_result = self._run_task_once(task_name, options, entry, override)
                 if retry_result is True:
@@ -2458,6 +2511,7 @@ class MaaEndRuntime:
                 dialog_persisted = True
                 time.sleep(1.0)
 
+            restarted = False
             if dialog_persisted:
                 self.logger.warning(
                     LogCategory.MAIN,
@@ -2476,18 +2530,33 @@ class MaaEndRuntime:
                          "android.intent.category.LAUNCHER", "1"],
                         text=True, timeout=10, capture_output=True,
                     )
+                    restarted = True
                     self.logger.info(LogCategory.MAIN, "force-stop 重启已完成，等待游戏加载")
-                    time.sleep(12.0)
+                    # 云客户端重启后要重新走完整启动链（闪屏/健康忠告/版本页/
+                    # 自动登录/启动页/加载），先等闪屏阶段过去再进入推进循环。
+                    time.sleep(15.0)
                 except Exception as exc:
                     self.logger.warning(LogCategory.MAIN, "force-stop 重启失败", error=str(exc))
 
             # 关闭弹窗后，游戏会重启到启动页/logo 页。需要推进到主世界，
             # 否则后续任务会因 InWorld 不匹配（已移除设置/修复 OCR）而失败。
-            # 循环检测并点击"开始游戏"/"点击任意位置继续"，最多尝试 30s。
-            self.logger.info(LogCategory.MAIN, "云弹窗已关闭，推进游戏到主世界")
-            advance_deadline = time.time() + 30.0
-            advanced = False
+            # 推进循环：每轮先 OCR 验证主世界，再找推进按钮；加载中（无按钮）
+            # 不再提前退出，直到 OCR 确认主世界或预算耗尽。force-stop 重启后的
+            # 云启动链实测可达 ~2 分钟，预算必须覆盖完整启动+登录+加载。
+            advance_budget_s = 240.0 if restarted else 90.0
+            self.logger.info(
+                LogCategory.MAIN,
+                "云弹窗已关闭，推进游戏到主世界",
+                budget_s=advance_budget_s,
+                restarted=restarted,
+            )
+            advance_deadline = time.time() + advance_budget_s
+            last_blind_tap = 0.0
             while time.time() < advance_deadline:
+                # 每轮以实时 OCR 为准：已到主世界立即返回，不依赖历史状态。
+                if self._verify_in_world_by_ocr():
+                    self.logger.info(LogCategory.MAIN, "云弹窗恢复：OCR 确认已到主世界")
+                    return True
                 time.sleep(2.0)
                 # 截图
                 cap_job = self._controller.post_screencap()
@@ -2497,11 +2566,10 @@ class MaaEndRuntime:
                 if cur_img is None:
                     continue
 
-                # OCR 找"开始游戏"/"点击任意位置继续"/"点击"
+                # OCR 找"开始游戏"/"点击任意位置继续"（完整文案，避免宽泛词误点）
                 advance_param = JOCR(
-                    expected=["开始游戏", "開始遊戲", "(?i)Start\\s*Game", "(?i)Start",
-                              "点击任意位置继续", "點擊任意位置繼續", "点击", "點擊",
-                              "(?i)Continue", "(?i)Tap", "(?i)Click"],
+                    expected=["开始游戏", "開始遊戲", "(?i)Start\\s*Game",
+                              "点击任意位置继续", "點擊任意位置繼續"],
                     roi=[0, 0, cur_img.shape[1], cur_img.shape[0]],
                     threshold=0.5,
                 )
@@ -2510,6 +2578,7 @@ class MaaEndRuntime:
                 if not adv_detail:
                     continue
                 advance_target = None
+                advance_text = ""
                 for node in adv_detail.nodes:
                     if node.recognition and node.recognition.hit:
                         best = node.recognition.best_result
@@ -2519,34 +2588,37 @@ class MaaEndRuntime:
                                 advance_target = (bx.x + bx.w // 2, bx.y + bx.h // 2)
                             else:
                                 advance_target = (bx[0] + bx[2] // 2, bx[1] + bx[3] // 2)
+                            advance_text = str(getattr(best, "text", "") or "")
                             break
                 if advance_target:
                     self.logger.info(
                         LogCategory.MAIN,
                         "云弹窗恢复：点击推进按钮",
+                        button_text=advance_text,
                         target=advance_target,
                     )
                     if not self._tap_cloud_advance(*advance_target):
                         return False
-                    # 点击后等待加载，再循环 OCR；advanced 仅表示已发送输入，
-                    # 最终是否推进仍由后续 OCR/主世界 guard 决定。
-                    advanced = True
                     time.sleep(3.0)
                     continue
-                else:
-                    # 没有找到推进按钮，可能已在主世界或正在加载
-                    if advanced:
-                        # 已点击过推进按钮，再等一会确认
-                        time.sleep(3.0)
-                        break
-                    # 未点击过，继续等待
-                    continue
+                # 无推进按钮：可能在加载页或无文字的闪屏页。长时间无命中时
+                # 对屏幕中心做一次盲点（"点击任意位置"类闪屏 OCR 可能不命中），
+                # 其余时间只等待，绝不把"发过点击"当作已推进。
+                now = time.time()
+                if now - last_blind_tap >= 15.0:
+                    last_blind_tap = now
+                    center = (int(cur_img.shape[1]) // 2, int(cur_img.shape[0]) // 2)
+                    self.logger.info(LogCategory.MAIN, "云弹窗恢复：无推进按钮，中心盲点", target=center)
+                    self._tap_cloud_advance(*center)
+                time.sleep(1.0)
 
-            if advanced:
-                self.logger.info(LogCategory.MAIN, "云弹窗恢复：已推进到主世界/加载中")
+            # 预算耗尽：以实时 OCR 为最终判据，不再无条件返回成功。
+            ok = self._verify_in_world_by_ocr()
+            if ok:
+                self.logger.info(LogCategory.MAIN, "云弹窗恢复：已推进到主世界")
             else:
-                self.logger.warning(LogCategory.MAIN, "云弹窗恢复：未找到推进按钮（可能已在主世界）")
-            return True
+                self.logger.warning(LogCategory.MAIN, "云弹窗恢复：预算耗尽仍未确认主世界")
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "云游戏空闲弹窗检测异常", error=str(exc))
             return False
