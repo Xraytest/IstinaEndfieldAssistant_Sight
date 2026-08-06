@@ -3296,3 +3296,23 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **User Request**: 在本地模拟器使用云终末地循环执行每日全套，修正执行过程中阻碍运行的问题；每次 input 后直接阅读 OCR/模板结果，只有确认状态正确才继续。
 - **Outcome**: 完成 CloudCN 资源 profile、共享 OCR 模型显式注册、云标题页 Android tap 与输入后 OCR 观测增强。真实验证确认使用 `resource_cloud`，任务前 OCR 命中 `UID:1439188325` 与 `探索`；`AutoStockpile` 两次仅命中 `AutoStockpileMain`、`AutoStockpileEnterRegionalDevelopment`，未命中 `AutoStockpileGetUid`，任务后未确认主世界，因此按要求停止，未继续后续 DailyFull。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`、`src/core/service/runtime.py`、`tests/test_istina_runtime.py`、`reports/implementation/2026-08-06-cloud-dailyfull-ocr-boundary.md`、`docs/TASK_LOG.md`
+
+## 2026-08-07 02:45
+
+- **User Request**: 持续修正，循环推理每日全套（云终末地；每次 input 后直接阅读 OCR/模板结果验证）。
+- **设备**: 127.0.0.1:16416（云终末地 com.hypergryph.cloud.endfield）。
+- **AutoStockpile 打通（本阶段核心成果）**:
+  - 根因1：物资调度市场页为不可 ESC 模态，任务遗留该页时任务间/武陵导航回退 `SceneAnyEnterWorld` 后 ESC 空转（save_draw 帧证实画面停留市场页）。实测市场右上 X `(1187,36)` 可关闭。
+  - 修复1（已提交 5acf527）：`runtime._recover_to_world` close_candidates 增加 `(1187,36)`；实测从市场/购买页混乱状态恢复主世界 ok=True。
+  - 修复2（本地资源）：`resource_cloud/.../SceneMenu.json` 新增 `__ScenePrivateStockRedistributionMarketDetect`(OCR 剩余可购买数量)→`__ScenePrivateStockRedistributionMarketClose`(DirectHit+roi+Click 固定点 X)，接入 `SceneEnterMenuRegionalDevelopment`；实测触发后 OCR 确认回到地区建设菜单。
+  - 根因3：换区选择 `SelectRegionValleyIV` 与 `SelectRegionWuling` 共用 ROI `[429,145,431,165]`，云端横排对话框中四号谷地 `(517,273)` 与武陵 `(733,275)` 重叠错选，武陵腿失败。
+  - 修复3（本地资源）：`SelectRegionWuling` ROI 收窄为 `[690,240,180,80]`。修复后武陵物资调度子任务 29s 成功；**AutoStockpile 首次端到端完成（命中 AutoStockpileDone，587.8s，首败经恢复重试成功）**，两区今日均买空（ValleyIV 0/960、武陵 skip）走 Skip 属正常。
+- **EnvironmentMonitoring**: 仍有独立阻塞——VLM 导航连续触发 300s 卡死 watchdog 并 ESC 空转，不随 ROI 修复解决，记为已知阻塞，未阻塞其余任务。
+- **DailyRewards**: 邮件/任务奖励完成；但 `DailyClaimDeliveryJobsRewardSub`（进 ValleyIV 仓储节点领委托奖励）导航回退世界 ESC 空转，两次失败，记为已知阻塞（同类不可 ESC 模态导航问题）。
+- **AutoSell / SeizeDeliveryJobs**: 维持此前结论跳过（AutoSell scan OCR 碎片化/模板尺度不可得；SeizeDeliveryJobs controller 元数据仅 Win32-Front/Wlroots 不含 ADB）。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`（恢复坐标，已提交 5acf527）
+  - `3rd-part/maaend/resource_cloud/pipeline/Interface/SceneMenu.json`（市场关闭节点，本地）
+  - `3rd-part/maaend/resource_cloud/pipeline/SceneManager/SceneRegionalDevelopment.json`（武陵换区 ROI，本地）
+  - `reports/implementation/2026-08-07-autostockpile-market-wuling.md`
+  - `docs/TASK_LOG.md`（本条记录）
