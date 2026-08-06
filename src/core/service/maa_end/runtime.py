@@ -2086,12 +2086,24 @@ class MaaEndRuntime:
             return False
         try:
             self._dismiss_cloud_idle_popup()
-            for _ in range(max_steps):
-                if self._verify_in_world_by_ocr():
-                    return True
-                if not self._send_key_back():
-                    return False
-            return self._verify_in_world_by_ocr()
+            # 不同覆盖层的关闭按钮位置不同：主世界模态页右上 (1200,30)，
+            # 好友价格面板"返回"(1135,94)，出售物资页 X(1192,94)，
+            # 物资调度页 X(1221,36)。逐候选点击、每次 OCR 验证、到主世界即停。
+            close_candidates = [(1200, 30), (1135, 94), (1192, 94), (1221, 36)]
+            for _round in range(max_steps):
+                for (x, y) in close_candidates:
+                    if self._verify_in_world_by_ocr():
+                        return True
+                    try:
+                        self._controller.post_click(x, y).wait()
+                    except Exception:
+                        pass
+                    time.sleep(0.8)
+            if self._verify_in_world_by_ocr():
+                return True
+            # 覆盖层堆栈无法用关闭按钮退出时，force-stop 重启是可靠兜底。
+            self.logger.warning(LogCategory.MAIN, "关闭按钮恢复无效，改用 force-stop 重启恢复")
+            return self._force_restart_to_world()
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "自适应恢复异常", error=str(exc))
             return False
@@ -2511,74 +2523,79 @@ class MaaEndRuntime:
                 dialog_persisted = True
                 time.sleep(1.0)
 
-            restarted = False
             if dialog_persisted:
                 self.logger.warning(
                     LogCategory.MAIN,
                     "云弹窗点击无效（MaaTouch 被忽略），执行 force-stop 重启游戏",
                 )
-                try:
-                    subprocess.run(
-                        [self._adb_path, "-s", self._device_address, "shell",
-                         "am", "force-stop", self._game_package],
-                        text=True, timeout=10, capture_output=True,
-                    )
-                    time.sleep(3.0)
-                    subprocess.run(
-                        [self._adb_path, "-s", self._device_address, "shell",
-                         "monkey", "-p", self._game_package, "-c",
-                         "android.intent.category.LAUNCHER", "1"],
-                        text=True, timeout=10, capture_output=True,
-                    )
-                    restarted = True
-                    self.logger.info(LogCategory.MAIN, "force-stop 重启已完成，等待游戏加载")
-                    # 云客户端重启后要重新走完整启动链（闪屏/健康忠告/版本页/
-                    # 自动登录/启动页/加载），先等闪屏阶段过去再进入推进循环。
-                    time.sleep(15.0)
-                except Exception as exc:
-                    self.logger.warning(LogCategory.MAIN, "force-stop 重启失败", error=str(exc))
+                return self._force_restart_to_world()
+            # 弹窗已点击关闭（未 force-stop）：游戏回到启动页/logo 页，推进到主世界。
+            return self._advance_boot_to_world(budget_s=90.0)
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "云游戏空闲弹窗检测异常", error=str(exc))
+            return False
 
-            # 关闭弹窗后，游戏会重启到启动页/logo 页。需要推进到主世界，
-            # 否则后续任务会因 InWorld 不匹配（已移除设置/修复 OCR）而失败。
-            # 推进循环：每轮先 OCR 验证主世界，再找推进按钮；加载中（无按钮）
-            # 不再提前退出，直到 OCR 确认主世界或预算耗尽。force-stop 重启后的
-            # 云启动链实测可达 ~2 分钟，预算必须覆盖完整启动+登录+加载。
-            advance_budget_s = 240.0 if restarted else 90.0
-            self.logger.info(
-                LogCategory.MAIN,
-                "云弹窗已关闭，推进游戏到主世界",
-                budget_s=advance_budget_s,
-                restarted=restarted,
+    def _force_restart_to_world(self) -> bool:
+        """force-stop 重启云游戏并沿启动链推进到主世界（可靠但慢的恢复路径）。
+
+        用于：空闲断连弹窗点击无效、或任意覆盖层（如售卖页堆栈）无法用
+        关闭按钮退出时。force-stop 总是把游戏重置到已知启动序列，再复用
+        启动链推进循环回到主世界。
+        """
+        try:
+            subprocess.run(
+                [self._adb_path, "-s", self._device_address, "shell",
+                 "am", "force-stop", self._game_package],
+                text=True, timeout=10, capture_output=True,
             )
-            advance_deadline = time.time() + advance_budget_s
-            last_blind_tap = 0.0
-            while time.time() < advance_deadline:
-                # 每轮以实时 OCR 为准：已到主世界立即返回，不依赖历史状态。
-                if self._verify_in_world_by_ocr():
-                    self.logger.info(LogCategory.MAIN, "云弹窗恢复：OCR 确认已到主世界")
-                    return True
-                time.sleep(2.0)
-                # 截图
-                cap_job = self._controller.post_screencap()
-                if not self._wait_job(cap_job, timeout_s=float(self._SCREENCAP_TIMEOUT_S)):
-                    continue
-                cur_img = self._controller.cached_image
-                if cur_img is None:
-                    continue
+            time.sleep(3.0)
+            subprocess.run(
+                [self._adb_path, "-s", self._device_address, "shell",
+                 "monkey", "-p", self._game_package, "-c",
+                 "android.intent.category.LAUNCHER", "1"],
+                text=True, timeout=10, capture_output=True,
+            )
+            self.logger.info(LogCategory.MAIN, "force-stop 重启已完成，等待游戏加载")
+            # 云客户端重启后要重新走完整启动链（闪屏/健康忠告/版本页/
+            # 自动登录/启动页/加载），先等闪屏阶段过去再进入推进循环。
+            time.sleep(15.0)
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "force-stop 重启失败", error=str(exc))
+        return self._advance_boot_to_world(budget_s=240.0)
 
-                # OCR 找"开始游戏"/"点击任意位置继续"（完整文案，避免宽泛词误点）
-                advance_param = JOCR(
-                    expected=["开始游戏", "開始遊戲", "(?i)Start\\s*Game",
-                              "点击任意位置继续", "點擊任意位置繼續"],
-                    roi=[0, 0, cur_img.shape[1], cur_img.shape[0]],
-                    threshold=0.5,
-                )
-                adv_job = self._tasker.post_recognition(JRecognitionType.OCR, advance_param, cur_img)
-                adv_detail = adv_job.wait().get()
-                if not adv_detail:
-                    continue
-                advance_target = None
-                advance_text = ""
+    def _advance_boot_to_world(self, budget_s: float) -> bool:
+        """沿云启动链推进到主世界：每轮 OCR 验证，找推进按钮点击，加载页盲点。
+
+        不提前退出，直到 OCR 确认主世界或预算耗尽；预算耗尽以实时 OCR 为判据。
+        """
+        from maa.pipeline import JOCR, JRecognitionType
+        self.logger.info(LogCategory.MAIN, "推进游戏到主世界", budget_s=budget_s)
+        advance_deadline = time.time() + budget_s
+        last_blind_tap = 0.0
+        while time.time() < advance_deadline:
+            # 每轮以实时 OCR 为准：已到主世界立即返回，不依赖历史状态。
+            if self._verify_in_world_by_ocr():
+                self.logger.info(LogCategory.MAIN, "云启动链推进：OCR 确认已到主世界")
+                return True
+            time.sleep(2.0)
+            cap_job = self._controller.post_screencap()
+            if not self._wait_job(cap_job, timeout_s=float(self._SCREENCAP_TIMEOUT_S)):
+                continue
+            cur_img = self._controller.cached_image
+            if cur_img is None:
+                continue
+            # OCR 找"开始游戏"/"点击任意位置继续"（完整文案，避免宽泛词误点）
+            advance_param = JOCR(
+                expected=["开始游戏", "開始遊戲", "(?i)Start\\s*Game",
+                          "点击任意位置继续", "點擊任意位置繼續"],
+                roi=[0, 0, cur_img.shape[1], cur_img.shape[0]],
+                threshold=0.5,
+            )
+            adv_job = self._tasker.post_recognition(JRecognitionType.OCR, advance_param, cur_img)
+            adv_detail = adv_job.wait().get()
+            advance_target = None
+            advance_text = ""
+            if adv_detail:
                 for node in adv_detail.nodes:
                     if node.recognition and node.recognition.hit:
                         best = node.recognition.best_result
@@ -2590,38 +2607,31 @@ class MaaEndRuntime:
                                 advance_target = (bx[0] + bx[2] // 2, bx[1] + bx[3] // 2)
                             advance_text = str(getattr(best, "text", "") or "")
                             break
-                if advance_target:
-                    self.logger.info(
-                        LogCategory.MAIN,
-                        "云弹窗恢复：点击推进按钮",
-                        button_text=advance_text,
-                        target=advance_target,
-                    )
-                    if not self._tap_cloud_advance(*advance_target):
-                        return False
-                    time.sleep(3.0)
-                    continue
-                # 无推进按钮：可能在加载页或无文字的闪屏页。长时间无命中时
-                # 对屏幕中心做一次盲点（"点击任意位置"类闪屏 OCR 可能不命中），
-                # 其余时间只等待，绝不把"发过点击"当作已推进。
-                now = time.time()
-                if now - last_blind_tap >= 15.0:
-                    last_blind_tap = now
-                    center = (int(cur_img.shape[1]) // 2, int(cur_img.shape[0]) // 2)
-                    self.logger.info(LogCategory.MAIN, "云弹窗恢复：无推进按钮，中心盲点", target=center)
-                    self._tap_cloud_advance(*center)
-                time.sleep(1.0)
-
-            # 预算耗尽：以实时 OCR 为最终判据，不再无条件返回成功。
-            ok = self._verify_in_world_by_ocr()
-            if ok:
-                self.logger.info(LogCategory.MAIN, "云弹窗恢复：已推进到主世界")
-            else:
-                self.logger.warning(LogCategory.MAIN, "云弹窗恢复：预算耗尽仍未确认主世界")
-            return ok
-        except Exception as exc:
-            self.logger.warning(LogCategory.MAIN, "云游戏空闲弹窗检测异常", error=str(exc))
-            return False
+            if advance_target:
+                self.logger.info(
+                    LogCategory.MAIN,
+                    "云启动链推进：点击推进按钮",
+                    button_text=advance_text,
+                    target=advance_target,
+                )
+                if not self._tap_cloud_advance(*advance_target):
+                    return False
+                time.sleep(3.0)
+                continue
+            # 无推进按钮：加载页或无文字闪屏。长时间无命中时对中心盲点一次。
+            now = time.time()
+            if now - last_blind_tap >= 15.0:
+                last_blind_tap = now
+                center = (int(cur_img.shape[1]) // 2, int(cur_img.shape[0]) // 2)
+                self.logger.info(LogCategory.MAIN, "云启动链推进：无推进按钮，中心盲点", target=center)
+                self._tap_cloud_advance(*center)
+            time.sleep(1.0)
+        ok = self._verify_in_world_by_ocr()
+        if ok:
+            self.logger.info(LogCategory.MAIN, "云启动链推进：已推进到主世界")
+        else:
+            self.logger.warning(LogCategory.MAIN, "云启动链推进：预算耗尽仍未确认主世界")
+        return ok
 
     def _ensure_game_is_alive(self) -> bool:
         """检查游戏是否仍在运行，必要时尝试回到主世界。
