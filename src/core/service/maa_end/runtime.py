@@ -1432,7 +1432,12 @@ class MaaEndRuntime:
         if ok and task_name not in self._TASKS_SKIP_ENTER_WORLD:
             ok = self._verify_in_world_by_ocr()
             if not ok:
-                self.logger.error(LogCategory.MAIN, "任务返回成功但后置 OCR 未确认主世界", task=task_name)
+                # 任务 pipeline 可能停在深层子页面（如 AutoStockpile 的物资调度页），
+                # 先自适应关闭覆盖层回到主世界再判定；仍不回主世界才视为失败。
+                self.logger.warning(LogCategory.MAIN, "任务后置 OCR 未确认主世界，尝试自适应恢复", task=task_name)
+                ok = self._recover_to_world()
+                if not ok:
+                    self.logger.error(LogCategory.MAIN, "任务返回成功但后置 OCR 未确认主世界", task=task_name)
         if (
             not ok
             and task_name in self._TASKS_OPEN_GAME
@@ -1945,6 +1950,27 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "任务边界主世界 OCR 异常", error=str(exc))
             return False
 
+    def _recover_to_world(self, max_steps: int = 4) -> bool:
+        """自适应恢复：先处理云空闲弹窗，再逐次点击关闭按钮，每次点击后 OCR 验证。
+
+        固定次数 BACK 在覆盖层数不匹配时会把主世界右上角菜单按钮点开，
+        反而离开主世界（例如物资调度→地区建设→主世界只需 2 次关闭，第 3 次
+        会打开菜单列表）。逐次验证、一到主世界立即停止，保证恢复动作幂等。
+        """
+        if not self._connected or self._tasker is None:
+            return False
+        try:
+            self._dismiss_cloud_idle_popup()
+            for _ in range(max_steps):
+                if self._verify_in_world_by_ocr():
+                    return True
+                if not self._send_key_back():
+                    return False
+            return self._verify_in_world_by_ocr()
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "自适应恢复异常", error=str(exc))
+            return False
+
     def _ensure_in_world_before_task(self, task_name: str) -> bool:
         """Close overlays, then require an explicit main-world OCR confirmation."""
         if not self._connected or self._tasker is None:
@@ -1955,9 +1981,7 @@ class MaaEndRuntime:
             if self._verify_in_world_by_ocr():
                 return True
             self.logger.info(LogCategory.MAIN, "任务间清理：关闭覆盖层后重试", before_task=task_name)
-            if not self._lightweight_recover_ui():
-                return False
-            return self._verify_in_world_by_ocr()
+            return self._recover_to_world()
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "任务间清理异常", before_task=task_name, error=str(exc))
             return False
