@@ -2088,8 +2088,16 @@ class MaaEndRuntime:
             self._dismiss_cloud_idle_popup()
             # 不同覆盖层的关闭按钮位置不同：主世界模态页右上 (1200,30)，
             # 好友价格面板"返回"(1135,94)，出售物资页 X(1192,94)，
-            # 物资调度页 X(1221,36)。逐候选点击、每次 OCR 验证、到主世界即停。
-            close_candidates = [(1200, 30), (1135, 94), (1192, 94), (1221, 36)]
+            # 物资调度页 X(1221,36)，物资调度市场页 X(1187,36)。
+            # 这些模态页 ESC/BACK 均无效，只能点各自关闭按钮。
+            # 逐候选点击、每次 OCR 验证、到主世界即停。
+            close_candidates = [
+                (1200, 30),
+                (1135, 94),
+                (1192, 94),
+                (1221, 36),
+                (1187, 36),
+            ]
             for _round in range(max_steps):
                 for (x, y) in close_candidates:
                     if self._verify_in_world_by_ocr():
