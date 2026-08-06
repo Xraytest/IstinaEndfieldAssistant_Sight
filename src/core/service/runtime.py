@@ -397,18 +397,43 @@ class IstinaRuntime:
         return runtime
 
     def _set_client_version(self, runtime: Any, options: Dict[str, Any]) -> str:
-        """Select client profile before MaaEnd connects and loads resources."""
+        """Select the client profile before resource loading.
+
+        A few callers connect first and provide ``ClientVersion`` with the task
+        options.  In that case the runtime must be rebuilt before the task can
+        use the requested resource bundle; silently retaining the old profile
+        would run CloudCN tasks against the default client resources.
+        """
         configured = options.get("ClientVersion")
         if configured is None:
             version = str(getattr(runtime, "client_version", "CN") or "CN").strip() or "CN"
         else:
             version = str(configured).strip() or "CN"
         setter = getattr(runtime, "set_client_version", None)
-        if callable(setter):
-            setter(version)
+        if not callable(setter):
+            return version
         if version.lower() == "cloudcn":
             # A stale local package in client_config must not override CloudCN.
             runtime._game_package = GAME_PACKAGE_CLOUD_ENDFIELD
+        try:
+            setter(version)
+        except RuntimeError:
+            if not bool(getattr(runtime, "connected", False)):
+                raise
+            disconnect = getattr(runtime, "disconnect", None)
+            connect = getattr(runtime, "connect", None)
+            load_resource = getattr(runtime, "load_resource", None)
+            if not all(callable(method) for method in (disconnect, connect, load_resource)):
+                raise
+            self._logger.warning(
+                LogCategory.MAIN,
+                "客户端版本在已连接 runtime 上变化，重建 MaaEnd 资源",
+                client_version=version,
+            )
+            disconnect()
+            setter(version)
+            if not connect() or not load_resource():
+                raise RuntimeError(f"客户端资源重建失败: {version}") from None
         return version
 
     def scene(self) -> Any:

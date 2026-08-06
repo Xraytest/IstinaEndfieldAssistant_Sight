@@ -49,6 +49,44 @@ def test_cloud_package_overrides_stale_config() -> None:
     assert _get_game_package({"device": {"package": "com.hypergryph.endfield"}}, "CloudCN") == GAME_PACKAGE_CLOUD_ENDFIELD
 
 
+def test_client_version_switch_rebuilds_connected_runtime() -> None:
+    from core.service.runtime import IstinaRuntime
+
+    class _Runtime:
+        client_version = "CN"
+        connected = True
+        _game_package = "com.hypergryph.endfield"
+
+        def __init__(self) -> None:
+            self.calls = []
+
+        def set_client_version(self, version):
+            self.calls.append(("set", version))
+            if self.connected and version == "CloudCN":
+                raise RuntimeError("connected")
+            self.client_version = version
+
+        def disconnect(self):
+            self.calls.append(("disconnect",))
+            self.connected = False
+
+        def connect(self):
+            self.calls.append(("connect",))
+            self.connected = True
+            return True
+
+        def load_resource(self):
+            self.calls.append(("load_resource",))
+            return True
+
+    runtime = IstinaRuntime()
+    maaend = _Runtime()
+    assert runtime._set_client_version(maaend, {"ClientVersion": "CloudCN"}) == "CloudCN"
+    assert maaend.client_version == "CloudCN"
+    assert maaend._game_package == "com.hypergryph.cloud.endfield"
+    assert maaend.calls == [("set", "CloudCN"), ("disconnect",), ("set", "CloudCN"), ("connect",), ("load_resource",)]
+
+
 def test_input_observation_sink_filters_completed_input_actions() -> None:
     from types import SimpleNamespace
     from core.service.maa_end import runtime as maa_end_module
@@ -71,7 +109,29 @@ def test_input_observation_sink_filters_completed_input_actions() -> None:
     sink.on_controller_action("ctrl", maa_end_module.NotificationType.Succeeded, SimpleNamespace(
         action="Screenshot", param={}, info={}
     ))
-    assert observer.events == [("ctrl", "Click", {"x": 1}, {"node": "A"})]
+    sink.on_raw_notification(
+        "ctrl",
+        "Controller.Action.Succeeded",
+        {"uuid": "u1", "action": "Controller.Click", "param": {"x": 2}, "info": {"node": "B"}},
+    )
+    sink.on_raw_notification(
+        "ctrl",
+        "Controller.Action.Succeeded",
+        {"uuid": "u1", "action": "Click", "param": {"x": 2}, "info": {"node": "B"}},
+    )
+    assert observer.events == [
+        ("ctrl", "Click", {"x": 1}, {"node": "A"}),
+        ("ctrl", "Click", {"x": 2}, {"node": "B"}),
+    ]
+
+
+def test_input_observations_flush_completed_queue() -> None:
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    runtime = MaaEndRuntime()
+    runtime._input_observation_queue.put((object(), "Click", {}, {}))
+    runtime._input_observation_queue.task_done()
+    assert runtime._flush_input_observations(timeout_s=0.01) is True
 
 
 def test_android_returns_android_runtime() -> None:
@@ -90,6 +150,47 @@ def test_maaend_resource_profile_switches_before_connect() -> None:
     runtime.set_client_version("CloudCN")
     assert runtime.client_version == "CloudCN"
     assert runtime._primary_resource_name() == "resource_cloud"
+
+
+def test_cloud_ocr_model_falls_back_to_shared_resource(tmp_path) -> None:
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    model_dir = tmp_path / "resource" / "model" / "ocr"
+    model_dir.mkdir(parents=True)
+    for name in ("det.onnx", "rec.onnx", "keys.txt"):
+        (model_dir / name).write_bytes(b"model")
+
+    class _Job:
+        succeeded = True
+
+        def wait(self):
+            return self
+
+    class _Resource:
+        def __init__(self) -> None:
+            self.loaded = None
+
+        def post_ocr_model(self, path):
+            self.loaded = path
+            return _Job()
+
+    runtime = MaaEndRuntime(maaend_root=str(tmp_path), client_version="CloudCN")
+    runtime._resource = _Resource()
+
+    assert runtime._load_ocr_model() is True
+    assert runtime._resource.loaded == model_dir
+
+
+def test_ocr_model_missing_rejects_resource(tmp_path) -> None:
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    runtime = MaaEndRuntime(maaend_root=str(tmp_path), client_version="CloudCN")
+    class _Resource:
+        def post_ocr_model(self, path):
+            raise AssertionError("missing models must be rejected before registration")
+
+    runtime._resource = _Resource()
+    assert runtime._load_ocr_model() is False
 
 
 def test_maaend_returns_maa_end_runtime() -> None:

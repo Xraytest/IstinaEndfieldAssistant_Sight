@@ -156,18 +156,78 @@ class _InputObservationSink(ControllerEventSink if ControllerEventSink is not No
 
     def __init__(self, runtime: "MaaEndRuntime") -> None:
         self._runtime = runtime
+        self._seen_action_uuids: set[str] = set()
 
-    def on_controller_action(self, controller: Any, noti_type: Any, detail: Any) -> None:
+    @staticmethod
+    def _normalize_action(action: Any) -> str:
+        value = str(action or "").strip()
+        # Some MaaFW builds expose an action namespace in detail.action.
+        return value.rsplit(".", 1)[-1]
+
+    def _forward_if_input(
+        self,
+        controller: Any,
+        noti_type: Any,
+        action: Any,
+        param: Any,
+        info: Any,
+        uuid: Any = "",
+    ) -> None:
         if NotificationType is not None and noti_type != NotificationType.Succeeded:
             return
-        action = str(getattr(detail, "action", "") or "")
-        if action not in _INPUT_ACTIONS:
+        event_uuid = str(uuid or "").strip()
+        if event_uuid:
+            if event_uuid in self._seen_action_uuids:
+                return
+            self._seen_action_uuids.add(event_uuid)
+            if len(self._seen_action_uuids) > 2048:
+                self._seen_action_uuids.clear()
+        normalized = self._normalize_action(action)
+        if normalized not in _INPUT_ACTIONS:
             return
         self._runtime._enqueue_input_observation(
             controller,
+            normalized,
+            param if isinstance(param, dict) else {},
+            info if isinstance(info, dict) else {},
+        )
+
+    def on_controller_action(self, controller: Any, noti_type: Any, detail: Any) -> None:
+        # Keep the typed callback for bindings that do not expose raw details.
+        self._forward_if_input(
+            controller,
+            noti_type,
+            getattr(detail, "action", ""),
+            getattr(detail, "param", {}),
+            getattr(detail, "info", {}),
+            getattr(detail, "uuid", ""),
+        )
+
+    def on_raw_notification(self, controller: Any, msg: str, details: Dict[str, Any]) -> None:
+        # The raw callback is the stable contract across MaaFW Python builds.
+        # It also makes the observed action visible when detail.action is wrapped
+        # or renamed by a binding version.
+        if not str(msg).startswith("Controller.Action"):
+            return
+        action = details.get("action", "") if isinstance(details, dict) else ""
+        logger = getattr(self._runtime, "logger", None)
+        if logger is not None:
+            logger.debug(
+                LogCategory.MAIN,
+                "MaaFW Controller.Action 通知",
+                notification=msg,
+                action=self._normalize_action(action),
+            )
+        noti_type = NotificationType.Unknown if NotificationType is not None else None
+        if str(msg).endswith(".Succeeded") and NotificationType is not None:
+            noti_type = NotificationType.Succeeded
+        self._forward_if_input(
+            controller,
+            noti_type,
             action,
-            getattr(detail, "param", {}) or {},
-            getattr(detail, "info", {}) or {},
+            details.get("param", {}) if isinstance(details, dict) else {},
+            details.get("info", {}) if isinstance(details, dict) else {},
+            details.get("uuid", "") if isinstance(details, dict) else "",
         )
 
 
@@ -612,6 +672,7 @@ class MaaEndRuntime:
         while True:
             try:
                 self._input_observation_queue.get_nowait()
+                self._input_observation_queue.task_done()
             except Empty:
                 break
 
@@ -671,6 +732,24 @@ class MaaEndRuntime:
                 )
             except Exception as exc:
                 self.logger.warning(LogCategory.MAIN, "输入后 OCR 观测异常", action=action, error=str(exc))
+            finally:
+                self._input_observation_queue.task_done()
+
+    def _flush_input_observations(self, timeout_s: float = 8.0) -> bool:
+        """Wait for all successful input events to receive OCR observation."""
+        deadline = time.monotonic() + max(0.0, float(timeout_s))
+        while self._input_observation_queue.unfinished_tasks:
+            if time.monotonic() >= deadline:
+                remaining = self._input_observation_queue.unfinished_tasks
+                self.logger.warning(
+                    LogCategory.MAIN,
+                    "输入后 OCR 观测未排空",
+                    remaining=remaining,
+                    timeout_s=timeout_s,
+                )
+                return False
+            time.sleep(0.05)
+        return True
 
     def _cleanup_partial(self) -> None:
         """Clean up partially-created resources after a failed connect()."""
@@ -877,10 +956,58 @@ class MaaEndRuntime:
                     self._connected = False  # 方案 D：同上，资源加载失败重置连接态
                     return False
                 self.logger.info(LogCategory.MAIN, "ADB 资源加载成功", path=str(adb_resource_dir))
+            if not self._load_ocr_model():
+                self._connected = False
+                return False
             return True
         except Exception as e:
             self.logger.exception(LogCategory.MAIN, "Pipeline 资源加载异常", error=str(e))
             self._connected = False  # 方案 D：异常路径同样重置连接态
+            return False
+
+    def _load_ocr_model(self) -> bool:
+        """Register the OCR model explicitly after loading the resource bundles.
+
+        ``resource_cloud`` intentionally contains only CloudCN-specific pipeline
+        and image assets.  The OCR model is shared with the default client and
+        therefore lives in ``resource/model/ocr`` rather than being duplicated in
+        the ignored CloudCN asset tree.  MaaFW does not discover this model from
+        a pipeline bundle automatically, so registration is required before any
+        direct or pipeline OCR call.
+        """
+        if self._resource is None:
+            return False
+        post_ocr_model = getattr(self._resource, "post_ocr_model", None)
+        if not callable(post_ocr_model):
+            self.logger.error(LogCategory.MAIN, "当前 MaaFW Resource 不支持显式 OCR 模型加载")
+            return False
+        model_dir = self._resolve_asset_path(self._primary_resource_name(), "model", "ocr")
+        if not model_dir.is_dir():
+            model_dir = self._resolve_asset_path("resource", "model", "ocr")
+        required = ("det.onnx", "rec.onnx", "keys.txt")
+        missing = [name for name in required if not (model_dir / name).is_file()]
+        if missing:
+            self.logger.error(
+                LogCategory.MAIN,
+                "OCR 模型资源缺失",
+                path=str(model_dir),
+                missing=missing,
+            )
+            return False
+        try:
+            job = post_ocr_model(model_dir)
+            if not self._wait_job(job, timeout_s=60.0):
+                self.logger.error(LogCategory.MAIN, "OCR 模型加载失败或超时", path=str(model_dir))
+                return False
+            self.logger.info(LogCategory.MAIN, "OCR 模型加载成功", path=str(model_dir))
+            return True
+        except Exception as exc:
+            self.logger.exception(
+                LogCategory.MAIN,
+                "OCR 模型加载异常",
+                path=str(model_dir),
+                error=str(exc),
+            )
             return False
 
     def _relocate_aggregate_nodes(self) -> None:
@@ -1287,7 +1414,9 @@ class MaaEndRuntime:
             merged_options.update(options)
             options = merged_options
         if options.get("ClientVersion"):
-            self._client_version = options["ClientVersion"]
+            # 队列/直接调用路径也必须同步 resource profile；仅修改
+            # _client_version 会让 CloudCN 继续加载默认 resource。
+            self.set_client_version(str(options["ClientVersion"]))
         override = self.build_pipeline_override(task_name, options)
         entry = task.get("entry", task_name)
         if task_name not in self._TASKS_SKIP_ENTER_WORLD:
@@ -1295,6 +1424,11 @@ class MaaEndRuntime:
                 self.logger.error(LogCategory.MAIN, "任务前未确认主世界", task=task_name)
                 return False
         ok = self._run_task_with_retry(task_name, options, entry, override)
+        # 任务返回前排空成功输入事件，避免 CLI 子进程退出时丢失尾部 OCR。
+        observations_ok = self._flush_input_observations(timeout_s=15.0)
+        if not observations_ok:
+            self.logger.error(LogCategory.MAIN, "任务输入后 OCR 未全部完成", task=task_name)
+            ok = False
         if ok and task_name not in self._TASKS_SKIP_ENTER_WORLD:
             ok = self._verify_in_world_by_ocr()
             if not ok:
@@ -2073,6 +2207,44 @@ class MaaEndRuntime:
         time.sleep(1.5)
         return True
 
+    def _tap_cloud_advance(self, x: int, y: int) -> bool:
+        """点击云端启动页并保留实际画面验证。
+
+        云终末地的启动页会接受 Android/ADB tap，但部分 MaaTouch 版本只
+        返回成功而不改变画面。该特殊页面使用项目现有 AndroidRuntime 通道；
+        调用方仍必须在点击后 OCR，不能把 tap 返回值当作状态转换成功。
+        """
+        try:
+            from core.capability.device.android_runtime import AndroidRuntime
+
+            AndroidRuntime(
+                serial=self._device_address,
+                adb_path=self._adb_path,
+            ).tap(int(x), int(y), serial=self._device_address)
+            self.logger.info(LogCategory.MAIN, "云启动页 Android tap 已发送", target=(x, y))
+            return True
+        except Exception as exc:
+            self.logger.warning(
+                LogCategory.MAIN,
+                "云启动页 Android tap 失败，回退 MaaTouch",
+                target=(x, y),
+                error=str(exc),
+            )
+            try:
+                if self._controller is None:
+                    return False
+                click_job = self._controller.post_click(int(x), int(y))
+                click_job.wait()
+                return True
+            except Exception as fallback_exc:
+                self.logger.warning(
+                    LogCategory.MAIN,
+                    "云启动页 MaaTouch 回退也失败",
+                    target=(x, y),
+                    error=str(fallback_exc),
+                )
+                return False
+
     def _dismiss_cloud_idle_popup(self) -> bool:
         """检测并关闭云游戏空闲断连弹窗，并推进到主世界。
 
@@ -2105,19 +2277,27 @@ class MaaEndRuntime:
 
             from maa.pipeline import JOCR, JRecognitionType
 
-            # OCR 全屏搜索"知道了"按钮
+            # OCR 同时检测空闲弹窗和云端标题页。空闲弹窗关闭后通常会
+            # 留在“点击任意位置继续”页面；标题页也可能在没有弹窗时直接出现，
+            # 两者都必须经过实际 tap 和后续 OCR，而不能把当前画面当作主世界。
             ocr_param = JOCR(
-                expected=[self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT],
+                expected=[
+                    self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT,
+                    "长时间未操作", "自动结束", "自动结",
+                    "点击任意位置继续", "點擊任意位置繼續",
+                    "开始游戏", "開始遊戲",
+                ],
                 roi=[0, 0, img.shape[1], img.shape[0]],
                 threshold=0.3,
             )
             ocr_job = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, img)
             detail = ocr_job.wait().get()
 
-            # 检查是否找到"知道了"按钮
+            # 检查是否找到空闲弹窗或标题页推进文案。
             if not detail:
                 return False
             popup_hit = False
+            popup_button = ""
             for node in detail.nodes:
                 if node.recognition and node.recognition.hit:
                     best = node.recognition.best_result
@@ -2129,18 +2309,21 @@ class MaaEndRuntime:
                         else:
                             cx = bx[0] + bx[2] // 2
                             cy = bx[1] + bx[3] // 2
+                        popup_button = str(getattr(best, "text", "") or "")
                         self.logger.warning(
                             LogCategory.MAIN,
-                            "检测到云游戏空闲断连弹窗，点击关闭",
-                            button_text=self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT,
+                            "检测到云端阻塞页面，点击推进",
+                            button_text=popup_button or "云端启动页",
                             target=(cx, cy),
                         )
-                        click_job = self._controller.post_click(cx, cy)
-                        click_job.wait()
+                        if not self._tap_cloud_advance(cx, cy):
+                            return False
                         time.sleep(2.0)
-                        # 弹出可能还残留二次确认或其他弹窗，再做 BACK 清理
-                        for _ in range(2):
-                            self._send_key_back()
+                        # 仅空闲弹窗需要清理可能残留的系统级确认；标题页不能
+                        # 发送 BACK，否则会把刚进入的云游戏页面再次退出。
+                        if popup_button == self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT:
+                            for _ in range(2):
+                                self._send_key_back()
                         popup_hit = True
                         break
             if not popup_hit:
@@ -2247,10 +2430,11 @@ class MaaEndRuntime:
                         "云弹窗恢复：点击推进按钮",
                         target=advance_target,
                     )
-                    click_job = self._controller.post_click(*advance_target)
-                    click_job.wait()
+                    if not self._tap_cloud_advance(*advance_target):
+                        return False
+                    # 点击后等待加载，再循环 OCR；advanced 仅表示已发送输入，
+                    # 最终是否推进仍由后续 OCR/主世界 guard 决定。
                     advanced = True
-                    # 点击后等待加载，再循环检测是否需要再次点击
                     time.sleep(3.0)
                     continue
                 else:

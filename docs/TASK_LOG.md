@@ -3290,3 +3290,9 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **Files Modified**:
   - `src/core/service/runtime.py`（`_is_in_big_world` 改用 ROI 探索检测 + 移除据点建设误判关键词）
   - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-06 22:30
+
+- **User Request**: 在本地模拟器使用云终末地循环执行每日全套，修正执行过程中阻碍运行的问题；每次 input 后直接阅读 OCR/模板结果，只有确认状态正确才继续。
+- **Outcome**: 完成 CloudCN 资源 profile、共享 OCR 模型显式注册、云标题页 Android tap 与输入后 OCR 观测增强。真实验证确认使用 `resource_cloud`，任务前 OCR 命中 `UID:1439188325` 与 `探索`；`AutoStockpile` 两次仅命中 `AutoStockpileMain`、`AutoStockpileEnterRegionalDevelopment`，未命中 `AutoStockpileGetUid`，任务后未确认主世界，因此按要求停止，未继续后续 DailyFull。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`、`src/core/service/runtime.py`、`tests/test_istina_runtime.py`、`reports/implementation/2026-08-06-cloud-dailyfull-ocr-boundary.md`、`docs/TASK_LOG.md`
