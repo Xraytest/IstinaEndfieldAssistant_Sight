@@ -3316,3 +3316,14 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - `3rd-part/maaend/resource_cloud/pipeline/SceneManager/SceneRegionalDevelopment.json`（武陵换区 ROI，本地）
   - `reports/implementation/2026-08-07-autostockpile-market-wuling.md`
   - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-07 03:00（每日全套收尾状态）
+
+- **AutoCollect**: Route1（武陵城）VLM 传送连续 `teleport_ok=False reason=max_steps`（attempt 1-4），武陵 VLM 导航阻塞，与 EnvironmentMonitoring 同类；谷地路线未及执行。记为已知阻塞。
+- **当日每日全套状态汇总**:
+  - 完成：AutoStockpile（端到端，含武陵腿，两区买空走 Skip）。
+  - 部分：DailyRewards（邮件+任务奖励完成；委托奖励腿阻塞）。
+  - 阻塞：EnvironmentMonitoring（VLM 300s watchdog）、AutoCollect（武陵 VLM 传送 max_steps）。
+  - 跳过：AutoSell（scan OCR 碎片化/模板尺度不可得）、SeizeDeliveryJobs（controller 元数据无 ADB）。
+- **共性问题**: 云终末地多个模态页不响应 ESC，`SceneAnyEnterWorld` 的 ESC 兜底在这些页面空转；武陵的 VLM/地图导航在云端不稳定。后续应优先为不可 ESC 模态补关闭节点、并标定武陵传送锚点。
+- **Files Modified**: `docs/TASK_LOG.md`（本条记录）。
