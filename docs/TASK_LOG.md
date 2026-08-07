@@ -3327,3 +3327,20 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - 跳过：AutoSell（scan OCR 碎片化/模板尺度不可得）、SeizeDeliveryJobs（controller 元数据无 ADB）。
 - **共性问题**: 云终末地多个模态页不响应 ESC，`SceneAnyEnterWorld` 的 ESC 兜底在这些页面空转；武陵的 VLM/地图导航在云端不稳定。后续应优先为不可 ESC 模态补关闭节点、并标定武陵传送锚点。
 - **Files Modified**: `docs/TASK_LOG.md`（本条记录）。
+
+## 2026-08-07 04:30（云传送链打通：VLM/模板锚点+总览导航）
+
+- **User Request**: 持续循环每日全套；可接入 VLM 增强任务成功率。
+- **成果**: 云终末地传送链端到端打通，清波寨跨地区传送实测 `ok=true (vlm_visual_teleported)`（提交 4054603）。
+  - 空闲断连弹窗：旧实现点对话框正文无效误触发 force-stop（云会话服务端持久重启无效）；改为优先点"知道了"按钮、固定坐标兜底，实测一次关闭并回主世界。
+  - 手动开图：小地图实测中心 (110,125)；云端跳过模板不匹配的 pipeline 场景节点（超时 post_stop 污染 Tasker 致截屏全 None）。
+  - 新增 `_cloud_overview_navigate`：地区总览→底部地区 tab（武陵/四号谷地）→子区域 OCR 标签中心点击，全程 OCR 验证；总览判定仅用"地区建设等级"（O.M.V.帝江号 两视图共有致首版误判）。
+  - 新增 `_cloud_find_teleport_anchor`：金色锚点模板匹配（>=0.7，base64 内嵌因 *.png 被 gitignore），VLM 兜底（锚点颜色描述修正为金色）。
+  - 到达判定云端放宽为大世界判定（HUD 不显示子区域名，关键词验证假阴；探针实测传送本身成功）。
+  - 标记管理模式云端恢复改点"取消"（BACK 无效）。
+- **对已知阻塞的预期影响**: AutoCollect 武陵腿与 EnvironmentMonitoring 的传送/导航阻塞应随传送链打通缓解，待下一轮每日全套验证。
+- **Files Modified**:
+  - `src/core/service/runtime.py`、`src/core/service/maa_end/runtime.py`（提交 4054603）
+  - `assets/templates/cloud_map_teleport_anchor.png`（本地缓存，gitignore）
+  - `reports/implementation/2026-08-07-cloud-teleport-chain.md`
+  - `docs/TASK_LOG.md`（本条记录）
