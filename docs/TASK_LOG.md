@@ -3344,3 +3344,26 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - `assets/templates/cloud_map_teleport_anchor.png`（本地缓存，gitignore）
   - `reports/implementation/2026-08-07-cloud-teleport-chain.md`
   - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-07 05:10（空闲弹窗新变体与野外判据补强）
+
+- **修复1**（提交 6146776）：云空闲断连弹窗新变体"由于长时间未使用，已断开连接"不在关键词表，启动等待超时；`_dismiss_cloud_idle_popup` 关键词/expected 增加"长时间未使用/已断开连接"，且 `_ensure_game_in_world` 等待循环内每轮先 dismiss 再 verify。
+- **修复2**（提交 762c147）：大世界野外 HUD 无主城菜单文字，仅"探索"命中使 `_IN_WORLD_OCR_MIN_HITS=2` 永不满足；关键词表增加 `UID:`/`LV.`/`Lv.`，dismiss 移到 verify 前。
+- **Files Modified**: `src/core/service/runtime.py`、`src/core/service/maa_end/runtime.py`（提交 6146776/762c147）。
+
+## 2026-08-07 11:30（ClientVersion 静默降级修复 + AutoCollect 云端门控）
+
+- **User Request**: 持续循环每日全套；CLI 直跑 AutoCollect Route1 连续失败的根因修正。
+- **根因**: 各任务入口 `options.get("ClientVersion", "CN")` 在 CLI 未传 ClientVersion 时把 config 推导的 CloudCN runtime **静默降级**为 CN 资源（未连接时 `set_client_version` 不抛错）→ `is_cloud=False` → 云端跑 CN pipeline 节点全部失配超时、post_stop 污染 Tasker、截屏全 None（VLM 幻觉坐标 y≈770-788 即此态）。GUI/预设显式传 CloudCN 不受影响，解释了"诊断脚本成功、CLI 任务失败"的差异。
+- **修复**（提交 e8cb26c）:
+  - 8 处任务入口改 `client_version = self._set_client_version(runtime, options)`（缺省继承 runtime 版本）。
+  - AutoCollect 云端跳过 Step1a 直接 pipeline 节点；无 waypoints 路线（Route1/3/6，回退依赖 CN MapNavigateAction，实测误点进"武陵工业计划"覆盖层；其世界坐标与总览像素空间无标定不可转 waypoints）记 `skipped` 不计失败。
+  - 新增 `_cloud_cleanup_to_world`（标记模式点取消/地图点X/通用覆盖层X+BACK）替代云端无效的 3×BACK；实测工业计划页一轮回主世界。
+  - VLM 传送点提示改 0-100 百分比坐标；`vlm_walk_navigator` 循环前初始化 `dist_to_end` 修 UnboundLocalError。
+- **实测**: Route1 立即 skipped；Route2 云端传送链成功（无传送失败告警）进入 VLM 步行导航；attempt1 因旧代码 dist_to_end 崩溃，后续 attempts 因免费 LLM 端点（open.cherryin.ai）读超时率高导航 partial、采集未验证——外部 API 稳定性问题，导航已有单步跳过+连续3次中止保护。
+- **环境清理**: 终止 4 个上轮会话残留自动化 python 进程（占用设备 scrcpy 会话致新进程握手超时）+ 设备侧 app_process scrcpy 服务端；清理后截图通道恢复。
+- **对已知阻塞的预期影响**: EnvironmentMonitoring/DailyRewards 委托腿等经 CLI 直跑的任务同样受益于 ClientVersion 继承（此前均被降级为 CN）。
+- **Files Modified**:
+  - `src/core/service/runtime.py`、`src/core/service/navigation/vlm_walk_navigator.py`（提交 e8cb26c）
+  - `reports/implementation/2026-08-07-cloud-clientversion-downgrade.md`
+  - `docs/TASK_LOG.md`（本条记录）
