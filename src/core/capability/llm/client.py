@@ -358,14 +358,15 @@ class LlmClient:
                 except Exception:
                     pass
                 if exc.code in (429, 502, 503, 504, 520) and attempt < max_retries:
-                    # 429=限流（"all candidate channels are rate limited"）为瞬态，
-                    # 需比网关错误更长的退避，避免连续撞限流窗口。
-                    delay = 3.0 * (attempt + 1) if exc.code == 429 else 1.5 * (attempt + 1)
+                    # 429=TPM 限流：端点允许无间隔立即重试（通道轮换快），不退避；
+                    # 网关错误(502/503/504/520)仍线性退避。
+                    delay = 0.0 if exc.code == 429 else 1.5 * (attempt + 1)
                     self._logger.warning(
                         "[%s] LLM HTTP %d, retrying %d/%d",
                         LogCategory.MAIN, exc.code, attempt + 1, max_retries,
                     )
-                    _time.sleep(delay)
+                    if delay > 0:
+                        _time.sleep(delay)
                     last_exc = exc
                     continue
                 self._logger.error(
