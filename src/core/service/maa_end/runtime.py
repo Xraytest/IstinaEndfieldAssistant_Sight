@@ -553,7 +553,11 @@ class MaaEndRuntime:
             self._cleanup_partial()
             return False
 
-    _CONNECTION_TIMEOUT_S = 20
+    # 连接握手含 MaaFW screencap 速度测试与输入通道初始化。宿主 GPU 被其他进程
+    # 占用时模拟器渲染降级（screencap 单次 3-6s、速度测试 ~11s），20s 硬超时会在
+    # 握手进行中将其切断（日志可见速度测试已成功但仍报连接超时）。60s 覆盖降级态；
+    # 真正损坏的环境最坏多等 40s，可接受。
+    _CONNECTION_TIMEOUT_S = 60
     _SCREENCAP_TIMEOUT_S = 10
     _MAX_TASK_RETRIES = 1
 
