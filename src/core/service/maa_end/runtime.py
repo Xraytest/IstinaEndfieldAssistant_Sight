@@ -2662,9 +2662,12 @@ class MaaEndRuntime:
             if cur_img is None:
                 continue
             # OCR 找"开始游戏"/"点击任意位置继续"（完整文案，避免宽泛词误点）
+            # "知道了"=「您上次游戏的数据正在火速处理中」弹窗按钮（OCR 实测
+            # @(606,420)）。缺它时启动链只能中心盲点误点，弹窗持续阻断主世界确认。
             advance_param = JOCR(
                 expected=["开始游戏", "開始遊戲", "(?i)Start\\s*Game",
-                          "点击任意位置继续", "點擊任意位置繼續"],
+                          "点击任意位置继续", "點擊任意位置繼續",
+                          "知道了", "知道了"],
                 roi=[0, 0, cur_img.shape[1], cur_img.shape[0]],
                 threshold=0.5,
             )
