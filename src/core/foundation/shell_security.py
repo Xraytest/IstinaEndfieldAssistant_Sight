@@ -21,6 +21,9 @@ ALLOWED_SHELL_PREFIXES: tuple[str, ...] = (
     "wm ",
     "svc ",
     "pidof ",
+    # 游戏启动链依赖 monkey 拉起 LAUNCHER activity（参数仅包名与固定 category，
+    # 无 shell 元字符；_ensure_game_in_world 的 am start 兜底在其被拒时不触发异常）。
+    "monkey ",
 )
 
 # 拒绝的注入字符（含反斜杠，防止 `$(...)` 通过 `\` 转义绕过黑名单）

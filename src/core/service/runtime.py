@@ -941,7 +941,11 @@ class IstinaRuntime:
                 # pidof 可能不存在于精简 Android 环境（如云终末地），回退到 ps|grep
                 try:
                     ps_out = android.shell(f"ps -A | grep {package}").strip()
-                    pid = ps_out.split()[1] if ps_out and len(ps_out.split()) > 1 else ""
+                    # 守护进程可能返回错误串（白名单拒绝），必须含包名才视为有效
+                    if ps_out and package in ps_out and len(ps_out.split()) > 1:
+                        pid = ps_out.split()[1]
+                    else:
+                        pid = ""
                 except Exception:
                     pid = ""
             if pid:
