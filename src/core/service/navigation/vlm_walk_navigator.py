@@ -55,11 +55,10 @@ class VlmWalkConfig:
     # 流式传输模式下，socket timeout 仅保护首 token 等待；首 token 到达后
     # 后续流式输出不限每块超时。此值也传递给线程 join timeout 作为首 token
     # 等待的上限。
-    # 实测：云端 qwen3.5-35b 正常响应 1-5s/步，慢时 30-77s。
-    # 原 1800s（30min）过保守，transient 失败时单步可挂 30min×3retry=90min。
-    # 改为 120s 后：单步最长 120s×1=120s（timeout 不重试），3 次连续 timeout
-    # 中止 walk（max_consecutive_vlm_timeouts=3），总 worst case 6min/route。
-    vlm_call_timeout_s: float = 120.0
+    # 实测：云端 qwen3.5-35b 正常响应 1-5s/步，慢时 30-77s；真挂起则首 token
+    # 永不到达。90s 覆盖慢例（77s）且切断挂起，3 次连续 timeout 中止 walk
+    # （max_consecutive_vlm_timeouts=3），总 worst case 4.5min/route。
+    vlm_call_timeout_s: float = 90.0
     # VLM 输入图像缩放比例（0-1）。缩小图像可显著加速云端 API 响应。
     # 0.5 = 640x360（原图 1280x720 的一半），实测可减少 30-50% 响应时间。
     image_scale: float = 0.5
