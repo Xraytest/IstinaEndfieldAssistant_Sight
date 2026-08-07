@@ -72,3 +72,19 @@
 - `_lightweight_recover_ui`（3×BACK）死代码保留未删，避免与本批修复混合。
 - service/runtime.py 存量 17 项 ruff 未处理（不放宽配置，逐文件修复另批进行）；
   mypy 在捆绑解释器不可用为已知存量状态。
+
+## 五、实跑验证（2026-08-08 00:45-02:11，测试态 2 轮×13 任务，提交 fe8d354/8ec5c73）
+
+- **X 关闭实测生效**：3 次识别到资料页/访客终端 → 点 (1220,35) → 主世界确认恢复
+  （01:01-01:05），全程无 ESC 空转。
+- **卡点增量落盘实测生效**：18 条卡点（每轮 9 条，两轮一致）逐条写入
+  `.tmp/fatal/blockers_20260808-004550.json`，每条含失败时刻全屏 OCR 上下文；
+  全部失败收尾均在主世界（OCR 含 探索+UID），UI 零漂移。
+- **fatal 路径实测**：前一轮 00:26 ADB 通道死亡时正确触发——留档
+  `.tmp/fatal/20260808-002627_DeliveryJobs/fatal_info.json`（连接已断故无截图，
+  符合设计）→ force-stop 重启。该断点暴露"汇总仅结束时写入"缺口，已修为
+  崩溃安全落盘（fe8d354）。
+- **云网络宽容实测**：OCR 持续出现"网络差"但两轮全程零 fatal，队列未中断。
+- **结果**：每轮 4/13 ✓（AndroidOpenGame/VisitFriends/SellProduct/AutoStockpile），
+  VisitFriends 首次两轮连过；9 个失败两轮完全一致，确认 vendored 尾部节点校准
+  天花板（非 infra）。
