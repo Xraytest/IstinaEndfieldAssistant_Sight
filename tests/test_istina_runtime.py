@@ -245,6 +245,41 @@ def test_maaend_resource_profile_switches_before_connect() -> None:
     assert runtime._primary_resource_name() == "resource_cloud"
 
 
+def test_resource_bundle_dirs_default(tmp_path) -> None:
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    for sub in ("resource", "resource_adb", "resource_cloud"):
+        (tmp_path / sub).mkdir()
+    runtime = MaaEndRuntime(maaend_root=str(tmp_path), client_version="CN")
+    dirs = [d.name for d in runtime._resource_bundle_dirs()]
+    assert dirs == ["resource", "resource_adb"]
+
+
+def test_resource_bundle_dirs_cloud_overlays_base(tmp_path) -> None:
+    """CloudCN 必须先载基础包 resource，再叠 resource_cloud，最后 resource_adb。
+
+    仅加载 resource_cloud 会因缺少 image/ 导致全部 TemplateMatch 失败（见
+    MaaEndRuntime._resource_bundle_dirs 的历史缺陷说明）。
+    """
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    for sub in ("resource", "resource_adb", "resource_cloud"):
+        (tmp_path / sub).mkdir()
+    runtime = MaaEndRuntime(maaend_root=str(tmp_path), client_version="CloudCN")
+    dirs = [d.name for d in runtime._resource_bundle_dirs()]
+    assert dirs == ["resource", "resource_cloud", "resource_adb"]
+
+
+def test_resource_bundle_dirs_cloud_missing_overlay_falls_back(tmp_path) -> None:
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    (tmp_path / "resource").mkdir()
+    (tmp_path / "resource_adb").mkdir()
+    runtime = MaaEndRuntime(maaend_root=str(tmp_path), client_version="CloudCN")
+    dirs = [d.name for d in runtime._resource_bundle_dirs()]
+    assert dirs == ["resource", "resource_adb"]
+
+
 def test_cloud_ocr_model_falls_back_to_shared_resource(tmp_path) -> None:
     from core.service.maa_end.runtime import MaaEndRuntime
 

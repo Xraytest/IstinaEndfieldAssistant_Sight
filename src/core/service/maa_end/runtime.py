@@ -353,6 +353,45 @@ class MaaEndRuntime:
     def _primary_resource_name(self) -> str:
         return "resource_cloud" if self._resource_profile == "cloud" else "resource"
 
+    def _resource_bundle_dirs(self) -> List[Path]:
+        """按序返回需要 post_bundle 的资源目录列表。
+
+        MaaFW v5.12.2 的 PipelineResMgr::parse_and_override_once 仅在单个 bundle
+        内做 key 查重（同 bundle 重名会整体加载失败），跨 bundle 则以
+        insert_or_assign 合并：后加载 bundle 的同名节点以先加载 bundle 的同名
+        节点为默认值做字段级覆盖。官方资源结构正是按此叠加机制设计的：
+        ``resource`` 是基础包（image/、model/ocr、基础 pipeline），
+        ``resource_cloud``/``resource_wlroots``/``resource_playcover`` 仅含
+        pipeline 覆盖层，``resource_adb`` 为 ADB 控制器的覆盖层。
+
+        - 默认版本（CN 等）：[resource, resource_adb]
+        - CloudCN：[resource, resource_cloud, resource_adb]
+
+        历史缺陷：云端 profile 曾只加载 resource_cloud。该包没有 image/ 目录，
+        MaaFW 因此把模板图片搜索根注册为空字符串（日志可见
+        roots_=["",".../resource_adb/image"]），全部 TemplateMatch 节点
+        （如 __ScenePrivate* 场景检测）图片解析失败，表现为任务反复 ESC 空转、
+        VisitFriends/DijiangRewards/CreditShoppingN2 等连续失败。
+        """
+        dirs: List[Path] = []
+        base_dir = self._resolve_asset_path("resource")
+        if base_dir.is_dir():
+            dirs.append(base_dir)
+        else:
+            self.logger.warning(LogCategory.MAIN, "基础资源目录缺失", path=str(base_dir))
+        if self._resource_profile == "cloud":
+            cloud_dir = self._resolve_asset_path("resource_cloud")
+            if cloud_dir.is_dir():
+                dirs.append(cloud_dir)
+            else:
+                self.logger.warning(
+                    LogCategory.MAIN, "云端覆盖资源目录缺失，回退基础 pipeline", path=str(cloud_dir)
+                )
+        adb_dir = self._resolve_asset_path("resource_adb")
+        if adb_dir.is_dir():
+            dirs.append(adb_dir)
+        return dirs
+
     def _resolve_asset_path(self, *parts: str) -> Path:
         """Resolve a path relative to the MaaEnd root, supporting both
         the release layout (root-relative) and the dev layout (assets/ subdir)."""
@@ -1051,34 +1090,32 @@ class MaaEndRuntime:
         if not self._connected or self._resource is None:
             return False
         try:
-            resource_dir = self._resolve_asset_path(self._primary_resource_name())
             # nodes.json 是 IEA 把全部任务 pipeline 聚合后的冗余副本，与
-            # resource*/pipeline 下分散的任务文件大量重名；MaaFW 会递归加载各 resource
-            # 目录全部 JSON 并因 "key already exists" 整体失败。加载前将各 pipeline 目录
-            # 中的聚合 nodes.json 统一移出。
+            # resource*/pipeline 下分散的任务文件大量重名；MaaFW 会在单个 bundle 内
+            # 递归加载全部 JSON 并因 "key already exists" 整体失败。加载前将各 pipeline
+            # 目录中的聚合 nodes.json 统一移出。（跨 bundle 同名节点是官方叠加机制，
+            # 不触发该错误，见 _resource_bundle_dirs 说明。）
             self._relocate_aggregate_nodes()
             # 方案 E：剥除 pipeline JSON 中的 // 和 /* */ 注释。MaaFW 的 C++ rapidjson
             # 不支持注释，含注释的 JSON 会触发 json::open failed → Resource.Loading.Failed。
             # 3rd-part/maaend/resource/pipeline 下有 5 个文件含注释，需在 post_bundle 前预处理。
             self._strip_comments_in_pipeline()
-            job = self._resource.post_bundle(resource_dir)
-            # BUNDLE-HARD-TIMEOUT: 资源加载若 MaaFW 内部死锁会无限阻塞
-            if not self._wait_job(job, timeout_s=60.0):
-                self.logger.error(LogCategory.MAIN, "Pipeline 资源加载失败或超时", path=str(resource_dir))
-                # 方案 D：资源加载失败视为整体未连接，避免 _connected=True 与
-                # IstinaRuntime.connect() 返回 False 的语义错配（导致 GUI 显示
-                # connected=False 但日志显示"MaaEnd runtime 连接成功"）。
+            bundle_dirs = self._resource_bundle_dirs()
+            if not bundle_dirs:
+                self.logger.error(LogCategory.MAIN, "无可用资源 bundle，无法加载 pipeline")
                 self._connected = False
                 return False
-            self.logger.info(LogCategory.MAIN, "Pipeline 资源加载成功", path=str(resource_dir))
-            adb_resource_dir = self._resolve_asset_path("resource_adb")
-            if adb_resource_dir.exists():
-                job_adb = self._resource.post_bundle(adb_resource_dir)
-                if not self._wait_job(job_adb, timeout_s=60.0):
-                    self.logger.error(LogCategory.MAIN, "ADB 资源加载失败或超时", path=str(adb_resource_dir))
-                    self._connected = False  # 方案 D：同上，资源加载失败重置连接态
+            for resource_dir in bundle_dirs:
+                job = self._resource.post_bundle(resource_dir)
+                # BUNDLE-HARD-TIMEOUT: 资源加载若 MaaFW 内部死锁会无限阻塞
+                if not self._wait_job(job, timeout_s=60.0):
+                    self.logger.error(LogCategory.MAIN, "Pipeline 资源加载失败或超时", path=str(resource_dir))
+                    # 方案 D：资源加载失败视为整体未连接，避免 _connected=True 与
+                    # IstinaRuntime.connect() 返回 False 的语义错配（导致 GUI 显示
+                    # connected=False 但日志显示"MaaEnd runtime 连接成功"）。
+                    self._connected = False
                     return False
-                self.logger.info(LogCategory.MAIN, "ADB 资源加载成功", path=str(adb_resource_dir))
+                self.logger.info(LogCategory.MAIN, "Pipeline 资源加载成功", path=str(resource_dir))
             if not self._load_ocr_model():
                 self._connected = False
                 return False
@@ -1091,12 +1128,10 @@ class MaaEndRuntime:
     def _load_ocr_model(self) -> bool:
         """Register the OCR model explicitly after loading the resource bundles.
 
-        ``resource_cloud`` intentionally contains only CloudCN-specific pipeline
-        and image assets.  The OCR model is shared with the default client and
-        therefore lives in ``resource/model/ocr`` rather than being duplicated in
-        the ignored CloudCN asset tree.  MaaFW does not discover this model from
-        a pipeline bundle automatically, so registration is required before any
-        direct or pipeline OCR call.
+        ``resource_cloud`` 等变体包仅含 pipeline 覆盖层，不携带模型文件。
+        OCR 模型与各客户端共享，只存放在基础包 ``resource/model/ocr`` 中。
+        MaaFW 不会从 pipeline bundle 自动发现该模型，因此任何直接或 pipeline
+        OCR 调用前都必须显式注册。
         """
         if self._resource is None:
             return False
@@ -1170,12 +1205,16 @@ class MaaEndRuntime:
         MaaFW 的 Resource.post_bundle 用 C++ rapidjson 解析 JSON，不支持注释。
         3rd-part/maaend/resource/pipeline 下部分 JSON 含 // 行注释，导致
         json::open failed → Resource.Loading.Failed。此方法在 post_bundle 前扫描
-        所有 pipeline JSON，对含注释的文件剥除注释后原地写回，使资源加载自愈。
-        重新同步 3rd-part 资源后再次调用会自动修复。
+        全部待加载 bundle 的 pipeline JSON（含注释的 5 个文件位于基础包
+        resource/pipeline 下，云端叠加时同样必须覆盖），对含注释的文件剥除注释
+        后原地写回，使资源加载自愈。重新同步 3rd-part 资源后再次调用会自动修复。
         """
-        pipeline_dir = self._resolve_asset_path(self._primary_resource_name(), "pipeline")
-        if not pipeline_dir.is_dir():
-            return
+        pipeline_dirs = [d / "pipeline" for d in self._resource_bundle_dirs()]
+        for pipeline_dir in pipeline_dirs:
+            if pipeline_dir.is_dir():
+                self._strip_comments_in_dir(pipeline_dir)
+
+    def _strip_comments_in_dir(self, pipeline_dir: Path) -> None:
         for json_path in pipeline_dir.rglob("*.json"):
             try:
                 text = json_path.read_text(encoding="utf-8")
