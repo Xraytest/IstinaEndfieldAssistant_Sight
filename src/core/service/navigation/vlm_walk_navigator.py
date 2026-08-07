@@ -896,6 +896,8 @@ class VlmWalkNavigator:
 
         # 循环内截屏失败提前 break 时，循环后汇总仍需该变量（UnboundLocalError 防护）
         dist_to_end = float("inf")
+        # 上一次有效定位距离（用于"越走越远"趋势提示）
+        _prev_dist: Optional[float] = None
 
         for step_idx in range(steps):
             step_start = time.monotonic()
@@ -935,6 +937,14 @@ class VlmWalkNavigator:
                         "WARNING: You appear to be stuck. Turn around to find another path, "
                         "or look for a resource point indicator nearby.\n"
                     )
+                # 越走越远趋势提示：两次有效定位间距离显著增大时明确告知掉头
+                if _prev_dist is not None and dist_to_end > _prev_dist + 80:
+                    pos_info += (
+                        f"WARNING: distance to target INCREASED ({_prev_dist:.0f} -> "
+                        f"{dist_to_end:.0f}); you are moving AWAY. Turn around "
+                        "(turn_left/turn_right twice) then walk forward.\n"
+                    )
+                _prev_dist = dist_to_end
             else:
                 # locator 不可用时清空历史避免误判 stuck
                 self._last_positions.clear()
