@@ -4022,6 +4022,13 @@ class IstinaRuntime:
         for _ in range(max_rounds):
             if self._is_in_big_world(serial):
                 return True
+            # 空闲断连弹窗为模态且阻断一切点击，必须先关闭
+            try:
+                dismiss = getattr(self.maaend(serial), "_dismiss_cloud_idle_popup", None)
+                if callable(dismiss):
+                    dismiss()
+            except Exception:
+                pass
             try:
                 ocr_result = self.execute(
                     "scene.elements",
