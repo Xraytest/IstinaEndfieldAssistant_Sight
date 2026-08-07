@@ -3421,3 +3421,9 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - `src/core/capability/llm/client.py`（b52644f/daba5b6）
   - `src/core/service/runtime.py`（192e55b；存量17项ruff记录不放宽）
   - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-07 22:10（验证轮结论：系统性修复生效，深层任务为校准天花板）
+
+- **验证轮（21:51 启动，含 19399ec/b9559c2/a3724f5/daba5b6/192e55b 全部修复）**: AndroidOpenGame✓(18s)；VisitFriends/DijiangRewards/CreditShoppingN2/DeliveryJobs 仍✗。对照前两轮（健康态 2✓、降级态 2✓）：系统性修复（资源叠加/连接超时/知道了/429/资料页清理）稳定保障启动与场景检测，但中间深层任务失败与 429、资料页无相关性，确认为 **vendored pipeline 尾部节点校准天花板**（需逐屏校准，非 infra）。
+- **报错主攻小结**: 代码级报错已修（429 立即重试 daba5b6、资料页清理 192e55b、资源叠加 19399ec、连接 60s b9559c2、知道了 a3724f5）；`__ScenePrivateAnyExit`(ESC×100 无识别) 在资料页空转属场景图设计，ESC 关不掉资料页需 BACK，根治需在 pipeline 加资料页自愈节点（风险高未动）。
+- **Files Modified**: `docs/TASK_LOG.md`（本条记录）
