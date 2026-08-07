@@ -3095,7 +3095,7 @@ class IstinaRuntime:
     # 实际图标位置通过网格化点击测试确定。
     _WULING_OVERVIEW_TAP_COORDS: Dict[str, Tuple[int, int]] = {
         "景玉谷": (388, 491),       # OCR 检测到的景玉谷名称位置（默认选中）
-        "清波寨": (600, 400),       # 网格化点击测试确认
+        "清波寨": (619, 412),       # 2026-08-07 总览 OCR 标签中心实测
         "藏剑谷": (869, 576),       # 待验证（使用 pipeline 坐标中心）
         "武陵城": (520, 180),       # pipeline target [470, 140, 100, 80]
         "界碑": (311, 334),         # pipeline target [277, 290, 69, 89] (首墩)
@@ -3441,6 +3441,310 @@ class IstinaRuntime:
         )
         return False
 
+    # 云端总览导航坐标（1280x720 基准，2026-08-07 实测）
+    _CLOUD_OVERVIEW_BUTTON = (1110, 645)  # 地图视图右下"地区总览"按钮
+    _CLOUD_REGION_TABS: Dict[str, Tuple[int, int]] = {
+        "武陵": (1012, 644),
+        "四号谷地": (1182, 643),
+    }
+    _CLOUD_WULING_SUBAREAS = frozenset({
+        "武陵城", "清波寨", "景玉谷", "界碑", "试炼区", "藏剑谷", "北部禁区",
+    })
+    # 总览标签别名（OCR 实测：四号谷地总览显示"矿脉源区"/"源石研究园"）
+    _CLOUD_SUBAREA_ALIASES: Dict[str, Tuple[str, ...]] = {
+        "源矿源区": ("源矿源区", "矿脉源区"),
+        "矿脉源区": ("矿脉源区", "源矿源区"),
+        "源石科学园": ("源石科学园", "源石研究园"),
+        "源石研究园": ("源石研究园", "源石科学园"),
+    }
+
+    def _cloud_overview_navigate(
+        self, android: Any, serial: Optional[str], target_area: str,
+    ) -> bool:
+        """云端总览确定性导航：进总览 → 切地区 tab → 点子区域，全程 OCR 验证。
+
+        成功后画面为目标子区域地图视图（标题 //地区/子区域），
+        供 VLM/OCR 正确识别传送锚点。失败返回 False，调用方继续 VLM 兜底。
+        """
+
+        def _elems() -> List[Dict[str, Any]]:
+            try:
+                ocr_result = self.execute(
+                    "scene.elements",
+                    {"serial": serial, "enable_ocr": True,
+                     "enable_template": False, "enable_color": False},
+                )
+            except Exception:
+                return []
+            if not isinstance(ocr_result, dict) or ocr_result.get("status") != "success":
+                return []
+            return [
+                e for e in ocr_result.get("elements", []) if isinstance(e, dict)
+            ]
+
+        def _labels(elems: List[Dict[str, Any]]) -> List[str]:
+            return [str(e.get("label", "")) for e in elems]
+
+        def _in_overview(labels: List[str]) -> bool:
+            # 仅"地区建设等级"为总览独有；O.M.V.帝江号 在地图视图也出现，不可用
+            return any("地区建设等级" in lb for lb in labels)
+
+        def _tap_ref(x: int, y: int) -> None:
+            screen_size = self._get_screen_size(serial)
+            cx = int(x * screen_size[0] / 1280)
+            cy = int(y * screen_size[1] / 720)
+            try:
+                android.tap(cx, cy)
+            except Exception as exc:
+                self._logger.warning(
+                    LogCategory.MAIN, "云端总览点击异常",
+                    target=(x, y), error=str(exc),
+                )
+
+        elems = _elems()
+        labels = _labels(elems)
+        if not _in_overview(labels):
+            _tap_ref(*self._CLOUD_OVERVIEW_BUTTON)
+            time.sleep(2.5)
+            elems = _elems()
+            labels = _labels(elems)
+        if not _in_overview(labels):
+            self._logger.warning(
+                LogCategory.MAIN, "云端总览导航：未能进入总览视图",
+                area=target_area, labels=labels[:12],
+            )
+            return False
+
+        target_region = (
+            "武陵" if target_area in self._CLOUD_WULING_SUBAREAS else "四号谷地"
+        )
+        # 地区判定：标题优先，子区域标签兜底（标题小字 OCR 可能漏检）
+        _WULING_MARKERS = ("清波寨", "藏剑谷", "北部禁区", "景玉谷", "武陵城")
+        _VALLEY_MARKERS = (
+            "枢纽区", "供能高地", "阿伯莉采石场", "矿脉源区",
+            "源石研究园", "源石科学园", "谷地通道",
+        )
+        current_region = ""
+        if any("//武陵" in lb for lb in labels):
+            current_region = "武陵"
+        elif any(("//四号谷地" in lb) or ("// 四号谷地" in lb) for lb in labels):
+            current_region = "四号谷地"
+        elif any(m in lb for lb in labels for m in _WULING_MARKERS):
+            current_region = "武陵"
+        elif any(m in lb for lb in labels for m in _VALLEY_MARKERS):
+            current_region = "四号谷地"
+        # 地区未知时直接点目标 tab（已激活时点击为无操作，幂等安全）
+        if current_region != target_region:
+            self._logger.info(
+                LogCategory.MAIN, "云端总览导航：切换地区 tab",
+                current=current_region, target=target_region,
+            )
+            _tap_ref(*self._CLOUD_REGION_TABS[target_region])
+            time.sleep(2.5)
+            elems = _elems()
+            labels = _labels(elems)
+
+        # 子区域选择：优先 OCR 标签中心（实测最稳），坐标字典仅作兜底
+        names = self._CLOUD_SUBAREA_ALIASES.get(target_area, (target_area,))
+        target_elem = None
+        for e in elems:
+            label = str(e.get("label", ""))
+            if any(n and n in label for n in names):
+                target_elem = e
+                break
+        screen_size = self._get_screen_size(serial)
+        cx: Optional[int] = None
+        cy: Optional[int] = None
+        if target_elem is not None:
+            center = target_elem.get("center")
+            if isinstance(center, (list, tuple)) and len(center) == 2:
+                cx, cy = self._norm_to_screen(center, screen_size)
+            else:
+                box = target_elem.get("box") or target_elem.get("bbox")
+                if isinstance(box, (list, tuple)) and len(box) == 4:
+                    cx = int(box[0] + box[2] / 2)
+                    cy = int(box[1] + box[3] / 2)
+        elif target_region == "武陵" and target_area in self._WULING_OVERVIEW_TAP_COORDS:
+            cx, cy = self._norm_to_screen(
+                (
+                    self._WULING_OVERVIEW_TAP_COORDS[target_area][0] / 1280.0,
+                    self._WULING_OVERVIEW_TAP_COORDS[target_area][1] / 720.0,
+                ),
+                screen_size,
+            )
+        if cx is None or cy is None:
+            self._logger.warning(
+                LogCategory.MAIN, "云端总览导航：未找到子区域标签/坐标",
+                area=target_area, labels=labels[:12],
+            )
+            return False
+        try:
+            android.tap(cx, cy)
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "云端总览导航点击异常", error=str(exc))
+            return False
+        time.sleep(2.5)
+
+        elems = _elems()
+        labels = _labels(elems)
+        # 误入标记管理模式（点到空白触发创建标记）：点"取消"退出后重试标签
+        if any("自定义标记点上限" in lb for lb in labels):
+            self._logger.warning(
+                LogCategory.MAIN, "云端总览导航：误入标记模式，点取消退出",
+                area=target_area,
+            )
+            cancel_elem = next(
+                (
+                    e for e in elems
+                    if str(e.get("label", "")).strip() == "取消"
+                ),
+                None,
+            )
+            if cancel_elem is not None:
+                ccx, ccy = self._norm_to_screen(
+                    cancel_elem.get("center", [0.5, 0.65]), screen_size
+                )
+                try:
+                    android.tap(ccx, ccy)
+                except Exception as exc:
+                    self._logger.warning(LogCategory.MAIN, "取消标记点击异常", error=str(exc))
+                time.sleep(2.0)
+                elems = _elems()
+                labels = _labels(elems)
+            # 退出后重试一次子区域标签点击
+            retry_elem = next(
+                (
+                    e for e in elems
+                    if any(n and n in str(e.get("label", "")) for n in names)
+                ),
+                None,
+            )
+            if retry_elem is not None:
+                rcenter = retry_elem.get("center")
+                if isinstance(rcenter, (list, tuple)) and len(rcenter) == 2:
+                    rcx, rcy = self._norm_to_screen(rcenter, screen_size)
+                    try:
+                        android.tap(rcx, rcy)
+                    except Exception as exc:
+                        self._logger.warning(LogCategory.MAIN, "云端总览导航重试点击异常", error=str(exc))
+                    time.sleep(2.5)
+                labels = _labels(_elems())
+        if any(target_area in lb for lb in labels):
+            self._logger.info(LogCategory.MAIN, "云端总览导航成功", area=target_area)
+            return True
+        self._logger.warning(
+            LogCategory.MAIN, "云端总览导航：切换后未检测到目标名",
+            area=target_area, labels=labels[:12],
+        )
+        return False
+
+    # 云端传送锚点模板（base64 PNG 34x35，取自云终末地实测地图截图）。
+    # 仓库 *.png 被 gitignore，故内嵌源码；本地文件仅作缓存优先读取。
+    _CLOUD_TELEPORT_ANCHOR_PNG_B64 = (
+        "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"
+    )
+
+    def _cloud_find_teleport_anchor(
+        self, serial: Optional[str],
+    ) -> Optional[Tuple[int, int]]:
+        """云端地图视图传送锚点模板匹配（金色圆形徽记图标）。
+
+        模板取自云终末地实测地图截图（内嵌 base64）；TM_CCOEFF_NORMED
+        >= 0.7 视为命中，返回图标中心坐标。比 VLM 更稳定；VLM 仅作兜底。
+        """
+        try:
+            png_data = self.execute("screenshot", {"serial": serial})
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "锚点模板匹配截图失败", error=str(exc))
+            return None
+        if not png_data:
+            return None
+        img = self._decode_image(png_data)
+        if img is None:
+            return None
+        from core.foundation.paths import get_project_root
+
+        import cv2
+
+        tpl = None
+        tpl_path = get_project_root() / "assets" / "templates" / "cloud_map_teleport_anchor.png"
+        if tpl_path.exists():
+            tpl = cv2.imread(str(tpl_path))
+        if tpl is None:
+            import base64
+
+            import numpy as np
+
+            raw = base64.b64decode(self._CLOUD_TELEPORT_ANCHOR_PNG_B64)
+            tpl = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+        if tpl is None or tpl.shape[0] > img.shape[0] or tpl.shape[1] > img.shape[1]:
+            return None
+        res = cv2.matchTemplate(img, tpl, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        if max_val < 0.7:
+            self._logger.info(LogCategory.MAIN, "锚点模板匹配未命中", score=round(float(max_val), 3))
+            return None
+        x, y = max_loc
+        h, w = tpl.shape[:2]
+        cx, cy = int(x + w // 2), int(y + h // 2)
+        self._logger.info(
+            LogCategory.MAIN, "锚点模板匹配命中",
+            score=round(float(max_val), 3), coord=(cx, cy),
+        )
+        return (cx, cy)
+
     def _vlm_find_teleport_point(
         self,
         serial: Optional[str],
@@ -3477,8 +3781,8 @@ class IstinaRuntime:
         prompt = (
             f"目标区域：{target_area}\n"
             f"截图分辨率：{screen_w}x{screen_h}（宽x高，像素）\n\n"
-            "请分析截图，找到地图上的传送点图标（通常是蓝色/青色的图标，带有传送标识，"
-            "类似传送门或锚点的图标，不是文字标记，也不是任务追踪箭头）。\n"
+            "请分析截图，找到地图上的传送点图标（金色/琥珀色圆形徽记图标，"
+            "圆环内有尖顶徽记，类似传送锚点；不是文字标记，也不是任务追踪箭头）。\n"
             f"返回传送点图标的中心像素坐标。\n\n"
             f'输出格式：{{"x": {screen_w // 2}, "y": {screen_h // 2}}}（示例为中心点）\n'
             '如果找不到传送点图标，返回：{"x": -1, "y": -1}\n'
@@ -3664,6 +3968,24 @@ class IstinaRuntime:
         """
         steps: List[Dict[str, Any]] = []
 
+        # 云端 pipeline 场景节点（SceneEnterWorld*/SceneEnterMap*/EnterTeleport）
+        # 模板与云终末地 UI 不匹配，每次 30-90s 超时后 post_stop 会把 Tasker 打入
+        # stopping 状态，污染后续截屏（_screenshot 返回 None），导致手动开图/VLM
+        # 全部失效。云端直接走"手动打开地图 + VLM/OCR"路径。
+        is_cloud = (
+            str(getattr(runtime, "client_version", "") or "").strip().lower()
+            == "cloudcn"
+        )
+
+        def _arrived() -> bool:
+            if not self._is_in_big_world(serial):
+                return False
+            # 云端：大世界 HUD 不显示子区域名（如清波寨），区域关键词验证必假阴；
+            # 云端链路由总览导航+子区域锚点保证区域，到达大世界即视为成功。
+            if is_cloud:
+                return True
+            return self._verify_in_target_area(serial, target_area)
+
         # ===== Step 0: 检查是否已在目标区域大世界（避免不必要的传送） =====
         # 如果已在目标区域，直接返回成功，避免 pipeline 在错误状态下挂起
         if self._is_in_big_world(serial) and self._verify_in_target_area(serial, target_area):
@@ -3677,7 +3999,7 @@ class IstinaRuntime:
 
         # ===== Step 1: 优先尝试专用 SceneEnterWorld* 节点 =====
         world_node = self._TASK_AREA_WORLD_NODE.get(target_area)
-        if world_node and runtime:
+        if world_node and runtime and not is_cloud:
             self._logger.info(
                 LogCategory.MAIN, "传送：尝试专用 SceneEnterWorld* 节点",
                 area=target_area, world_node=world_node,
@@ -3727,8 +4049,16 @@ class IstinaRuntime:
             LogCategory.MAIN, "传送：进入地图视图（兜底）",
             area=target_area, map_node=map_node,
         )
+        if is_cloud:
+            self._logger.info(
+                LogCategory.MAIN, "传送：云端跳过 pipeline 地图节点，直接手动打开地图",
+                area=target_area, map_node=map_node,
+            )
         try:
-            ok = self._run_pipeline_with_timeout(runtime, map_node, {}, timeout=30.0) if runtime else False
+            ok = (
+                self._run_pipeline_with_timeout(runtime, map_node, {}, timeout=30.0)
+                if runtime and not is_cloud else False
+            )
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "传送进入地图视图异常", error=str(exc))
             ok = False
@@ -3744,7 +4074,10 @@ class IstinaRuntime:
             dedicated=bool(dedicated_teleport),
         )
         try:
-            ok = self._run_pipeline_with_timeout(runtime, teleport_node, {}, timeout=30.0) if runtime else False
+            ok = (
+                self._run_pipeline_with_timeout(runtime, teleport_node, {}, timeout=30.0)
+                if runtime and not is_cloud else False
+            )
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "pipeline 传送异常", error=str(exc))
             ok = False
@@ -3775,7 +4108,7 @@ class IstinaRuntime:
         # pipeline 可能进入武陵总览但未切换到目标子区域（停留在默认的景玉谷）。
         # 此时专用 EnterTeleport 会因 OCR 检测不到目标子区域名而失败。
         # 通过 _wuling_overview_select_subarea 直接点击目标子区域坐标，再重试 EnterTeleport。
-        if dedicated_teleport and target_area in self._WULING_OVERVIEW_TAP_COORDS:
+        if dedicated_teleport and not is_cloud and target_area in self._WULING_OVERVIEW_TAP_COORDS:
             self._logger.info(
                 LogCategory.MAIN, "传送：武陵总览子区域切换重试",
                 area=target_area,
@@ -3851,8 +4184,9 @@ class IstinaRuntime:
                 LogCategory.MAIN, "传送：不在地图视图，手动打开地图",
                 area=target_area,
             )
-            # 尝试 1：点击地图按钮（屏幕左上角）
-            map_button_taps = [(141, 125), (165, 110), (120, 140)]
+            # 尝试 1：点击小地图（屏幕左上角圆形小地图，实测中心 (110,125)
+            # 可打开地图视图；旧坐标 (141,125)/(165,110) 偏出圆心易失效）
+            map_button_taps = [(110, 125), (120, 140), (141, 125)]
             for mx, my in map_button_taps:
                 try:
                     android.tap(mx, my)
@@ -3893,6 +4227,15 @@ class IstinaRuntime:
                 area=target_area,
             )
 
+        # ===== Step 2.65: 云端总览确定性导航（地区切换+子区域选择） =====
+        # VLM 只能在当前地图内找锚点；跨子区域/跨地区必须先经总览切换：
+        # 地区总览按钮 → 底部地区 tab（武陵/四号谷地）→ 子区域标签。
+        # 全部坐标/标签经 2026-08-07 实时 OCR 实测验证。
+        if is_cloud:
+            navigated = self._cloud_overview_navigate(android, serial, target_area)
+            steps.append({"step": 5, "action": "cloud_overview_navigate",
+                          "area": target_area, "ok": navigated})
+
         # ===== Step 2.7: VLM 识别传送点（MapTeleport.png 模板失效时的视觉兜底） =====
         # 当专用 EnterTeleport 节点失败（MapTeleport.png 模板不匹配新版游戏 UI），
         # 且已在正确地图视图中时，使用 VLM 视觉识别传送点图标并点击。
@@ -3904,10 +4247,15 @@ class IstinaRuntime:
         vlm_succeeded = False
         for vlm_attempt in range(1, _MAX_VLM_RETRIES + 1):
             self._logger.info(
-                LogCategory.MAIN, "传送：VLM 视觉识别传送点",
+                LogCategory.MAIN, "传送：识别传送点",
                 area=target_area, attempt=vlm_attempt,
             )
-            vlm_point = self._vlm_find_teleport_point(serial, target_area)
+            # 云端首轮优先模板匹配锚点（稳定），其余轮次/版本用 VLM 兜底
+            vlm_point: Optional[Tuple[int, int]] = None
+            if is_cloud and vlm_attempt == 1:
+                vlm_point = self._cloud_find_teleport_anchor(serial)
+            if vlm_point is None:
+                vlm_point = self._vlm_find_teleport_point(serial, target_area)
             steps.append({"step": 6, "action": "vlm_find_teleport",
                           "attempt": vlm_attempt,
                           "found": vlm_point is not None,
@@ -3967,7 +4315,7 @@ class IstinaRuntime:
                 teleport_done = False
                 for wait_i in range(10):
                     time.sleep(2.0)
-                    if self._is_in_big_world(serial) and self._verify_in_target_area(serial, target_area):
+                    if _arrived():
                         teleport_done = True
                         break
                     # 检测是否仍在加载（有 "LOADING" 字样）
@@ -3995,7 +4343,7 @@ class IstinaRuntime:
                         # 加载已结束但仍未到大世界，可能传送失败，退出等待
                         # 再等 2 秒确认
                         time.sleep(2.0)
-                        if self._is_in_big_world(serial) and self._verify_in_target_area(serial, target_area):
+                        if _arrived():
                             teleport_done = True
                         break
                 if teleport_done:
@@ -4110,8 +4458,8 @@ class IstinaRuntime:
 
             # 检测是否已到达大世界
             if self._is_in_big_world_by_elements(ocr_labels, _MAP_VIEW_KEYWORDS):
-                # 同样进行区域验证
-                if self._verify_in_target_area(serial, target_area):
+                # 同样进行区域验证（云端链路由总览+锚点保证区域，放宽为大世界判定）
+                if is_cloud or self._verify_in_target_area(serial, target_area):
                     self._logger.info(
                         LogCategory.MAIN, "传送到达目标区域大世界（OCR 兜底+区域验证）",
                         area=target_area, step=step_idx,
@@ -4143,13 +4491,28 @@ class IstinaRuntime:
                     )
                     _last_clicked_label = ""
                 self._logger.warning(
-                    LogCategory.MAIN, "传送：OCR 兜底误入标记管理模式，按 BACK 退出",
+                    LogCategory.MAIN, "传送：OCR 兜底误入标记管理模式，退出标记模式",
                     area=target_area, step=step_idx, recovery=_marker_mode_recover_count,
                 )
                 steps.append({"step": step_idx, "action": "marker_mode_recover",
                               "recovery": _marker_mode_recover_count})
+                # 云端 BACK 对标记模式无效：优先点"取消"按钮退出
+                cancel_elem = next(
+                    (
+                        e for e in elements
+                        if str(e.get("label", "")).strip() == "取消"
+                    ),
+                    None,
+                )
                 try:
-                    android.keyevent("KEYCODE_BACK")
+                    if is_cloud and cancel_elem is not None:
+                        ccx, ccy = self._norm_to_screen(
+                            cancel_elem.get("center", [0.5, 0.65]),
+                            self._get_screen_size(serial),
+                        )
+                        android.tap(ccx, ccy)
+                    else:
+                        android.keyevent("KEYCODE_BACK")
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "BACK 键异常", error=str(exc))
                 time.sleep(2.0)

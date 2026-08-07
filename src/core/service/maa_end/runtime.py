@@ -2465,8 +2465,7 @@ class MaaEndRuntime:
             # 检查是否找到空闲弹窗或标题页推进文案。
             if not detail:
                 return False
-            popup_hit = False
-            popup_button = ""
+            hits: list[tuple[str, int, int]] = []
             for node in detail.nodes:
                 if node.recognition and node.recognition.hit:
                     best = node.recognition.best_result
@@ -2478,25 +2477,47 @@ class MaaEndRuntime:
                         else:
                             cx = bx[0] + bx[2] // 2
                             cy = bx[1] + bx[3] // 2
-                        popup_button = str(getattr(best, "text", "") or "")
-                        self.logger.warning(
-                            LogCategory.MAIN,
-                            "检测到云端阻塞页面，点击推进",
-                            button_text=popup_button or "云端启动页",
-                            target=(cx, cy),
+                        hits.append(
+                            (str(getattr(best, "text", "") or ""), int(cx), int(cy))
                         )
-                        if not self._tap_cloud_advance(cx, cy):
-                            return False
-                        time.sleep(2.0)
-                        # 仅空闲弹窗需要清理可能残留的系统级确认；标题页不能
-                        # 发送 BACK，否则会把刚进入的云游戏页面再次退出。
-                        if popup_button == self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT:
-                            for _ in range(2):
-                                self._send_key_back()
-                        popup_hit = True
+            # 优先点击"知道了"关闭按钮，其次启动页推进文案。旧实现取首个
+            # 命中节点，常命中对话框正文（不可点击），点击无效后被误判为
+            # MaaTouch 被忽略并触发不必要的 force-stop（云会话在服务端，
+            # 本地重启后重连仍是同一弹窗）。
+            target: tuple[int, int] | None = None
+            popup_button = ""
+            for predicate in (
+                lambda t: "知道了" in t,
+                lambda t: "开始游戏" in t or "開始遊戲" in t,
+                lambda t: "点击任意位置继续" in t or "點擊任意位置繼續" in t,
+            ):
+                for text, hx, hy in hits:
+                    if predicate(text):
+                        target = (hx, hy)
+                        popup_button = text
                         break
-            if not popup_hit:
+                if target is not None:
+                    break
+            if target is None:
+                # 弹窗正文存在但按钮文案未命中：使用实测固定按钮坐标兜底
+                if any(
+                    ("长时间未操作" in t) or ("自动结束" in t) or ("自动结" in t)
+                    for t, _, _ in hits
+                ):
+                    target = (638, 433)
+                    popup_button = self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT
+            if target is None:
                 return False
+            cx, cy = target
+            self.logger.warning(
+                LogCategory.MAIN,
+                "检测到云端阻塞页面，点击推进",
+                button_text=popup_button or "云端启动页",
+                target=(cx, cy),
+            )
+            if not self._tap_cloud_advance(cx, cy):
+                return False
+            time.sleep(2.0)
 
             # 验证弹窗是否已关闭：云游戏空闲断连弹窗可能忽略 MaaTouch 触控
             # （与"自动登出"弹窗一样，截图完全无变化）。
