@@ -3408,3 +3408,16 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - `tests/test_istina_runtime.py`（19399ec，3 个 bundle 顺序单测）
   - `reports/implementation/2026-08-07-cloudcn-resource-overlay.md`
   - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-07 20:10（主攻报错批次：LLM 429 立即重试 + 资料页清理显式化）
+
+- **User Request**: 现在开始主攻报错相关内容；并纠正"TPM429允许无间隔立即重试"。
+- **报错分诊**: ① pytest 故意无效配置（非 bug，忽略）；② LLM 429 "all candidate channels are rate limited"（影响 VLM 任务）；③ 任务级 ESC 空转/场景误判（`__ScenePrivateAnyExit` 无识别 max_hit=100 按 ESC×100；`SceneAnyEnterWorld` 在资料页失败）。
+- **修复1（b52644f→daba5b6）**: LLM 客户端重试白名单原仅 502/503/504/520，429 直接抛错；先加 3s 退避，按用户纠正改为 **429 无间隔立即重试**（通道轮换快），网关错误仍线性退避。
+- **修复2（192e55b）**: on_error 截图（MaaFW set_save_on_error）证实 `SceneAnyEnterWorld` 失败时游戏常停个人资料页（干员卡含 ENDFIELD 致误判）。`_cloud_cleanup_to_world` 加显式资料页分支（权限等阶/探索等级/干员展示/光荣之路→BACK），不依赖通用 else 偶然命中。
+- **方法**: 以 `config/debug/on_error/` 失败时刻截图作为"看截图验证"判据，区分代码 bug 与校准/环境问题。
+- **遗留**: VisitFriends/DijiangRewards/CreditShoppingN2/DeliveryJobs 等个体任务尾部节点为 vendored pipeline 校准问题；`__ScenePrivateAnyExit` 无识别空转属场景图设计，需单独校准。
+- **Files Modified**:
+  - `src/core/capability/llm/client.py`（b52644f/daba5b6）
+  - `src/core/service/runtime.py`（192e55b；存量17项ruff记录不放宽）
+  - `docs/TASK_LOG.md`（本条记录）
