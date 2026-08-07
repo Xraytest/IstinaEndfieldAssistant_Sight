@@ -3437,3 +3437,13 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **修复3（测试态 fatal 循环，生产隔离）**: 环境变量 `ISTINA_FATAL_RESTART_LOOP=1` 门控（默认关闭、生产行为不变）：fatal→截屏+fatal_info.json 留档 `.tmp/fatal/<ts>_<任务>/`→force-stop 重启云终末地→队列从头再跑；`ISTINA_FATAL_MAX_ROUNDS`(默认3)/`ISTINA_FATAL_MAX_RESTARTS`(每轮默认4) 防无限循环；卡点（fatal/任务失败+当时OCR）追加 `.tmp/fatal/blockers_summary.json`。
 - **验证**: pytest 30/30 通过（新增 3 项：生产默认不重启、测试态重启+卡点汇总、重启上限）；ruff 新增代码干净（service/runtime.py 存量 17 项记录不放宽；mypy 捆绑解释器不可用为存量状态）；SceneCommon.json JSON 校验通过。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`、`src/core/service/runtime.py`、`tests/test_istina_runtime.py`、`3rd-part/maaend/resource_cloud/pipeline/SceneManager/SceneCommon.json`（本地）、`reports/implementation/2026-08-07-profile-xclose-cloud-lenient-fatal-loop.md`、`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-08 02:15（断点续跑结论：测试态循环两轮完成，X关闭/卡点留档实测生效，提交 fe8d354）
+
+- **User Request**: "产生了一次断点，从断点继续"。
+- **断点经过**: 首轮运行 00:24-00:26 ADB 通道死亡（kill-server 循环、输入通道/截图均不可用），fatal 路径正确触发——留档 `.tmp/fatal/20260808-002627_DeliveryJobs/`（fatal_info.json 含任务/原因/末次 OCR）→ force-stop 重启进行中时会话被终止。暴露缺口：卡点汇总只在 run_queue 结束写入，中断即丢。
+- **缺口修复（fe8d354）**: ① 卡点改崩溃安全落盘——每条记录立即覆盖写 `.tmp/fatal/blockers_<会话>.json`，按会话分文件；② `_quick_reconnect_adb` 的 `result.stdout.lower()` 在 adb 服务重启期 stdout=None 抛 NoneType，兜底空串。pytest 30/30、ruff 干净。
+- **断点重跑（00:45-02:11，2 轮×13 任务）**: 每轮 4/13 ✓（AndroidOpenGame、VisitFriends、SellProduct、AutoStockpile），VisitFriends 首次两轮连过（资料页/访客终端残留由 X 关闭清净）；9 个失败两轮完全一致（DijiangRewards/CreditShoppingN2/DeliveryJobs/AutoStockStaple/AutoSell/EnvironmentMonitoring/DailyRewards/SeizeDeliveryJobs/AutoCollect），确认为 vendored 尾部节点校准天花板，与 infra 无关。
+- **实测验证**: ① X 关闭生效 3 次（01:01-01:03 识别资料页/访客终端→点(1220,35)→01:05 主世界确认恢复），无 ESC 空转；② 18 条卡点全部增量落盘且失败收尾均在主世界（OCR 上下文含探索+UID），UI 卫生零漂移；③ fatal 留档在断点前真实触发一次，信息完整（连接已断故无截图，符合设计）；④ 本轮零 fatal（云网络宽容生效，"网络差"持续出现但未阻断）。
+- **遗留天花板**: 9 个失败任务需逐屏校准 vendored pipeline 尾部节点；AutoCollect 74s 速败于路线建立阶段（未进采集路线），需单独诊断路线 options/VLM 链。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`、`tests/test_istina_runtime.py`（fe8d354）；`docs/TASK_LOG.md`（本条记录）
