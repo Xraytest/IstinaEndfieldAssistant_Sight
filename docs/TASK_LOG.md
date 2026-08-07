@@ -3427,3 +3427,13 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **验证轮（21:51 启动，含 19399ec/b9559c2/a3724f5/daba5b6/192e55b 全部修复）**: AndroidOpenGame✓(18s)；VisitFriends/DijiangRewards/CreditShoppingN2/DeliveryJobs 仍✗。对照前两轮（健康态 2✓、降级态 2✓）：系统性修复（资源叠加/连接超时/知道了/429/资料页清理）稳定保障启动与场景检测，但中间深层任务失败与 429、资料页无相关性，确认为 **vendored pipeline 尾部节点校准天花板**（需逐屏校准，非 infra）。
 - **报错主攻小结**: 代码级报错已修（429 立即重试 daba5b6、资料页清理 192e55b、资源叠加 19399ec、连接 60s b9559c2、知道了 a3724f5）；`__ScenePrivateAnyExit`(ESC×100 无识别) 在资料页空转属场景图设计，ESC 关不掉资料页需 BACK，根治需在 pipeline 加资料页自愈节点（风险高未动）。
 - **Files Modified**: `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-07 23:20（资料页误入根因修复 + 云网络宽容 + 测试态 fatal 收集循环，提交 309111e）
+
+- **User Request**: ①"代码总是意外进入资料，为什么；UI存在退出按钮，为什么总是使用esc"；②"对云游戏网络重试提供宽容"；③"允许不完整跑通循环（仅测试窗口，不带入生产），挂自动每日全套遇 fatal 截屏保留信息，重启云终末地从头再跑收集卡点"。
+- **资料页误入根因**: 不是被主动打开——VisitFriends 合法进入好友访客终端→尾部节点失败→`_recover_to_world` 对固定候选坐标**盲点击**（页面没有 X 在候选位时误触头像等 HUD）→落入资料页；资料页/访客终端只有右上 X 能关，`__ScenePrivateAnyExit` 无识别 ESC×100（~150s 空转）关不掉→后续任务全在资料页失败。"总是用 ESC"即该兜底节点无识别设计。
+- **修复1（识别驱动X关闭）**: `_WORLD_BLOCKING_OCR` 增资料页/访客终端特征词；`_verify_in_world_by_ocr` 保留 `_last_world_ocr_text`；`_recover_to_world` 命中特征词只点右上 X(1220,35)、不参与盲候选轮转；`_cloud_cleanup_to_world` 资料页分支 BACK→tap X、关键词增"访客终端"；`__ScenePrivateAnyExit` max_hit 100→10（本地 gitignore 校准层），深层覆盖层由 X 关闭/force-stop 兜底。
+- **修复2（云网络宽容）**: 空闲弹窗/启动链识别"网络异常/重试/重新连接"并点击推进；云版本完整重连 3→5 次、退避加长；主世界 guard screencap 超时 4s→8s。
+- **修复3（测试态 fatal 循环，生产隔离）**: 环境变量 `ISTINA_FATAL_RESTART_LOOP=1` 门控（默认关闭、生产行为不变）：fatal→截屏+fatal_info.json 留档 `.tmp/fatal/<ts>_<任务>/`→force-stop 重启云终末地→队列从头再跑；`ISTINA_FATAL_MAX_ROUNDS`(默认3)/`ISTINA_FATAL_MAX_RESTARTS`(每轮默认4) 防无限循环；卡点（fatal/任务失败+当时OCR）追加 `.tmp/fatal/blockers_summary.json`。
+- **验证**: pytest 30/30 通过（新增 3 项：生产默认不重启、测试态重启+卡点汇总、重启上限）；ruff 新增代码干净（service/runtime.py 存量 17 项记录不放宽；mypy 捆绑解释器不可用为存量状态）；SceneCommon.json JSON 校验通过。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`、`src/core/service/runtime.py`、`tests/test_istina_runtime.py`、`3rd-part/maaend/resource_cloud/pipeline/SceneManager/SceneCommon.json`（本地）、`reports/implementation/2026-08-07-profile-xclose-cloud-lenient-fatal-loop.md`、`docs/TASK_LOG.md`（本条记录）
