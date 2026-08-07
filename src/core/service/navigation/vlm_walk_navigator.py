@@ -895,6 +895,9 @@ class VlmWalkNavigator:
         if frame is None:
             return {"status": "error", "message": "no screenshot available"}
 
+        # 循环内截屏失败提前 break 时，循环后汇总仍需该变量（UnboundLocalError 防护）
+        dist_to_end = float("inf")
+
         for step_idx in range(steps):
             step_start = time.monotonic()
             if step_start > loop_deadline:

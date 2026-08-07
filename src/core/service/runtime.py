@@ -891,10 +891,11 @@ class IstinaRuntime:
     def _daily_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}
         preset_name = options.get("preset", "DailyFull")
-        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
-        client_version = self._set_client_version(runtime, {"ClientVersion": client_version})
+        # ClientVersion 缺省时继承 runtime 创建时由 config device.package 推导的版本，
+        # 避免把云端 runtime 静默降级为 CN 资源（云端 pipeline 节点会全部失配超时）。
+        client_version = self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
@@ -1246,9 +1247,10 @@ class IstinaRuntime:
     def _material_farm_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """材料刷取编排器：传送 → VLM 步行导航 → 自动战斗 → 奖励领取。"""
         options = params.get("options") or {}
-        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        # ClientVersion 缺省时继承 runtime 版本（见 _daily_run 同因说明）。
+        client_version = self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
@@ -1461,9 +1463,10 @@ class IstinaRuntime:
         决策，单步推理卡死不会拖垮整条路线。
         """
         options = params.get("options") or {}
-        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        # ClientVersion 缺省时继承 runtime 版本（见 _daily_run 同因说明）。
+        client_version = self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
@@ -2107,10 +2110,10 @@ class IstinaRuntime:
         - 无 waypoints 的路线(Route1/3/6 仅有 MapNavigateAction)回退到 pipeline
         """
         options = params.get("options") or {}
-        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
-        self._set_client_version(runtime, {"ClientVersion": client_version})
+        # ClientVersion 缺省时继承 runtime 版本（见 _daily_run 同因说明）。
+        client_version = self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
@@ -2207,6 +2210,27 @@ class IstinaRuntime:
             fallback_entry = info["fallback_entry"]
             use_vlm = bool(waypoints)  # 无 waypoints 的路线回退到 pipeline
 
+            # 云端跳过无 waypoints 路线：其回退依赖 CN pipeline
+            # （MapNavigateAction/模板与云 UI 失配，还会误点进武陵工业计划等覆盖层）。
+            if client_version.strip().lower() == "cloudcn" and not waypoints:
+                self._logger.warning(
+                    LogCategory.MAIN, "云端跳过无 waypoints 路线",
+                    route=route, reason="cloud_pipeline_fallback_unsupported",
+                )
+                results.append({
+                    "route": route,
+                    "status": "skipped",
+                    "reason": "cloud_pipeline_fallback_unsupported",
+                    "mode": "pipeline_fallback",
+                    "teleport": teleport_node,
+                    "map_name": map_name,
+                    "collect_items": collect_items,
+                    "waypoints_count": 0,
+                    "attempts": [],
+                    "rounds_used": 0,
+                })
+                continue
+
             self._logger.info(
                 LogCategory.MAIN, "采集路线开始", route=route,
                 teleport=teleport_node, map=map_name,
@@ -2214,6 +2238,9 @@ class IstinaRuntime:
                 mode="vlm" if use_vlm else "pipeline_fallback",
                 max_rounds=max_rounds,
             )
+
+            # 云端版本标记：BACK 无效、pipeline 场景节点失配，需走云端专属链路
+            is_cloud_route = client_version.strip().lower() == "cloudcn"
 
             # 多轮重试：传送 → VLM导航+采集 / pipeline回退 → 采集验证
             route_success = False
@@ -2232,27 +2259,35 @@ class IstinaRuntime:
                 tp_reason = ""
 
                 # 1a. 直接执行路线指定的 SceneEnterWorld* 节点（带数字后缀，精确传送点）
-                try:
+                #     云端跳过：这些节点模板与云 UI 失配，30-90s 超时后 post_stop
+                #     会把 Tasker 打入 stopping（后续截屏全 None），只能走 1b 云端链路。
+                if is_cloud_route:
                     self._logger.info(
-                        LogCategory.MAIN, "采集传送：直接执行路线指定节点",
+                        LogCategory.MAIN, "采集传送：云端跳过直接 pipeline 节点",
                         route=route, node=teleport_node,
                     )
-                    ok_direct = self._run_pipeline_with_timeout(
-                        runtime, teleport_node, {}, timeout=30.0,
-                    )
-                    time.sleep(3.5)  # 等待传送加载完成
-                    if ok_direct and self._is_in_big_world(serial):
-                        teleport_ok = True
-                        tp_reason = "direct_node"
+                else:
+                    try:
                         self._logger.info(
-                            LogCategory.MAIN, "采集传送成功（直接节点）",
+                            LogCategory.MAIN, "采集传送：直接执行路线指定节点",
                             route=route, node=teleport_node,
                         )
-                except Exception as exc:
-                    self._logger.warning(
-                        LogCategory.MAIN, "直接传送节点异常",
-                        route=route, node=teleport_node, error=str(exc),
-                    )
+                        ok_direct = self._run_pipeline_with_timeout(
+                            runtime, teleport_node, {}, timeout=30.0,
+                        )
+                        time.sleep(3.5)  # 等待传送加载完成
+                        if ok_direct and self._is_in_big_world(serial):
+                            teleport_ok = True
+                            tp_reason = "direct_node"
+                            self._logger.info(
+                                LogCategory.MAIN, "采集传送成功（直接节点）",
+                                route=route, node=teleport_node,
+                            )
+                    except Exception as exc:
+                        self._logger.warning(
+                            LogCategory.MAIN, "直接传送节点异常",
+                            route=route, node=teleport_node, error=str(exc),
+                        )
 
                 # 1b. 回退：区域级 _vlm_teleport_to_area
                 if not teleport_ok:
@@ -2285,10 +2320,14 @@ class IstinaRuntime:
                         route=route, attempt=attempt_idx,
                     )
                     try:
-                        # 多次 BACK 确保关闭地图界面、弹窗、任务追踪提示
-                        for back_idx in range(3):
-                            self.android(serial).keyevent("KEYCODE_BACK")
-                            time.sleep(0.8)
+                        if is_cloud_route:
+                            # 云端：BACK 对地图视图/标记模式无效，针对性清理回大世界
+                            self._cloud_cleanup_to_world(serial)
+                        else:
+                            # 多次 BACK 确保关闭地图界面、弹窗、任务追踪提示
+                            for back_idx in range(3):
+                                self.android(serial).keyevent("KEYCODE_BACK")
+                                time.sleep(0.8)
                         # 额外等待界面稳定
                         time.sleep(1.5)
                     except Exception:
@@ -2421,14 +2460,19 @@ class IstinaRuntime:
             except Exception as exc:
                 self._logger.warning(LogCategory.MAIN, "StashBackpackMain 异常", error=str(exc))
 
-        # 汇总
+        # 汇总（skipped 为云端安全跳过，不计失败）
         success_count = sum(1 for r in results if r.get("status") == "success")
-        failed_routes = [r["route"] for r in results if r.get("status") != "success"]
+        skipped_routes = [r["route"] for r in results if r.get("status") == "skipped"]
+        failed_routes = [
+            r["route"] for r in results
+            if r.get("status") not in ("success", "skipped")
+        ]
         self._logger.info(
             LogCategory.MAIN, "采集任务结束",
             overall_ok=overall_ok, routes=len(results),
             success=success_count, failed=len(failed_routes),
-            failed_routes=failed_routes,
+            skipped=len(skipped_routes),
+            failed_routes=failed_routes, skipped_routes=skipped_routes,
         )
 
         return {
@@ -2441,6 +2485,7 @@ class IstinaRuntime:
                 "total_routes": len(results),
                 "success_count": success_count,
                 "failed_routes": failed_routes,
+                "skipped_routes": skipped_routes,
             },
             "maaend_connected": self.connected,
         }
@@ -2493,9 +2538,10 @@ class IstinaRuntime:
         OCR 整页识别任务文本，按阅读顺序格式化并缓存到 cache/task_list/。
         """
         options = params.get("options") or {}
-        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        # ClientVersion 缺省时继承 runtime 版本（见 _daily_run 同因说明）。
+        client_version = self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
@@ -3792,13 +3838,14 @@ class IstinaRuntime:
             "你的工作是找到地图上的传送点图标并返回其位置。"
             "只输出一个 JSON 对象，不要输出任何其他内容。"
         )
+        # 请求 0-100 百分比坐标：小型 VLM 对相对百分比定位比绝对像素更稳，
+        # 解析端自动识别百分比/像素两种返回（见下方 0-100 分支）。
         prompt = (
             f"目标区域：{target_area}\n"
-            f"截图分辨率：{screen_w}x{screen_h}（宽x高，像素）\n\n"
             "请分析截图，找到地图上的传送点图标（金色/琥珀色圆形徽记图标，"
             "圆环内有尖顶徽记，类似传送锚点；不是文字标记，也不是任务追踪箭头）。\n"
-            f"返回传送点图标的中心像素坐标。\n\n"
-            f'输出格式：{{"x": {screen_w // 2}, "y": {screen_h // 2}}}（示例为中心点）\n'
+            "返回传送点图标中心相对于截图宽高的百分比坐标（0-100 的数值）。\n\n"
+            '输出格式：{"x": 50, "y": 50}（示例表示正中心；x=横向百分比，y=纵向百分比）\n'
             '如果找不到传送点图标，返回：{"x": -1, "y": -1}\n'
             "只输出 JSON，不要输出其他内容。"
         )
@@ -3956,6 +4003,68 @@ class IstinaRuntime:
             time.sleep(1.5)
             return False
         return result["ok"]
+
+    def _cloud_cleanup_to_world(self, serial: Optional[str], max_rounds: int = 3) -> bool:
+        """云端传送失败后的界面清理：退出残留界面回到大世界。
+
+        云端 BACK 对地图视图与标记管理模式无效，需针对性处理：
+        - 标记管理模式（特征：自定义标记点上限/标记N）→ 点"取消"按钮退出
+        - 地图视图/地区总览（特征：标记显示管理/地区总览/地区建设等级//地区名）
+          → 点右上角 X (1220,35) 关闭
+        - 其他覆盖层 → BACK 兜底
+        以大世界 OCR 判定收尾。
+        """
+        map_view_keywords = (
+            "标记显示管理", "地区总览", "地区建设等级",
+            "//武陵", "//四号谷地", "O.M.V.帝江号",
+        )
+        marker_keywords = ("自定义标记点上限", "标记1", "标记2", "标记3")
+        for _ in range(max_rounds):
+            if self._is_in_big_world(serial):
+                return True
+            try:
+                ocr_result = self.execute(
+                    "scene.elements",
+                    {"serial": serial, "enable_ocr": True,
+                     "enable_template": False, "enable_color": False},
+                )
+            except Exception:
+                ocr_result = {}
+            elements: List[Dict[str, Any]] = []
+            if isinstance(ocr_result, dict) and ocr_result.get("status") == "success":
+                elements = ocr_result.get("elements", [])
+            labels = [
+                str(e.get("label", "")).strip()
+                for e in elements if isinstance(e, dict)
+            ]
+            android = self.android(serial)
+            try:
+                if any(any(k in lb for lb in labels) for k in marker_keywords):
+                    cancel_elem = next(
+                        (e for e in elements if str(e.get("label", "")).strip() == "取消"),
+                        None,
+                    )
+                    if cancel_elem is not None:
+                        ccx, ccy = self._norm_to_screen(
+                            cancel_elem.get("center", [0.5, 0.65]),
+                            self._get_screen_size(serial),
+                        )
+                        android.tap(ccx, ccy)
+                    else:
+                        android.keyevent("KEYCODE_BACK")
+                elif any(any(k in lb for lb in labels) for k in map_view_keywords):
+                    android.tap(1220, 35)
+                else:
+                    # 通用覆盖层（武陵工业计划/百科等）：云端右上 X 关闭，BACK 兜底
+                    android.tap(1220, 35)
+                    time.sleep(1.0)
+                    android.keyevent("KEYCODE_BACK")
+            except Exception as exc:
+                self._logger.warning(
+                    LogCategory.MAIN, "云端清理动作异常", error=str(exc),
+                )
+            time.sleep(2.0)
+        return self._is_in_big_world(serial)
 
     def _vlm_teleport_to_area(
         self,
@@ -5650,9 +5759,10 @@ class IstinaRuntime:
         - BlueTaskVlmMaxStepsValue / BlueTaskVlmStepTimeoutValue / BlueTaskMaxVerifyChecks
         """
         options = params.get("options") or {}
-        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        # ClientVersion 缺省时继承 runtime 版本（见 _daily_run 同因说明）。
+        client_version = self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
@@ -5807,9 +5917,10 @@ class IstinaRuntime:
     def _list_blue_tasks(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """仅读取蓝色（次要）分类任务列表，不执行。"""
         options = params.get("options") or {}
-        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        # ClientVersion 缺省时继承 runtime 版本（见 _daily_run 同因说明）。
+        client_version = self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
@@ -5856,9 +5967,10 @@ class IstinaRuntime:
         供 GUI 按游戏内分类分组展示并供用户勾选。顺序与游戏内左侧分类标签一致。
         """
         options = params.get("options") or {}
-        client_version = options.get("ClientVersion", "CN")
         serial = params.get("serial")
         runtime = self.maaend(serial)
+        # ClientVersion 缺省时继承 runtime 版本（见 _daily_run 同因说明）。
+        client_version = self._set_client_version(runtime, options)
         if not self._ensure_maaend_ready(runtime):
             return {
                 "status": "error",
