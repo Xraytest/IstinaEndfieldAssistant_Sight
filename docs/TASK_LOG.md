@@ -3402,7 +3402,7 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **根因2（提交 b9559c2）**: GPU 被占用降级态 screencap 3-6s/速度测试~11s，20s 硬超时在握手中途切断；`_CONNECTION_TIMEOUT_S` 20→60。
 - **根因3（提交 a3724f5）**: 「知道了」弹窗按钮不在 `_advance_boot_to_world` 推进期望词，中心盲点误点致预算耗尽；补入后 AndroidOpenGame 冷启动成功进主世界。
 - **本地（gitignore）**: `resource_cloud/OpenGame_Cloud.json` 增 `CloudCloseProfile`（识别权限等阶/探索等级→Key[4] BACK）防残留资料页使 CloudWaitLogo 误命中 "ENDFIELD" 死循环（Key 必须整数 keycode 数组）。
-- **本轮成败（进行中）**: AndroidOpenGame✓；VisitFriends✗（进访客终端后尾部节点）；DijiangRewards✗；CreditShoppingN2✗（进商店菜单后节点）；DeliveryJobs 运行中（云降级 ESC 循环+截图超时）。个体任务尾部节点需单独校准；云降级（网络差/screencap 超时）为环境天花板。
+- **本轮成败（19:11 完成，2✓/11✗）**: ✓AndroidOpenGame、AutoStockpile；✗VisitFriends（进访客终端后尾部节点）、DijiangRewards、CreditShoppingN2（进商店菜单后节点）、DeliveryJobs、SellProduct（已知 skip）、AutoStockStaple、AutoSell、EnvironmentMonitoring、DailyRewards、SeizeDeliveryJobs（应安全跳过）、AutoCollect。本轮中后段云连接降级（网络差、screencap 超时/输入后截图失败）放大失败；个体任务尾部节点需单独校准，属环境/校准天花板。AutoStockpile 在模板修复后转✓。
 - **Files Modified**:
   - `src/core/service/maa_end/runtime.py`（19399ec/b9559c2/a3724f5）
   - `tests/test_istina_runtime.py`（19399ec，3 个 bundle 顺序单测）
