@@ -951,8 +951,14 @@ class IstinaRuntime:
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "检查游戏进程失败", error=str(exc))
 
-        # 游戏已运行：用 OCR 验证是否在大世界
+        # 游戏已运行：先关空闲弹窗再 OCR 验证是否在大世界
         if game_running:
+            try:
+                dismiss = getattr(runtime, "_dismiss_cloud_idle_popup", None)
+                if dismiss is not None:
+                    dismiss()
+            except Exception as exc:
+                self._logger.warning(LogCategory.MAIN, "空闲弹窗关闭异常", error=str(exc))
             if self._verify_in_world_by_ocr(serial):
                 self._logger.info(LogCategory.MAIN, "OCR 确认已在大世界")
                 return True
@@ -970,20 +976,18 @@ class IstinaRuntime:
             except Exception as exc2:
                 self._logger.error(LogCategory.MAIN, "启动游戏失败", error=str(exc2))
 
-        # 等待游戏进入大世界（用 OCR 验证）
+        # 等待游戏进入大世界（先关空闲弹窗再 OCR 验证，否则弹窗背景误判/阻塞）
         for attempt in range(30):
             time.sleep(3)
-            if self._verify_in_world_by_ocr(serial):
-                self._logger.info(LogCategory.MAIN, "OCR 确认已进入大世界", attempt=attempt + 1)
-                return True
-            # 关闭云空闲断连弹窗（含"长时间未使用，已断开连接"变体），
-            # 否则弹窗阻塞启动链直到超时
             try:
                 dismiss = getattr(runtime, "_dismiss_cloud_idle_popup", None)
                 if dismiss is not None:
                     dismiss()
             except Exception as exc:
                 self._logger.warning(LogCategory.MAIN, "空闲弹窗关闭异常", error=str(exc))
+            if self._verify_in_world_by_ocr(serial):
+                self._logger.info(LogCategory.MAIN, "OCR 确认已进入大世界", attempt=attempt + 1)
+                return True
             # 检查是否还在启动页/首页，若是则点击开始游戏
             try:
                 texts_now = []
@@ -2051,8 +2055,10 @@ class IstinaRuntime:
         "地区建设", "干员", "采购中心", "行动手册",
         "通行证", "好友", "装备加工", "编队", "百科", "档案库",
         # 大世界（野外）通用关键词：角色在野外时主城菜单不可见，
-        # 但 "探索" 按钮和任务追踪文字始终存在
-        "探索",
+        # 但 "探索" 按钮、UID 与队伍等级始终存在（2026-08-07 实测：
+        # 野外仅 "探索" 命中导致 min_hits=2 永不满足）。
+        # 地图视图/行动手册有 UID 但无 探索/LV.，不会凑满 2 命中。
+        "探索", "UID:", "LV.", "Lv.",
     )
     _IN_WORLD_OCR_MIN_HITS = 2
 
