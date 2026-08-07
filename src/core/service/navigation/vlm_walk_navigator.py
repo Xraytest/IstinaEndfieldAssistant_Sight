@@ -1109,7 +1109,14 @@ class VlmWalkNavigator:
         # GRAB-FRAME-HARD-TIMEOUT: 截图调用必须有时限保护。
         # 即使底层 screenshot_fn 自身无超时（如 maaend.screenshot 旧版的 job.wait()），
         # 也通过线程+Event.wait() 强制 15s 上限，避免 VLM 循环因截图卡死而整个进程假死。
-        data = self._grab_frame_bytes()
+        # 截图通道瞬时失败（screencap 8/10s 超时）不应立即中断导航：None 时重试。
+        data = None
+        for attempt in range(3):
+            data = self._grab_frame_bytes()
+            if data is not None:
+                break
+            if attempt < 2:
+                time.sleep(2.0)
         if data is None:
             return None
         arr = np.frombuffer(data, dtype=np.uint8)
