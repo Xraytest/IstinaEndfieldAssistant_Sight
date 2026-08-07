@@ -3367,3 +3367,30 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - `src/core/service/runtime.py`、`src/core/service/navigation/vlm_walk_navigator.py`（提交 e8cb26c）
   - `reports/implementation/2026-08-07-cloud-clientversion-downgrade.md`
   - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-07 12:10（LLM 端点诊断：UA 拦截误判 + 新 key 生效；清理链补弹窗）
+
+- **User Request**: 禁止使用本地版本 LLM；下发新 key（已同步 `.env`，掩码 sk-AB4N…RRK7）。模型保持 `qwen/qwen3.5-35b-a3b(free)`（用户指定，多模态）。
+- **诊断结论**:
+  - 此前直探 403 的根因是 **endpoint 拦截非浏览器 User-Agent**（python-urllib 默认 UA 被拒）；项目 `LlmClient` 本就携带 `_BROWSER_UA`，**客户端无需改动**。
+  - 非流式探针返回空 content 是探针未走 `stream=True`+顶层 `enable_thinking=False`；以项目 LlmClient 真实参数复现实测 **3.5s 正确应答**（截图问答"是"）。
+  - 免费端点仍有间歇性读超时（单次 45s+ 挂起），客户端已有重试/单步跳过/连续 3 次中止保护。
+  - 候选免费模型测速：qwen3-vl-30b-a3b-instruct(free) 1.2s、qwen3-30b-a3b-instruct-2507(free) 1.7s 可作后备（未启用，遵从用户指定）。
+- **修复**（提交 b58e979）：`_cloud_cleanup_to_world` 每轮先调 `_dismiss_cloud_idle_popup`——断连弹窗为模态阻断一切点击，实测"武器预览页+断连弹窗"组合下旧清理链无效；加弹窗处理后一轮回主世界。
+- **环境**: 本地 llama-server 未启用（遵从禁用本地 LLM 指令）；`.env` LLM_PROVIDER=cloud + 新 key。
+- **Files Modified**:
+  - `src/core/service/runtime.py`（提交 b58e979）
+  - `.env`（新 key，gitignore 不入库）
+  - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-07 13:20（启动链/导航韧性修复批次；Route2 链全绿、导航质量成新天花板）
+
+- **修复1**（提交 0fa0ede）：模拟器重启后游戏未运行，`_ensure_game_in_world` 的 `monkey` 启动被守护进程 shell 白名单拒绝且不抛异常（`am start` 兜底不触发），游戏永远拉不起；`monkey ` 入 `ALLOWED_SHELL_PREFIXES`（参数仅包名+固定 category 无元字符）。ps|grep 回退加包名包含校验防错误串误判 pid。实测启动链通过（"点击任意处开始游戏/点击任意位置继续"→主世界）。
+- **修复2**（提交 fffb00d）：VLM 导航 `_grab_frame` 截屏 None 立即 break 致每轮仅 2-6 步；加 2 次重试。实测导航连续推进 60 步、~5s/步。
+- **调优**（提交 e904a79）：VLM 单步首 token 超时 120s→90s（覆盖 77s 慢例、切断真挂起，worst case 4.5min/route）。
+- **环境**：模拟器降级态（screencap 5.8s、scrcpy 不送帧、云会话"网络差"）经重启 MuMu 清除（截屏回 1.2s）；残留 scrcpy 服务端需随重启清理。
+- **Route2 验证**：传送链 5 轮中 4 轮 `teleport_ok=True already_in_target`；VLM 导航基础设施全绿（LLM 新 key 2-5s 应答、截图重试生效）；剩余瓶颈为免费模型导航质量（dist_to_end 不收敛/locator 常 inf），属模型能力天花板非 infra 阻塞。
+- **Files Modified**:
+  - `src/core/foundation/shell_security.py`、`src/core/service/runtime.py`（0fa0ede）
+  - `src/core/service/navigation/vlm_walk_navigator.py`（e904a79/fffb00d）
+  - `docs/TASK_LOG.md`（本条记录）
