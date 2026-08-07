@@ -3394,3 +3394,17 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - `src/core/foundation/shell_security.py`、`src/core/service/runtime.py`（0fa0ede）
   - `src/core/service/navigation/vlm_walk_navigator.py`（e904a79/fffb00d）
   - `docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-07 18:10（CloudCN 资源叠加修复 + 降级态连接/启动链韧性）
+
+- **User Request**: 持续循环执行每日全套并修正阻碍；崩溃后从断点继续。
+- **根因1（系统性，提交 19399ec）**: 云端 profile 曾只 post `resource_cloud`（仅 pipeline 覆盖层、无 image/），MaaFW 模板图片搜索根注册为空串，全部 TemplateMatch 失明（`templates or threshold is empty`），任务反复 ESC 空转。核实 MaaFW v5.12.2 跨 bundle 为字段级覆盖（`insert_or_assign`），官方变体包即叠加机制。修复：`_resource_bundle_dirs()` 按序 `[resource, resource_cloud, resource_adb]` 加载；`_strip_comments_in_pipeline` 覆盖全部 bundle。实测 get_node_data 云端字段覆盖生效、缺省继承基础包、node_list=4608。
+- **根因2（提交 b9559c2）**: GPU 被占用降级态 screencap 3-6s/速度测试~11s，20s 硬超时在握手中途切断；`_CONNECTION_TIMEOUT_S` 20→60。
+- **根因3（提交 a3724f5）**: 「知道了」弹窗按钮不在 `_advance_boot_to_world` 推进期望词，中心盲点误点致预算耗尽；补入后 AndroidOpenGame 冷启动成功进主世界。
+- **本地（gitignore）**: `resource_cloud/OpenGame_Cloud.json` 增 `CloudCloseProfile`（识别权限等阶/探索等级→Key[4] BACK）防残留资料页使 CloudWaitLogo 误命中 "ENDFIELD" 死循环（Key 必须整数 keycode 数组）。
+- **本轮成败（进行中）**: AndroidOpenGame✓；VisitFriends✗（进访客终端后尾部节点）；DijiangRewards✗；CreditShoppingN2✗（进商店菜单后节点）；DeliveryJobs 运行中（云降级 ESC 循环+截图超时）。个体任务尾部节点需单独校准；云降级（网络差/screencap 超时）为环境天花板。
+- **Files Modified**:
+  - `src/core/service/maa_end/runtime.py`（19399ec/b9559c2/a3724f5）
+  - `tests/test_istina_runtime.py`（19399ec，3 个 bundle 顺序单测）
+  - `reports/implementation/2026-08-07-cloudcn-resource-overlay.md`
+  - `docs/TASK_LOG.md`（本条记录）
