@@ -2354,6 +2354,8 @@ class MaaEndRuntime:
         "长时间未操作", "自动结束", "点击任意位置继续",
         "知道了", "提示",
         "将自动结束",
+        # 变体弹窗："由于长时间未使用，已断开连接"
+        "长时间未使用", "已断开连接", "断开连接",
     })
     _CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT = "知道了"
     _CLOUD_IDLE_DISMISS_RETRY_COUNT = 3
@@ -2453,6 +2455,7 @@ class MaaEndRuntime:
                 expected=[
                     self._CLOUD_IDLE_TIMEOUT_DISMISS_BUTTON_TEXT,
                     "长时间未操作", "自动结束", "自动结",
+                    "长时间未使用", "已断开连接",
                     "点击任意位置继续", "點擊任意位置繼續",
                     "开始游戏", "開始遊戲",
                 ],
@@ -2502,6 +2505,7 @@ class MaaEndRuntime:
                 # 弹窗正文存在但按钮文案未命中：使用实测固定按钮坐标兜底
                 if any(
                     ("长时间未操作" in t) or ("自动结束" in t) or ("自动结" in t)
+                    or ("长时间未使用" in t) or ("已断开连接" in t)
                     for t, _, _ in hits
                 ):
                     target = (638, 433)
@@ -2534,7 +2538,8 @@ class MaaEndRuntime:
                     time.sleep(1.0)
                     continue
                 verify_param = JOCR(
-                    expected=["知道了", "长时间未操作", "自动结束", "自动结"],
+                    expected=["知道了", "长时间未操作", "自动结束", "自动结",
+                              "长时间未使用", "已断开连接"],
                     roi=[0, 0, verify_img.shape[1], verify_img.shape[0]],
                     threshold=0.3,
                 )

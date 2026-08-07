@@ -976,6 +976,14 @@ class IstinaRuntime:
             if self._verify_in_world_by_ocr(serial):
                 self._logger.info(LogCategory.MAIN, "OCR 确认已进入大世界", attempt=attempt + 1)
                 return True
+            # 关闭云空闲断连弹窗（含"长时间未使用，已断开连接"变体），
+            # 否则弹窗阻塞启动链直到超时
+            try:
+                dismiss = getattr(runtime, "_dismiss_cloud_idle_popup", None)
+                if dismiss is not None:
+                    dismiss()
+            except Exception as exc:
+                self._logger.warning(LogCategory.MAIN, "空闲弹窗关闭异常", error=str(exc))
             # 检查是否还在启动页/首页，若是则点击开始游戏
             try:
                 texts_now = []
