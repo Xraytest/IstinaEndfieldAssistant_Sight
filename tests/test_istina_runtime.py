@@ -590,7 +590,8 @@ def test_fatal_loop_test_mode_restarts_and_collects_blockers(monkeypatch: pytest
     monkeypatch.setattr(runtime, "_force_restart_to_world",
                         lambda: (state.__setitem__("restarts", state["restarts"] + 1), True)[1])
     monkeypatch.setattr(runtime, "_capture_fatal_context", fake_capture)
-    monkeypatch.setattr(runtime, "_write_blocker_summary", lambda blockers: state["summary"].extend(blockers))
+    monkeypatch.setattr(runtime, "_flush_blockers",
+                        lambda blockers, session_stamp="": state["summary"].clear() or state["summary"].extend(blockers))
     monkeypatch.setattr(runtime, "run_task", lambda name, options=None: True)
 
     assert runtime.run_queue() is True
@@ -616,7 +617,7 @@ def test_fatal_loop_respects_max_restarts(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(runtime, "_force_restart_to_world",
                         lambda: (state.__setitem__("restarts", state["restarts"] + 1), True)[1])
     monkeypatch.setattr(runtime, "_capture_fatal_context", lambda task, reason: None)
-    monkeypatch.setattr(runtime, "_write_blocker_summary", lambda blockers: None)
+    monkeypatch.setattr(runtime, "_flush_blockers", lambda blockers, session_stamp="": None)
 
     assert runtime.run_queue() is False
     # 每轮最多重启 1 次；2 轮共 2 次，不会无限重启。

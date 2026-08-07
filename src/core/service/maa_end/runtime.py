@@ -2040,17 +2040,25 @@ class MaaEndRuntime:
         max_rounds = self._fatal_env_int(self._FATAL_MAX_ROUNDS_ENV, 3) if fatal_mode else 1
         max_restarts = self._fatal_env_int(self._FATAL_MAX_RESTARTS_ENV, 4) if fatal_mode else 0
         blockers: List[Dict[str, Any]] = []
+        session_stamp = time.strftime("%Y%m%d-%H%M%S") if fatal_mode else ""
         overall_ok = False
         for round_idx in range(1, max_rounds + 1):
             if self._user_stop_event.is_set():
                 break
             if round_idx > 1:
                 self.logger.warning(LogCategory.MAIN, "测试态：开始新一轮队列（收集卡点）", round=round_idx)
-            overall_ok = self._run_queue_once(round_idx, fatal_mode, max_restarts, blockers)
+            overall_ok = self._run_queue_once(round_idx, fatal_mode, max_restarts, blockers, session_stamp)
             if not fatal_mode:
                 break
         if fatal_mode:
-            self._write_blocker_summary(blockers)
+            # 最终确认落盘（每条卡点已增量落盘，此处仅兜底与日志）。
+            self._flush_blockers(blockers, session_stamp)
+            self.logger.warning(
+                LogCategory.MAIN,
+                "测试态卡点汇总已写入",
+                path=str(_PROJECT_ROOT / ".tmp" / "fatal" / f"blockers_{session_stamp}.json"),
+                total=len(blockers),
+            )
         return overall_ok
 
     def _run_queue_once(
@@ -2059,6 +2067,7 @@ class MaaEndRuntime:
         fatal_mode: bool,
         max_restarts: int,
         blockers: List[Dict[str, Any]],
+        session_stamp: str = "",
     ) -> bool:
         """单轮队列执行。fatal_mode 下连接不可恢复时截屏留档、重启游戏、从头再跑。"""
         self.logger.info(LogCategory.MAIN, "开始执行队列", queue_size=len(self._queue), round=round_idx)
@@ -2066,6 +2075,11 @@ class MaaEndRuntime:
         total = len(self._queue)
         restarts = 0
         idx = 0
+
+        def _record_blocker(entry: Dict[str, Any]) -> None:
+            # 每条卡点立即落盘：进程被中断/崩溃时已收集的卡点不丢失。
+            blockers.append(entry)
+            self._flush_blockers(blockers, session_stamp)
         while idx < total:
             item = self._queue[idx]
             name = str(item.get("name") or "").strip()
@@ -2081,7 +2095,7 @@ class MaaEndRuntime:
             if not self._ensure_queue_connection(name, idx, total):
                 if fatal_mode and restarts < max_restarts:
                     # fatal：截屏 + 保留信息 → 重启云终末地 → 从头再跑收集卡点。
-                    blockers.append({
+                    _record_blocker({
                         "round": round_idx, "task": name, "index": idx + 1,
                         "type": "fatal_connection",
                         "ocr": (getattr(self, "_last_world_ocr_text", "") or "")[:300],
@@ -2106,7 +2120,7 @@ class MaaEndRuntime:
             if not task_ok:
                 failures.append(name)
                 if fatal_mode:
-                    blockers.append({
+                    _record_blocker({
                         "round": round_idx, "task": name, "index": idx + 1,
                         "type": "task_failed",
                         "ocr": (getattr(self, "_last_world_ocr_text", "") or "")[:300],
@@ -2120,7 +2134,7 @@ class MaaEndRuntime:
                     self.logger.warning(LogCategory.MAIN, "任务后连接断开，尝试恢复继续队列")
                     if not self._ensure_queue_connection(name, idx, total):
                         if fatal_mode and restarts < max_restarts:
-                            blockers.append({
+                            _record_blocker({
                                 "round": round_idx, "task": name, "index": idx + 1,
                                 "type": "fatal_connection_after_task",
                                 "ocr": (getattr(self, "_last_world_ocr_text", "") or "")[:300],
@@ -2181,35 +2195,25 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "测试态 fatal 现场保留失败", error=str(exc))
             return None
 
-    def _write_blocker_summary(self, blockers: List[Dict[str, Any]]) -> None:
-        """测试态：把本次运行收集的卡点追加到 .tmp/fatal/blockers_summary.json。"""
+    def _flush_blockers(self, blockers: List[Dict[str, Any]], session_stamp: str) -> None:
+        """测试态：崩溃安全落盘本次会话已收集的卡点（整份覆盖写）。
+
+        旧实现只在 run_queue 结束时写汇总，进程被中断（断点/崩溃）时已收集的
+        卡点全部丢失。现每条卡点记录后立即覆盖写本会话文件，中断不丢数据；
+        按会话分文件（blockers_<会话>.json），多次运行不互相覆盖。
+        """
+        if not session_stamp:
+            return
         try:
-            summary_path = _PROJECT_ROOT / ".tmp" / "fatal" / "blockers_summary.json"
+            summary_path = _PROJECT_ROOT / ".tmp" / "fatal" / f"blockers_{session_stamp}.json"
             summary_path.parent.mkdir(parents=True, exist_ok=True)
-            existing: List[Dict[str, Any]] = []
-            if summary_path.exists():
-                try:
-                    loaded = json.loads(summary_path.read_text(encoding="utf-8"))
-                    if isinstance(loaded, list):
-                        existing = [item for item in loaded if isinstance(item, dict)]
-                except Exception:
-                    existing = []
-            session_stamp = time.strftime("%Y%m%d-%H%M%S")
             for item in blockers:
                 item.setdefault("session", session_stamp)
-            existing.extend(blockers)
             summary_path.write_text(
-                json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            self.logger.warning(
-                LogCategory.MAIN,
-                "测试态卡点汇总已写入",
-                path=str(summary_path),
-                new_blockers=len(blockers),
-                total=len(existing),
+                json.dumps(blockers, ensure_ascii=False, indent=2), encoding="utf-8"
             )
         except Exception as exc:
-            self.logger.warning(LogCategory.MAIN, "测试态卡点汇总写入失败", error=str(exc))
+            self.logger.warning(LogCategory.MAIN, "测试态卡点落盘失败", error=str(exc))
 
     def _ensure_queue_connection(self, task_name: str, idx: int, total: int) -> bool:
         if self._connected and self._check_adb_health():
@@ -2550,7 +2554,8 @@ class MaaEndRuntime:
                     [self._adb_path, "connect", self._device_address],
                     text=True, timeout=10, capture_output=True,
                 )
-                if "connected" in result.stdout.lower():
+                # adb 服务重启期间 stdout 可能为 None，需兜底为空串。
+                if "connected" in (result.stdout or "").lower():
                     time.sleep(0.5)
                     if self._rebuild_controller():
                         return True
