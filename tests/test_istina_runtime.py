@@ -544,3 +544,80 @@ class _NeverDoneJob:
 class _FakeLogger:
     def warning(self, *args, **kwargs) -> None:
         pass
+
+
+# ── 测试态 fatal 收集循环（生产隔离）──────────────────────────────
+
+def test_fatal_loop_disabled_by_default_aborts_without_restart(monkeypatch: pytest.MonkeyPatch) -> None:
+    """生产默认（未设环境变量）：fatal 即中止，不重启游戏，行为与旧版一致。"""
+    monkeypatch.delenv("ISTINA_FATAL_RESTART_LOOP", raising=False)
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    runtime = MaaEndRuntime()
+    runtime._queue = [{"name": "TaskA"}, {"name": "TaskB"}]
+    calls = {"ensure": 0, "restart": 0}
+
+    monkeypatch.setattr(runtime, "_ensure_queue_connection",
+                        lambda name, idx, total: (calls.__setitem__("ensure", calls["ensure"] + 1), False)[1])
+    monkeypatch.setattr(runtime, "_force_restart_to_world",
+                        lambda: (calls.__setitem__("restart", calls["restart"] + 1), True)[1])
+
+    assert runtime.run_queue() is False
+    assert calls["ensure"] == 1  # 首个任务 fatal 即中止，不触及后续任务
+    assert calls["restart"] == 0  # 生产路径绝不触发游戏重启
+
+
+def test_fatal_loop_test_mode_restarts_and_collects_blockers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """测试态：fatal 截屏留档→重启云终末地→从头再跑；卡点入汇总；多轮允许不完整跑通。"""
+    monkeypatch.setenv("ISTINA_FATAL_RESTART_LOOP", "1")
+    monkeypatch.setenv("ISTINA_FATAL_MAX_RESTARTS", "2")
+    monkeypatch.setenv("ISTINA_FATAL_MAX_ROUNDS", "2")
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    runtime = MaaEndRuntime()
+    runtime._queue = [{"name": "TaskA"}, {"name": "TaskB"}]
+    state = {"ensure": 0, "restarts": 0, "captured": [], "summary": []}
+
+    def fake_ensure(name: str, idx: int, total: int) -> bool:
+        state["ensure"] += 1
+        return state["ensure"] > 1  # 仅首次连接检查 fatal，其后恢复
+
+    def fake_capture(task: str, reason: str):
+        state["captured"].append((task, reason))
+        return None
+
+    monkeypatch.setattr(runtime, "_ensure_queue_connection", fake_ensure)
+    monkeypatch.setattr(runtime, "_force_restart_to_world",
+                        lambda: (state.__setitem__("restarts", state["restarts"] + 1), True)[1])
+    monkeypatch.setattr(runtime, "_capture_fatal_context", fake_capture)
+    monkeypatch.setattr(runtime, "_write_blocker_summary", lambda blockers: state["summary"].extend(blockers))
+    monkeypatch.setattr(runtime, "run_task", lambda name, options=None: True)
+
+    assert runtime.run_queue() is True
+    # 第 1 轮：TaskA fatal → 重启 → 从头跑通；第 2 轮：完整跑通。
+    assert state["restarts"] == 1
+    assert state["captured"] == [("TaskA", "连接恢复失败（fatal）")]
+    assert state["ensure"] == 5  # 轮1: A(fatal)+A+B，轮2: A+B
+    assert [b["type"] for b in state["summary"]] == ["fatal_connection"]
+    assert state["summary"][0]["task"] == "TaskA"
+
+
+def test_fatal_loop_respects_max_restarts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """测试态：重启次数耗尽仍 fatal 时中止本轮，避免无限重启循环。"""
+    monkeypatch.setenv("ISTINA_FATAL_RESTART_LOOP", "1")
+    monkeypatch.setenv("ISTINA_FATAL_MAX_RESTARTS", "1")
+    monkeypatch.setenv("ISTINA_FATAL_MAX_ROUNDS", "2")
+    from core.service.maa_end.runtime import MaaEndRuntime
+
+    runtime = MaaEndRuntime()
+    runtime._queue = [{"name": "TaskA"}]
+    state = {"restarts": 0}
+    monkeypatch.setattr(runtime, "_ensure_queue_connection", lambda name, idx, total: False)
+    monkeypatch.setattr(runtime, "_force_restart_to_world",
+                        lambda: (state.__setitem__("restarts", state["restarts"] + 1), True)[1])
+    monkeypatch.setattr(runtime, "_capture_fatal_context", lambda task, reason: None)
+    monkeypatch.setattr(runtime, "_write_blocker_summary", lambda blockers: None)
+
+    assert runtime.run_queue() is False
+    # 每轮最多重启 1 次；2 轮共 2 次，不会无限重启。
+    assert state["restarts"] == 2

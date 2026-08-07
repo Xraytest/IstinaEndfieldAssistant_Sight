@@ -1996,22 +1996,82 @@ class MaaEndRuntime:
         """返回当前队列的副本。"""
         return [dict(item) for item in self._queue]
 
+    # ── 测试态 fatal 收集循环（生产默认关闭）──────────────────────
+    # 仅当环境变量 ISTINA_FATAL_RESTART_LOOP=1 时启用：允许不完整跑通循环，
+    # 队列遇 fatal（连接彻底无法恢复）时截屏并保留现场信息到
+    # .tmp/fatal/<时间戳>_<任务>/，然后 force-stop 重启云终末地、从头再跑队列，
+    # 用于收集卡点。该模式仅供测试窗口使用，不得带入生产环节：
+    # 默认（未设环境变量）行为与旧版完全一致（单轮、fatal 即中止）。
+    _FATAL_LOOP_ENV = "ISTINA_FATAL_RESTART_LOOP"
+    _FATAL_MAX_ROUNDS_ENV = "ISTINA_FATAL_MAX_ROUNDS"
+    _FATAL_MAX_RESTARTS_ENV = "ISTINA_FATAL_MAX_RESTARTS"
+
+    def _fatal_test_mode(self) -> bool:
+        return os.environ.get(self._FATAL_LOOP_ENV, "").strip().lower() in ("1", "true", "yes", "on")
+
+    def _fatal_env_int(self, name: str, default: int) -> int:
+        raw = os.environ.get(name, "").strip()
+        if not raw:
+            return default
+        try:
+            value = int(raw)
+        except ValueError:
+            return default
+        return value if value > 0 else default
+
     def run_queue(self) -> bool:
         """执行队列（唯一的可执行单元）。
 
         每个任务执行前进行健康检查（ADB + 截图验证），连接异常时自动恢复。
         单个任务失败不影响后续任务；仅当连接彻底无法恢复时才中止。
+
+        测试态（ISTINA_FATAL_RESTART_LOOP=1）：fatal 时截屏留档并重启云终末地，
+        从头再跑队列收集卡点；允许多轮不完整跑通。生产默认单轮行为不变。
         """
         if not self._queue:
             self.logger.warning(LogCategory.MAIN, "队列为空，无可执行任务")
             return False
-        self.logger.info(LogCategory.MAIN, "开始执行队列", queue_size=len(self._queue))
+        fatal_mode = self._fatal_test_mode()
+        if fatal_mode:
+            self.logger.warning(
+                LogCategory.MAIN,
+                "测试态 fatal 收集循环已启用（仅限测试窗口，非生产行为）",
+            )
+        max_rounds = self._fatal_env_int(self._FATAL_MAX_ROUNDS_ENV, 3) if fatal_mode else 1
+        max_restarts = self._fatal_env_int(self._FATAL_MAX_RESTARTS_ENV, 4) if fatal_mode else 0
+        blockers: List[Dict[str, Any]] = []
+        overall_ok = False
+        for round_idx in range(1, max_rounds + 1):
+            if self._user_stop_event.is_set():
+                break
+            if round_idx > 1:
+                self.logger.warning(LogCategory.MAIN, "测试态：开始新一轮队列（收集卡点）", round=round_idx)
+            overall_ok = self._run_queue_once(round_idx, fatal_mode, max_restarts, blockers)
+            if not fatal_mode:
+                break
+        if fatal_mode:
+            self._write_blocker_summary(blockers)
+        return overall_ok
+
+    def _run_queue_once(
+        self,
+        round_idx: int,
+        fatal_mode: bool,
+        max_restarts: int,
+        blockers: List[Dict[str, Any]],
+    ) -> bool:
+        """单轮队列执行。fatal_mode 下连接不可恢复时截屏留档、重启游戏、从头再跑。"""
+        self.logger.info(LogCategory.MAIN, "开始执行队列", queue_size=len(self._queue), round=round_idx)
         failures: List[str] = []
         total = len(self._queue)
-        for idx, item in enumerate(self._queue):
+        restarts = 0
+        idx = 0
+        while idx < total:
+            item = self._queue[idx]
             name = str(item.get("name") or "").strip()
             options = item.get("options") or {}
             if not name:
+                idx += 1
                 continue
             # 用户主动停止：中止队列
             if self._user_stop_event.is_set():
@@ -2019,6 +2079,25 @@ class MaaEndRuntime:
                 failures.append(name)
                 break
             if not self._ensure_queue_connection(name, idx, total):
+                if fatal_mode and restarts < max_restarts:
+                    # fatal：截屏 + 保留信息 → 重启云终末地 → 从头再跑收集卡点。
+                    blockers.append({
+                        "round": round_idx, "task": name, "index": idx + 1,
+                        "type": "fatal_connection",
+                        "ocr": (getattr(self, "_last_world_ocr_text", "") or "")[:300],
+                    })
+                    self._capture_fatal_context(name, "连接恢复失败（fatal）")
+                    if self._force_restart_to_world():
+                        restarts += 1
+                        idx = 0
+                        failures = []
+                        self.logger.warning(
+                            LogCategory.MAIN,
+                            "测试态 fatal：已重启云终末地，从头再跑队列",
+                            restart=restarts, max_restarts=max_restarts,
+                        )
+                        continue
+                    self.logger.error(LogCategory.MAIN, "测试态 fatal：重启云终末地失败，中止本轮")
                 failures.append(name)
                 break
             # run_task() 统一负责任务前主世界 guard，避免队列路径和直跑路径行为不一致。
@@ -2026,6 +2105,12 @@ class MaaEndRuntime:
             task_ok = self.run_task(name, options)
             if not task_ok:
                 failures.append(name)
+                if fatal_mode:
+                    blockers.append({
+                        "round": round_idx, "task": name, "index": idx + 1,
+                        "type": "task_failed",
+                        "ocr": (getattr(self, "_last_world_ocr_text", "") or "")[:300],
+                    })
                 self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name, failed_index=idx + 1)
                 # 用户主动停止：中止队列（不再继续后续任务）
                 if self._user_stop_event.is_set():
@@ -2034,12 +2119,97 @@ class MaaEndRuntime:
                 if not self._connected:
                     self.logger.warning(LogCategory.MAIN, "任务后连接断开，尝试恢复继续队列")
                     if not self._ensure_queue_connection(name, idx, total):
+                        if fatal_mode and restarts < max_restarts:
+                            blockers.append({
+                                "round": round_idx, "task": name, "index": idx + 1,
+                                "type": "fatal_connection_after_task",
+                                "ocr": (getattr(self, "_last_world_ocr_text", "") or "")[:300],
+                            })
+                            self._capture_fatal_context(name, "任务后连接恢复失败（fatal）")
+                            if self._force_restart_to_world():
+                                restarts += 1
+                                idx = 0
+                                failures = []
+                                self.logger.warning(
+                                    LogCategory.MAIN,
+                                    "测试态 fatal：已重启云终末地，从头再跑队列",
+                                    restart=restarts, max_restarts=max_restarts,
+                                )
+                                continue
                         break
+            idx += 1
         if failures:
             self.logger.warning(LogCategory.MAIN, "队列执行完成但存在失败任务", failed=failures, total=len(failures))
             return False
         self.logger.info(LogCategory.MAIN, "队列执行完成，全部成功", total=total)
         return True
+
+    def _capture_fatal_context(self, task_name: str, reason: str) -> Optional[Path]:
+        """测试态：fatal 现场截屏 + 信息保留到 .tmp/fatal/（不入版本控制）。"""
+        try:
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            dump_dir = _PROJECT_ROOT / ".tmp" / "fatal" / f"{stamp}_{task_name}"
+            dump_dir.mkdir(parents=True, exist_ok=True)
+            info: Dict[str, Any] = {
+                "timestamp": stamp,
+                "task": task_name,
+                "reason": reason,
+                "device": self._device_address,
+                "client_version": self._client_version,
+                "game_package": self._game_package,
+                "last_world_ocr": (getattr(self, "_last_world_ocr_text", "") or "")[:500],
+            }
+            try:
+                if self._connected and self._controller is not None:
+                    job = self._controller.post_screencap()
+                    if self._wait_job(job, timeout_s=float(self._SCREENCAP_TIMEOUT_S)):
+                        img = self._controller.cached_image
+                        if img is not None:
+                            import cv2
+
+                            shot_path = dump_dir / "fatal_screenshot.png"
+                            cv2.imwrite(str(shot_path), img)
+                            info["screenshot"] = str(shot_path)
+            except Exception as exc:
+                info["screenshot_error"] = str(exc)
+            (dump_dir / "fatal_info.json").write_text(
+                json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            self.logger.warning(LogCategory.MAIN, "测试态 fatal 现场已保留", dump_dir=str(dump_dir))
+            return dump_dir
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "测试态 fatal 现场保留失败", error=str(exc))
+            return None
+
+    def _write_blocker_summary(self, blockers: List[Dict[str, Any]]) -> None:
+        """测试态：把本次运行收集的卡点追加到 .tmp/fatal/blockers_summary.json。"""
+        try:
+            summary_path = _PROJECT_ROOT / ".tmp" / "fatal" / "blockers_summary.json"
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            existing: List[Dict[str, Any]] = []
+            if summary_path.exists():
+                try:
+                    loaded = json.loads(summary_path.read_text(encoding="utf-8"))
+                    if isinstance(loaded, list):
+                        existing = [item for item in loaded if isinstance(item, dict)]
+                except Exception:
+                    existing = []
+            session_stamp = time.strftime("%Y%m%d-%H%M%S")
+            for item in blockers:
+                item.setdefault("session", session_stamp)
+            existing.extend(blockers)
+            summary_path.write_text(
+                json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            self.logger.warning(
+                LogCategory.MAIN,
+                "测试态卡点汇总已写入",
+                path=str(summary_path),
+                new_blockers=len(blockers),
+                total=len(existing),
+            )
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "测试态卡点汇总写入失败", error=str(exc))
 
     def _ensure_queue_connection(self, task_name: str, idx: int, total: int) -> bool:
         if self._connected and self._check_adb_health():
@@ -2073,7 +2243,21 @@ class MaaEndRuntime:
     _WORLD_BLOCKING_OCR = frozenset({
         "事务总览", "据点", "联络干员", "物资调度", "仓储节点",
         "自动结束", "知道了", "6095",
+        # 资料页/访客终端：ESC/BACK 均关不掉（页面只有右上 X 关闭按钮），
+        # 列入阻塞词让主世界 guard 显式识别，触发识别驱动的 X 关闭。
+        "权限等阶", "探索等级", "干员展示", "光荣之路", "访客终端",
     })
+
+    # 带右上 X 关闭按钮的页面特征词（好友资料页/访客终端）。VisitFriends 会合法
+    # 进入好友访客终端，其尾部节点失败后若用盲点击/ESC/BACK 恢复，会误触头像等
+    # HUD 按钮或落到资料页——这正是"代码总是意外进入资料"的根因。此类页面必须
+    # OCR 识别后点右上 X 关闭，不做盲操作。
+    _PROFILE_CLOSE_KEYWORDS = ("权限等阶", "探索等级", "干员展示", "光荣之路", "访客终端")
+    # 资料页/访客终端右上 X 关闭按钮实测坐标（与地图视图 X 同区域）。
+    _PROFILE_CLOSE_BUTTON = (1220, 35)
+
+    # 最近一次主世界 guard 的全屏 OCR 文本（供恢复路径做识别驱动决策，避免重复截屏）。
+    _last_world_ocr_text = ""
 
     def _verify_in_world_by_ocr(self) -> bool:
         """Use a lightweight Controller screenshot + OCR world-state guard."""
@@ -2081,7 +2265,9 @@ class MaaEndRuntime:
             return False
         try:
             cap_job = self._controller.post_screencap()
-            if not self._wait_job(cap_job, timeout_s=4.0):
+            # 云游戏网络抖动/宿主 GPU 降级时单帧 screencap 可达 3-6s，
+            # 4s 超时会把仍可恢复的慢帧误判为连接失效；放宽到 8s。
+            if not self._wait_job(cap_job, timeout_s=8.0):
                 return False
             image = self._controller.cached_image
             if image is None:
@@ -2102,6 +2288,9 @@ class MaaEndRuntime:
                         if value:
                             text_parts.append(value)
             text = "".join(text_parts)
+            # 保留最近一次全屏 OCR 文本：恢复路径据此做识别驱动关闭
+            #（如资料页点右上 X），避免盲 ESC/盲点击。
+            self._last_world_ocr_text = text
             required_hit = "探索" in text and ("UID" in text or "1439188325" in text)
             blocked = [word for word in self._WORLD_BLOCKING_OCR if word in text]
             ok = required_hit and not blocked
@@ -2142,6 +2331,25 @@ class MaaEndRuntime:
                 (1187, 36),
             ]
             for _round in range(max_steps):
+                if self._verify_in_world_by_ocr():
+                    return True
+                # 识别驱动关闭：资料页/访客终端只有右上 X 能关（ESC/BACK 无效）。
+                # 盲点候选在主页/无 X 页面会误触头像等 HUD 按钮，把 UI 带进
+                # 资料页——因此命中特征词时只点 X，不参与盲候选轮转。
+                text = getattr(self, "_last_world_ocr_text", "") or ""
+                if any(k in text for k in self._PROFILE_CLOSE_KEYWORDS):
+                    px, py = self._PROFILE_CLOSE_BUTTON
+                    self.logger.info(
+                        LogCategory.MAIN,
+                        "识别到资料页/访客终端，点击右上 X 关闭",
+                        target=(px, py),
+                    )
+                    try:
+                        self._controller.post_click(px, py).wait()
+                    except Exception:
+                        pass
+                    time.sleep(1.0)
+                    continue
                 for (x, y) in close_candidates:
                     if self._verify_in_world_by_ocr():
                         return True
@@ -2225,11 +2433,18 @@ class MaaEndRuntime:
         return self._reconnect_with_retry()
 
     def _reconnect_with_retry(self) -> bool:
-        """带重试的完整重连。模拟器重启后 ADB 可能需要时间恢复。"""
-        for attempt in range(3):
+        """带重试的完整重连。模拟器重启后 ADB 可能需要时间恢复。
+
+        云终末地的 ADB 通道经过串流/转发层，瞬态断连与恢复耗时明显多于本地
+        模拟器；云版本给予更多重试次数与更长等待（宽容云网络抖动），
+        本地版本维持原 3 次短退避。
+        """
+        is_cloud = "cloud" in str(self._game_package or "").lower()
+        attempts = 5 if is_cloud else 3
+        for attempt in range(attempts):
             if attempt > 0:
-                self.logger.info(LogCategory.MAIN, f"完整重连重试 {attempt}/3")
-                time.sleep(3.0 * attempt)
+                self.logger.info(LogCategory.MAIN, f"完整重连重试 {attempt}/{attempts}")
+                time.sleep((5.0 if is_cloud else 3.0) * attempt)
             if self._reconnect():
                 return True
             if not self._check_adb_health():
@@ -2501,6 +2716,11 @@ class MaaEndRuntime:
                     "长时间未使用", "已断开连接",
                     "点击任意位置继续", "點擊任意位置繼續",
                     "开始游戏", "開始遊戲",
+                    # 云串流网络瞬态错误页：点击"重试/重新连接"即可恢复，
+                    # 不应视为 fatal。宽容云网络抖动。
+                    "网络异常", "网络错误", "网络不佳", "网络中断",
+                    "连接中断", "连接已断开", "与服务器的连接",
+                    "重新连接", "重试",
                 ],
                 roi=[0, 0, img.shape[1], img.shape[0]],
                 threshold=0.3,
@@ -2534,6 +2754,9 @@ class MaaEndRuntime:
             popup_button = ""
             for predicate in (
                 lambda t: "知道了" in t,
+                # 云网络错误页的"重试/重新连接"按钮：优先于启动页推进，
+                # 网络恢复后才能进入正常启动链。
+                lambda t: ("重试" in t) or ("重新连接" in t) or ("重连" in t),
                 lambda t: "开始游戏" in t or "開始遊戲" in t,
                 lambda t: "点击任意位置继续" in t or "點擊任意位置繼續" in t,
             ):
@@ -2667,7 +2890,10 @@ class MaaEndRuntime:
             advance_param = JOCR(
                 expected=["开始游戏", "開始遊戲", "(?i)Start\\s*Game",
                           "点击任意位置继续", "點擊任意位置繼續",
-                          "知道了", "知道了"],
+                          "知道了", "知道了",
+                          # 云串流网络瞬态错误页：启动链期间出现时点"重试/重新连接"
+                          # 继续推进，不中断启动（宽容云网络抖动）。
+                          "重新连接", "重试"],
                 roi=[0, 0, cur_img.shape[1], cur_img.shape[0]],
                 threshold=0.5,
             )

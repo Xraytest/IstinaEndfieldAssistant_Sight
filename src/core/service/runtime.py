@@ -4023,10 +4023,11 @@ class IstinaRuntime:
             "//武陵", "//四号谷地", "O.M.V.帝江号",
         )
         marker_keywords = ("自定义标记点上限", "标记1", "标记2", "标记3")
-        # 个人资料页（任务失败/中断遗留）：干员展示卡含 'ENDFIELD' 会使
-        # SceneAnyEnterWorld/CloudWaitLogo 等场景节点误判或空转。BACK 可关闭
-        # （实测），须显式优先处理，不依赖通用 else 分支的偶然命中。
-        profile_keywords = ("权限等阶", "探索等级", "干员展示", "光荣之路")
+        # 个人资料页/访客终端（任务失败/中断遗留）：干员展示卡含 'ENDFIELD' 会使
+        # SceneAnyEnterWorld/CloudWaitLogo 等场景节点误判或空转。此类页面 ESC/BACK
+        # 均不可靠（BACK 可能落到其他子页），右上 X (1220,35) 为实测关闭按钮，
+        # 须显式优先处理，不依赖通用 else 分支的偶然命中。
+        profile_keywords = ("权限等阶", "探索等级", "干员展示", "光荣之路", "访客终端")
         for _ in range(max_rounds):
             if self._is_in_big_world(serial):
                 return True
@@ -4055,8 +4056,9 @@ class IstinaRuntime:
             android = self.android(serial)
             try:
                 if any(any(k in lb for lb in labels) for k in profile_keywords):
-                    # 资料页：BACK 关闭（右上 X 亦可，BACK 更稳）
-                    android.keyevent("KEYCODE_BACK")
+                    # 资料页/访客终端：ESC/BACK 均不可靠，点右上 X 关闭；
+                    # 下一轮 OCR 会重新判定，X 无效时自动落入 else 分支兜底。
+                    android.tap(1220, 35)
                 elif any(any(k in lb for lb in labels) for k in marker_keywords):
                     cancel_elem = next(
                         (e for e in elements if str(e.get("label", "")).strip() == "取消"),
