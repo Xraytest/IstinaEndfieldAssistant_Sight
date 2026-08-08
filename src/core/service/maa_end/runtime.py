@@ -3253,225 +3253,237 @@ class MaaEndRuntime:
         return self._verify_in_world_by_ocr()
 
     def _python_dijiang_rewards(self, options: Dict[str, Any]) -> bool:
-        """DijiangRewards（帝江奖励）Python 后备：进入控制中枢 → 收取产物/线索 → 返回。"""
+        """DijiangRewards（帝江奖励）Python 后备：进入控制中枢 → 收取产物/线索 → 返回。
+
+        验证标准：至少执行了一次收取动作（tap 计数 ≥ 1）且返回主世界成功。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：DijiangRewards")
+        taps = 0
         try:
-            # 打开主菜单 → 进入控制中枢
             self._open_main_menu()
             time.sleep(1.5)
-            # OCR 检测菜单项，点击"控制中枢"或相关入口
-            text = self._ocr_screen_text()
-            if any(k in text for k in ("控制中枢", "Control Nexus")):
-                # 找到菜单项位置：通常在菜单列表中
-                for keyword in ("控制中枢", "Control Nexus"):
-                    if keyword in text:
-                        break
-            # 兜底：直接用 OCR 检测并点击
             self._tap(200, 400)  # 菜单列表区域
             time.sleep(2.0)
-            # 尝试收取产物
-            for _ in range(5):
+            # 尝试收取产物/线索：检测到收取关键词时点击，记录动作
+            for _ in range(8):
                 text = self._ocr_screen_text()
-                if any(k in text for k in ("产物", "Products", "收取")):
+                if any(k in text for k in ("产物", "Products", "线索", "Clues", "收取")):
                     self._tap(640, 400)
-                    time.sleep(1.0)
+                    taps += 1
+                    time.sleep(1.5)
                 else:
                     break
-            # 尝试收取线索
-            for _ in range(5):
-                text = self._ocr_screen_text()
-                if any(k in text for k in ("线索", "Clues", "收取")):
-                    self._tap(640, 400)
-                    time.sleep(1.0)
-                else:
-                    break
-            # 返回主世界
             self._close_menu_and_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：DijiangRewards 完成")
-            return True
+            ok = taps > 0
+            self.logger.info(LogCategory.MAIN, "Python 后备：DijiangRewards", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：DijiangRewards 异常", error=str(exc))
             self._recover_to_world()
             return False
 
     def _python_credit_shopping(self, options: Dict[str, Any]) -> bool:
-        """CreditShoppingN2（信用商店）Python 后备：进入商店 → 扫描/购买 → 返回。"""
+        """CreditShoppingN2（信用商店）Python 后备：进入商店 → 扫描/购买 → 返回。
+
+        验证标准：进入商店页面（OCR 检测到"信用"或"商店"）且执行了购买动作。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：CreditShoppingN2")
+        taps = 0
         try:
-            # 打开主菜单 → 进入商店（与 DeliveryJobs/AutoSell 相同的菜单入口）
             self._open_main_menu()
             time.sleep(1.5)
-            self._tap(200, 350)  # 菜单列表区域（与成功处理器一致）
+            self._tap(200, 350)
             time.sleep(2.0)
-            # 等待商店页面加载（信用/商店/购买 均可）
             if not self._wait_text("信用", timeout_s=10.0) and not self._wait_text("商店", timeout_s=5.0):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：CreditShoppingN2 商店页面未加载")
                 self._close_menu_and_world()
                 return False
-            # 扫描商品并购买（简化：点击可购买物品）
+            # 购买：检测到购买/确认关键词时点击
             for _ in range(10):
                 text = self._ocr_screen_text()
-                if any(k in text for k in ("购买", "Buy", "售罄", "Sold Out")):
+                if any(k in text for k in ("购买", "Buy", "确认购买")):
                     self._tap(640, 400)
-                    time.sleep(1.0)
+                    taps += 1
+                    time.sleep(1.5)
+                elif "售罄" in text or "Sold Out" in text:
+                    break
                 else:
                     break
-            # 返回主世界
             self._close_menu_and_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：CreditShoppingN2 完成")
-            return True
+            ok = taps > 0
+            self.logger.info(LogCategory.MAIN, "Python 后备：CreditShoppingN2", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：CreditShoppingN2 异常", error=str(exc))
             self._recover_to_world()
             return False
 
     def _python_delivery_jobs(self, options: Dict[str, Any]) -> bool:
-        """DeliveryJobs（委托配送）Python 后备：进入地区建设 → 接受委托 → 返回。"""
+        """DeliveryJobs（委托配送）Python 后备：进入地区建设 → 接受委托 → 返回。
+
+        验证标准：进入地区建设页面且执行了接受/查看动作。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：DeliveryJobs")
+        taps = 0
         try:
-            # 打开主菜单 → 进入地区建设
             self._open_main_menu()
             time.sleep(1.5)
-            self._tap(200, 350)  # 地区建设入口
+            self._tap(200, 350)
             time.sleep(2.0)
-            # 等待地区建设页面
             if not self._wait_text("委托", timeout_s=10.0):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：DeliveryJobs 地区建设页面未加载")
                 self._close_menu_and_world()
                 return False
-            # 接受委托任务
             for _ in range(5):
                 text = self._ocr_screen_text()
                 if any(k in text for k in ("接受", "Accept", "查看任务")):
                     self._tap(640, 400)
+                    taps += 1
                     time.sleep(1.0)
                 else:
                     break
-            # 返回主世界
             self._close_menu_and_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：DeliveryJobs 完成")
-            return True
+            ok = taps > 0
+            self.logger.info(LogCategory.MAIN, "Python 后备：DeliveryJobs", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：DeliveryJobs 异常", error=str(exc))
             self._recover_to_world()
             return False
 
     def _python_auto_stock_staple(self, options: Dict[str, Any]) -> bool:
-        """AutoStockStaple（自动采购常备物资）Python 后备：进入地区建设 → 采购物资 → 返回。"""
+        """AutoStockStaple（自动采购常备物资）Python 后备：进入地区建设 → 采购物资 → 返回。
+
+        验证标准：进入采购页面且执行了购买动作。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：AutoStockStaple")
+        taps = 0
         try:
             self._open_main_menu()
             time.sleep(1.5)
-            self._tap(200, 350)  # 地区建设入口
+            self._tap(200, 350)
             time.sleep(2.0)
-            # 等待页面加载（常备/购买/物资 均可识别为已进入）
             if not self._wait_text("购买", timeout_s=10.0) and not self._wait_text("常备", timeout_s=5.0):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：AutoStockStaple 页面未加载")
                 self._close_menu_and_world()
                 return False
-            # 购买物资
             for _ in range(10):
                 text = self._ocr_screen_text()
-                if any(k in text for k in ("购买", "Buy")):
+                if any(k in text for k in ("购买", "Buy", "确认购买")):
                     self._tap(640, 400)
-                    time.sleep(1.0)
+                    taps += 1
+                    time.sleep(1.5)
                 else:
                     break
             self._close_menu_and_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：AutoStockStaple 完成")
-            return True
+            ok = taps > 0
+            self.logger.info(LogCategory.MAIN, "Python 后备：AutoStockStaple", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：AutoStockStaple 异常", error=str(exc))
             self._recover_to_world()
             return False
 
     def _python_auto_sell(self, options: Dict[str, Any]) -> bool:
-        """AutoSell（自动出售）Python 后备：进入地区建设 → 出售物品 → 返回。"""
+        """AutoSell（自动出售）Python 后备：进入地区建设 → 出售物品 → 返回。
+
+        验证标准：进入出售页面且执行了出售/确认动作。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：AutoSell")
+        taps = 0
         try:
             self._open_main_menu()
             time.sleep(1.5)
-            self._tap(200, 350)  # 地区建设入口
+            self._tap(200, 350)
             time.sleep(2.0)
-            # 等待页面加载（出售/物资调度/批量出售 均可）
             if (not self._wait_text("出售", timeout_s=10.0)
                     and not self._wait_text("物资调度", timeout_s=5.0)):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：AutoSell 页面未加载")
                 self._close_menu_and_world()
                 return False
-            # 出售物品
             for _ in range(10):
                 text = self._ocr_screen_text()
-                if any(k in text for k in ("出售", "Sell", "确认")):
+                if any(k in text for k in ("出售", "Sell", "确认", "批量出售")):
                     self._tap(640, 400)
-                    time.sleep(1.0)
+                    taps += 1
+                    time.sleep(1.5)
                 else:
                     break
             self._close_menu_and_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：AutoSell 完成")
-            return True
+            ok = taps > 0
+            self.logger.info(LogCategory.MAIN, "Python 后备：AutoSell", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：AutoSell 异常", error=str(exc))
             self._recover_to_world()
             return False
 
     def _python_environment_monitoring(self, options: Dict[str, Any]) -> bool:
-        """EnvironmentMonitoring（环境监测）Python 后备：进入监测终端 → 扫描 → 完成 → 返回。"""
+        """EnvironmentMonitoring（环境监测）Python 后备：进入监测终端 → 扫描 → 完成 → 返回。
+
+        验证标准：进入监测页面且执行了扫描动作。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring")
+        taps = 0
         try:
             self._open_main_menu()
             time.sleep(1.5)
-            self._tap(200, 500)  # 环境监测入口
+            self._tap(200, 500)
             time.sleep(2.0)
             if not self._wait_text("监测", timeout_s=10.0):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring 页面未加载")
                 self._close_menu_and_world()
                 return False
-            # 扫描监测点
             for _ in range(31):
                 text = self._ocr_screen_text()
                 if any(k in text for k in ("扫描", "Scan", "监测")):
                     self._tap(640, 400)
+                    taps += 1
                     time.sleep(1.0)
                 else:
                     break
             self._close_menu_and_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring 完成")
-            return True
+            ok = taps > 0
+            self.logger.info(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring 异常", error=str(exc))
             self._recover_to_world()
             return False
 
     def _python_daily_rewards(self, options: Dict[str, Any]) -> bool:
-        """DailyRewards（每日奖励）Python 后备：领取邮件/任务/活动奖励 → 返回。"""
+        """DailyRewards（每日奖励）Python 后备：领取邮件/任务/活动奖励 → 返回。
+
+        验证标准：至少执行了一次领取动作。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：DailyRewards")
+        taps = 0
         try:
             self._open_main_menu()
             time.sleep(1.5)
             # 领取邮件奖励
             if self._has_text("邮件") or self._has_text("Mail"):
-                self._tap(200, 200)  # 邮件入口
+                self._tap(200, 200)
                 time.sleep(2.0)
-                # 点击全部收取
                 for _ in range(3):
                     text = self._ocr_screen_text()
                     if any(k in text for k in ("全部收取", "Claim All")):
                         self._tap(640, 500)
+                        taps += 1
                         time.sleep(1.0)
                     else:
                         break
@@ -3479,81 +3491,92 @@ class MaaEndRuntime:
                 time.sleep(1.0)
             # 领取任务奖励
             if self._has_text("任务") or self._has_text("Task"):
-                self._tap(200, 250)  # 任务入口
+                self._tap(200, 250)
                 time.sleep(2.0)
                 for _ in range(3):
                     text = self._ocr_screen_text()
                     if any(k in text for k in ("领取", "Claim")):
                         self._tap(640, 400)
+                        taps += 1
                         time.sleep(1.0)
                     else:
                         break
                 self._send_key_back()
                 time.sleep(1.0)
             self._close_menu_and_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：DailyRewards 完成")
-            return True
+            # DailyRewards 特殊：无邮件/无任务时 taps=0 也算成功（已领取过）
+            ok = True
+            self.logger.info(LogCategory.MAIN, "Python 后备：DailyRewards", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：DailyRewards 异常", error=str(exc))
             self._recover_to_world()
             return False
 
     def _python_seize_delivery_jobs(self, options: Dict[str, Any]) -> bool:
-        """SeizeDeliveryJobs（抢夺委托）Python 后备：进入委托面板 → 抢夺 → 返回。"""
+        """SeizeDeliveryJobs（抢夺委托）Python 后备：进入委托面板 → 抢夺 → 返回。
+
+        验证标准：进入委托页面且执行了抢夺/接取动作。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs")
+        taps = 0
         try:
             self._open_main_menu()
             time.sleep(1.5)
-            self._tap(200, 350)  # 委托入口
+            self._tap(200, 350)
             time.sleep(2.0)
             if not self._wait_text("委托", timeout_s=10.0):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs 页面未加载")
                 self._close_menu_and_world()
                 return False
-            # 抢夺委托
             for _ in range(5):
                 text = self._ocr_screen_text()
                 if any(k in text for k in ("抢夺", "Seize", "接取")):
                     self._tap(640, 400)
+                    taps += 1
                     time.sleep(1.0)
                 else:
                     break
             self._close_menu_and_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs 完成")
-            return True
+            ok = taps > 0
+            self.logger.info(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs 异常", error=str(exc))
             self._recover_to_world()
             return False
 
     def _python_auto_collect(self, options: Dict[str, Any]) -> bool:
-        """AutoCollect（自动采集）Python 后备：打开地图 → 传送到采集点 → 采集 → 返回。"""
+        """AutoCollect（自动采集）Python 后备：打开地图 → 传送到采集点 → 采集 → 返回。
+
+        验证标准：执行了采集动作。
+        """
         if not self._connected:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：AutoCollect")
+        taps = 0
         try:
-            # 打开地图（主世界右上角）
-            self._tap(1200, 30)
+            self._tap(1200, 30)  # 打开地图
             time.sleep(2.0)
-            # 传送到采集点区域
             text = self._ocr_screen_text()
             if any(k in text for k in ("传送", "Teleport")):
                 self._tap(640, 400)
+                taps += 1
                 time.sleep(3.0)
-            # 采集物品
             for _ in range(10):
                 text = self._ocr_screen_text()
                 if any(k in text for k in ("采集", "Collect", "互动")):
                     self._tap(640, 400)
+                    taps += 1
                     time.sleep(1.0)
                 else:
                     break
-            # 返回主世界
             self._recover_to_world()
-            self.logger.info(LogCategory.MAIN, "Python 后备：AutoCollect 完成")
-            return True
+            ok = taps > 0
+            self.logger.info(LogCategory.MAIN, "Python 后备：AutoCollect", taps=taps, ok=ok)
+            return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：AutoCollect 异常", error=str(exc))
             self._recover_to_world()
