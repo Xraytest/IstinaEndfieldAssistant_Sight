@@ -622,3 +622,30 @@ def test_fatal_loop_respects_max_restarts(monkeypatch: pytest.MonkeyPatch) -> No
     assert runtime.run_queue() is False
     # 每轮最多重启 1 次；2 轮共 2 次，不会无限重启。
     assert state["restarts"] == 2
+
+
+# ── Python 级任务后备处理器 ────────────────────────────────────────
+
+def test_python_handler_registry() -> None:
+    """Python 级处理器注册与调用。"""
+    from core.service.maa_end.runtime import MaaEndRuntime
+    runtime = MaaEndRuntime()
+    called = []
+    runtime.register_python_task_handler("TestTask", lambda opts: (called.append(opts), True)[1])
+    assert "TestTask" in runtime._python_task_handlers
+    result = runtime._python_task_handlers["TestTask"]({"key": "value"})
+    assert result is True
+    assert called == [{"key": "value"}]
+
+
+def test_python_handler_registered_on_connect() -> None:
+    """连接成功后自动注册9个后备处理器。"""
+    from core.service.maa_end.runtime import MaaEndRuntime
+    runtime = MaaEndRuntime()
+    runtime._register_python_handlers()
+    expected = {
+        "DijiangRewards", "CreditShoppingN2", "DeliveryJobs",
+        "AutoStockStaple", "AutoSell", "EnvironmentMonitoring",
+        "DailyRewards", "SeizeDeliveryJobs", "AutoCollect",
+    }
+    assert expected.issubset(set(runtime._python_task_handlers.keys()))

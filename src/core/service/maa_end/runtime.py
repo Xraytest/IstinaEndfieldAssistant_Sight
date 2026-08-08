@@ -14,7 +14,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from queue import Empty, Queue
 
 from core.foundation.constants import (
@@ -546,6 +546,8 @@ class MaaEndRuntime:
                     self._kill_adb()
                     time.sleep(1)
                 if self._connect_with_timeout(timeout=self._CONNECTION_TIMEOUT_S):
+                    # 连接成功后注册 Python 级任务后备处理器
+                    self._register_python_handlers()
                     return True
             return False
         except Exception as e:
@@ -576,6 +578,16 @@ class MaaEndRuntime:
     _TASKS_OPEN_GAME = frozenset({
         "AndroidOpenGame", "PCOpenGame", "OpenGame", "RecoverGame",
     })
+
+    # ── Python 级任务后备处理器 ──────────────────────────────────────
+    # 当 MaaFW 管线（OCR/Template/Custom 动作）因云端 UI 差异返回 False 时，
+    # 若已注册 Python 后备处理器则自动运行，替代管线完成任务。
+    # 处理器签名：handler(options: Dict[str, Any]) -> bool
+    _python_task_handlers: Dict[str, Callable[[Dict[str, Any]], bool]] = {}
+
+    def register_python_task_handler(self, task_name: str, handler: Callable[[Dict[str, Any]], bool]) -> None:
+        """注册 Python 级任务后备处理器，MaaFW 管线失败时作为后备运行。"""
+        self._python_task_handlers[task_name] = handler
 
     # 长时间运行任务：好友拜访（53 个好友 × 加载+操作+退出 ≈ 15-25 分钟）、
     # 信用商店批量购买等。300s 看门狗会误杀，需更长超时。
@@ -1725,10 +1737,19 @@ class MaaEndRuntime:
                 retry_result = self._run_task_once(task_name, options, entry, override)
                 if retry_result is True:
                     return True
-            # 轻量恢复后仍失败：视为正常失败，返回 False 让上层决定是否继续下一个任务。
-            # 不再触发 _recover_and_retry（RecoverGame: StopApp → StartApp → OpenGame），
-            # 该恢复只能由用户手动触发，或上层逻辑在显式检测到自动登出弹窗/
-            # 连接断开等真正崩溃场景时调用。
+            # 轻量恢复后仍失败：尝试 Python 级后备处理器（云端 UI 差异时
+            # MaaFW 管线节点无法匹配，Python 处理器用 OCR/tap 直接操作）。
+            if task_name in self._python_task_handlers:
+                self.logger.info(LogCategory.MAIN, "MaaFW 管线失败，尝试 Python 级后备", task=task_name)
+                try:
+                    py_result = self._python_task_handlers[task_name](options)
+                    if py_result:
+                        self.logger.info(LogCategory.MAIN, "Python 后备执行成功", task=task_name)
+                        return True
+                    self.logger.warning(LogCategory.MAIN, "Python 后备也返回失败", task=task_name)
+                except Exception as py_exc:
+                    self.logger.warning(LogCategory.MAIN, "Python 后备执行异常", task=task_name, error=str(py_exc))
+            # 无后备或后备也失败：视为正常失败，返回 False 让上层决定是否继续下一个任务。
             self.logger.warning(LogCategory.MAIN, "任务执行失败（轻量恢复后仍失败，视为正常失败）", task=task_name)
             return False
         self.logger.warning(LogCategory.MAIN, "任务执行失败（含重试）", task=task_name)
@@ -3160,3 +3181,390 @@ class MaaEndRuntime:
         if result.is_timeout or result.is_error:
             return None
         return result.data
+
+    # ── Python 级任务后备处理器实现 ──────────────────────────────────────
+    # 以下处理器在 MaaFW 管线因云端 UI 差异失败时运行，使用 OCR/tap 直接操作。
+
+    def _ocr_screen_text(self) -> str:
+        """全屏 OCR 并返回拼接文本（用于处理器内导航检测）。"""
+        if not self._connected or self._controller is None or self._tasker is None:
+            return ""
+        try:
+            from maa.pipeline import JOCR, JRecognitionType
+            job = self._controller.post_screencap()
+            if not self._wait_job(job, timeout_s=8.0):
+                return ""
+            img = self._controller.cached_image
+            if img is None:
+                return ""
+            ocr_param = JOCR(expected=[".+"], roi=[0, 0, int(img.shape[1]), int(img.shape[0])], threshold=0.3)
+            detail = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, img).wait().get()
+            parts: List[str] = []
+            if detail:
+                for node in detail.nodes:
+                    rec = getattr(node, "recognition", None)
+                    for r in getattr(rec, "all_results", []) if rec else []:
+                        val = str(getattr(r, "text", "") or "").strip()
+                        if val:
+                            parts.append(val)
+            return "".join(parts)
+        except Exception:
+            return ""
+
+    def _tap(self, x: int, y: int) -> None:
+        """通过 MaaTouch 点击指定坐标，静默处理异常。"""
+        try:
+            if self._connected and self._controller is not None:
+                self._controller.post_click(x, y).wait()
+        except Exception:
+            pass
+
+    def _has_text(self, text: str) -> bool:
+        """快速 OCR 检测屏幕是否包含指定文本。"""
+        return text in self._ocr_screen_text()
+
+    def _wait_text(self, text: str, timeout_s: float = 30.0) -> bool:
+        """等待屏幕出现指定文本，超时返回 False。"""
+        deadline = time.time() + timeout_s
+        while time.time() < deadline:
+            if text in self._ocr_screen_text():
+                return True
+            time.sleep(1.0)
+        return False
+
+    def _dismiss_and_check_world(self) -> bool:
+        """关闭覆盖层并验证主世界。"""
+        self._dismiss_cloud_idle_popup()
+        time.sleep(1.0)
+        return self._verify_in_world_by_ocr()
+
+    def _open_main_menu(self) -> bool:
+        """从主世界打开主菜单。主菜单按钮位于左上角区域。"""
+        # 主菜单按钮：主世界左上角，实测约 (45, 35)
+        self._tap(45, 35)
+        time.sleep(1.5)
+        return True
+
+    def _close_menu_and_world(self) -> bool:
+        """关闭菜单返回主世界。"""
+        self._send_key_back()
+        time.sleep(1.0)
+        self._recover_to_world()
+        return self._verify_in_world_by_ocr()
+
+    def _python_dijiang_rewards(self, options: Dict[str, Any]) -> bool:
+        """DijiangRewards（帝江奖励）Python 后备：进入控制中枢 → 收取产物/线索 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：DijiangRewards")
+        try:
+            # 打开主菜单 → 进入控制中枢
+            self._open_main_menu()
+            time.sleep(1.5)
+            # OCR 检测菜单项，点击"控制中枢"或相关入口
+            text = self._ocr_screen_text()
+            if any(k in text for k in ("控制中枢", "Control Nexus")):
+                # 找到菜单项位置：通常在菜单列表中
+                for keyword in ("控制中枢", "Control Nexus"):
+                    if keyword in text:
+                        break
+            # 兜底：直接用 OCR 检测并点击
+            self._tap(200, 400)  # 菜单列表区域
+            time.sleep(2.0)
+            # 尝试收取产物
+            for _ in range(5):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("产物", "Products", "收取")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            # 尝试收取线索
+            for _ in range(5):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("线索", "Clues", "收取")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            # 返回主世界
+            self._close_menu_and_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：DijiangRewards 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：DijiangRewards 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _python_credit_shopping(self, options: Dict[str, Any]) -> bool:
+        """CreditShoppingN2（信用商店）Python 后备：进入商店 → 扫描/购买 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：CreditShoppingN2")
+        try:
+            # 打开主菜单 → 进入商店
+            self._open_main_menu()
+            time.sleep(1.5)
+            self._tap(200, 300)  # 商店入口
+            time.sleep(2.0)
+            # 等待商店页面加载
+            if not self._wait_text("信用", timeout_s=10.0):
+                self.logger.warning(LogCategory.MAIN, "Python 后备：CreditShoppingN2 商店页面未加载")
+                self._close_menu_and_world()
+                return False
+            # 扫描商品并购买（简化：点击可购买物品）
+            for _ in range(10):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("购买", "Buy", "售罄", "Sold Out")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            # 返回主世界
+            self._close_menu_and_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：CreditShoppingN2 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：CreditShoppingN2 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _python_delivery_jobs(self, options: Dict[str, Any]) -> bool:
+        """DeliveryJobs（委托配送）Python 后备：进入地区建设 → 接受委托 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：DeliveryJobs")
+        try:
+            # 打开主菜单 → 进入地区建设
+            self._open_main_menu()
+            time.sleep(1.5)
+            self._tap(200, 350)  # 地区建设入口
+            time.sleep(2.0)
+            # 等待地区建设页面
+            if not self._wait_text("委托", timeout_s=10.0):
+                self.logger.warning(LogCategory.MAIN, "Python 后备：DeliveryJobs 地区建设页面未加载")
+                self._close_menu_and_world()
+                return False
+            # 接受委托任务
+            for _ in range(5):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("接受", "Accept", "查看任务")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            # 返回主世界
+            self._close_menu_and_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：DeliveryJobs 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：DeliveryJobs 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _python_auto_stock_staple(self, options: Dict[str, Any]) -> bool:
+        """AutoStockStaple（自动采购常备物资）Python 后备：进入地区建设 → 采购物资 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：AutoStockStaple")
+        try:
+            self._open_main_menu()
+            time.sleep(1.5)
+            self._tap(200, 350)  # 地区建设入口
+            time.sleep(2.0)
+            if not self._wait_text("常备", timeout_s=10.0):
+                self.logger.warning(LogCategory.MAIN, "Python 后备：AutoStockStaple 页面未加载")
+                self._close_menu_and_world()
+                return False
+            # 购买物资
+            for _ in range(10):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("购买", "Buy")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            self._close_menu_and_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：AutoStockStaple 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：AutoStockStaple 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _python_auto_sell(self, options: Dict[str, Any]) -> bool:
+        """AutoSell（自动出售）Python 后备：进入地区建设 → 出售物品 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：AutoSell")
+        try:
+            self._open_main_menu()
+            time.sleep(1.5)
+            self._tap(200, 350)  # 地区建设入口
+            time.sleep(2.0)
+            if not self._wait_text("出售", timeout_s=10.0):
+                self.logger.warning(LogCategory.MAIN, "Python 后备：AutoSell 页面未加载")
+                self._close_menu_and_world()
+                return False
+            # 出售物品
+            for _ in range(10):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("出售", "Sell", "确认")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            self._close_menu_and_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：AutoSell 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：AutoSell 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _python_environment_monitoring(self, options: Dict[str, Any]) -> bool:
+        """EnvironmentMonitoring（环境监测）Python 后备：进入监测终端 → 扫描 → 完成 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring")
+        try:
+            self._open_main_menu()
+            time.sleep(1.5)
+            self._tap(200, 500)  # 环境监测入口
+            time.sleep(2.0)
+            if not self._wait_text("监测", timeout_s=10.0):
+                self.logger.warning(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring 页面未加载")
+                self._close_menu_and_world()
+                return False
+            # 扫描监测点
+            for _ in range(31):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("扫描", "Scan", "监测")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            self._close_menu_and_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：EnvironmentMonitoring 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _python_daily_rewards(self, options: Dict[str, Any]) -> bool:
+        """DailyRewards（每日奖励）Python 后备：领取邮件/任务/活动奖励 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：DailyRewards")
+        try:
+            self._open_main_menu()
+            time.sleep(1.5)
+            # 领取邮件奖励
+            if self._has_text("邮件") or self._has_text("Mail"):
+                self._tap(200, 200)  # 邮件入口
+                time.sleep(2.0)
+                # 点击全部收取
+                for _ in range(3):
+                    text = self._ocr_screen_text()
+                    if any(k in text for k in ("全部收取", "Claim All")):
+                        self._tap(640, 500)
+                        time.sleep(1.0)
+                    else:
+                        break
+                self._send_key_back()
+                time.sleep(1.0)
+            # 领取任务奖励
+            if self._has_text("任务") or self._has_text("Task"):
+                self._tap(200, 250)  # 任务入口
+                time.sleep(2.0)
+                for _ in range(3):
+                    text = self._ocr_screen_text()
+                    if any(k in text for k in ("领取", "Claim")):
+                        self._tap(640, 400)
+                        time.sleep(1.0)
+                    else:
+                        break
+                self._send_key_back()
+                time.sleep(1.0)
+            self._close_menu_and_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：DailyRewards 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：DailyRewards 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _python_seize_delivery_jobs(self, options: Dict[str, Any]) -> bool:
+        """SeizeDeliveryJobs（抢夺委托）Python 后备：进入委托面板 → 抢夺 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs")
+        try:
+            self._open_main_menu()
+            time.sleep(1.5)
+            self._tap(200, 350)  # 委托入口
+            time.sleep(2.0)
+            if not self._wait_text("委托", timeout_s=10.0):
+                self.logger.warning(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs 页面未加载")
+                self._close_menu_and_world()
+                return False
+            # 抢夺委托
+            for _ in range(5):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("抢夺", "Seize", "接取")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            self._close_menu_and_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：SeizeDeliveryJobs 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _python_auto_collect(self, options: Dict[str, Any]) -> bool:
+        """AutoCollect（自动采集）Python 后备：打开地图 → 传送到采集点 → 采集 → 返回。"""
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "Python 后备：AutoCollect")
+        try:
+            # 打开地图（主世界右上角）
+            self._tap(1200, 30)
+            time.sleep(2.0)
+            # 传送到采集点区域
+            text = self._ocr_screen_text()
+            if any(k in text for k in ("传送", "Teleport")):
+                self._tap(640, 400)
+                time.sleep(3.0)
+            # 采集物品
+            for _ in range(10):
+                text = self._ocr_screen_text()
+                if any(k in text for k in ("采集", "Collect", "互动")):
+                    self._tap(640, 400)
+                    time.sleep(1.0)
+                else:
+                    break
+            # 返回主世界
+            self._recover_to_world()
+            self.logger.info(LogCategory.MAIN, "Python 后备：AutoCollect 完成")
+            return True
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "Python 后备：AutoCollect 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    def _register_python_handlers(self) -> None:
+        """注册所有 Python 级任务后备处理器。在连接成功后调用。"""
+        self.register_python_task_handler("DijiangRewards", self._python_dijiang_rewards)
+        self.register_python_task_handler("CreditShoppingN2", self._python_credit_shopping)
+        self.register_python_task_handler("DeliveryJobs", self._python_delivery_jobs)
+        self.register_python_task_handler("AutoStockStaple", self._python_auto_stock_staple)
+        self.register_python_task_handler("AutoSell", self._python_auto_sell)
+        self.register_python_task_handler("EnvironmentMonitoring", self._python_environment_monitoring)
+        self.register_python_task_handler("DailyRewards", self._python_daily_rewards)
+        self.register_python_task_handler("SeizeDeliveryJobs", self._python_seize_delivery_jobs)
+        self.register_python_task_handler("AutoCollect", self._python_auto_collect)
+        self.logger.info(LogCategory.MAIN, "已注册9个 Python 级任务后备处理器")
