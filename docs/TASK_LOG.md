@@ -3469,3 +3469,12 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **附加实测**: ESC(27) 云端有效、字符键 M/K 无效（云为触摸逻辑）；控制中枢旧模板在帝江号 HUD 可用（开放世界不匹配）；云 idle 断连（深层任务>~5min 触发回登录页）为持续跑批架构性风险。
 - **遗留校准点**: 会客室赠予线索/AutoSell执行/古树拍照(AutoCamera R键不可用)/AutoStockStaple+DailyRewards+SeizeDeliveryJobs入口/DeliveryJobs地区建设子页/AutoCollect路线建立。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`、`tests/test_istina_runtime.py`（b5f9a1a）；`3rd-part/maaend/resource_cloud/pipeline/...`（38个 Alt 键覆盖+SceneMap地图覆盖，本地不入版本控制）；`reports/implementation/2026-08-08-accurate-judgment-alt-map-fixes.md`、`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-08 19:40（主世界判定模板回退元修复，提交 82b2563；单任务复测 6/13 零假阳性）
+
+- **User Request**: "继续"。
+- **元修复（82b2563）**: 云画面稀疏/「探索」字被遮挡时全屏 OCR 缺"探索"→ `_verify_in_world_by_ocr` required_hit 恒 False → 任务前确认链预算耗尽 → **所有任务未开始即判失败**（实测主世界帧 InWorld 模板 0.99 命中、OCR 却缺"探索"）。增加 InWorld 模板回退（与管线自身判定一致），阻塞词存在时不回退。pytest 32/32、ruff 干净。
+- **解锁实测**（单任务）: AutoStockStaple 19:11 OK（菜单→地区建设→切换谷地IV→物资调度→售罄→Done）；CreditShoppingN2 19:14 OK（商店扫描→CanNotToBuy 完成态）。累计通过 6/13（AndroidOpenGame/VisitFriends/SellProduct/AutoStockpile/AutoStockStaple/CreditShoppingN2），零假阳性。
+- **仍失败 7 个（页内深度链）**: DijiangRewards 会客室赠予线索子流程（StartExchange→SelectClues失败→Swipe→Exit 循环）；DeliveryJobs 武陵委托页循环；SeizeDeliveryJobs 仓储节点页循环；DailyRewards 行动手册→升级干员校验；AutoSell 物资调度条目定位失败（`failed to get target rect [AutoSellStockRedistributionItemOpenInRegionalDevelopment]`，ExpressionRecognition 取条目矩形失败）；EnvironmentMonitoring 古树拍照链；AutoCollect 路线建立。
+- **云 idle 断连提示**: 深层页内任务运行超 ~5min 触发云空闲断连回登录页，持续跑批需在任务内维持输入节奏。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`（82b2563）；`docs/TASK_LOG.md`、`reports/implementation/2026-08-08-accurate-judgment-alt-map-fixes.md`（本条记录）

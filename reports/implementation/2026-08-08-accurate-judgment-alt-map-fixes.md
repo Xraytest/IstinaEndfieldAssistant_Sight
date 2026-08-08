@@ -86,3 +86,31 @@ KeyDown/KeyUp 节点使用 Alt(164/18)，云端全部失败，导致入口导航
 - `3rd-part/maaend/resource_cloud/...`（Alt 26 节点覆盖、SceneMap.json 地图覆盖；
   3rd-part 不入版本控制，本地资产）
 - `docs/TASK_LOG.md`、`reports/implementation/2026-08-08-accurate-judgment-alt-map-fixes.md`（本条）
+
+## 追加：主世界判定模板回退（提交 82b2563）—— 元修复解锁多个任务
+
+**根因**：云画面稀疏帧/「探索」字被遮挡时，全屏 OCR 缺"探索"，`_verify_in_world_by_ocr`
+的 required_hit(探索+UID) 恒 False → 任务前确认链预算耗尽 → 所有任务未开始即判失败
+（实测主世界帧 InWorld 模板 0.99 命中、OCR 却缺"探索"，判定矛盾）。
+
+**修复**：主世界判定增加 InWorld 模板回退（ProtosyncMenuButton/RegionalDevelopmentButton，
+与管线自身 InWorld 一致）；阻塞词存在时（资料页/物资调度等覆盖层）不回退。
+
+**单任务复测（世界判定修复后）**：
+
+| 任务 | 结果 | 轨迹证据 |
+|---|---|---|
+| AutoStockStaple | ✅ 19:11 | 菜单→地区建设→切换谷地IV→物资调度→售罄→Done（管线成功节点命中） |
+| CreditShoppingN2 | ✅ 19:14 | 商店→扫描→CanNotToBuy 完成态 |
+| DijiangRewards | ❌ 19:16 | 直达会客室→赠予线索子流程：StartExchange→赠予视图→SelectClues失败→Swipe→Exit 循环（max_hit 耗尽） |
+| DeliveryJobs | ❌ 19:23 | 武陵委托页循环→回退主世界 |
+| SeizeDeliveryJobs | ❌ 19:27 | 仓储节点页循环→回退主世界 |
+| DailyRewards | ❌ 19:30 | 邮件✓→行动手册入口✓→每日任务→升级干员校验（深度页内） |
+| AutoSell | ❌ 19:36 | 物资调度条目定位失败 `failed to get target rect [AutoSellStockRedistributionItemOpenInRegionalDevelopment]`（ExpressionRecognition 取条目矩形失败） |
+| EnvironmentMonitoring | ❌（中断） | 古树拍照链（已知） |
+
+**累计通过**（单任务实测确认）：AndroidOpenGame/VisitFriends/SellProduct/AutoStockpile/
+AutoStockStaple/CreditShoppingN2 = **6/13**（准确判定轮 4/13 → 6/13，且零假阳性）。
+
+**剩余 7 个均为页内深度链**（非 infra/入口）：会客室线索赠予、武陵委托页、仓储节点页、
+行动手册升级校验、物资调度条目定位、古树拍照、AutoCollect 路线建立。
