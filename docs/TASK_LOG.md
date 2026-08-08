@@ -3487,3 +3487,12 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **AutoSell**: `failed to get target rect [AutoSellStockRedistributionItemOpenInRegionalDevelopment]`——And 六链识别（Ticket 模板0.8+锚点OCR）在 Go 动作驱动下取条目矩形失败。
 - **累计 7/13**（新增 DijiangRewards）：AndroidOpenGame/VisitFriends/SellProduct/AutoStockpile/AutoStockStaple/CreditShoppingN2/DijiangRewards 全部实测通过、零伪阳性。
 - **Files Modified**: `3rd-part/maaend/resource_cloud/...`（Dijiang ControlNexus 分发剔除，本地不入库）；`docs/TASK_LOG.md`、`reports/implementation/2026-08-08-accurate-judgment-alt-map-fixes.md`（本条记录）
+
+## 2026-08-08 22:30（完整检查轮：证据校验拦截DijiangRewards假阳，5/13通过零伪阳性，提交 6b6d800）
+
+- **User Request**: "我认为DijiangReward是假阳，完整跑一遍检查"。
+- **假阳确认**: 用户 20:45 三连跑证据——20:47 运行 FastCollectClues 真实点击收取(1136,168)后失败于制造舱；20:50 "OK"运行轨迹仅 `ControlNexus→FinishDijiangRewards`、零收集点击（奖励已被前次收完）→ **空转通过确认**。
+- **修复（6b6d800）**: 新增 `_COLLECTION_EVIDENCE_TASKS`——收取类任务（DijiangRewards）管线报成功后需本次运行 ≥1 次 `DijiangRewardsFastCollect*` 点击证据（来自输入观察队列节点名），否则判未完成；每次 `_run_task_once` 重置。pytest 34/34、ruff 干净。
+- **完整检查轮（21:22-22:29，13任务）**: **5/13 通过零伪阳性**：Android✓(21:23)/VisitFriends✓(21:24)/CreditShoppingN2✓(21:27)/SellProduct✓(21:33)/AutoStockpile✓(21:35)。8 失败：DijiangRewards【证据校验拦截：仅点击打开控制中枢、无收集动作→判未完成】/DeliveryJobs/AutoStockStaple（谷地IV段成功→武陵段切换失败→AnyExit）/AutoSell（execute物资调度条目rect）/EnvironmentMonitoring（拍照链）/DailyRewards（升级干员）/SeizeDeliveryJobs（仓储节点页）/AutoCollect（8min）。
+- **语义变更**: DijiangRewards 当日已收完时如实判失败（无动作即未完成），不再空转通过。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`、`tests/test_istina_runtime.py`（6b6d800）；`docs/TASK_LOG.md`（本条记录）
