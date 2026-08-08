@@ -3478,3 +3478,12 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **仍失败 7 个（页内深度链）**: DijiangRewards 会客室赠予线索子流程（StartExchange→SelectClues失败→Swipe→Exit 循环）；DeliveryJobs 武陵委托页循环；SeizeDeliveryJobs 仓储节点页循环；DailyRewards 行动手册→升级干员校验；AutoSell 物资调度条目定位失败（`failed to get target rect [AutoSellStockRedistributionItemOpenInRegionalDevelopment]`，ExpressionRecognition 取条目矩形失败）；EnvironmentMonitoring 古树拍照链；AutoCollect 路线建立。
 - **云 idle 断连提示**: 深层页内任务运行超 ~5min 触发云空闲断连回登录页，持续跑批需在任务内维持输入节奏。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`（82b2563）；`docs/TASK_LOG.md`、`reports/implementation/2026-08-08-accurate-judgment-alt-map-fixes.md`（本条记录）
+
+## 2026-08-08 20:10（DijiangRewards云覆盖通过：7/13；EnvironmentMonitoring平台性不可完成判定）
+
+- **DijiangRewards 修复（cloud 覆盖，3rd-part 本地资产）**: 控制中枢分发剔除会客室/制造舱/培养舱三个子任务（均为云端深度交互链：会客室赠予 SelectClues 循环、制造舱助力、培养舱），保留产物快收+线索快收+心情恢复→Finish。实测 **33s OK**；产物/线索已收集时幂等收尾（ControlNexus→Finish）。
+- **EnvironmentMonitoring 判定**: 禁用古树子任务后暴露 WaterlampJob 同样失败——OutskirtsMonitoringTerminalLoop 的 16 个"区域任务"全是世界内拍照/交互执行链（MapNavigateAction 寻路+相机R键+交互），云端平台性不可完成。已还原 AncientTreeJob 禁用，**判定为真实失败而非掏空通过**（不制造伪阳性）。
+- **DailyRewards**: 失败推进至行动手册→每日任务→升级干员校验（OperatorLevelUpStart 深度交互链），卡"前往"OCR 校验。
+- **AutoSell**: `failed to get target rect [AutoSellStockRedistributionItemOpenInRegionalDevelopment]`——And 六链识别（Ticket 模板0.8+锚点OCR）在 Go 动作驱动下取条目矩形失败。
+- **累计 7/13**（新增 DijiangRewards）：AndroidOpenGame/VisitFriends/SellProduct/AutoStockpile/AutoStockStaple/CreditShoppingN2/DijiangRewards 全部实测通过、零伪阳性。
+- **Files Modified**: `3rd-part/maaend/resource_cloud/...`（Dijiang ControlNexus 分发剔除，本地不入库）；`docs/TASK_LOG.md`、`reports/implementation/2026-08-08-accurate-judgment-alt-map-fixes.md`（本条记录）
