@@ -311,6 +311,8 @@ class MaaEndRuntime:
         self._tasks_loaded = False
         self._presets_loaded = False
         self._connected = False
+        # 实例级后备处理器注册表（类属性仅为类型声明，避免跨实例泄漏）
+        self._python_task_handlers: Dict[str, Callable[[Dict[str, Any]], bool]] = {}
         # 队列：唯一可执行单元。预设只是任务列表，应用预设 = 用其任务覆盖队列。
         self._queue: List[Dict[str, Any]] = []
         self._load_lock = threading.Lock()  # N11: 保护 load_tasks/load_presets 并发调用
@@ -3583,7 +3585,20 @@ class MaaEndRuntime:
             return False
 
     def _register_python_handlers(self) -> None:
-        """注册所有 Python 级任务后备处理器。在连接成功后调用。"""
+        """注册所有 Python 级任务后备处理器。在连接成功后调用。
+
+        测试态门控（ISTINA_PY_FALLBACK，默认关闭）：后备处理器基于坐标/OCR
+        启发式，无法对"任务是否真正完成"做准确判断，默认不进入生产路径，
+        避免假阳性计入成功（与 ISTINA_FATAL_RESTART_LOOP 同一隔离原则）。
+        任务成败以 MaaFW 管线自身识别验证节点为准；测试期显式
+        ISTINA_PY_FALLBACK=1 才启用后备。
+        """
+        if os.environ.get("ISTINA_PY_FALLBACK", "0") != "1":
+            self.logger.info(
+                LogCategory.MAIN,
+                "Python 后备处理器未启用（ISTINA_PY_FALLBACK 未置 1），任务判定以管线识别验证为准",
+            )
+            return
         self.register_python_task_handler("DijiangRewards", self._python_dijiang_rewards)
         self.register_python_task_handler("CreditShoppingN2", self._python_credit_shopping)
         self.register_python_task_handler("DeliveryJobs", self._python_delivery_jobs)

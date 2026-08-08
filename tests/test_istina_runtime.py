@@ -638,10 +638,14 @@ def test_python_handler_registry() -> None:
     assert called == [{"key": "value"}]
 
 
-def test_python_handler_registered_on_connect() -> None:
-    """连接成功后自动注册9个后备处理器。"""
+def test_python_handler_registered_on_connect(monkeypatch) -> None:
+    """ISTINA_PY_FALLBACK=1 时连接成功后自动注册9个后备处理器；默认不注册。"""
     from core.service.maa_end.runtime import MaaEndRuntime
     runtime = MaaEndRuntime()
+    monkeypatch.delenv("ISTINA_PY_FALLBACK", raising=False)
+    runtime._register_python_handlers()
+    assert runtime._python_task_handlers == {}
+    monkeypatch.setenv("ISTINA_PY_FALLBACK", "1")
     runtime._register_python_handlers()
     expected = {
         "DijiangRewards", "CreditShoppingN2", "DeliveryJobs",
