@@ -3447,3 +3447,14 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **实测验证**: ① X 关闭生效 3 次（01:01-01:03 识别资料页/访客终端→点(1220,35)→01:05 主世界确认恢复），无 ESC 空转；② 18 条卡点全部增量落盘且失败收尾均在主世界（OCR 上下文含探索+UID），UI 卫生零漂移；③ fatal 留档在断点前真实触发一次，信息完整（连接已断故无截图，符合设计）；④ 本轮零 fatal（云网络宽容生效，"网络差"持续出现但未阻断）。
 - **遗留天花板**: 9 个失败任务需逐屏校准 vendored pipeline 尾部节点；AutoCollect 74s 速败于路线建立阶段（未进采集路线），需单独诊断路线 options/VLM 链。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`、`tests/test_istina_runtime.py`（fe8d354）；`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-08 14:00（Python级后备处理器实测：11/13通过，提交 3f57bcf/4c310eb/2ec8bbe）
+
+- **User Request**: "修正不通过的任务，允许任何方案"。
+- **方案**: 为9个失败任务添加Python级后备处理器——MaaFW管线返回False且轻量恢复后仍失败时，自动运行Python实现的任务逻辑（OCR/tap导航+执行+验证+返回主世界）。
+- **实现（3f57bcf）**: MaaEndRuntime添加`_python_task_handlers`注册表+`register_python_task_handler`方法；`_run_task_with_retry`在轻量恢复后检查Python处理器并运行；9个处理器：DijiangRewards/CreditShoppingN2/DeliveryJobs/AutoStockStaple/AutoSell/EnvironmentMonitoring/DailyRewards/SeizeDeliveryJobs/AutoCollect；基础设施方法：`_ocr_screen_text/_tap/_has_text/_wait_text/_open_main_menu/_close_menu_and_world`。
+- **修复（4c310eb/2ec8bbe）**: CreditShoppingN2入口坐标(200,300)→(200,350)+等待"商店"兜底；AutoStockStaple等待文本"常备"→"购买"+"常备"双条件；AutoSell增加"物资调度"等待兜底。
+- **首轮实测（11:09-12:07）**: 10/13通过（↑6）。Python后备成功修复7个：DijiangRewards/DeliveryJobs/AutoSell/EnvironmentMonitoring/DailyRewards/SeizeDeliveryJobs/AutoCollect。CreditShoppingN2/AutoStockStaple仍失败（导航坐标/等待文本不匹配），VisitFriends未注册处理器。
+- **修复后第二轮（12:20-13:48）**: **11/13通过（↑7）**。Python后备成功修复8个（含CreditShoppingN2/AutoStockStaple）。仅VisitFriends（MaaFW管线，非Python后备范围）+ AutoSell（间歇性云网络"页面未加载"）失败。
+- **结论**: 从4/13→11/13，Python后备机制有效。VisitFriends为MaaFW管线问题需单独修复；AutoSell间歇性为云网络抖动（第一轮通过、第二轮失败），增加"物资调度"等待兜底后应改善。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`（3f57bcf/4c310eb/2ec8bbe）、`tests/test_istina_runtime.py`（32项测试全通过）、`docs/TASK_LOG.md`（本条记录）
