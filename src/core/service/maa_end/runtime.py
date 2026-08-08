@@ -313,6 +313,9 @@ class MaaEndRuntime:
         self._connected = False
         # 实例级后备处理器注册表（类属性仅为类型声明，避免跨实例泄漏）
         self._python_task_handlers: Dict[str, Callable[[Dict[str, Any]], bool]] = {}
+        # 本次任务运行观察到的点击节点名列表（防"空转通过"假阳性：收取类任务
+        # 成功判定需至少一次收集点击证据）。每次 _run_task_once 开始时重置。
+        self._task_run_clicks: List[str] = []
         # 队列：唯一可执行单元。预设只是任务列表，应用预设 = 用其任务覆盖队列。
         self._queue: List[Dict[str, Any]] = []
         self._load_lock = threading.Lock()  # N11: 保护 load_tasks/load_presets 并发调用
@@ -591,6 +594,13 @@ class MaaEndRuntime:
         """注册 Python 级任务后备处理器，MaaFW 管线失败时作为后备运行。"""
         self._python_task_handlers[task_name] = handler
 
+    # 收取类任务：管线报成功后仍需本次运行至少一次收集点击证据，否则判为未完成
+    #（防空转通过：如 DijiangRewards 在奖励已被收完时仅 ControlNexus→Finish 零点击
+    # 即返回成功，无法证明本次运行完成了收取）。键=任务名，值=收集节点名前缀。
+    _COLLECTION_EVIDENCE_TASKS: Dict[str, tuple[str, ...]] = {
+        "DijiangRewards": ("DijiangRewardsFastCollect",),
+    }
+
     # 长时间运行任务：好友拜访（53 个好友 × 加载+操作+退出 ≈ 15-25 分钟）、
     # 信用商店批量购买等。300s 看门狗会误杀，需更长超时。
     # DijiangRewards：多子任务（接待室/制造舱/培育舱/线索/情绪恢复/种子提取）串联，实测 8-15 分钟
@@ -811,6 +821,11 @@ class MaaEndRuntime:
         param: Dict[str, Any],
         info: Dict[str, Any],
     ) -> None:
+        # 记录本次任务运行中的点击节点名，供收取类任务成功证据校验（防空转通过）。
+        if action == "Click":
+            node = str((param or {}).get("node", "") or "")
+            if node:
+                self._task_run_clicks.append(node)
         try:
             self._input_observation_queue.put_nowait((controller, action, param, info))
         except Exception:
@@ -1603,7 +1618,22 @@ class MaaEndRuntime:
                 self.logger.error(LogCategory.MAIN, "任务前未确认主世界", task=task_name)
                 return False
         ok = self._run_task_with_retry(task_name, options, entry, override)
-        # 任务返回前排空成功输入事件，避免 CLI 子进程退出时丢失尾部 OCR。
+        # 收取类任务：防"空转通过"假阳性——管线报成功但本次运行无任何收集点击
+        #（如 DijiangRewards 奖励已收完时仅 ControlNexus→Finish 零动作返回成功），
+        # 无法证明本次运行完成了收取，判为未完成。
+        evidence_prefixes = self._COLLECTION_EVIDENCE_TASKS.get(task_name)
+        if ok and evidence_prefixes:
+            observed = [c for c in self._task_run_clicks if c.startswith(evidence_prefixes)]
+            if not observed:
+                self.logger.warning(
+                    LogCategory.MAIN,
+                    "任务成功但本次运行无收集动作证据，判为未完成",
+                    task=task_name,
+                    required_prefix=evidence_prefixes[:1],
+                    try_clicks=self._task_run_clicks[:8],
+                )
+                ok = False
+        # 任务返回前排空成功输入日志，避免 CLI 子进程退出时丢失尾部 OCR。
         observations_ok = self._flush_input_observations(timeout_s=15.0)
         if not observations_ok:
             self.logger.error(LogCategory.MAIN, "任务输入后 OCR 未全部完成", task=task_name)
@@ -1759,6 +1789,8 @@ class MaaEndRuntime:
 
     def _run_task_once(self, task_name: str, options: Dict[str, Any], entry: str, override: Dict[str, Any]) -> Optional[bool]:
         self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
+        # 每次尝试独立清零点击证据：成功判定只认本次尝试的真实动作
+        self._task_run_clicks = []
         watchdog_stop = threading.Event()
         watchdog_thread = threading.Thread(
             target=self._connection_watchdog, args=(task_name, watchdog_stop), daemon=True,

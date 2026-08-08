@@ -653,3 +653,33 @@ def test_python_handler_registered_on_connect(monkeypatch) -> None:
         "DailyRewards", "SeizeDeliveryJobs", "AutoCollect",
     }
     assert expected.issubset(set(runtime._python_task_handlers.keys()))
+
+
+# ── 收取类任务收集动作证据校验（防空转假阳性）──────────────────────
+
+def test_collection_evidence_gating() -> None:
+    """收取类任务成功判定需本次运行至少一次收集点击证据。"""
+    from core.service.maa_end.runtime import MaaEndRuntime
+    runtime = MaaEndRuntime()
+    prefixes = runtime._COLLECTION_EVIDENCE_TASKS["DijiangRewards"]
+    # 有收集点击 → 证据通过
+    runtime._task_run_clicks = [
+        "__ScenePrivateWorldEnterMenuControlNexus",
+        "DijiangRewardsFastCollectClues",
+    ]
+    assert any(c.startswith(prefixes) for c in runtime._task_run_clicks)
+    # 空转（仅导航点击）→ 证据不通过
+    runtime._task_run_clicks = ["__ScenePrivateWorldEnterMenuControlNexus"]
+    assert not any(c.startswith(prefixes) for c in runtime._task_run_clicks)
+
+
+def test_collection_evidence_enqueued() -> None:
+    """Click 输入入队时记录节点名，供证据校验。"""
+    from core.service.maa_end.runtime import MaaEndRuntime
+    runtime = MaaEndRuntime()
+    runtime._task_run_clicks = []
+    runtime._enqueue_input_observation(None, "Click", {"node": "DijiangRewardsFastCollectProduction"}, {})
+    runtime._enqueue_input_observation(None, "Click", {"node": "__ScenePrivateWorldEnterMenuControlNexus"}, {})
+    runtime._enqueue_input_observation(None, "ClickKey", {"node": "__ScenePrivateAnyExit"}, {})
+    assert "DijiangRewardsFastCollectProduction" in runtime._task_run_clicks
+    assert "__ScenePrivateAnyExit" not in runtime._task_run_clicks
