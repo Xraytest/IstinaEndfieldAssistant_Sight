@@ -3302,13 +3302,13 @@ class MaaEndRuntime:
             return False
         self.logger.info(LogCategory.MAIN, "Python 后备：CreditShoppingN2")
         try:
-            # 打开主菜单 → 进入商店
+            # 打开主菜单 → 进入商店（与 DeliveryJobs/AutoSell 相同的菜单入口）
             self._open_main_menu()
             time.sleep(1.5)
-            self._tap(200, 300)  # 商店入口
+            self._tap(200, 350)  # 菜单列表区域（与成功处理器一致）
             time.sleep(2.0)
-            # 等待商店页面加载
-            if not self._wait_text("信用", timeout_s=10.0):
+            # 等待商店页面加载（信用/商店/购买 均可）
+            if not self._wait_text("信用", timeout_s=10.0) and not self._wait_text("商店", timeout_s=5.0):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：CreditShoppingN2 商店页面未加载")
                 self._close_menu_and_world()
                 return False
@@ -3372,7 +3372,8 @@ class MaaEndRuntime:
             time.sleep(1.5)
             self._tap(200, 350)  # 地区建设入口
             time.sleep(2.0)
-            if not self._wait_text("常备", timeout_s=10.0):
+            # 等待页面加载（常备/购买/物资 均可识别为已进入）
+            if not self._wait_text("购买", timeout_s=10.0) and not self._wait_text("常备", timeout_s=5.0):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：AutoStockStaple 页面未加载")
                 self._close_menu_and_world()
                 return False
