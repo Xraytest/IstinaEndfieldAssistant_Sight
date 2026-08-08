@@ -3403,7 +3403,9 @@ class MaaEndRuntime:
             time.sleep(1.5)
             self._tap(200, 350)  # 地区建设入口
             time.sleep(2.0)
-            if not self._wait_text("出售", timeout_s=10.0):
+            # 等待页面加载（出售/物资调度/批量出售 均可）
+            if (not self._wait_text("出售", timeout_s=10.0)
+                    and not self._wait_text("物资调度", timeout_s=5.0)):
                 self.logger.warning(LogCategory.MAIN, "Python 后备：AutoSell 页面未加载")
                 self._close_menu_and_world()
                 return False
