@@ -3458,3 +3458,14 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **修复后第二轮（12:20-13:48）**: **11/13通过（↑7）**。Python后备成功修复8个（含CreditShoppingN2/AutoStockStaple）。仅VisitFriends（MaaFW管线，非Python后备范围）+ AutoSell（间歇性云网络"页面未加载"）失败。
 - **结论**: 从4/13→11/13，Python后备机制有效。VisitFriends为MaaFW管线问题需单独修复；AutoSell间歇性为云网络抖动（第一轮通过、第二轮失败），增加"物资调度"等待兜底后应改善。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`（3f57bcf/4c310eb/2ec8bbe）、`tests/test_istina_runtime.py`（32项测试全通过）、`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-08 18:30（准确判定机制 + Alt键/地图打开根因修复，提交 b5f9a1a）
+
+- **User Request**: "你是如何确定任务正确工作的"→"完成准确判断后重跑测试"→"你来分析解决"。
+- **准确判定落地（b5f9a1a）**: 上轮"11/13"含假阳性（Python 后备基于盲坐标+OCR 启发式，返回 True 只是没抛异常）。本轮将 `_python_task_handlers` 门控于 `ISTINA_PY_FALLBACK=1`（默认关闭，测试态隔离），任务成败=管线识别验证；注册表改实例属性修跨实例泄漏。pytest 32/32。
+- **根因1·Alt键**: 实测 MaaFW `AdbShellInput not supports [key=164]`，26 个 Alt(164/18) KeyDown/KeyUp 节点云端全失败。resource_cloud 原位覆盖为 DoNothing（保留 next 链），AutoAltClickAction 退化为普通点击。收益：VisitFriends 本轮首过（此前多轮连败）。
+- **根因2·地图打开**: `__ScenePrivateWorldEnterMapAny` 基包点击 InWorld 盒无法开图，M键(77)云端无效。覆盖为点击小地图(135,115,10,10)→实测开图成功。
+- **准确判定轮（17:20，13任务）**: **4/13✓**（AndroidOpenGame/VisitFriends/SellProduct/AutoStockpile），9 失败全收尾回主世界、零假阳性。DijiangRewards 复测：地图→传送帝江→进控制中枢→产物✓线索✓→会客室赠予线索子流程停滞；CreditShoppingN2 商店页内逻辑全通，卡在 NeedCredit 帝江链。
+- **附加实测**: ESC(27) 云端有效、字符键 M/K 无效（云为触摸逻辑）；控制中枢旧模板在帝江号 HUD 可用（开放世界不匹配）；云 idle 断连（深层任务>~5min 触发回登录页）为持续跑批架构性风险。
+- **遗留校准点**: 会客室赠予线索/AutoSell执行/古树拍照(AutoCamera R键不可用)/AutoStockStaple+DailyRewards+SeizeDeliveryJobs入口/DeliveryJobs地区建设子页/AutoCollect路线建立。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`、`tests/test_istina_runtime.py`（b5f9a1a）；`3rd-part/maaend/resource_cloud/pipeline/...`（38个 Alt 键覆盖+SceneMap地图覆盖，本地不入版本控制）；`reports/implementation/2026-08-08-accurate-judgment-alt-map-fixes.md`、`docs/TASK_LOG.md`（本条记录）
