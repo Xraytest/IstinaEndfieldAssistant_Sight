@@ -2321,11 +2321,41 @@ class MaaEndRuntime:
             required_hit = "探索" in text and ("UID" in text or "1439188325" in text)
             blocked = [word for word in self._WORLD_BLOCKING_OCR if word in text]
             ok = required_hit and not blocked
+            # 云画面稀疏/「探索」字被遮挡时 OCR 关键词不稳定（实测主世界帧 OCR
+            # 缺"探索"导致误判），回退 InWorld 模板（ProtosyncMenuButton /
+            # RegionalDevelopmentButton，实测 0.99 命中），与管线自身 InWorld 判定
+            # 一致。阻塞词存在时（资料页/物资调度等覆盖层）不做回退。
+            template_hit = False
+            if not ok and not blocked:
+                try:
+                    from maa.pipeline import JTemplateMatch
+                    for templates, roi, thr, gmask in (
+                        (["Common/Button/ProtosyncMenuButton.png"], (-200, 0, 200, 200), 0.8, True),
+                        (["Common/Button/RegionalDevelopmentButton.png", "Common/Button/RegionalDevelopmentButton1.png"], (164, 8, 232, 84), 0.8, False),
+                    ):
+                        t_param = JTemplateMatch(template=templates, roi=roi, threshold=[thr], green_mask=gmask)
+                        t_detail = self._tasker.post_recognition(JRecognitionType.TemplateMatch, t_param, image).wait().get()
+                        if t_detail and getattr(t_detail, "nodes", None):
+                            for node in t_detail.nodes:
+                                rec = getattr(node, "recognition", None)
+                                for r in (getattr(rec, "all_results", []) if rec else []):
+                                    if float(getattr(r, "score", 0.0)) >= thr and len(getattr(r, "box", [])) == 4:
+                                        template_hit = True
+                                        break
+                                if template_hit:
+                                    break
+                        if template_hit:
+                            break
+                except Exception:
+                    template_hit = False
+                if template_hit:
+                    ok = True
             self.logger.info(
                 LogCategory.MAIN,
                 "任务边界主世界 OCR",
                 ok=ok,
                 required_hit=required_hit,
+                template_hit=template_hit,
                 blocked=blocked,
                 ocr=text[:300],
             )
