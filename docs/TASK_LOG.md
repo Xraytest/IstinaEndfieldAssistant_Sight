@@ -3496,3 +3496,11 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **完整检查轮（21:22-22:29，13任务）**: **5/13 通过零伪阳性**：Android✓(21:23)/VisitFriends✓(21:24)/CreditShoppingN2✓(21:27)/SellProduct✓(21:33)/AutoStockpile✓(21:35)。8 失败：DijiangRewards【证据校验拦截：仅点击打开控制中枢、无收集动作→判未完成】/DeliveryJobs/AutoStockStaple（谷地IV段成功→武陵段切换失败→AnyExit）/AutoSell（execute物资调度条目rect）/EnvironmentMonitoring（拍照链）/DailyRewards（升级干员）/SeizeDeliveryJobs（仓储节点页）/AutoCollect（8min）。
 - **语义变更**: DijiangRewards 当日已收完时如实判失败（无动作即未完成），不再空转通过。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`、`tests/test_istina_runtime.py`（6b6d800）；`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-08 23:05（通过任务深度核验 + 误判复盘报告，提交 7f1a3b0）
+
+- **User Request**: "深度检查成功的那些，并总结性的写当初误判的原因"。
+- **深度核验（完整检查轮5个通过）**: AndroidOpenGame🟢强（启动链+主世界后置）；CreditShoppingN2🟢中强（ScanItem 真实点击+CanNotToBuy 终态识别）；AutoStockpile🟡中（弹性需求/市场切换真实点击+Go 决策识别→Skip→Done 合法空态）；VisitFriends🟡中（**无拜访动作25s**，成功=计数归零判定：实测 AssistCountIcon 0.998/ClueExchangeCountIcon 0.998 真实存在于好友列表页，线索交换=0 为真实识别，但助力计数可被 AssistFullInit DirectHit 化）；SellProduct🔴弱（注册链 1-6 全 DirectHit 无条件+扫描 DirectHit，售卖点页面识别零命中→**结构性空转**）。
+- **误判复盘（当初"11/13"）**: ① 主因 Python 后备处理器假阳（盲坐标启发式返回 True 无动作验证）→ ISTINA_PY_FALLBACK 门控根治；② DijiangRewards Finish 无动作绑定空转（20:50 实锤）→ _COLLECTION_EVIDENCE_TASKS 证据校验根治；③ 主世界 OCR 判定云画面稀疏误杀调度 → InWorld 模板回退根治；④ 统计口径把"管线自报成功"当真实完成；⑤ vendored 管线尾部节点云端不匹配（7 个页内深度链）。
+- **下一步**: 证据校验推广到动作型任务（SellProduct 要求售卖点页面命中或 Go 注册日志；VisitFriends 要求进船动作或归零留档）。
+- **Files Modified**: `reports/implementation/2026-08-08-deep-audit-of-passes-and-misjudgment-postmortem.md`（新增）、`docs/TASK_LOG.md`（本条记录）
