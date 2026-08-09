@@ -3511,3 +3511,9 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **定性（结构性不可修/需VLM或模板）**: DailyRewards 领取环节（"可领取"OCR）、SellProduct 站点环节（据点卡片文字）、EnvironmentMonitoring 拍照链（世界内交互）、AutoSell 条目rect（六链OCR）——云 OCR 模型对特定页面小字失效为共性根因。
 - **可修线索**: AutoStockStaple 武陵段（区域切换时序，谷地IV段已成功跑通）；区域tab"武陵"大字OCR可读。
 - 证据文件: .tmp/ 截图（dt_manual.png/dt_daily.png/sp_outpost_center.png）。
+
+## 2026-08-09 12:30（AutoStockStaple 实测通过+证据链；武陵段区域切换时序问题记录）
+
+- **实测（11:48 single-task）**: AutoStockStaple OK 102.9s，完整真实轨迹 地区建设→SelectRegionValleyIV→ChangeConfirm→物资调度→Swipe→SoldOut→StapleDone，输入点击 6 次（菜单/切区/进物资/扫描）全真实。
+- **21:39 队列轮失败原因**: 队列 options 武陵段启用时从谷地物资子页直接切武陵——`WulingEnterTargetStockRedistribution`需 InRegionalDevelopmentWuling（地区建设主页状态），子页状态下不中→退链回世界。属区域切换时序问题，当前 options 只跑武陵段可绕过。
+- Files: runtime 证据校验已生效（本任务无收集型前缀，凭真实点击通过）。
