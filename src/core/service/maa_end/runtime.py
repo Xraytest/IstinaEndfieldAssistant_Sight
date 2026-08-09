@@ -634,14 +634,16 @@ class MaaEndRuntime:
         # user_rotation=1 强制系统横屏，使 screencap 输出与 pipeline 预期一致。
         self._force_landscape_rotation()
         self._resource = Resource()
-        # ★ 触控通道：优先 Maatouch（高速 socket 协议），回退到 Minitouch/AdbShell。
-        # 在云终末地等精简 Android 环境中 Maatouch 二进制可能无法部署，此时 MaaFW
-        # 自动按优先级（Maatouch > MinitouchAndAdbKey > AdbShell）选择可用方案。
-        # AdbShell (input keyevent/tap) 延迟较高但可用，比完全无触控好。
+        # ★ 触控通道：显式 Minitouch（+AdbShell 兜底）。
+        # INPUT-CHANNEL-FIX 实证（2026-08-09）：MaaFW 自带 maatouch 包为 APK/ZIP
+        # （不可直接执行），Default 优先级 Maatouch 部署失败后自动降级 AdbShell，
+        # 而云游戏客户端忽略 adb shell input tap——全部点击静默无效（"操作未传递"）。
+        # 强制 MinitouchAndAdbKey：Minitouch ELF（x86_64 匹配 MuMu 设备）注入的触摸
+        # 被云客户端真实接收（实测断连弹窗"知道了"点击后进入云登录页）。
         input_methods = int(
-            MaaAdbInputMethodEnum.Default
+            MaaAdbInputMethodEnum.MinitouchAndAdbKey | MaaAdbInputMethodEnum.AdbShell
             if MaaAdbInputMethodEnum
-            else (4 | 2 | 1)  # Maatouch | Minitouch | AdbShell
+            else (2 | 1)  # Minitouch | AdbShell
         )
         # ★ 截图通道：EncodeToFileAndPull(1) = screencap -p >文件后拉取。
         # MuMu 等精简 Android 模拟器上 exec-out(RawWithGzip/Encode) 返回 0 字节，
