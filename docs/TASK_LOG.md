@@ -3517,3 +3517,10 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **实测（11:48 single-task）**: AutoStockStaple OK 102.9s，完整真实轨迹 地区建设→SelectRegionValleyIV→ChangeConfirm→物资调度→Swipe→SoldOut→StapleDone，输入点击 6 次（菜单/切区/进物资/扫描）全真实。
 - **21:39 队列轮失败原因**: 队列 options 武陵段启用时从谷地物资子页直接切武陵——`WulingEnterTargetStockRedistribution`需 InRegionalDevelopmentWuling（地区建设主页状态），子页状态下不中→退链回世界。属区域切换时序问题，当前 options 只跑武陵段可绕过。
 - Files: runtime 证据校验已生效（本任务无收集型前缀，凭真实点击通过）。
+
+## 2026-08-09 13:00（SeizeDeliveryJobs 进页判定修复+列表入口过时定位；resource_cloud/image 覆盖机制实证）
+
+- **模板覆盖机制实证**: 创建 resource_cloud/image/SeizeDeliveryJobs/DepotNodePage/InWulingDepotNode.png（云端仓储页 ROI [970,10,270,180] 裁剪）→ 探针命中 1.0 → 任务轨迹 `__SeizeDeliveryJobsInWulingDepotNode` **首次命中**（此前从未出现）。resource_cloud 图像覆盖语义成立。
+- **剩余卡点**: `__SeizeDeliveryJobsInJobList` 未命中——`JobListTab`（运送委托列表标签页模板 ROI [170,10,180,180]）位置过时：云端仓储页全量 OCR 无"运送委托"文本（仅有 本地仓储节点/武陵城区/查看位置/装箱设备已就绪/货物装箱），base 标签位置假设已失效。需人工确认云端列表入口或改识别（成本高，暂缓）。
+- **AutoStockStaple**: 11:48 单任务实测 OK 102.9s（6 次真实点击证据），队列武陵段时序问题已记录。
+- Files: `3rd-part/maaend/resource_cloud/image/SeizeDeliveryJobs/DepotNodePage/InWulingDepotNode.png`（本地覆盖）；`docs/TASK_LOG.md`（本条记录）
