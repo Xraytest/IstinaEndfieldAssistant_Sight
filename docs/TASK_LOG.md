@@ -3504,3 +3504,10 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **误判复盘（当初"11/13"）**: ① 主因 Python 后备处理器假阳（盲坐标启发式返回 True 无动作验证）→ ISTINA_PY_FALLBACK 门控根治；② DijiangRewards Finish 无动作绑定空转（20:50 实锤）→ _COLLECTION_EVIDENCE_TASKS 证据校验根治；③ 主世界 OCR 判定云画面稀疏误杀调度 → InWorld 模板回退根治；④ 统计口径把"管线自报成功"当真实完成；⑤ vendored 管线尾部节点云端不匹配（7 个页内深度链）。
 - **下一步**: 证据校验推广到动作型任务（SellProduct 要求售卖点页面命中或 Go 注册日志；VisitFriends 要求进船动作或归零留档）。
 - **Files Modified**: `reports/implementation/2026-08-08-deep-audit-of-passes-and-misjudgment-postmortem.md`（新增）、`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-09 12:00（OCR阈值假设证伪+平台性限制定性，SellProduct/DailyRewards页内文字云OCR结构失效）
+
+- **实测（行动手册日常任务页，0.8 vs 0.3 阈值对比）**: 两阈值识别结果完全一致（46项），"前往/可领取/干员等级/Claim" 均不可识别——**阈值不是失败原因，云OCR模型对日常任务页文字结构性失效**（据点管理页中央卡片同理）。
+- **定性（结构性不可修/需VLM或模板）**: DailyRewards 领取环节（"可领取"OCR）、SellProduct 站点环节（据点卡片文字）、EnvironmentMonitoring 拍照链（世界内交互）、AutoSell 条目rect（六链OCR）——云 OCR 模型对特定页面小字失效为共性根因。
+- **可修线索**: AutoStockStaple 武陵段（区域切换时序，谷地IV段已成功跑通）；区域tab"武陵"大字OCR可读。
+- 证据文件: .tmp/ 截图（dt_manual.png/dt_daily.png/sp_outpost_center.png）。
