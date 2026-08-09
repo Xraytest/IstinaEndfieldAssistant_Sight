@@ -3530,3 +3530,11 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **实测**: DeliveryJobs 本次 417.9s 失败，轨迹同前（WulingLoop SubTask 内部失败）。日志 `TemplateMatcher template_match __YellowConfigmButtonType1Icon`（节点名，非文件缺失——模板文件 YellowConfirmButtonType1.png 存在）。
 - **新卡点**: `YellowConfirmButtonType1` 图标模板（通用确认按钮，And[背景框+图标] 阈值0.9）云端 0.9 不匹配 → 所有依赖黄色确认按钮的弹窗（接受委托确认等）失败。影响面广（通用组件）。
 - **本轮进度小结**: DepositNode 模板覆盖生效（Seize 进页判定首命中、Delivery 走更深）；新通用卡点记录；AutoStockStaple OK 实证。
+
+## 2026-08-09 14:10（修链轮收尾：AutoStockStaple实证通过+仓储城区委托结构性差异定性）
+
+- **AutoStockStaple** ✅ 11:48 实测 OK 102.9s（6真实点击：菜单/切谷地/进物资/扫描），SoldOut→Done 真实判定。
+- **SeizeDeliveryJobs**：进仓储页模板覆盖生效（InWulingDepotNode 首命中），但`__SeizeDeliveryJobsInJobList`不中——托运委托列表标签（JobListTab ROI [170,10,180,180]）云端无该标签；仓储页全 OCR 无"运送委托/查看任务"字样。
+- **DeliveryJobs**：进仓储页后 `WulingCityDeliveryJob` 需 OCR"查看任务"按钮（ROI [28,510,220,62] 定向 OCR 仅">>>装箱设备"）——**云端仓储页无该按钮**，"货物装箱"为现有入口。城区委托入口结构性缺失（base 假设的 UI 已改版），强行映射误操作风险高，记录不映射。
+- **Yellow 确认按钮**: icon 阈值 0.9→0.75 云覆盖已实施（缓存待下次跑验证）。
+- **结构性清单（云 OCR/UI 差异，需手动或 VLM）**: SellProduct 站点文字/Drive（.网 页 OCR 失效）、EnvMonitor 世界交互、AutoSell 条目 rect、DeliveryJobs/SeizeDeliveryJobs 城区委托入口缺失。
