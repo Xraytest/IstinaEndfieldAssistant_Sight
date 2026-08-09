@@ -3549,3 +3549,16 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   3. `_tap` 点击失败不再静默吞异常（记录 warning）
 - **验证**: pytest 34/34、ruff 干净。实机验证待设备重启后（用户已停止全部进程）。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`（0240a8f）；`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-09 15:30（输入链路根因实证闭环：MaaTouch包为APK→默认降级AdbShell→云客户端忽略；Minitouch显式修复+全链路实测OK，提交356a72f）
+
+- **User Request**: "你来启动，相关数据本地有"（延续"操作未传递到设备"检查）。
+- **启动**: MuMuNxMain.exe 启动成功；adb connect 127.0.0.1:16416 上线。
+- **根因实证链**:
+  1. MaaFW 自带 maatouch 包实为 APK/ZIP（PK头+classes.dex），非可执行二进制 → Default 优先级 Maatouch 部署必然失败
+  2. 降级 AdbShell：云客户端**忽略 adb shell input tap**（实测 post_click 与 input tap 均画面不变）
+  3. Minitouch ELF（x86_64 匹配 MuMu 架构，接管 Xiaomi Touchscreen 720x1280/32触点）注入 → **云客户端真实接收**：断连弹窗"知道了"(638,433) 点击后画面进入云登录页（决定性实证 BEFORE/AFTER OCR）
+- **修复**: input_methods 从 Default 改显式 `MinitouchAndAdbKey | AdbShell`
+- **实测**: AndroidOpenGame OK 306.8s（新通道打通云登录页→主世界，首次启动曾 FAIL）
+- 另注意: 云 idle 断连弹窗与"自动登出"弹窗**忽略 MaaTouch 触控**的旧注释——需复核是否适用 Minitouch（本次"知道了"点击有效说明仍可点）。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`（356a72f）；`docs/TASK_LOG.md`（本条记录）
