@@ -3538,3 +3538,14 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **DeliveryJobs**：进仓储页后 `WulingCityDeliveryJob` 需 OCR"查看任务"按钮（ROI [28,510,220,62] 定向 OCR 仅">>>装箱设备"）——**云端仓储页无该按钮**，"货物装箱"为现有入口。城区委托入口结构性缺失（base 假设的 UI 已改版），强行映射误操作风险高，记录不映射。
 - **Yellow 确认按钮**: icon 阈值 0.9→0.75 云覆盖已实施（缓存待下次跑验证）。
 - **结构性清单（云 OCR/UI 差异，需手动或 VLM）**: SellProduct 站点文字/Drive（.网 页 OCR 失效）、EnvMonitor 世界交互、AutoSell 条目 rect、DeliveryJobs/SeizeDeliveryJobs 城区委托入口缺失。
+
+## 2026-08-09 21:00（输入链路审计+修复：'操作未传递到设备'根因=连接降级'仅截图无触控'，提交 0240a8f）
+
+- **User Request**: "事实上没有操作正确传递到设备，检查链路（当前我已经停止全部进程）"。
+- **审计证据链**: ① `adb devices` 空（用户停进程后）——但根因不在此；② 日志实证 00:20/00:26/15:24 多次 `ADB 控制器连接报告失败（输入通道不可用），尝试降级连接`；③ 代码 site（_connect_once 660-669）：输入通道初始化失败时若截图可用则"控制器降级连接成功（仅截图，无触控）"**继续运行**——后续全部点击静默无效、任务空跑但轨迹/OCR 照常（与用户观察完全吻合）。
+- **修复（0240a8f）**:
+  1. `_connect_once` 拒绝降级继续（输入通道不可用 = 显式失败，由上层重连）
+  2. `run_task` 前置 `_ensure_input_channel()` 探针：post_click(2,2) 验证 job.succeeded，失败先 `_quick_reconnect_adb` 重连再重探，仍失败拒绝执行
+  3. `_tap` 点击失败不再静默吞异常（记录 warning）
+- **验证**: pytest 34/34、ruff 干净。实机验证待设备重启后（用户已停止全部进程）。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`（0240a8f）；`docs/TASK_LOG.md`（本条记录）
