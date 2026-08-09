@@ -1074,6 +1074,22 @@ class IstinaRuntime:
                 min_required=self._IN_WORLD_OCR_MIN_HITS,
             )
             return True
+        # WORLD-TEMPLATE-FALLBACK: 云画面稀疏帧 OCR 只识别出 UID 等少量文字时
+        # （AutoCollect 3h 死循环实证），回退管线自身 InWorld 模板判定
+        # （ProtosyncMenuButton/RegionalDevelopmentButton，与 MaaEndRuntime
+        # 主世界判定一致），避免"已在主世界却被 OCR 判失败→反复重启游戏"。
+        try:
+            maaend = self.maaend(serial)
+            if maaend is not None and getattr(maaend, "connected", False):
+                in_world = maaend.run_pipeline("InWorld", {}, timeout_s=5.0)
+                if in_world:
+                    self._logger.info(
+                        LogCategory.MAIN, "OCR 备用判据不足，InWorld 模板回退确认已在大世界",
+                        matched=matched, hit_count=len(matched),
+                    )
+                    return True
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "InWorld 模板回退异常", error=str(exc))
         self._logger.warning(
             LogCategory.MAIN, "OCR 备用判据未匹配足够大世界特征文字",
             matched=matched, hit_count=len(matched),
