@@ -3562,3 +3562,10 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **实测**: AndroidOpenGame OK 306.8s（新通道打通云登录页→主世界，首次启动曾 FAIL）
 - 另注意: 云 idle 断连弹窗与"自动登出"弹窗**忽略 MaaTouch 触控**的旧注释——需复核是否适用 Minitouch（本次"知道了"点击有效说明仍可点）。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`（356a72f）；`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-09 16:00（输入通道修复实测影响：Seize导航加深+AutoSell真实执行9轮售卖循环）
+
+- **push 恢复**: 网络波动后 `7e16bda` 已推送（含输入链路闭环文档）。
+- **SeizeDeliveryJobs 复测（15:1x）**: 轨迹大幅加深——区域切换→确认→**进仓储节点页**（DepotNodeSuccess+InWulingDepotNode 命中），卡点收敛到委托列表入口缺失（结构性 UI 差异，非输入问题）。
+- **AutoSell 复测（15:18-15:41, 1399.9s FAIL）**: 动作统计显示**真实执行 9 轮售卖循环**：StockRedistributionItemOpen×9（此前直接 failed to get target rect）→FriendsPricesOpen×9→ExpectedBuySlide/Click（真实售卖动作）→SceneNoticeRewardsConfirm。失败环节收敛到页内（预期购买价判定/确认）。
+- 结论：输入通道修复将此前"操作未传递"导致的大量假性失败（rect 无法执行/导航走不通）翻转为真实执行，剩余失败均为页内逻辑。
