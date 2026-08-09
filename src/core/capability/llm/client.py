@@ -358,9 +358,10 @@ class LlmClient:
                 except Exception:
                     pass
                 if exc.code in (429, 502, 503, 504, 520) and attempt < max_retries:
-                    # 429=TPM 限流：端点允许无间隔立即重试（通道轮换快），不退避；
-                    # 网关错误(502/503/504/520)仍线性退避。
-                    delay = 0.0 if exc.code == 429 else 1.5 * (attempt + 1)
+                    # 429=TPM/通道过载：实测 open.cherryin.ai 持续 429（all channels
+                    # overloaded）时立即重试无效（AutoCollect VLM 每步连续失败），
+                    # 改指数退避等待限流窗口恢复；网关错误(502/503/504/520)线性退避。
+                    delay = (2 ** attempt) if exc.code == 429 else 1.5 * (attempt + 1)
                     self._logger.warning(
                         "[%s] LLM HTTP %d, retrying %d/%d",
                         LogCategory.MAIN, exc.code, attempt + 1, max_retries,
