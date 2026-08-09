@@ -658,23 +658,18 @@ class MaaEndRuntime:
         job = self._controller.post_connection()
         conn_ok = self._wait_job(job, timeout_s=float(self._CONNECTION_TIMEOUT_S))
         if not conn_ok:
-            # MaaFW v5.12.2: 在云终末地等精简 Android 环境中，输入方法初始化
-            # (Maatouch) 可能失败（No available input method），但控制器仍有
-            # 截图能力。尝试截一帧验证，若能获取图像则视为降级连接成功。
-            self.logger.warning(LogCategory.MAIN, "ADB 控制器连接报告失败（输入通道不可用），尝试降级连接", address=self._device_address)
-            try:
-                probe_job = self._controller.post_screencap()
-                probe_ok = self._wait_job(probe_job, timeout_s=float(self._SCREENCAP_TIMEOUT_S))
-                if probe_ok:
-                    self.logger.warning(LogCategory.MAIN, "控制器降级连接成功（仅截图，无触控）", address=self._device_address)
-                else:
-                    self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败且截图不可用", address=self._device_address)
-                    self._cleanup_partial()
-                    return False
-            except Exception as probe_err:
-                self.logger.error(LogCategory.MAIN, "ADB 控制器连接失败", address=self._device_address, error=str(probe_err))
-                self._cleanup_partial()
-                return False
+            # INPUT-CHANNEL-FIX: 连接报告失败=输入通道(Maatouch/Minitouch/AdbShell)
+            # 初始化失败。旧逻辑在截图可用时"降级连接成功"继续运行，导致全部
+            # 点击静默无效、任务空跑（实测 00:20/00:26/15:24 多次触发，用户报告
+            # "操作没有正确传递到设备"）。输入通道是任务存在的前提——降级仅截图
+            # 的连接必须拒绝继续，显式失败让上层重连，而非静默空跑。
+            self.logger.warning(
+                LogCategory.MAIN,
+                "ADB 控制器连接报告失败（输入通道不可用），拒绝降级继续——需重建输入通道",
+                address=self._device_address,
+            )
+            self._cleanup_partial()
+            return False
         # 首轮截图失败不应让整个连接失败：screencap 通道可能在游戏加载未完成时
         # 暂时返回空帧。只要 ADB 控制器本身已连上，就视为设备已连接，GUI 应显示
         # "已连接"。screencap 后续在任务执行时会自动重试。
@@ -1540,6 +1535,36 @@ class MaaEndRuntime:
             return False
         return bool(result.data)
 
+    def _probe_input_channel(self) -> bool:
+        """输入通道探针：在屏幕角落 (2,2) 发一次无害点击验证触控链路。
+
+        返回 True 表示输入通道真实可用（MaaFW job.succeeded=True）。
+        注意连接降级(仅截图无触控)时 post_click 的 job 不会成功——这正是
+        之前"操作没有正确传递到设备"的根源，旧逻辑未探测直接空跑任务。
+        """
+        if self._controller is None:
+            return False
+        try:
+            click_job = self._controller.post_click(2, 2)
+            ok = self._wait_job(click_job, timeout_s=5.0)
+            return bool(ok)
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "输入通道探针异常", error=str(exc))
+            return False
+
+    def _ensure_input_channel(self) -> bool:
+        """确保输入通道可用：探针失败时先尝试一次轻量重连，再重探。
+
+        INPUT-CHANNEL-FIX 的一部分：杜绝"连接降级(仅截图无触控)后任务空跑"。
+        """
+        if self._probe_input_channel():
+            return True
+        self.logger.warning(LogCategory.MAIN, "输入通道探针未通过，尝试轻量重连")
+        if not self._quick_reconnect_adb():
+            self.logger.error(LogCategory.MAIN, "输入通道重连失败，输入不可用")
+            return False
+        return self._probe_input_channel()
+
     # SceneAnyEnterWorld 等导航类管道的正常执行耗时上限（秒）。
     # 实测：从主世界到主世界 ≈3s，从登录页/弹窗后回主世界 ≤30s。
     # 云终末地从启动器首页点击「开始游戏」到进入主世界 ≈39s（含加载+logo+点击继续），
@@ -1605,6 +1630,13 @@ class MaaEndRuntime:
     def run_task(self, task_name: str, options: Optional[Dict[str, Any]] = None) -> bool:
         if not self._connected or self._tasker is None:
             self.logger.error(LogCategory.MAIN, "runtime 未连接，无法执行任务", task=task_name)
+            return False
+        # INPUT-CHANNEL-FIX: 任务执行前置输入通道探针——连接降级(仅截图无触控)
+        # 或设备输入失效时，任何点击都不会到达设备；旧实现会静默空跑整个任务，
+        # 轨迹/OCR 照常但操作从未传递（用户实测报告"操作没有正确传递到设备"）。
+        # 探针失败先尝试一次重连，仍失败则拒绝执行。
+        if not self._ensure_input_channel():
+            self.logger.error(LogCategory.MAIN, "输入通道不可用，拒绝执行任务", task=task_name)
             return False
         task_name, inline_options = self._normalize_task_name(task_name)
         if not self._tasks:
@@ -3287,12 +3319,16 @@ class MaaEndRuntime:
             return ""
 
     def _tap(self, x: int, y: int) -> None:
-        """通过 MaaTouch 点击指定坐标，静默处理异常。"""
+        """通过 MaaTouch 点击指定坐标，失败时记录 warning（不再静默吞掉）。
+
+        INPUT-CHANNEL-FIX：输入通道失效时 post_click 会失败，旧实现静默忽略
+        导致调试时无法区分"点击已下发"与"点击从未到达设备"。
+        """
         try:
             if self._connected and self._controller is not None:
                 self._controller.post_click(x, y).wait()
-        except Exception:
-            pass
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "MaaTouch 点击失败", x=x, y=y, error=str(exc))
 
     def _has_text(self, text: str) -> bool:
         """快速 OCR 检测屏幕是否包含指定文本。"""
