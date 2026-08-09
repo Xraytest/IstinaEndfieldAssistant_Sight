@@ -594,11 +594,22 @@ class MaaEndRuntime:
         """注册 Python 级任务后备处理器，MaaFW 管线失败时作为后备运行。"""
         self._python_task_handlers[task_name] = handler
 
-    # 收取类任务：管线报成功后仍需本次运行至少一次收集点击证据，否则判为未完成
-    #（防空转通过：如 DijiangRewards 在奖励已被收完时仅 ControlNexus→Finish 零点击
-    # 即返回成功，无法证明本次运行完成了收取）。键=任务名，值=收集节点名前缀。
+    # 动作型任务：管线报成功后仍需本次运行至少一次"真实动作"点击证据，否则判为
+    # 未完成（防空转通过）。前缀命中来自输入观察队列的点击节点名。
+    # - DijiangRewards：奖励已收完时仅 ControlNexus→Finish 零收集点击即成功（20:50 实锤空转）
+    # - SellProduct：注册链 RegisterPriorityItem1-6 全 DirectHit 无条件，需真实售卖/站点动作
+    # - VisitFriends：25s 无任何进船拜访动作即"OK"，需真实进好友动作
     _COLLECTION_EVIDENCE_TASKS: Dict[str, tuple[str, ...]] = {
         "DijiangRewards": ("DijiangRewardsFastCollect",),
+        "SellProduct": (
+            "SellProductSell",
+            "SellProductGoTo",
+            "SellProductRefugeeCamp",
+            "SellProductInfraStation",
+            "SellProductReconstructionHQ",
+            "SellProductCardiacRemediationStation",
+        ),
+        "VisitFriends": ("VisitFriendsMenuScanTargetFriend",),
     }
 
     # 长时间运行任务：好友拜访（53 个好友 × 加载+操作+退出 ≈ 15-25 分钟）、
