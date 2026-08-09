@@ -3524,3 +3524,9 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **剩余卡点**: `__SeizeDeliveryJobsInJobList` 未命中——`JobListTab`（运送委托列表标签页模板 ROI [170,10,180,180]）位置过时：云端仓储页全量 OCR 无"运送委托"文本（仅有 本地仓储节点/武陵城区/查看位置/装箱设备已就绪/货物装箱），base 标签位置假设已失效。需人工确认云端列表入口或改识别（成本高，暂缓）。
 - **AutoStockStaple**: 11:48 单任务实测 OK 102.9s（6 次真实点击证据），队列武陵段时序问题已记录。
 - Files: `3rd-part/maaend/resource_cloud/image/SeizeDeliveryJobs/DepotNodePage/InWulingDepotNode.png`（本地覆盖）；`docs/TASK_LOG.md`（本条记录）
+
+## 2026-08-09 13:30（DeliveryJobs 深入+新卡点：Yellow确认按钮图标模板云端不匹配，阈值0.9）
+
+- **实测**: DeliveryJobs 本次 417.9s 失败，轨迹同前（WulingLoop SubTask 内部失败）。日志 `TemplateMatcher template_match __YellowConfigmButtonType1Icon`（节点名，非文件缺失——模板文件 YellowConfirmButtonType1.png 存在）。
+- **新卡点**: `YellowConfirmButtonType1` 图标模板（通用确认按钮，And[背景框+图标] 阈值0.9）云端 0.9 不匹配 → 所有依赖黄色确认按钮的弹窗（接受委托确认等）失败。影响面广（通用组件）。
+- **本轮进度小结**: DepositNode 模板覆盖生效（Seize 进页判定首命中、Delivery 走更深）；新通用卡点记录；AutoStockStaple OK 实证。
