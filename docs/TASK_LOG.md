@@ -1,5 +1,21 @@
 # 任务日志
 
+## 2026-08-11 06:4x (SellProduct 第3次Sell永久失败根因修复——交易0份提示条OCR兜底)
+
+- **User Request**: "无限重试，执行完整每日全套，增加刷取基质，去武陵第一个基质点刷取。最终需保证流出通过且判定无误"（SellProduct 6/14 卡死修复）
+- **失败实证**（on_error 截图离线 OCR/模板分析，`3rd-part/maaend/config/debug/on_error/`）：
+  - 每轮任务恰好第 3 次 Sell 后失败（attempt 1-12 无限重试），轨迹 203→593→982 三轮 Go select 推进正常
+  - **对比分析**：第 1 次交易成功弹窗 CheckHeader 模板 **1.0 命中**（box=[599,37,83,73]）；第 3 次交易后截图显示据点页 + "本次交易份数**0**" + "据点发展值已达当前据点上限"提示条，CheckHeader 仅 **0.157**（未命中）、CloseRewardButton 全屏最高 0.57（位置异常）
+  - **根因**：第 3 个商品（第 3 列：柑实罐头/紫晶质瓶/紫晶零件 库存为 0）交易 0 份 → 云 UI **不弹标准成功弹窗**，直接回据点页显示提示条 → `SellProductSellCheck` 的 And[CloseRewardsButton, CheckHeader] 永不命中 → next 全失败 → 任务永久失败
+- **修复**（`3rd-part/maaend/resource_cloud/pipeline/SellProduct/SellCore.json`，本地生效不入库）：
+  - `SellProductSellCheck` 识别改为 **Or[标准成功弹窗(And[CloseRewardsButton, CheckHeader]), OCR 提示条兜底]**：OCR ROI [940,480,330,160] expected 本次交易份数[0-9]+ / 据点发展值已达当前据点上限 / transaction complete 等 → 交易 0 份的提示条同样视为交易完成 → 继续换货循环（Go Attempted 记忆已 commit，下次 select 跳过库存 0 商品）
+- **单测验证**（run_sellproduct_verify.py 900s）：✅ **SellProduct -> OK in 730.9s**——完整轨迹含 `SellProductSellCheck(×22 全部成功) → SellProductRefugeeCampPriorityItemsExhausted → SellProductCloseGoodsAfterExhausted → SellProductSellLoopEnd → AfterSellOperator → RestoreOperator`；22 个商品全部卖出（含库存 0 商品经 OCR 兜底推进），Go exhausted 确认无剩余后正常结束。期间 06:35 看门狗 303s 误判卡死触发中断→连接恢复→重试，最终判定 OK（非假阳性：轨迹含完整正常结束链路）
+- **Files Modified**:
+  - `3rd-part/maaend/resource_cloud/pipeline/SellProduct/SellCore.json`（SellCheck Or 兜底，gitignored 本地生效）
+  - `scripts/run_sellproduct_verify.py`（新建，SellProduct 单任务验证脚本，不入库）
+  - `scripts/diag_on_error_analysis.py`（新建，on_error 失败截图离线 OCR/模板分析，不入库）
+  - `docs/TASK_LOG.md`（本条记录）
+
 ## 2026-07-21 00:00 (任务执行 VLM 架构·结构化分类 + target_count)
 
 - **User Request**: 确保两个目标运转：(1) 成功构建任务列表格式化读取，能正确读取紧急/重要/次要三类任务且不止一个；(2) 构建适合的 VLM 架构能完成任务（对比前后任务列表确认完成），完成 10 个[次要]任务证明达成。

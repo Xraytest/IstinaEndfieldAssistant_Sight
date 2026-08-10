@@ -602,17 +602,13 @@ class MaaEndRuntime:
     # 未完成（防空转通过）。前缀命中来自输入观察队列的点击节点名。
     # - DijiangRewards：奖励已收完时仅 ControlNexus→Finish 零收集点击即成功（20:50 实锤空转）
     # - SellProduct：注册链 RegisterPriorityItem1-6 全 DirectHit 无条件，需真实售卖/站点动作
+    #   （2026-08-11 收窄为仅 SellProductSell：此前含 SellProductRefugeeCamp 等站点前缀，
+    #   云 UI 上打开干员列表的 OpenTargetOperatorList 点击也会匹配，造成"仅打开列表从未交易"
+    #   的假阳性通过——见 TargetOperatorScanFailed StopTask 误判）
     # - VisitFriends：25s 无任何进船拜访动作即"OK"，需真实进好友动作
     _COLLECTION_EVIDENCE_TASKS: Dict[str, tuple[str, ...]] = {
         "DijiangRewards": ("DijiangRewardsFastCollect",),
-        "SellProduct": (
-            "SellProductSell",
-            "SellProductGoTo",
-            "SellProductRefugeeCamp",
-            "SellProductInfraStation",
-            "SellProductReconstructionHQ",
-            "SellProductCardiacRemediationStation",
-        ),
+        "SellProduct": ("SellProductSell",),
         "VisitFriends": ("VisitFriendsMenuScanTargetFriend",),
     }
 
