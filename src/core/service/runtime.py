@@ -4068,6 +4068,9 @@ class IstinaRuntime:
         # 均不可靠（BACK 可能落到其他子页），右上 X (1220,35) 为实测关闭按钮，
         # 须显式优先处理，不依赖通用 else 分支的偶然命中。
         profile_keywords = ("权限等阶", "探索等级", "干员展示", "光荣之路", "访客终端")
+        # 仓库/物资界面（AutoCollect 误入实证：OCR 把"四号谷地仓库"标题当传送点
+        # 点击后卡进物资页，容量/一键存放/仓库切换特征 OCR 明确）——右上 X 关闭
+        depot_keywords = ("一键存放", "仓库切换", "简易制作", "容量")
         for _ in range(max_rounds):
             if self._is_in_big_world(serial):
                 return True
@@ -4098,6 +4101,10 @@ class IstinaRuntime:
                 if any(any(k in lb for lb in labels) for k in profile_keywords):
                     # 资料页/访客终端：ESC/BACK 均不可靠，点右上 X 关闭；
                     # 下一轮 OCR 会重新判定，X 无效时自动落入 else 分支兜底。
+                    self._tap_effective(serial, 1220, 35)
+                elif any(any(k in lb for lb in labels) for k in depot_keywords):
+                    # 仓库/物资界面（AutoCollect 卡死实证）：容量/一键存放/
+                    # 仓库切换特征明确，右上 X (1220,35) 关闭回主世界。
                     self._tap_effective(serial, 1220, 35)
                 elif any(any(k in lb for lb in labels) for k in marker_keywords):
                     cancel_elem = next(
@@ -4356,9 +4363,14 @@ class IstinaRuntime:
                 if isinstance(e, dict)
             ]
             # 地图视图特征词：地区总览、标记显示管理、//区域名 等
+            # 2026-08-10 实测：云地图视图打开后可靠出现 "事务提醒"（地图顶部）
+            # 与 "O.M.V.帝江号"（地图底部区域 tab）；原先仅依赖"地区总览/
+            # 标记显示管理"等词在云 UI 中 OCR 识别不全 → 地图已打开却判定失败，
+            # AutoCollect 每轮在"手动打开地图"处空转（卡顿根因之一）。
             map_kws = (
                 "地区总览", "标记显示管理", "//四号谷地", "//武陵",
                 "取消追踪", "地区建设等级", "其他地图追踪中",
+                "事务提醒", "O.M.V.帝江号", "总控中枢",
             )
             return any(any(kw in l for l in labels) for kw in map_kws)
 
@@ -4591,6 +4603,12 @@ class IstinaRuntime:
             "前往传送", "取消追踪", "标记显示管理", "事务提醒", "任务完成奖励",
             "地区总览", "自定义标记点上限", "其他地图追踪中...",
             "X", "EXD", "UID", "探索", "确认", "取消", "创建",
+            # 2026-08-10 卡顿根因：云客户端右下角网络状态文字被 OCR 当传送点
+            # 反复点击（cx=1235 cy=698），每轮空转 30-70s（AutoCollect 卡顿实证）
+            "网络差", "不稳定", "网络延迟", "网络断开", "重连中",
+            # 仓库/物资界面文字（误入"四号谷地仓库"物资页后不得当传送点）
+            "容量", "一键存放", "仓库切换", "简易制作", "背包", "降序",
+            "福", "默认", "斑全部",
         }
         # 地图视图/区域总览特征词（出现任一即视为非大世界）
         _MAP_VIEW_KEYWORDS = (
@@ -4793,6 +4811,17 @@ class IstinaRuntime:
                         return False
                     return True
 
+                # 屏幕右下角区域（cx>1100, cy>620）：云客户端网络状态文字
+                # （"网络差/不稳定"）固定显示区，绝不可作传送点点击
+                def _exclude_cloud_status_area(elem: dict) -> bool:
+                    try:
+                        c = elem.get("center") or [0.5, 0.5]
+                        cx = c[0] * screen_size[0] if screen_size[0] > 0 else 640
+                        cy = c[1] * screen_size[1] if screen_size[1] > 0 else 360
+                        return cx > 1100 and cy > 620
+                    except Exception:
+                        return False
+
                 # 第 1 轮：优先匹配目标区域名或其验证关键词
                 # 例如 target_area="枢纽区" → 匹配 "枢纽区" 或 keywords=["四号谷地", "枢纽区"]
                 target_keywords = self._TASK_AREA_VERIFY_KEYWORDS.get(target_area, [])
@@ -4802,6 +4831,8 @@ class IstinaRuntime:
                         continue
                     label = str(elem.get("label", "")).strip()
                     if not _is_valid_teleport_label(label):
+                        continue
+                    if _exclude_cloud_status_area(elem):
                         continue
                     # 严格匹配：标签等于目标区域名，或标签包含目标区域名，
                     # 或目标区域名包含标签（如 "四号谷地" 匹配 "//四号谷地/枢纽区"）
@@ -4824,6 +4855,8 @@ class IstinaRuntime:
                             continue
                         label = str(elem.get("label", "")).strip()
                         if not _is_valid_teleport_label(label):
+                            continue
+                        if _exclude_cloud_status_area(elem):
                             continue
                         teleport_point = elem
                         break
