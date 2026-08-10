@@ -1011,7 +1011,7 @@ class IstinaRuntime:
                         screen_size=screen_size,
                     )
                     try:
-                        android.tap(tap_x, tap_y, serial=serial)
+                        self._tap_effective(serial, tap_x, tap_y, serial=serial)
                     except Exception:
                         pass
             except Exception:
@@ -1098,6 +1098,30 @@ class IstinaRuntime:
         )
         return False
 
+
+    def _tap_effective(self, serial: Optional[str], x: int, y: int) -> None:
+        """有效触控通道：优先 MaaFW controller（Minitouch，云客户端真实接收），
+        回退 AndroidRuntime.tap（adb shell input，云客户端可能忽略）。
+
+        INPUT-CHANNEL-FIX：AutoCollect 传送/采集路径此前全部走 android.tap
+        （adb input tap 被云游戏客户端忽略），导致"手动打开地图失败"死循环。
+        MaaFW Minitouch 注入被云客户端真实接收（已实证）。
+        """
+        maaend = self.maaend(serial)
+        if maaend is not None and getattr(maaend, "connected", False):
+            ctrl = getattr(maaend, "_controller", None)
+            if ctrl is not None:
+                try:
+                    job = ctrl.post_click(x, y)
+                    if job is not None:
+                        job.wait()
+                    return
+                except Exception as exc:
+                    self._logger.warning(
+                        LogCategory.MAIN, "MaaFW 触控点击失败，回退 AndroidRuntime",
+                        x=x, y=y, error=str(exc),
+                    )
+        self.android(serial).tap(x, y, serial=serial)
 
     def _harvest_run(self, params: Dict[str, Any]) -> Dict[str, Any]:
         options = params.get("options") or {}
@@ -2649,7 +2673,7 @@ class IstinaRuntime:
             self._logger.warning(LogCategory.MAIN, "模板匹配点击失败，使用固定坐标兜底点击任务图标")
             try:
                 android = self.android(serial)
-                android.tap(35, 155)
+                self._tap_effective(serial, 35, 155)
                 time.sleep(1.5)
                 click_ok = True
                 steps.append({"step": "click_task_icon", "status": "success", "attempt": "fallback_coord"})
@@ -3170,7 +3194,7 @@ class IstinaRuntime:
 
     # 武陵区域总览视图中，各子区域的点击中心坐标（基于 1280x720 基准分辨率）。
     # 当 SceneEnterMapWuling* 的 TemplateMatch (MapOverviewWulingChoose.png) 识别失败时，
-    # 通过 android.tap() 直接点击目标子区域坐标切换地图。
+    # 通过 self._tap_effective(serial, ) 直接点击目标子区域坐标切换地图。
     # 注：pipeline 中的坐标（如清波寨 [663, 293, 96, 94]→中心(711,340)）已过时，
     # 实际图标位置通过网格化点击测试确定。
     _WULING_OVERVIEW_TAP_COORDS: Dict[str, Tuple[int, int]] = {
@@ -3449,7 +3473,7 @@ class IstinaRuntime:
         """在武陵区域总览视图，点击目标子区域并等待地图切换。
 
         当 SceneEnterMapWuling* 的 TemplateMatch (MapOverviewWulingChoose.png) 识别失败时，
-        通过 android.tap() 直接点击目标子区域坐标切换地图。
+        通过 self._tap_effective(serial, ) 直接点击目标子区域坐标切换地图。
 
         Returns:
             bool: 是否成功切换到目标子区域地图视图（或已在目标子区域）
@@ -3501,7 +3525,7 @@ class IstinaRuntime:
             screen=screen_size, base=(base_w, base_h),
         )
         try:
-            android.tap(cx, cy)
+            self._tap_effective(serial, cx, cy)
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "武陵总览点击异常", error=str(exc))
             return False
@@ -3574,7 +3598,7 @@ class IstinaRuntime:
             cx = int(x * screen_size[0] / 1280)
             cy = int(y * screen_size[1] / 720)
             try:
-                android.tap(cx, cy)
+                self._tap_effective(serial, cx, cy)
             except Exception as exc:
                 self._logger.warning(
                     LogCategory.MAIN, "云端总览点击异常",
@@ -3659,7 +3683,7 @@ class IstinaRuntime:
             )
             return False
         try:
-            android.tap(cx, cy)
+            self._tap_effective(serial, cx, cy)
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "云端总览导航点击异常", error=str(exc))
             return False
@@ -3685,7 +3709,7 @@ class IstinaRuntime:
                     cancel_elem.get("center", [0.5, 0.65]), screen_size
                 )
                 try:
-                    android.tap(ccx, ccy)
+                    self._tap_effective(serial, ccx, ccy)
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "取消标记点击异常", error=str(exc))
                 time.sleep(2.0)
@@ -3704,7 +3728,7 @@ class IstinaRuntime:
                 if isinstance(rcenter, (list, tuple)) and len(rcenter) == 2:
                     rcx, rcy = self._norm_to_screen(rcenter, screen_size)
                     try:
-                        android.tap(rcx, rcy)
+                        self._tap_effective(serial, rcx, rcy)
                     except Exception as exc:
                         self._logger.warning(LogCategory.MAIN, "云端总览导航重试点击异常", error=str(exc))
                     time.sleep(2.5)
@@ -4074,7 +4098,7 @@ class IstinaRuntime:
                 if any(any(k in lb for lb in labels) for k in profile_keywords):
                     # 资料页/访客终端：ESC/BACK 均不可靠，点右上 X 关闭；
                     # 下一轮 OCR 会重新判定，X 无效时自动落入 else 分支兜底。
-                    android.tap(1220, 35)
+                    self._tap_effective(serial, 1220, 35)
                 elif any(any(k in lb for lb in labels) for k in marker_keywords):
                     cancel_elem = next(
                         (e for e in elements if str(e.get("label", "")).strip() == "取消"),
@@ -4085,14 +4109,14 @@ class IstinaRuntime:
                             cancel_elem.get("center", [0.5, 0.65]),
                             self._get_screen_size(serial),
                         )
-                        android.tap(ccx, ccy)
+                        self._tap_effective(serial, ccx, ccy)
                     else:
                         android.keyevent("KEYCODE_BACK")
                 elif any(any(k in lb for lb in labels) for k in map_view_keywords):
-                    android.tap(1220, 35)
+                    self._tap_effective(serial, 1220, 35)
                 else:
                     # 通用覆盖层（武陵工业计划/百科等）：云端右上 X 关闭，BACK 兜底
-                    android.tap(1220, 35)
+                    self._tap_effective(serial, 1220, 35)
                     time.sleep(1.0)
                     android.keyevent("KEYCODE_BACK")
             except Exception as exc:
@@ -4348,7 +4372,7 @@ class IstinaRuntime:
             map_button_taps = [(110, 125), (120, 140), (141, 125)]
             for mx, my in map_button_taps:
                 try:
-                    android.tap(mx, my)
+                    self._tap_effective(serial, mx, my)
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "点击地图按钮异常", error=str(exc))
                 time.sleep(2.0)
@@ -4428,7 +4452,7 @@ class IstinaRuntime:
                 area=target_area, cx=cx, cy=cy, attempt=vlm_attempt,
             )
             try:
-                android.tap(cx, cy)
+                self._tap_effective(serial, cx, cy)
             except Exception as exc:
                 self._logger.warning(LogCategory.MAIN, "VLM 传送点点击异常", error=str(exc))
             time.sleep(2.5)
@@ -4466,7 +4490,7 @@ class IstinaRuntime:
                 steps.append({"step": 7, "action": "vlm_click_confirm",
                               "cx": ccx, "cy": ccy, "attempt": vlm_attempt})
                 try:
-                    android.tap(ccx, ccy)
+                    self._tap_effective(serial, ccx, ccy)
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "确认点击异常", error=str(exc))
                 # 等待传送加载完成（最长 20 秒，每 2 秒检查一次）
@@ -4669,7 +4693,7 @@ class IstinaRuntime:
                             cancel_elem.get("center", [0.5, 0.65]),
                             self._get_screen_size(serial),
                         )
-                        android.tap(ccx, ccy)
+                        self._tap_effective(serial, ccx, ccy)
                     else:
                         android.keyevent("KEYCODE_BACK")
                 except Exception as exc:
@@ -4731,7 +4755,7 @@ class IstinaRuntime:
                 steps.append({"step": step_idx, "action": "click_confirm",
                               "cx": cx, "cy": cy})
                 try:
-                    android.tap(cx, cy)
+                    self._tap_effective(serial, cx, cy)
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "传送点击确认异常", error=str(exc))
                 time.sleep(4.0)
@@ -4816,7 +4840,7 @@ class IstinaRuntime:
                     steps.append({"step": step_idx, "action": "click_teleport_ocr",
                                   "label": label, "cx": cx, "cy": cy})
                     try:
-                        android.tap(cx, cy)
+                        self._tap_effective(serial, cx, cy)
                         teleport_clicked = True
                         _last_clicked_label = label
                     except Exception as exc:
@@ -5614,7 +5638,7 @@ class IstinaRuntime:
                 if target_elem is not None:
                     cx, cy = self._norm_to_screen(target_elem.get("center", [0.5, 0.5]), screen_size)
                     try:
-                        android.tap(cx, cy)
+                        self._tap_effective(serial, cx, cy)
                         clicked = True
                         self._logger.info(LogCategory.MAIN, "VLM 交互点击按钮", text=target_text, coord=(cx, cy),
                                           label=str(target_elem.get("label", "")))
@@ -6118,7 +6142,7 @@ class IstinaRuntime:
                     if label == "取消":
                         cx, cy = self._norm_to_screen(elem.get("center", [0.5, 0.5]), screen_size)
                         try:
-                            android.tap(cx, cy)
+                            self._tap_effective(serial, cx, cy)
                             cancel_clicked = True
                         except Exception as exc:
                             self._logger.warning(LogCategory.MAIN, "点击取消按钮异常", error=str(exc))
@@ -6127,7 +6151,7 @@ class IstinaRuntime:
                     # 兜底：取消按钮通常在对话框左侧（归一化 x ~0.4）
                     try:
                         sx, sy = self._norm_to_screen([0.4, 0.55], screen_size)
-                        android.tap(sx, sy)
+                        self._tap_effective(serial, sx, sy)
                     except Exception:
                         pass
                 time.sleep(1.5)
@@ -6165,7 +6189,7 @@ class IstinaRuntime:
                     if any(kw in label for kw in _CLOSE_KEYWORDS_STRICT):
                         cx, cy = self._norm_to_screen(elem.get("center", [0.5, 0.5]), screen_size)
                         try:
-                            android.tap(cx, cy)
+                            self._tap_effective(serial, cx, cy)
                             close_clicked = True
                             self._logger.info(
                                 LogCategory.MAIN, "点击关闭类按钮",
@@ -6180,7 +6204,7 @@ class IstinaRuntime:
                     # BACK + 角落点击混合策略，避免反复点击无效坐标。
                     if attempt <= 3:
                         try:
-                            android.tap(self._TASK_LIST_CLOSE_COORD[0], self._TASK_LIST_CLOSE_COORD[1])
+                            self._tap_effective(serial, self._TASK_LIST_CLOSE_COORD[0], self._TASK_LIST_CLOSE_COORD[1])
                             close_clicked = True
                             self._logger.info(
                                 LogCategory.MAIN, "点击任务列表关闭坐标",
@@ -6203,7 +6227,7 @@ class IstinaRuntime:
                         for close_pos in ([0.95, 0.05], [0.05, 0.05]):
                             sx, sy = self._norm_to_screen(close_pos, screen_size)
                             try:
-                                android.tap(int(sx), int(sy))
+                                self._tap_effective(serial, int(sx), int(sy))
                                 self._logger.info(
                                     LogCategory.MAIN, "混合策略点击角落",
                                     coord=(int(sx), int(sy)), attempt=attempt,
@@ -6308,7 +6332,7 @@ class IstinaRuntime:
                 time.sleep(2.0)
         if not click_ok:
             try:
-                android.tap(self._TASK_LIST_ICON_COORD[0], self._TASK_LIST_ICON_COORD[1])
+                self._tap_effective(serial, self._TASK_LIST_ICON_COORD[0], self._TASK_LIST_ICON_COORD[1])
                 time.sleep(1.5)
                 click_ok = True
             except Exception as exc:
@@ -6328,7 +6352,7 @@ class IstinaRuntime:
                 # pipeline 点击可能模板匹配到错误位置，手动 tap 任务列表图标坐标
                 self._logger.info(LogCategory.MAIN, "pipeline 点击未打开任务列表，手动 tap 兜底")
                 try:
-                    android.tap(self._TASK_LIST_ICON_COORD[0], self._TASK_LIST_ICON_COORD[1])
+                    self._tap_effective(serial, self._TASK_LIST_ICON_COORD[0], self._TASK_LIST_ICON_COORD[1])
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "手动 tap 任务图标异常", error=str(exc))
                 time.sleep(2.0)
@@ -6338,17 +6362,19 @@ class IstinaRuntime:
 
     def _close_task_list(self, android: Any) -> None:
         """点击任务列表页右上角关闭按钮。"""
+        serial = getattr(android, "_serial", None)
         try:
-            android.tap(self._TASK_LIST_CLOSE_COORD[0], self._TASK_LIST_CLOSE_COORD[1])
+            self._tap_effective(serial, self._TASK_LIST_CLOSE_COORD[0], self._TASK_LIST_CLOSE_COORD[1])
             time.sleep(1.0)
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "关闭任务列表异常", error=str(exc))
 
     def _click_task_list_category(self, android: Any, coord: Tuple[int, int]) -> None:
         """点击任务列表左侧分类标签。"""
+        serial = getattr(android, "_serial", None)
         self._logger.info(LogCategory.MAIN, "点击任务列表分类标签", coord=coord)
         try:
-            android.tap(coord[0], coord[1])
+            self._tap_effective(serial, coord[0], coord[1])
             time.sleep(0.5)
         except Exception as exc:
             self._logger.error(LogCategory.MAIN, "点击分类标签异常", error=str(exc))
@@ -6379,7 +6405,7 @@ class IstinaRuntime:
                                 LogCategory.MAIN, "OCR 检测到分类标签",
                                 category=category_name, coord=(x, y),
                             )
-                            android.tap(x, y)
+                            self._tap_effective(serial, x, y)
                             time.sleep(0.5)
                             return True
         except Exception as exc:
@@ -6390,7 +6416,7 @@ class IstinaRuntime:
         if coord:
             self._logger.info(LogCategory.MAIN, "使用兜底坐标点击分类标签", category=category_name, coord=coord)
             try:
-                android.tap(coord[0], coord[1])
+                self._tap_effective(serial, coord[0], coord[1])
                 time.sleep(0.5)
                 return True
             except Exception as exc:
@@ -6595,7 +6621,7 @@ class IstinaRuntime:
         self._logger.info(LogCategory.MAIN, "点击分类任务条目", task=task_name, category=category, coord=(click_x, click_y))
         click_ok = False
         try:
-            android.tap(click_x, click_y)
+            self._tap_effective(serial, click_x, click_y)
             click_ok = True
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "点击任务条目异常", task=task_name, error=str(exc))
@@ -6607,7 +6633,7 @@ class IstinaRuntime:
             if found:
                 self._logger.info(LogCategory.MAIN, "OCR 兜底定位任务条目", task=task_name, coord=found)
                 try:
-                    android.tap(found[0], found[1])
+                    self._tap_effective(serial, found[0], found[1])
                     click_ok = True
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "OCR 兜底点击异常", task=task_name, error=str(exc))
@@ -6634,7 +6660,7 @@ class IstinaRuntime:
                     ecx, ecy = self._norm_to_screen(elem.get("center", [0.5, 0.5]), screen_size)
                     self._logger.info(LogCategory.MAIN, "点击追踪按钮", task=task_name, label=label, coord=(ecx, ecy))
                     try:
-                        android.tap(ecx, ecy)
+                        self._tap_effective(serial, ecx, ecy)
                     except Exception as exc:
                         self._logger.warning(LogCategory.MAIN, "点击追踪按钮异常", error=str(exc))
                     time.sleep(2.0)
@@ -7286,9 +7312,9 @@ class IstinaRuntime:
         interact_btn = self._scale_for_screen((1100, 400), screen_size)
         dialog_area = self._scale_for_screen((640, 500), screen_size)
         try:
-            android.tap(interact_btn[0], interact_btn[1], serial=serial)
+            self._tap_effective(serial, interact_btn[0], interact_btn[1], serial=serial)
             time.sleep(0.3)
-            android.tap(dialog_area[0], dialog_area[1], serial=serial)
+            self._tap_effective(serial, dialog_area[0], dialog_area[1], serial=serial)
         except Exception as exc:
             self._logger.warning(LogCategory.MAIN, "vlm_press_interact 失败", error=str(exc))
             try:
