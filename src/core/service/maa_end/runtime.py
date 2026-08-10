@@ -316,6 +316,8 @@ class MaaEndRuntime:
         # 本次任务运行观察到的点击节点名列表（防"空转通过"假阳性：收取类任务
         # 成功判定需至少一次收集点击证据）。每次 _run_task_once 开始时重置。
         self._task_run_clicks: List[str] = []
+        # 本次任务运行命中的识别节点名（供 run_task 证据检查识别"额度已满合法完成"）。
+        self._last_task_hit_nodes: List[str] = []
         # 队列：唯一可执行单元。预设只是任务列表，应用预设 = 用其任务覆盖队列。
         self._queue: List[Dict[str, Any]] = []
         self._load_lock = threading.Lock()  # N11: 保护 load_tasks/load_presets 并发调用
@@ -612,6 +614,17 @@ class MaaEndRuntime:
             "SellProductCardiacRemediationStation",
         ),
         "VisitFriends": ("VisitFriendsMenuScanTargetFriend",),
+    }
+
+    # 收取类任务"额度已满"守卫节点：这些节点 OCR 验证过已无可收集内容
+    #（如助力/线索次数已归零、好友全部拜访完），命中即合法零动作完成。
+    # 证据检查无收集点击时命中这些节点可豁免"未完成"误判。
+    _EVIDENCE_FULL_NODES: Dict[str, tuple[str, ...]] = {
+        "VisitFriends": (
+            "VisitFriendsAssistFull",
+            "VisitFriendsClueExchangeFull",
+            "VisitFriendsMenuScanFriendsFull",
+        ),
     }
 
     # 长时间运行任务：好友拜访（53 个好友 × 加载+操作+退出 ≈ 15-25 分钟）、
@@ -1716,14 +1729,26 @@ class MaaEndRuntime:
         if ok and evidence_prefixes:
             observed = [c for c in self._task_run_clicks if c.startswith(evidence_prefixes)]
             if not observed:
-                self.logger.warning(
-                    LogCategory.MAIN,
-                    "任务成功但本次运行无收集动作证据，判为未完成",
-                    task=task_name,
-                    required_prefix=evidence_prefixes[:1],
-                    try_clicks=self._task_run_clicks[:8],
-                )
-                ok = False
+                # 豁免：本次运行命中"额度已满"守卫节点（OCR 验证过已无可收集内容，
+                # 如 VisitFriends 的 AssistFull/ClueExchangeFull 等）属合法零动作完成，
+                # 不应判为未完成（否则每日额度已满时任务永远无法通过）。
+                full_hits = [n for n in self._last_task_hit_nodes if n in self._EVIDENCE_FULL_NODES.get(task_name, ())]
+                if full_hits:
+                    self.logger.info(
+                        LogCategory.MAIN,
+                        "任务额度已满，零动作合法完成",
+                        task=task_name,
+                        full_nodes=full_hits,
+                    )
+                else:
+                    self.logger.warning(
+                        LogCategory.MAIN,
+                        "任务成功但本次运行无收集动作证据，判为未完成",
+                        task=task_name,
+                        required_prefix=evidence_prefixes[:1],
+                        try_clicks=self._task_run_clicks[:8],
+                    )
+                    ok = False
         # 任务返回前排空成功输入日志，避免 CLI 子进程退出时丢失尾部 OCR。
         observations_ok = self._flush_input_observations(timeout_s=15.0)
         if not observations_ok:
@@ -1940,6 +1965,9 @@ class MaaEndRuntime:
                 return False
 
             detail = job.get()
+            # 记录本次运行命中节点（在 detail 处理循环内收集 hit_node_names，
+            # 供 run_task 证据检查识别"额度已满合法完成"，防空转误判）
+            self._last_task_hit_nodes = []
             if detail:
                 # 记录识别过程日志（DEBUG 级别）
                 self._log_recognition_detail(task_name, entry, detail)
@@ -1983,6 +2011,7 @@ class MaaEndRuntime:
                     hit_nodes=hit_node_names,
                     has_any_hit=has_any_hit,
                 )
+                self._last_task_hit_nodes = list(hit_node_names)
 
                 false_success_reason = None
                 if has_recognition and not has_any_hit:
