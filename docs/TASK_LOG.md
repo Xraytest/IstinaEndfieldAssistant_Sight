@@ -3602,3 +3602,24 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   3. `__ScenePrivateLocalDepotNodeClose` post_delay 600→1200（云渲染慢，确保关闭动画完成）
 - **单测验证**（run_one_task.py DeliveryJobs 900s）：✅ 完整轨迹——ValleyIVLoop → LocalDepotNodeDetect → Close → InRegionalDevelopment（主页判定成功）→ WulingLoop → LocalDepotNodeDetect → Close → InRegionalDevelopment → **DeliveryJobsFinished**；`DeliveryJobs -> OK in 191.3s`
 - **Files Modified**: `3rd-part/maaend/resource_cloud/pipeline/Interface/SceneMenu.json`（本地生效，gitignored）；`docs/TASK_LOG.md`（本条）
+
+## 2026-08-10 23:2x（DijiangRewards 云 UI 收取修复——点击通道失效根因闭环+Python 后备兜底，单测 OK 62.6s）
+
+- **User Request**: "无限重试，执行完整每日全套……最终需保证流出通过且判定无误"（DijiangRewards 失败修复子项）
+- **失败实证**（test4-6 反复 FAIL 88-338s）：
+  1. **minitouch 注入失效（主根因）**：云会话 idle 断连后 adb forward 表清空（仅剩 scrcpy）+ 设备端 minitouch 进程消失 → post_click job ok=True 但注入落空（实测 diff≈0.03，getevent 无捕获）→ 所有点击无效但 MaaFW 认为成功
+  2. **假成功路径**：总控中枢页 `DijiangRewardsFastCollectProduction` 模板在云 UI 不匹配（OCR roi=[1037,45,243,372] 落空，实际收取入口在中央 (598,102)"收取并生产"）→ 但 FinishDijiangRewards 兜底使管线返回 True → 证据检查判未完成（required_prefix DijiangRewardsFastCollect 无前缀点击）→ 无限重试 MaaFW
+  3. **证据检查判未完成分支丢失 `ok=False`**（编辑误删）→ 判未完成变空操作假阳性（test5 OK 49.0s 是假阳性！）→ 已补回
+  4. **"情报交流说明"弹窗为云客户端层弹窗**：忽略 MaaTouch 触控（历史经验同"空闲断连弹窗"），点 X/外部/ADB tap 均无效，需 keyevent 3 或 force-stop 恢复
+- **云 UI 实测布局**（OCR 逐步探测）：
+  - 总控中枢页顶部 tab：会客室(347,49)、培养舱(471,116)、制造舱Ⅱ(592,119)；中央"总控事项/产物(580,91)/收取并生产(598,102)"；底部卡片：总控中枢(82,276)、会客室(278,276)、制造舱I(410,277)、制造舱Ⅱ(539,277)
+  - 点"收取并生产"→ 进入会客室页（//会客室、CLUE01-07、容量 1025/300 已满），右侧按钮列：收集(621,95)、接收(621,142)、赠予(621,189)、线索库(626,256)
+  - **关键坑**："收集"文字两处——左侧面板"干员线索收集效能"(116,236) 误点无效；`_tap_ocr_keyword_verify` 需 ROI+精确匹配排除
+- **修复**（`src/core/service/maa_end/runtime.py`，未入库前本地）：
+  1. `_run_task_once` 证据检查判未完成分支补回 `ok = False`（防假阳性）
+  2. 判未完成且 MaaFW 假成功时，尝试 Python 级后备处理器兜底（测试态 ISTINA_PY_FALLBACK=1 门控，生产默认关闭）
+  3. 重写 `_python_dijiang_rewards`：OCR 驱动——总控中枢确认→`_tap_ocr_keyword_verify(("会客室",),("收集",),...)` 会客室收集→制造舱收取→`_close_menu_and_world`；taps>0 即成功
+  4. 新增 `_tap_ocr_keyword_verify`（候选逐个点击+验证）与 `_find_ocr_text_center_roi`（ROI+exact 排除面板说明文字误匹配）
+- **恢复路径实证**：手动重建 forward+重启 minitouch 进程**不足**（socket 直连注入仍无效）→ **force-stop+monkey 重启游戏**（`_force_restart_to_world`）后注入恢复（点击 diff 0.03→0.37），弹窗/云大厅一并清除
+- **单测验证**（force-stop 恢复后 run_one_task.py DijiangRewards 900s）：✅ 真实轨迹——`__ScenePrivateWorldEnterMenuControlNexus` → `DijiangRewardsFastCollectProduction`(1156,167) → `CloseFastCollectProductionRewards`(649,611)——**MaaFW 管线原生真实执行收取，证据匹配 required_prefix，判定无误**；`DijiangRewards -> OK in 62.6s`
+- **Files Modified**: `src/core/service/maa_end/runtime.py`（typing Tuple、ok=False 修复、Python 后备兜底、`_python_dijiang_rewards` 重写、`_tap_ocr_keyword_verify`、`_find_ocr_text_center_roi`）；`docs/TASK_LOG.md`（本条）

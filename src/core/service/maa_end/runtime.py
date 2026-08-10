@@ -14,7 +14,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from queue import Empty, Queue
 
 from core.foundation.constants import (
@@ -1749,6 +1749,38 @@ class MaaEndRuntime:
                         try_clicks=self._task_run_clicks[:8],
                     )
                     ok = False
+                    # 假成功兜底：MaaFW 管线在云 UI 布局差异下可能"假成功"
+                    # （如 DijiangRewards 的 ControlNexus→Finish 零动作返回成功），
+                    # 证据检查判未完成时先尝试 Python 级处理器（OCR 驱动真实收取），
+                    # 成功则视为本次运行真实完成；避免无限重试 MaaFW 管线。
+                    if task_name in self._python_task_handlers:
+                        self.logger.info(
+                            LogCategory.MAIN,
+                            "无收集证据，尝试 Python 级后备处理器",
+                            task=task_name,
+                        )
+                        try:
+                            py_result = self._python_task_handlers[task_name](options)
+                            if py_result:
+                                self.logger.info(
+                                    LogCategory.MAIN,
+                                    "Python 后备执行成功",
+                                    task=task_name,
+                                )
+                                ok = True
+                            else:
+                                self.logger.warning(
+                                    LogCategory.MAIN,
+                                    "Python 后备也返回失败",
+                                    task=task_name,
+                                )
+                        except Exception as py_exc:
+                            self.logger.warning(
+                                LogCategory.MAIN,
+                                "Python 后备执行异常",
+                                task=task_name,
+                                error=str(py_exc),
+                            )
         # 任务返回前排空成功输入日志，避免 CLI 子进程退出时丢失尾部 OCR。
         observations_ok = self._flush_input_observations(timeout_s=15.0)
         if not observations_ok:
@@ -3522,26 +3554,72 @@ class MaaEndRuntime:
     def _python_dijiang_rewards(self, options: Dict[str, Any]) -> bool:
         """DijiangRewards（帝江奖励）Python 后备：进入控制中枢 → 收取产物/线索 → 返回。
 
-        验证标准：至少执行了一次收取动作（tap 计数 ≥ 1）且返回主世界成功。
+        云 UI 差异（2026-08-10 实测）：帝江号总控中枢页右上角无"产物/线索"
+        快捷收取按钮（FastCollect 的 OCR roi=[1037,45,243,372] 落空，
+        InControlNexus 模板匹配分仅 0.25 < 0.8），收取入口在设施页内：
+        - 会客室页右侧"收集"按钮 → 线索收集（线索库已满时仍可点击，显示容量提示）
+        - 制造舱页"满载/制造中"条目 → 产物收取
+        验证标准：至少一次真实收取动作（tap 计数 ≥ 1）且返回主世界成功。
         """
         if not self._connected:
             return False
-        self.logger.info(LogCategory.MAIN, "Python 后备：DijiangRewards")
+        self.logger.info(LogCategory.MAIN, "Python 后备：DijiangRewards（云 UI OCR 驱动）")
         taps = 0
         try:
-            self._open_main_menu()
-            time.sleep(1.5)
-            self._tap(200, 400)  # 菜单列表区域
-            time.sleep(2.0)
-            # 尝试收取产物/线索：检测到收取关键词时点击，记录动作
-            for _ in range(8):
+            # 1. 确保在帝江号总控中枢页；不在则先回主世界再走 MaaFW 入口链
+            text = self._ocr_screen_text()
+            if "总控中枢" not in text:
+                self._recover_to_world()
+                if not self.run_pipeline("SceneEnterMenuDijiangControlNexus", {}, timeout_s=60.0):
+                    self.logger.warning(LogCategory.MAIN, "Python 后备：进入帝江控制中枢失败")
+                    return False
+                time.sleep(1.5)
                 text = self._ocr_screen_text()
-                if any(k in text for k in ("产物", "Products", "线索", "Clues", "收取")):
-                    self._tap(640, 400)
-                    taps += 1
-                    time.sleep(1.5)
-                else:
-                    break
+                if "总控中枢" not in text:
+                    self.logger.warning(LogCategory.MAIN, "Python 后备：进入帝江控制中枢后未确认")
+                    self._recover_to_world()
+                    return False
+
+            # 2. 会客室收集线索：点"会客室"卡片 → 点右侧"收集"按钮
+            collected = self._tap_ocr_keyword_verify(
+                ("会客室",),
+                ("收集",),
+                click_verify=("线索", "收集", "会客室"),
+                max_tries=2,
+            )
+            if collected:
+                taps += 1
+                time.sleep(1.0)
+                # 关闭收集弹窗（可能弹出"已达自有线索库容量上限"提示）
+                self._tap(1194, 11)
+                time.sleep(1.0)
+                # 关闭设施页返回总控中枢
+                self._tap(1194, 11)
+                time.sleep(1.0)
+
+            # 3. 制造舱收取产物：点"制造舱"卡片 → 点"满载/制造中"条目
+            # 先确认已回总控中枢页
+            text = self._ocr_screen_text()
+            if "总控中枢" not in text:
+                for _ in range(3):
+                    self._tap(1194, 11)
+                    time.sleep(1.0)
+                    text = self._ocr_screen_text()
+                    if "总控中枢" in text:
+                        break
+            collected2 = self._tap_ocr_keyword_verify(
+                ("制造舱",),
+                ("满载", "制造中", "收取"),
+                click_verify=("制造", "满载", "收取"),
+                max_tries=2,
+            )
+            if collected2:
+                taps += 1
+                time.sleep(1.0)
+                self._tap(1194, 11)
+                time.sleep(1.0)
+
+            # 4. 返回主世界
             self._close_menu_and_world()
             ok = taps > 0
             self.logger.info(LogCategory.MAIN, "Python 后备：DijiangRewards", taps=taps, ok=ok)
@@ -3550,6 +3628,123 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "Python 后备：DijiangRewards 异常", error=str(exc))
             self._recover_to_world()
             return False
+
+    def _tap_ocr_keyword_verify(
+        self,
+        click_keywords: Tuple[str, ...],
+        action_keywords: Tuple[str, ...],
+        click_verify: Tuple[str, ...],
+        max_tries: int = 2,
+        action_roi: Optional[Tuple[int, int, int, int]] = None,
+        action_exact: bool = False,
+    ) -> bool:
+        """点击含关键词的文本框，然后在页面中找动作关键词并点击；验证点击效果。
+
+        云 UI 布局与资源包假设不同（如帝江号收取入口在设施页内），用 OCR
+        定位文本替代固定坐标/模板。逐候选点击、每次点击后验证页面是否进入
+        目标（click_verify 关键词出现）——避免点错重复文本（如总控中枢页
+        "会客室" 出现两次：卡片与列表项）。
+
+        动作词查找支持 ROI 限制（action_roi=[x,y,w,h]）与精确匹配
+        （action_exact=True），避免误点面板说明文字（如"干员线索收集效能"
+        含"收集"二字但非收取按钮，实测点击无效导致 taps=0）。
+        """
+        if not self._connected or self._controller is None or self._tasker is None:
+            return False
+        try:
+            cap_job = self._controller.post_screencap()
+            if not self._wait_job(cap_job, timeout_s=8.0):
+                return False
+            image = self._controller.cached_image
+            if image is None:
+                return False
+            from maa.pipeline import JOCR, JRecognitionType
+            ocr_param = JOCR(
+                expected=[".+"],
+                roi=[0, 0, int(image.shape[1]), int(image.shape[0])],
+                threshold=0.3,
+            )
+            detail = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image).wait().get()
+            if not detail:
+                return False
+            # 收集所有含 click_keywords 的文本框中心（可能有多个同词）
+            candidates: List[Tuple[int, int]] = []
+            for node in detail.nodes:
+                rec = getattr(node, "recognition", None)
+                for result in (getattr(rec, "all_results", []) if rec else []):
+                    text = str(getattr(result, "text", "") or "").strip()
+                    if any(k in text for k in click_keywords):
+                        box = getattr(result, "box", []) or []
+                        if len(box) == 4:
+                            candidates.append((int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)))
+            if not candidates:
+                self.logger.warning(LogCategory.MAIN, "OCR 未找到目标文本", click_keywords=click_keywords)
+                return False
+            for cx, cy in candidates[:max_tries]:
+                self._tap(cx, cy)
+                time.sleep(1.8)
+                text2 = self._ocr_screen_text()
+                if any(k in text2 for k in click_verify) and any(k in text2 for k in action_keywords):
+                    return True
+                # 进入页面但动作词未出现（如制造舱无产物可收）：尝试一次动作词
+                if any(k in text2 for k in click_verify):
+                    action_pt = self._find_ocr_text_center_roi(
+                        action_keywords, roi=action_roi, exact=action_exact,
+                    )
+                    if action_pt:
+                        self._tap(action_pt[0], action_pt[1])
+                        time.sleep(1.5)
+                        text3 = self._ocr_screen_text()
+                        if any(k in text3 for k in action_keywords) or any(k in text3 for k in ("确认", "领取", "成功", "容量", "上限")):
+                            return True
+            return False
+        except Exception:
+            return False
+
+    def _find_ocr_text_center_roi(
+        self,
+        keywords: Tuple[str, ...],
+        roi: Optional[Tuple[int, int, int, int]] = None,
+        exact: bool = False,
+    ) -> Optional[Tuple[int, int]]:
+        """在指定 ROI（像素 [x,y,w,h]，默认全屏）内 OCR 定位含关键词的文本框中心。
+
+        exact=True 时要求文本与关键词完全相等（而非包含），用于排除面板
+        说明文字误匹配（如"干员线索收集效能"vs 按钮"收集"）。
+        """
+        if not self._connected or self._controller is None or self._tasker is None:
+            return None
+        try:
+            cap_job = self._controller.post_screencap()
+            if not self._wait_job(cap_job, timeout_s=8.0):
+                return None
+            image = self._controller.cached_image
+            if image is None:
+                return None
+            from maa.pipeline import JOCR, JRecognitionType
+            if roi:
+                ocr_param = JOCR(expected=[".+"], roi=list(roi), threshold=0.3)
+            else:
+                ocr_param = JOCR(
+                    expected=[".+"],
+                    roi=[0, 0, int(image.shape[1]), int(image.shape[0])],
+                    threshold=0.3,
+                )
+            detail = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image).wait().get()
+            if not detail:
+                return None
+            for node in detail.nodes:
+                rec = getattr(node, "recognition", None)
+                for result in (getattr(rec, "all_results", []) if rec else []):
+                    text = str(getattr(result, "text", "") or "").strip()
+                    hit = text == keywords[0] if (exact and len(keywords) == 1) else any(k in text for k in keywords)
+                    if hit:
+                        box = getattr(result, "box", []) or []
+                        if len(box) == 4:
+                            return (int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2))
+            return None
+        except Exception:
+            return None
 
     def _python_credit_shopping(self, options: Dict[str, Any]) -> bool:
         """CreditShoppingN2（信用商店）Python 后备：进入商店 → 扫描/购买 → 返回。
