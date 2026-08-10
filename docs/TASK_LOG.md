@@ -3591,3 +3591,14 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   - ✅ 每轮 1-2 分钟完成传送尝试（此前 30-70s 空转+死循环）
   - ⚠️ 剩余问题：VLM 采集导航 dist_to_end=inf（小地图定位在部分区域丢失）→ 60 步未采到 → 采集精度问题（非卡顿）
 - **Files Modified**: `src/core/service/runtime.py`（c8fec0a/15fb66f/3f3bd67）、`src/core/service/maa_end/runtime.py`（d5ef80a）；`docs/TASK_LOG.md`（本条）
+
+## 2026-08-10 20:35（DeliveryJobs 仓储节点/装箱页回退链修复——单测通过 191.3s）
+
+- **User Request**: "无限重试，执行完整每日全套，增加刷取基质，去武陵第一个基质点刷取。最终需保证流出通过且判定无误"（DeliveryJobs 失败修复子项）
+- **失败实证**（第三轮运行）：DeliveryJobsValleyIVLoop 后画面停在"本地仓储节点页/货物装箱页"（精密制品货物一览/本地仓储/货箱总容量），`InRegionalDevelopment` 全程从未命中（依赖 IncomeReportButton/RegionalDevelopmentLevelButton **模板匹配**，云 UI 渲染差异导致模板识别失败）→ 回退链全部失败 → ESC×10 无效 → 任务失败重试死循环
+- **修复**（`3rd-part/maaend/resource_cloud/pipeline/Interface/SceneMenu.json`，本地生效不入库）：
+  1. `__ScenePrivateLocalDepotNodeDetect` expected 扩充——ROI 改全屏，增加"本地仓储/货物一览/货箱总容量/精密制品"等装箱页特征词（此前仅"本地仓储节点"，装箱页 OCR 无"节点"二字无法捕获）
+  2. 新增 `__ScenePrivateRegionalDevelopmentHomeText`（OCR 收支简报）+ `__ScenePrivateRegionalDevelopmentHomeLevel`（OCR 地区建设等级）+ `__ScenePrivateRegionalDevelopmentHomeDetect`（And 组合，pre_delay 400）——**纯 OCR 兜底判定地区建设主页**，不依赖模板匹配；加入 `SceneEnterMenuRegionalDevelopment` next（LocalDepotNodeDetect 之后、SceneAnyEnterWorld 之前）
+  3. `__ScenePrivateLocalDepotNodeClose` post_delay 600→1200（云渲染慢，确保关闭动画完成）
+- **单测验证**（run_one_task.py DeliveryJobs 900s）：✅ 完整轨迹——ValleyIVLoop → LocalDepotNodeDetect → Close → InRegionalDevelopment（主页判定成功）→ WulingLoop → LocalDepotNodeDetect → Close → InRegionalDevelopment → **DeliveryJobsFinished**；`DeliveryJobs -> OK in 191.3s`
+- **Files Modified**: `3rd-part/maaend/resource_cloud/pipeline/Interface/SceneMenu.json`（本地生效，gitignored）；`docs/TASK_LOG.md`（本条）
