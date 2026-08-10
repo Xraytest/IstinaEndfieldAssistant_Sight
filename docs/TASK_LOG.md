@@ -3569,3 +3569,25 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **SeizeDeliveryJobs 复测（15:1x）**: 轨迹大幅加深——区域切换→确认→**进仓储节点页**（DepotNodeSuccess+InWulingDepotNode 命中），卡点收敛到委托列表入口缺失（结构性 UI 差异，非输入问题）。
 - **AutoSell 复测（15:18-15:41, 1399.9s FAIL）**: 动作统计显示**真实执行 9 轮售卖循环**：StockRedistributionItemOpen×9（此前直接 failed to get target rect）→FriendsPricesOpen×9→ExpectedBuySlide/Click（真实售卖动作）→SceneNoticeRewardsConfirm。失败环节收敛到页内（预期购买价判定/确认）。
 - 结论：输入通道修复将此前"操作未传递"导致的大量假性失败（rect 无法执行/导航走不通）翻转为真实执行，剩余失败均为页内逻辑。
+
+## 2026-08-10 18:50（AutoCollect 卡顿 3 小时根因分析+四连修复：c8fec0a/15fb66f/3f3bd67/d5ef80a）
+
+- **User Request**: "卡顿有点久了，分析运行问题并修正，完成后继续推理并修正任务问题"；"限流只要持续尝试就行"。
+- **卡顿实证**（11:00-13:47 约 2.7 小时，22 路线×5 轮全部空转）：
+  1. **本次运行进程（10:58 启动）未包含 c8fec0a 修复**（14:23 才提交）——日志 12:50-13:47 持续点击"网络差/不稳定"(1235,698) 云状态文字 20+ 次，每轮空转 30-70s
+  2. **云 idle 断连弹窗**："长时间未操作将自动退出游戏"出现后挡住小地图 → "手动打开地图失败" → VLM/OCR 全空转；点"知道了"后回云客户端主页（会话断）
+  3. **帝江号误判**：角色在帝江号（O.M.V.帝江号 舰桥）时 `_verify_in_target_area` 无"武陵城"关键词→假定成功 → "已在目标区域大世界"跳过传送 → VLM 导航 60 步空转；地图打开的是帝江号内部地图（基建区/生活区/舰桥）无地区总览按钮 → VLM 找不到武陵城传送点 → OCR 兜底点"基建区"无效传送
+  4. **minitouch forward 1111 丢失**：云会话重连后 adb forward 表清空（仅剩 scrcpy）→ post_click job 成功但注入落空（实测画面 diff=0.03）→ 所有点击无效
+- **修复**（4 提交）：
+  - c8fec0a：地图判定特征词补全（事务提醒/O.M.V.帝江号/总控中枢）+ OCR 兜底过滤云状态文字+右下角区域排除+仓库界面识别
+  - 15fb66f：`_TASK_AREA_VERIFY_KEYWORDS` 补武陵城/试炼区/试验园区；两处 `_MAP_VIEW_KEYWORDS` 补帝江号内部特征排除
+  - 3f3bd67：`_vlm_teleport_to_area` Step -1 idle 弹窗检测；`_cloud_overview_navigate` 帝江号地图→世界地图切换（点"四号谷地"tab 1167,128 实测）；`_ensure_game_in_world` 帝江号视为游戏已运行；新增 `_is_in_djk_scene`
+  - d5ef80a：`_probe_input_channel` 失败时 `_ensure_minitouch_forward` 重建 tcp:1111（幂等）
+- **重测验证**（18:31 启动，含全部修复）：
+  - ✅ "传送：地图按钮点击成功，已进入地图视图 button=(110,125)"——Minitouch 通道生效，死循环消除
+  - ✅ "云端总览导航：检测到帝江号地图，切世界地图"→"切换地区 tab current=四号谷地 target=武陵"→"云端总览导航成功"（帝江号→世界路径实测打通）
+  - ✅ "VLM 传送执行结束 teleport_ok=True reason=vlm_visual_teleported"（Route2/Route4 各 1 次真实视觉传送成功）
+  - ✅ 跨区域切换正常（武陵↔四号谷地 tab）
+  - ✅ 每轮 1-2 分钟完成传送尝试（此前 30-70s 空转+死循环）
+  - ⚠️ 剩余问题：VLM 采集导航 dist_to_end=inf（小地图定位在部分区域丢失）→ 60 步未采到 → 采集精度问题（非卡顿）
+- **Files Modified**: `src/core/service/runtime.py`（c8fec0a/15fb66f/3f3bd67）、`src/core/service/maa_end/runtime.py`（d5ef80a）；`docs/TASK_LOG.md`（本条）
