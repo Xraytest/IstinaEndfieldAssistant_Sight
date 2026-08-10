@@ -3190,6 +3190,13 @@ class IstinaRuntime:
         # 界碑区域（首墩/望楼）：游戏内子区域名包括 "首墩"、"望楼" 等，
         # 界碑本身是地图传送点，但子区域名常出现在大世界 HUD。
         "界碑": ["武陵", "首墩", "望楼", "蓄水站"],
+        # 武陵城：大世界 HUD 显示 "武陵城"；2026-08-10 实证缺失该键导致
+        # _verify_in_target_area 无关键词→假定成功→帝江号舰桥内误判
+        # "已在目标区域大世界，无需传送"（AutoCollect Route2 空转根因）
+        "武陵城": ["武陵", "武陵城"],
+        # 试炼区/试验园区：AutoCollect 试炼区路线（CommonRoute8 等）
+        "试炼区": ["武陵", "试炼", "试验园区"],
+        "试验园区": ["武陵", "试炼", "试验园区"],
     }
 
     # 武陵区域总览视图中，各子区域的点击中心坐标（基于 1280x720 基准分辨率）。
@@ -3440,13 +3447,17 @@ class IstinaRuntime:
             return True
         elements = ocr_result.get("elements", [])
         labels = [str(e.get("label", "")) for e in elements if isinstance(e, dict)]
-        # 先确认在大世界（非地图视图/区域总览）
+        # 先确认在大世界（非地图视图/区域总览/帝江号内部）
+        # 2026-08-10 帝江号误判实证：舰桥/总控中枢 HUD 左上角也有"探索"，
+        # 且含"武陵城"任务文本 → 帝江号内被误判"已在武陵城大世界"，
+        # AutoCollect Route2 attempt=1 空转 60 步。帝江号内部特征须排除。
         _MAP_VIEW_KEYWORDS = (
             "//四号谷地", "//武陵", "// 武陵", "标记显示管理", "取消追踪", "地区总览",
             "地区建设等级", "O.M.V.帝江号",
+            "总控中枢", "中央环厅", "舰桥", "事务提醒",
         )
         if any(any(kw in label for label in labels) for kw in _MAP_VIEW_KEYWORDS):
-            return False  # 在地图视图/总览，不是大世界
+            return False  # 在地图视图/总览/帝江号，不是大世界
         # 大世界特征
         # 注意：不能用简单的 "m" in label，否则 "1ms"（延迟指示）会误判为距离。
         # 使用正则要求数字与 m 之间有空格，且 m 后为词边界（排除 "1ms"/"m/s"）。
@@ -4938,6 +4949,10 @@ class IstinaRuntime:
         _MAP_VIEW_KEYWORDS = (
             "//四号谷地", "//武陵", "// 武陵", "标记显示管理", "取消追踪", "地区总览",
             "地区建设等级",
+            # 2026-08-10 AutoCollect 帝江号误判实证：帝江号舰桥/总控中枢 HUD
+            # 左上角也有"探索"，_is_in_big_world 误判大世界 → "已在目标区域"
+            # 空转。帝江号内部场景与地图视图特征必须排除。
+            "O.M.V.帝江号", "总控中枢", "中央环厅", "舰桥", "事务提醒",
         )
         if any(any(kw in label for label in labels) for kw in _MAP_VIEW_KEYWORDS):
             return False
