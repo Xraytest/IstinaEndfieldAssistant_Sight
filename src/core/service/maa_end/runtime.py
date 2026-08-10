@@ -2512,6 +2512,44 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "任务边界主世界 OCR 异常", error=str(exc))
             return False
 
+    def _find_ocr_text_center(self, keywords: Tuple[str, ...]) -> Optional[Tuple[int, int]]:
+        """全屏 OCR 定位含任一关键词的文本框中心（像素坐标），未命中返回 None。
+
+        供恢复路径点击文本按钮（如好友舰内访客终端的"结束拜访"），避免依赖
+        固定坐标或模板（云 UI 下模板可能不匹配）。
+        """
+        if not self._connected or self._controller is None or self._tasker is None:
+            return None
+        try:
+            cap_job = self._controller.post_screencap()
+            if not self._wait_job(cap_job, timeout_s=8.0):
+                return None
+            image = self._controller.cached_image
+            if image is None:
+                return None
+            from maa.pipeline import JOCR, JRecognitionType
+            ocr_param = JOCR(
+                expected=[".+"],
+                roi=[0, 0, int(image.shape[1]), int(image.shape[0])],
+                threshold=0.3,
+            )
+            detail = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image).wait().get()
+            if not detail:
+                return None
+            for node in detail.nodes:
+                rec = getattr(node, "recognition", None)
+                for result in (getattr(rec, "all_results", []) if rec else []):
+                    text = str(getattr(result, "text", "") or "").strip()
+                    if any(k in text for k in keywords):
+                        box = getattr(result, "box", []) or []
+                        if len(box) == 4:
+                            cx = int((box[0] + box[2]) / 2)
+                            cy = int((box[1] + box[3]) / 2)
+                            return (cx, cy)
+            return None
+        except Exception:
+            return None
+
     def _recover_to_world(self, max_steps: int = 4) -> bool:
         """自适应恢复：先处理云空闲弹窗，再逐次点击关闭按钮，每次点击后 OCR 验证。
 
@@ -2542,6 +2580,22 @@ class MaaEndRuntime:
                 # 盲点候选在主页/无 X 页面会误触头像等 HUD 按钮，把 UI 带进
                 # 资料页——因此命中特征词时只点 X，不参与盲候选轮转。
                 text = getattr(self, "_last_world_ocr_text", "") or ""
+                # 好友舰内访客终端（正在拜访）：该页无右上 X，正确退出是
+                # "结束拜访"按钮（OCR 文本定位，实测点 X 无效导致 force-stop 空转）。
+                if ("结束拜访" in text) or ("正在拜访" in text) or ("拜访好友" in text):
+                    end_btn = self._find_ocr_text_center(("结束拜访", "離開", "离开"))
+                    if end_btn:
+                        self.logger.info(
+                            LogCategory.MAIN,
+                            "识别到好友舰内访客终端，点击结束拜访",
+                            target=end_btn,
+                        )
+                        try:
+                            self._controller.post_click(*end_btn).wait()
+                        except Exception:
+                            pass
+                        time.sleep(2.0)
+                        continue
                 if any(k in text for k in self._PROFILE_CLOSE_KEYWORDS):
                     px, py = self._PROFILE_CLOSE_BUTTON
                     self.logger.info(
