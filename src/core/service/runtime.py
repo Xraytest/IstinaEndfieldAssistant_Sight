@@ -967,6 +967,16 @@ class IstinaRuntime:
             if self._verify_in_world_by_ocr(serial):
                 self._logger.info(LogCategory.MAIN, "OCR 确认已在大世界")
                 return True
+            # DJK-SCENE-FIX: 游戏运行中但角色在帝江号（O.M.V.帝江号 舰桥/
+            # 总控中枢/基建区/生活区/中央环厅 特征，OCR 主世界判据必假阴）。
+            # 帝江号是合法游戏场景，不应重启游戏（重启后仍在帝江号），
+            # 视为"游戏已运行"返回 True，由 AutoCollect 传送链
+            # （_cloud_overview_navigate 帝江号地图→世界地图切换）处理。
+            if self._is_in_djk_scene(serial):
+                self._logger.warning(
+                    LogCategory.MAIN, "游戏已运行但角色在帝江号，视为已进入游戏",
+                )
+                return True
             self._logger.warning(LogCategory.MAIN, "游戏已运行但 OCR 未确认大世界，尝试重启")
 
         # 启动游戏（直接启动，不用 MaaFW 管线）
@@ -1098,6 +1108,35 @@ class IstinaRuntime:
         )
         return False
 
+
+    def _is_in_djk_scene(self, serial: Optional[str]) -> bool:
+        """检测当前是否在帝江号场景（O.M.V.帝江号 舰桥/地图）。
+
+        帝江号是玩家基地舰船：角色在舰桥/帝江号地图时，OCR 主世界判据
+        （探索/UID + 菜单关键词）必假阴，但游戏确实在运行。AutoCollect
+        等任务需识别该场景：不重启游戏，由传送链先切世界地图再传送。
+        2026-08-10 实测：帝江号地图标题 //O.M.V.帝江号 + 内部区域
+        （基建区/生活区/舰桥/中央环厅）；舰桥内部 HUD 有"查看干员详细
+        信息"等。
+        """
+        try:
+            ocr_result = self.execute(
+                "scene.elements",
+                {"serial": serial, "enable_ocr": True,
+                 "enable_template": False, "enable_color": False},
+            )
+        except Exception:
+            return False
+        if not isinstance(ocr_result, dict) or ocr_result.get("status") != "success":
+            return False
+        labels = [
+            str(e.get("label", "")).strip()
+            for e in ocr_result.get("elements", [])
+            if isinstance(e, dict)
+        ]
+        text = "".join(labels)
+        djk_kws = ("O.M.V.帝江号", "总控中枢", "中央环厅", "基建区", "生活区", "舰桥")
+        return any(kw in text for kw in djk_kws)
 
     def _tap_effective(self, serial: Optional[str], x: int, y: int) -> None:
         """有效触控通道：优先 MaaFW controller（Minitouch，云客户端真实接收），
@@ -3618,6 +3657,31 @@ class IstinaRuntime:
 
         elems = _elems()
         labels = _labels(elems)
+
+        # 帝江号地图识别（AutoCollect 卡顿根因之二，2026-08-10 实测）：
+        # 角色在帝江号（O.M.V.帝江号）时打开地图是帝江号内部地图
+        # （//O.M.V.帝江号 标题 + 基建区/生活区/舰桥/中央环厅），没有
+        # "地区总览"按钮 (1110,645)，_in_overview 恒 False → 总览导航失败
+        # → VLM 在帝江号地图上找不到武陵城传送点 → OCR 兜底点到帝江号
+        # 内部区域"基建区" → 传送无效 → max_steps 空转（每轮 30-70s）。
+        # 实测路径：帝江号地图点"四号谷地"(1167,128) → 四号谷地世界地图
+        # → 再点"武陵"tab (1011,642) → 武陵地图（区域 tab 切换）。
+        _DJK_MAP_KWS = ("基建区", "生活区", "舰桥", "中央环厅")
+        is_djk_map = (
+            any(any(k in lb for lb in labels) for k in _DJK_MAP_KWS)
+            and not any(("//武陵" in lb) or ("//四号谷地" in lb) for lb in labels)
+        )
+        if is_djk_map:
+            self._logger.info(
+                LogCategory.MAIN, "云端总览导航：检测到帝江号地图，切世界地图",
+                area=target_area,
+            )
+            # 帝江号地图右下区域 tab："四号谷地"入口（2026-08-10 实测命中）
+            _tap_ref(1167, 128)
+            time.sleep(3.0)
+            elems = _elems()
+            labels = _labels(elems)
+
         if not _in_overview(labels):
             _tap_ref(*self._CLOUD_OVERVIEW_BUTTON)
             time.sleep(2.5)
@@ -4186,6 +4250,22 @@ class IstinaRuntime:
             if is_cloud:
                 return True
             return self._verify_in_target_area(serial, target_area)
+
+        # ===== Step -1: 云 idle 断连弹窗检测（AutoCollect 卡顿根因） =====
+        # 2026-08-10 卡顿 3 小时实证：长跑触发"长时间未操作将自动退出游戏"
+        # 弹窗，挡住小地图 → "手动打开地图失败" → VLM/OCR 全空转（每轮
+        # 30-70s，20+ 次点击"网络差/不稳定"云状态文字）。弹窗为模态，
+        # 必须最先关闭；关闭后若回云客户端主页（会话断），_dismiss 会继续
+        # 点"开始游戏"推进回游戏内。
+        if is_cloud:
+            try:
+                dismiss = getattr(runtime, "_dismiss_cloud_idle_popup", None)
+                if callable(dismiss):
+                    dismiss()
+            except Exception as exc:
+                self._logger.warning(
+                    LogCategory.MAIN, "传送前 idle 弹窗检测异常", error=str(exc),
+                )
 
         # ===== Step 0: 检查是否已在目标区域大世界（避免不必要的传送） =====
         # 如果已在目标区域，直接返回成功，避免 pipeline 在错误状态下挂起
