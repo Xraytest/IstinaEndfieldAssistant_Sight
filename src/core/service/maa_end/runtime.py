@@ -1543,15 +1543,59 @@ class MaaEndRuntime:
         返回 True 表示输入通道真实可用（MaaFW job.succeeded=True）。
         注意连接降级(仅截图无触控)时 post_click 的 job 不会成功——这正是
         之前"操作没有正确传递到设备"的根源，旧逻辑未探测直接空跑任务。
+
+        MINITOUCH-FORWARD-FIX（2026-08-10 AutoCollect 卡顿实证）：云会话
+        idle 断连后 adb forward 列表中的 tcp:1111（minitouch 本地映射）
+        可能丢失，post_click 的 job 虽成功但注入实际落空（画面无变化，
+        实测 diff=0.03）。探针先确认 forward 存在，丢失则重建后重试。
         """
         if self._controller is None:
             return False
         try:
             click_job = self._controller.post_click(2, 2)
             ok = self._wait_job(click_job, timeout_s=5.0)
-            return bool(ok)
+            if ok:
+                return True
+            # job 失败：尝试重建 minitouch forward（云会话重连后可能丢失）
+            if self._ensure_minitouch_forward():
+                click_job = self._controller.post_click(2, 2)
+                return bool(self._wait_job(click_job, timeout_s=5.0))
+            return False
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "输入通道探针异常", error=str(exc))
+            return False
+
+    def _ensure_minitouch_forward(self) -> bool:
+        """确保 minitouch 本地端口 1111 的 adb forward 存在。
+
+        云会话 idle 断连/重连后，adb forward 表可能清空（仅剩 scrcpy 项），
+        MaaFW 的 minitouch 注入经 127.0.0.1:1111 转设备端 minitouch 失效
+        ——post_click job 成功但点击未到达（2026-08-10 实测画面 diff 0.03）。
+        检查 forward --list 缺失 tcp:1111 时重建，幂等。
+        """
+        try:
+            out = subprocess.run(
+                [self._adb_path, "-s", self._device_address, "forward", "--list"],
+                text=True, timeout=10, capture_output=True,
+            )
+            if "tcp:1111" in (out.stdout or ""):
+                return True
+            self.logger.warning(
+                LogCategory.MAIN, "minitouch forward tcp:1111 缺失，重建",
+                address=self._device_address,
+            )
+            subprocess.run(
+                [self._adb_path, "-s", self._device_address, "forward", "tcp:1111", "tcp:1111"],
+                text=True, timeout=10, capture_output=True,
+            )
+            # 验证重建结果
+            out2 = subprocess.run(
+                [self._adb_path, "-s", self._device_address, "forward", "--list"],
+                text=True, timeout=10, capture_output=True,
+            )
+            return "tcp:1111" in (out2.stdout or "")
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "minitouch forward 检查异常", error=str(exc))
             return False
 
     def _ensure_input_channel(self) -> bool:
