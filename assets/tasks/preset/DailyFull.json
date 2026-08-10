@@ -109,6 +109,16 @@
                             "Route5"
                         ]
                     }
+                },
+                {
+                    "name": "AutoEssence",
+                    "option": {
+                        "AutoEssenceChooseLocation": [
+                            "WLWulingCity"
+                        ],
+                        "AutoEssenceObtainMode": "ObtainScaling2",
+                        "AutoEssenceRepeatCountValue": "1"
+                    }
                 }
             ]
         }

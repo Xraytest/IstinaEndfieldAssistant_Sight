@@ -566,7 +566,9 @@ class MaaEndRuntime:
     # 真正损坏的环境最坏多等 40s，可接受。
     _CONNECTION_TIMEOUT_S = 60
     _SCREENCAP_TIMEOUT_S = 10
-    _MAX_TASK_RETRIES = 1
+    # 用户要求任务失败无限重试：不设次数上限，仅在连接彻底失败或用户停止时退出。
+    # 每轮失败后依次：轻量恢复 → 重试 → Python 后备 → 间隔后进入下一轮。
+    _MAX_TASK_RETRIES: Optional[int] = None
 
     # 不需要「先回到主世界」前置的任务：自身负责启动游戏/恢复，或本身就是进入主世界。
     # 其他任务（VisitFriends/SellProduct/DijiangRewards/DailyRewards/CreditShoppingN2 等）
@@ -1821,13 +1823,20 @@ class MaaEndRuntime:
             return False
 
     def _run_task_with_retry(self, task_name: str, options: Dict[str, Any], entry: str, override: Dict[str, Any]) -> bool:
-        for attempt in range(1 + self._MAX_TASK_RETRIES):
+        """任务执行 + 无限重试（用户要求：失败持续重试直到成功或用户停止）。
+
+        每轮顺序：执行 → 成功即返回；连接断开则恢复连接后重试；MaaFW 返回 False
+        时轻量恢复（_recover_to_world）→ 重试 → Python 级后备。全部手段失败后
+        进入下一轮（间隔等待防空转）。仅连接彻底无法恢复或用户主动停止时退出。
+        """
+        attempt = 0
+        while True:
             # 用户主动停止：跳过重试与恢复，立即返回失败
             if self._user_stop_event.is_set():
                 self.logger.warning(LogCategory.MAIN, "检测到停止请求，跳过任务重试", task=task_name, attempt=attempt)
                 return False
             if attempt > 0:
-                self.logger.warning(LogCategory.MAIN, "任务自动重试", task=task_name, attempt=attempt)
+                self.logger.warning(LogCategory.MAIN, "任务自动重试（无限）", task=task_name, attempt=attempt)
             result = self._run_task_once(task_name, options, entry, override)
             if result is True:
                 return True
@@ -1836,15 +1845,19 @@ class MaaEndRuntime:
                 if not self._recovering and self._try_recover_connection(task_name):
                     self.logger.info(LogCategory.MAIN, "连接恢复成功，重试任务", task=task_name)
                     result2 = self._run_task_once(task_name, options, entry, override)
-                    return bool(result2 is True)
-                self.logger.error(LogCategory.MAIN, "连接恢复失败，无法重试", task=task_name)
-                return False
+                    if result2 is True:
+                        return True
+                    result = result2
+                else:
+                    self.logger.error(LogCategory.MAIN, "连接恢复失败，无法重试", task=task_name)
+                    return False
             # result is False：MaaFW 穷举 entry.next 后仍未命中（OCR/TemplateMatch
             # 未命中、菜单未渲染好、UI 变化等"正常失败"）。对齐 project_memory 约束：
             # 不得触发 _recover_and_retry/RecoverGame，否则会导致"任务刚启动就被
             # 强制关游戏"（如 VisitFriends 22s 内 OCR 未命中 → 整任务判定失败 →
-            # 直接 StopApp 关游戏的严重 bug）。仅做轻量 BACK 关弹窗后重试一次。
-            if self._recovering or attempt >= self._MAX_TASK_RETRIES:
+            # 直接 StopApp 关游戏的严重 bug）。仅做轻量恢复与重试。
+            if self._recovering:
+                self.logger.warning(LogCategory.MAIN, "恢复流程进行中，停止任务重试", task=task_name)
                 break
             # 用户主动停止：跳过轻量恢复，避免触发不必要的 BACK 操作
             if self._user_stop_event.is_set():
@@ -1870,11 +1883,13 @@ class MaaEndRuntime:
                     self.logger.warning(LogCategory.MAIN, "Python 后备也返回失败", task=task_name)
                 except Exception as py_exc:
                     self.logger.warning(LogCategory.MAIN, "Python 后备执行异常", task=task_name, error=str(py_exc))
-            # 无后备或后备也失败：视为正常失败，返回 False 让上层决定是否继续下一个任务。
-            self.logger.warning(LogCategory.MAIN, "任务执行失败（轻量恢复后仍失败，视为正常失败）", task=task_name)
-            return False
-        self.logger.warning(LogCategory.MAIN, "任务执行失败（含重试）", task=task_name)
-        return False
+            # 无限重试：本轮全部手段失败，间隔后进入下一轮（防空转刷屏）。
+            attempt += 1
+            self.logger.warning(
+                LogCategory.MAIN, "任务本轮失败，无限重试继续",
+                task=task_name, attempt=attempt,
+            )
+            time.sleep(8.0)
 
     def _run_task_once(self, task_name: str, options: Dict[str, Any], entry: str, override: Dict[str, Any]) -> Optional[bool]:
         self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
@@ -2261,6 +2276,18 @@ class MaaEndRuntime:
             # run_task() 统一负责任务前主世界 guard，避免队列路径和直跑路径行为不一致。
             self.logger.info(LogCategory.MAIN, "队列进度", current=idx + 1, total=total, task=name)
             task_ok = self.run_task(name, options)
+            # 用户要求无限重试：run_task 内部已对 MaaFW 失败无限重试（_run_task_with_retry），
+            # 此处再兜底判定类失败（收集证据空 / 输入后 OCR 未完成 / 后置未回主世界）——
+            # 重试整个任务直到判定通过。仅连接彻底失败或用户主动停止时退出重试。
+            queue_attempt = 0
+            while not task_ok and not self._user_stop_event.is_set() and self._connected:
+                queue_attempt += 1
+                self.logger.warning(
+                    LogCategory.MAIN, "队列级无限重试",
+                    failed_task=name, queue_attempt=queue_attempt,
+                )
+                time.sleep(8.0)
+                task_ok = self.run_task(name, options)
             if not task_ok:
                 failures.append(name)
                 if fatal_mode:
@@ -2269,7 +2296,7 @@ class MaaEndRuntime:
                         "type": "task_failed",
                         "ocr": (getattr(self, "_last_world_ocr_text", "") or "")[:300],
                     })
-                self.logger.warning(LogCategory.MAIN, "队列任务失败，继续后续", failed_task=name, failed_index=idx + 1)
+                self.logger.warning(LogCategory.MAIN, "队列任务失败（无限重试后仍失败）", failed_task=name, failed_index=idx + 1)
                 # 用户主动停止：中止队列（不再继续后续任务）
                 if self._user_stop_event.is_set():
                     self.logger.warning(LogCategory.MAIN, "检测到停止请求，中止队列执行", failed_task=name)
