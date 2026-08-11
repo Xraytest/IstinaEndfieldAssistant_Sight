@@ -318,6 +318,27 @@ class MaaEndRuntime:
         self._task_run_clicks: List[str] = []
         # 本次任务运行命中的识别节点名（供 run_task 证据检查识别"额度已满合法完成"）。
         self._last_task_hit_nodes: List[str] = []
+        # 资源统计：task_name -> {动作节点: 执行次数}，全会话累计（不随单轮重置）。
+        # 供每日全套运行后汇总各任务真实执行的收获动作，确保各类资源无遗漏。
+        self._resource_stats: Dict[str, Dict[str, int]] = {}
+        # 当前正在执行的任务名（_enqueue_input_observation 据此归集点击统计）。
+        self._current_stats_task: Optional[str] = None
+        # 任务 → 收获资源类别（资源统计报告语义化；未映射任务仅输出动作证据）。
+        self._TASK_RESOURCE_TYPES: Dict[str, str] = {
+            "SellProduct": "信用点/据点发展值（据点交易出售产品）",
+            "DijiangRewards": "帝江产物/线索（总控中枢收取）",
+            "CreditShoppingN2": "商店物资（信用点购买）",
+            "DeliveryJobs": "委托配送奖励物资",
+            "AutoCollect": "野外采集材料",
+            "AutoEssence": "基质（武陵界碑刷取）",
+            "DailyRewards": "邮件/每日任务/活动/委托/协议通行证奖励",
+            "AutoStockpile": "储备物资",
+            "AutoStockStaple": "常备物资采购",
+            "AutoSell": "出售物资（信用点）",
+            "EnvironmentMonitoring": "环境监测奖励",
+            "SeizeDeliveryJobs": "抢夺委托物资",
+            "VisitFriends": "好友助力/线索交换",
+        }
         # 队列：唯一可执行单元。预设只是任务列表，应用预设 = 用其任务覆盖队列。
         self._queue: List[Dict[str, Any]] = []
         self._load_lock = threading.Lock()  # N11: 保护 load_tasks/load_presets 并发调用
@@ -845,10 +866,35 @@ class MaaEndRuntime:
             node = str((param or {}).get("node", "") or "")
             if node:
                 self._task_run_clicks.append(node)
+                # 资源统计：按当前任务归集各动作节点执行次数（全会话累计，无遗漏）。
+                task = self._current_stats_task
+                if task:
+                    bucket = self._resource_stats.setdefault(task, {})
+                    bucket[node] = bucket.get(node, 0) + 1
         try:
             self._input_observation_queue.put_nowait((controller, action, param, info))
         except Exception:
             self.logger.warning(LogCategory.MAIN, "输入观测队列已满，丢弃动作", action=action)
+
+    def _log_resource_stats(self, task_name: str) -> None:
+        """输出指定任务的动作级资源统计（全会话累计）。
+
+        统计该任务真实执行的点击动作节点（含 Python 后备/VLM 注入路径经
+        _enqueue_input_observation 归集的计数），并附任务对应的资源类别，
+        供每日全套运行后核对各任务收获、确保各类资源无遗漏。
+        """
+        bucket = self._resource_stats.get(task_name)
+        if not bucket:
+            return
+        total = sum(bucket.values())
+        self.logger.info(
+            LogCategory.MAIN,
+            "资源统计（动作证据累计）",
+            task=task_name,
+            resource=self._TASK_RESOURCE_TYPES.get(task_name, ""),
+            total_actions=total,
+            actions=bucket,
+        )
 
     _OBSERVATION_BATCH_MAX = 8
 
@@ -1891,6 +1937,8 @@ class MaaEndRuntime:
             if attempt > 0:
                 self.logger.warning(LogCategory.MAIN, "任务自动重试（无限）", task=task_name, attempt=attempt)
             result = self._run_task_once(task_name, options, entry, override)
+            # 资源统计：每轮结束输出该任务累计动作统计（含重试轮，便于核对收获无遗漏）
+            self._log_resource_stats(task_name)
             if result is True:
                 return True
             if result is None:
@@ -1948,6 +1996,8 @@ class MaaEndRuntime:
         self.logger.info(LogCategory.MAIN, "开始执行任务", task=task_name, entry=entry, override=override)
         # 每次尝试独立清零点击证据：成功判定只认本次尝试的真实动作
         self._task_run_clicks = []
+        # 资源统计归集目标：本任务起执行的点击节点计入 _resource_stats[task_name]
+        self._current_stats_task = task_name
         watchdog_stop = threading.Event()
         watchdog_thread = threading.Thread(
             target=self._connection_watchdog, args=(task_name, watchdog_stop), daemon=True,
@@ -2637,9 +2687,16 @@ class MaaEndRuntime:
                 # 盲点候选在主页/无 X 页面会误触头像等 HUD 按钮，把 UI 带进
                 # 资料页——因此命中特征词时只点 X，不参与盲候选轮转。
                 text = getattr(self, "_last_world_ocr_text", "") or ""
-                # 好友舰内访客终端（正在拜访）：该页无右上 X，正确退出是
+                # 好友舰内访客终端（GUEST MODE，正在拜访）：该页无右上 X，正确退出是
                 # "结束拜访"按钮（OCR 文本定位，实测点 X 无效导致 force-stop 空转）。
-                if ("结束拜访" in text) or ("正在拜访" in text) or ("拜访好友" in text):
+                # 注意：好友列表界面（"选择拜访好友…返回帝江号…结束拜访 4/55/5"）
+                # 也含"拜访好友/结束拜访"字样但非按钮，点 (593,329) 无效会空转致
+                # force-stop；必须以 GUEST MODE/打开访客终端标识为前置条件。
+                if ("结束拜访" in text) and (
+                    ("GUEST MODE" in text.upper())
+                    or ("打开访客终端" in text)
+                    or ("正在拜访" in text)
+                ):
                     end_btn = self._find_ocr_text_center(("结束拜访", "離開", "离开"))
                     if end_btn:
                         self.logger.info(

@@ -77,10 +77,9 @@ def main() -> int:
         "的", "了", "是", "在", "请", "请选择",
     ]
     ocr_param = JOCR(
-        expected=keywords,
+        expected=[".+"],
         roi=[0, 0, img.shape[1], img.shape[0]],
-        threshold=0.3,
-        only_rec=True,  # only_rec=True 时返回所有识别到的文本，expected 不做过滤
+        threshold=0.3,  # 与 runtime._verify_in_world_by_ocr 一致；不用 only_rec（云画质下仅出单字）
     )
     ocr_job = tasker.post_recognition(JRecognitionType.OCR, ocr_param, img)
     detail = ocr_job.wait().get()

@@ -690,8 +690,25 @@ class IstinaRuntime:
             if action == "status":
                 return self._llm_status()
             return {"status": "error", "message": f"unknown llm action: {action}"}
+        if domain == "stats" and action == "resources":
+            return self._resource_stats_report(params)
         self._logger.warning(LogCategory.MAIN, "未知命令", command=command)
         return None
+
+    def _resource_stats_report(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """输出全会话动作级资源统计（按任务归集，附资源类别，确保无遗漏）。"""
+        serial = params.get("serial")
+        runtime = self.maaend(serial)
+        stats = getattr(runtime, "_resource_stats", {})
+        types = getattr(runtime, "_TASK_RESOURCE_TYPES", {})
+        report = {}
+        for task, actions in sorted(stats.items()):
+            report[task] = {
+                "resource": types.get(task, ""),
+                "total_actions": sum(actions.values()),
+                "actions": dict(sorted(actions.items(), key=lambda kv: -kv[1])),
+            }
+        return {"status": "success", "command": "stats.resources", "report": report}
 
     @staticmethod
     def _placeholder(command: str, target: Optional[str] = None, **kwargs: Any) -> Dict[str, Any]:
