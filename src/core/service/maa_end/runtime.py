@@ -1950,25 +1950,28 @@ class MaaEndRuntime:
                 if image is None:
                     return True
                 from maa.pipeline import JOCR, JRecognitionType
-                # expected=[".+"] 全匹配输出所有文本，再手动判断是否含网络差
-                # 字样（all_results 返回全部识别文本，不按 expected 过滤）。
+                # 右下角状态区 ROI + expected 过滤：filtered_results 只含匹配
+                # expected 的结果（all_results 是全部文本不过滤），检测精准且快。
                 ocr_param = JOCR(
-                    expected=[".+"],
-                    roi=[0, 0, 1280, 720],
+                    expected=["网络差", "网络不稳", "不稳定"],
+                    roi=[1080, 650, 200, 70],
                     threshold=0.3,
                 )
                 detail = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image).wait().get()
                 if detail:
                     for node in detail.nodes:
                         rec = getattr(node, "recognition", None)
-                        for r in (getattr(rec, "all_results", []) if rec else []):
-                            text += str(getattr(r, "text", "") or "")
+                        if rec is None:
+                            continue
+                        if getattr(rec, "hit", False) or getattr(rec, "filtered_results", None):
+                            for r in (getattr(rec, "filtered_results", None) or []):
+                                text += str(getattr(r, "text", "") or "")
+                            if not text:
+                                text = "网络差"  # hit 但无文本时按网络差处理
             except Exception:
                 return True  # 检测异常不阻塞
-            # 手动判断：含"网络差/网络不稳/不稳定"字样才视为网络差（全屏 OCR
-            # 文本含其他界面文字，仅 expected 过滤不可靠——all_results 不过滤）。
-            if not any(k in text for k in ("网络差", "网络不稳", "不稳定")):
-                return True  # 无网络差字样 = 网络稳定
+            if not text:
+                return True  # 右下角无网络差字样 = 网络稳定
             self.logger.warning(
                 LogCategory.MAIN, "云网络差，等待网络稳定", waited_s=int(waited), text=text[:40],
             )
