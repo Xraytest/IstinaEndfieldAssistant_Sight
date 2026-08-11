@@ -1,6 +1,6 @@
 {
     "__ScenePrivateWorldSpaceExit": {
-        "desc": "从大世界协议空间、好友飞船退出。timeout=2000 确保非协议空间时快速失败（避免 60s 等待阻塞 SceneAnyEnterWorld）",
+        "desc": "从大世界协议空间、好友飞船退出",
         "recognition": "TemplateMatch",
         "roi": [
             0,
@@ -14,17 +14,27 @@
         ],
         "pre_wait_freezes": 200,
         "pre_delay": 0,
-        "action": "Click",
-        "max_hit": 5,
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "RepeatUntilFoundAction",
+                "custom_action_param": {
+                    "custom_action": "AutoAltClickAction",
+                    "wait_nodes": [
+                        "__ScenePrivateWorldSpaceExitConfirm",
+                        "__ScenePrivateEndVisit"
+                    ]
+                }
+            }
+        },
         "post_delay": 0,
-        "timeout": 2000,
         "next": [
             "__ScenePrivateWorldSpaceExitConfirm",
             "__ScenePrivateEndVisit"
         ]
     },
     "__ScenePrivateWorldStorySkip": {
-        "desc": "大世界剧情跳过。timeout=2000 确保非剧情跳过按钮时快速失败（避免 60s 等待阻塞 SceneAnyEnterWorld）",
+        "desc": "大世界剧情跳过",
         "recognition": "TemplateMatch",
         "roi": [
             1140,
@@ -37,13 +47,12 @@
         "pre_delay": 0,
         "action": "Click",
         "post_delay": 0,
-        "timeout": 2000,
         "next": [
             "__ScenePrivateWorldStorySkipConfirm"
         ]
     },
     "__ScenePrivateWorldStorySkipConfirm": {
-        "desc": "大世界剧情跳过确认。timeout=2000 确保非确认界面时快速失败（避免 60s 等待阻塞 SceneAnyEnterWorld）",
+        "desc": "大世界剧情跳过确认",
         "recognition": "And",
         "all_of": [
             "YellowConfirmButtonType1"
@@ -51,11 +60,9 @@
         "pre_wait_freezes": 100,
         "pre_delay": 0,
         "action": "Click",
-        "post_delay": 1000,
-        "timeout": 2000
-    },
+        "post_delay": 1000     },
     "__ScenePrivateEndVisit": {
-        "desc": "识别结束拜访。timeout=2000 确保非拜访界面时快速失败（避免 60s 等待阻塞 SceneAnyEnterWorld）",
+        "desc": "识别结束拜访",
         "recognition": {
             "type": "OCR",
             "param": {
@@ -77,13 +84,12 @@
         "action": {
             "type": "Click"
         },
-        "timeout": 2000,
         "next": [
             "__ScenePrivateWorldSpaceExitConfirm"
         ]
     },
     "__ScenePrivateWorldSpaceExitConfirm": {
-        "desc": "从大世界协议空间、好友飞船退出的确认界面。timeout=2000 确保非确认界面时快速失败（避免 60s 等待阻塞 SceneAnyEnterWorld）",
+        "desc": "从大世界协议空间、好友飞船退出的确认界面",
         "recognition": "And",
         "all_of": [
             "YellowConfirmButtonType1"
@@ -93,30 +99,28 @@
         "action": {
             "type": "Click"
         },
-        "post_delay": 0,
-        "timeout": 2000
+        "post_delay": 0
     },
     "__ScenePrivateAnyEnterWorldSuccess": {
-        "desc": "从任意界面进入大世界成功。使用 InWorld 模板匹配 + 探索 OCR ROI [0,0,250,80] 双重验证，避免云终末地菜单列表误判。",
+        "desc": "从任意界面进入大世界成功",
         "recognition": {
             "type": "And",
             "param": {
                 "all_of": [
-                    {
-                        "recognition": "OCR",
-                        "roi": [0, 0, 250, 80],
-                        "expected": ["探索"],
-                        "threshold": 0.7
-                    }
+                    "InWorld"
                 ]
             }
         },
         "pre_wait_freezes": {
-            "target": [70, 80, 70, 60],
+            "target": [
+                70,
+                80,
+                70,
+                60
+            ],
             "time": 800,
             "timeout": 2000
         },
-        "timeout": 2000,
         "pre_delay": 0,
         "post_delay": 0
     },
@@ -155,7 +159,7 @@
                                 "template": [
                                     "SceneManager/WorldMenu.png"
                                 ],
-                                "green_mask": false
+                                "green_mask": true
                             }
                         }
                     }
@@ -203,7 +207,7 @@
                                 "template": [
                                     "SceneManager/WorldMenu.png"
                                 ],
-                                "green_mask": false
+                                "green_mask": true
                             }
                         }
                     }
@@ -211,8 +215,18 @@
                 "box_index": 0
             }
         },
-        "action": "Click",
-        "max_hit": 5,
+        "action": {
+            "type": "Custom",
+            "param": {
+                "custom_action": "RepeatUntilFoundAction",
+                "custom_action_param": {
+                    "custom_action": "AutoAltClickAction",
+                    "wait_nodes": [
+                        "__ScenePrivateAnyEnterWorldFactorySuccess"
+                    ]
+                }
+            }
+        },
         "next": [
             "__ScenePrivateAnyEnterWorldFactorySuccess"
         ]
@@ -236,7 +250,7 @@
                                 "template": [
                                     "SceneManager/WorldDijiangMenu.png"
                                 ],
-                                "green_mask": false
+                                "green_mask": true
                             }
                         }
                     },
@@ -253,7 +267,7 @@
                                 "template": [
                                     "SceneManager/WorldMenu.png"
                                 ],
-                                "green_mask": false
+                                "green_mask": true
                             }
                         }
                     }
