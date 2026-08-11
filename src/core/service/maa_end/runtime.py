@@ -1925,18 +1925,22 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "启动类任务误判纠正异常", task=task_name, error=str(exc))
             return False
 
-    def _wait_network_stable(self, max_wait_s: float = 180.0, check_interval_s: float = 15.0) -> bool:
+    def _wait_network_stable(self, max_wait_s: float = 300.0, check_interval_s: float = 15.0) -> bool:
         """检测云游戏"网络差/不稳定"状态并等待网络稳定（OCR 右下角状态字样）。
 
         云网络波动时 OCR/模板/点击注入均不稳定（实测"网络差"字样常驻期间
         管线反复失败：菜单列表 OCR 失配、点击落空、轮次深度波动）。检测到
         "网络差"则轮询等待网络恢复后再继续；最多等待 max_wait_s，超时返回
-        （不阻塞任务失败重试）。网络稳定或无法检测时立即返回 True。
+        （不阻塞任务失败重试）。用户主动停止时立即返回。网络稳定或无法检测
+        时立即返回 True。
         """
         if not self._connected or self._tasker is None or self._controller is None:
             return True
         waited = 0.0
         while waited < max_wait_s:
+            if self._user_stop_event.is_set():
+                self.logger.warning(LogCategory.MAIN, "网络等待期间收到停止请求", waited_s=int(waited))
+                return False
             text = ""
             try:
                 cap_job = self._controller.post_screencap()
