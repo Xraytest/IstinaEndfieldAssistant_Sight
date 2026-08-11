@@ -1760,6 +1760,10 @@ class MaaEndRuntime:
         override = self.build_pipeline_override(task_name, options)
         entry = task.get("entry", task_name)
         if task_name not in self._TASKS_SKIP_ENTER_WORLD:
+            # 云网络差时先等待稳定再做任务间清理：网络差期间边界 OCR/关闭
+            # 覆盖层均不稳定，清理失败会直接 return False（不走重试），
+            # 网络稳定后再清理成功率高。
+            self._wait_network_stable(max_wait_s=180.0)
             if not self._ensure_in_world_before_task(task_name):
                 self.logger.error(LogCategory.MAIN, "任务前未确认主世界", task=task_name)
                 return False
@@ -1921,6 +1925,54 @@ class MaaEndRuntime:
             self.logger.warning(LogCategory.MAIN, "启动类任务误判纠正异常", task=task_name, error=str(exc))
             return False
 
+    def _wait_network_stable(self, max_wait_s: float = 180.0, check_interval_s: float = 15.0) -> bool:
+        """检测云游戏"网络差/不稳定"状态并等待网络稳定（OCR 右下角状态字样）。
+
+        云网络波动时 OCR/模板/点击注入均不稳定（实测"网络差"字样常驻期间
+        管线反复失败：菜单列表 OCR 失配、点击落空、轮次深度波动）。检测到
+        "网络差"则轮询等待网络恢复后再继续；最多等待 max_wait_s，超时返回
+        （不阻塞任务失败重试）。网络稳定或无法检测时立即返回 True。
+        """
+        if not self._connected or self._tasker is None or self._controller is None:
+            return True
+        waited = 0.0
+        while waited < max_wait_s:
+            text = ""
+            try:
+                cap_job = self._controller.post_screencap()
+                if not self._wait_job(cap_job, timeout_s=8.0):
+                    return True  # 截图失败不阻塞（连接层会另行处理）
+                image = self._controller.cached_image
+                if image is None:
+                    return True
+                from maa.pipeline import JOCR, JRecognitionType
+                # expected=[".+"] 全匹配输出所有文本，再手动判断是否含网络差
+                # 字样（all_results 返回全部识别文本，不按 expected 过滤）。
+                ocr_param = JOCR(
+                    expected=[".+"],
+                    roi=[0, 0, 1280, 720],
+                    threshold=0.3,
+                )
+                detail = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image).wait().get()
+                if detail:
+                    for node in detail.nodes:
+                        rec = getattr(node, "recognition", None)
+                        for r in (getattr(rec, "all_results", []) if rec else []):
+                            text += str(getattr(r, "text", "") or "")
+            except Exception:
+                return True  # 检测异常不阻塞
+            # 手动判断：含"网络差/网络不稳/不稳定"字样才视为网络差（全屏 OCR
+            # 文本含其他界面文字，仅 expected 过滤不可靠——all_results 不过滤）。
+            if not any(k in text for k in ("网络差", "网络不稳", "不稳定")):
+                return True  # 无网络差字样 = 网络稳定
+            self.logger.warning(
+                LogCategory.MAIN, "云网络差，等待网络稳定", waited_s=int(waited), text=text[:40],
+            )
+            time.sleep(check_interval_s)
+            waited += check_interval_s
+        self.logger.warning(LogCategory.MAIN, "网络等待超时，继续尝试", max_wait_s=max_wait_s)
+        return False
+
     def _run_task_with_retry(self, task_name: str, options: Dict[str, Any], entry: str, override: Dict[str, Any]) -> bool:
         """任务执行 + 无限重试（用户要求：失败持续重试直到成功或用户停止）。
 
@@ -1936,6 +1988,11 @@ class MaaEndRuntime:
                 return False
             if attempt > 0:
                 self.logger.warning(LogCategory.MAIN, "任务自动重试（无限）", task=task_name, attempt=attempt)
+            # 云网络差时等待稳定：OCR/点击/注入均受网络波动影响，网络差期间
+            # 执行大概率失败且浪费恢复/重试轮次。网络稳定再执行（用户允许
+            # 低效率，能跑通即可）。同时幂等确保 minitouch 通道存在。
+            self._ensure_minitouch_forward()
+            self._wait_network_stable(max_wait_s=180.0)
             result = self._run_task_once(task_name, options, entry, override)
             # 资源统计：每轮结束输出该任务累计动作统计（含重试轮，便于核对收获无遗漏）
             self._log_resource_stats(task_name)
