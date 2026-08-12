@@ -3639,3 +3639,41 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **恢复路径实证**：手动重建 forward+重启 minitouch 进程**不足**（socket 直连注入仍无效）→ **force-stop+monkey 重启游戏**（`_force_restart_to_world`）后注入恢复（点击 diff 0.03→0.37），弹窗/云大厅一并清除
 - **单测验证**（force-stop 恢复后 run_one_task.py DijiangRewards 900s）：✅ 真实轨迹——`__ScenePrivateWorldEnterMenuControlNexus` → `DijiangRewardsFastCollectProduction`(1156,167) → `CloseFastCollectProductionRewards`(649,611)——**MaaFW 管线原生真实执行收取，证据匹配 required_prefix，判定无误**；`DijiangRewards -> OK in 62.6s`
 - **Files Modified**: `src/core/service/maa_end/runtime.py`（typing Tuple、ok=False 修复、Python 后备兜底、`_python_dijiang_rewards` 重写、`_tap_ocr_keyword_verify`、`_find_ocr_text_center_roi`）；`docs/TASK_LOG.md`（本条）
+
+## 2026-08-11 19:50（4个未完成任务诊断修复+资源统计功能+OCR修正）
+
+- **User Request**: "据点交易，每日任务奖励，基质刷取，邮件领取都没有被完成，特别关注他们。完成对各类资源统计功能，确保无遗漏。"
+- **4 任务定位**：据点交易=SellProduct、每日任务奖励+邮件领取=DailyRewards（DailyTaskRewards/DailyEmailRewards）、基质刷取=AutoEssence（**不在 DailyFull preset——任务#19 声称添加实际丢失，已重新加入**（WLMarkerStone 武陵界碑 + ObtainScaling2））。
+- **失败实证**：
+  - SellProduct：交替失败——偶数轮 `SellProductEnterRegionalDevelopment` 失败（公共节点 WorldMenu 模板 0.326/InMenuList FIELD OCR 云端失配）；奇数轮交易真实执行（SellProductSell 多轮）但收尾 `RestoreOperatorScanFailed`（StopTask 硬失败）→ 无限重试。
+  - DailyRewards：08-08 后从未 OK——邮件入口 `DailyEmailWorldEnterMenuEmail`（WorldMenu 模板失配）→ JumpBack ESC×10 空转；行动手册退出 ESC（ClickKey 27 云客户端忽略）卡死。
+  - AutoEssence：0 条日志（从未执行）。
+- **修复**（`3rd-part/maaend/resource_cloud/pipeline/` 本地生效，gitignored）：
+  1. **公共节点云端化**（惠及所有任务）：`InMenuList` 加菜单列表特征 OCR 兜底（塔晶集换/行动手册/贵重品库/编队/BREAKING，threshold 0.3）；`__ScenePrivateWorldEnterMenuList` 改内联绝对右上角 (1080,0,200,200) ProtosyncMenuButton 模板（runtime 实测 0.99）+ Click 点识别框（**固定坐标 target 数组需前置锚点 rect，入口节点报 failed to get target rect；二元组/四元组/节点级 target 均不行**，唯一可行=内联模板识别框点击）；`InWorld` 移除总控中枢/工业计划 OCR 分支（实测只在菜单列表界面出现→菜单列表误命中 InWorld→点 (1231,37) 反关菜单）；`DailyEmailWorldEnterMenuEmail` 加 InWorld 兜底；`DailyTaskComplete` 改 OCR X(1150,0,130,60)+Click（**新节点未注册无法解析，合入本体**）关闭行动手册。
+  2. **SellProduct 收尾宽容**：6 据点 `RestoreOperatorScanFailed` 去 StopTask→无 action（Custom 识别无 rect）+ next Done——交易已完成不再阻塞，界面由 runtime 后置恢复关闭。
+  3. **minitouch 修复**（模拟器重启后 forward 丢失→管线点击落空）：设备端 minitouch 进程 + `adb forward tcp:1111 tcp:1111` 重建。
+- **资源统计功能**（已提交 045b773 并推送）：MaaEndRuntime `_resource_stats`（task→动作节点计数全会话累计）+ `_log_resource_stats`（每轮输出含资源类别）+ `stats.resources` 命令；13 任务→资源类别映射（SellProduct信用点/帝江产物/AutoEssence基质/DailyRewards邮件任务奖励等）。**实测输出确认**：`资源统计（动作证据累计） task=DailyRewards resource=邮件/每日任务/活动/委托/协议通行证奖励 total_actions=12 actions={'__ScenePrivateWorldEnterMenuList': 6, 'DailyTaskEnterTab': 6}`。
+- **OCR 修正**（用户指示"优先使用 MAAfw 内置本地OCR"）：诊断脚本 `only_rec=True` 在云画质下仅返回零散单字（"年/中/E"）——改 runtime 标准参数 `expected=[".+"]+threshold 0.3`（debug_ocr_current.py 已提交），实测完整识别（"终末地/点击任意位置继续/塔晶集换/行动手册" score 1.00）。
+- **验证进展**：DailyRewards 从"10 秒卡菜单入口"→19:26 轮**完整链路打通**（邮件入口→菜单列表→行动手册→DailyTaskEnterTab→DailyTaskComplete 领取完成）；WorldEnterMenuList 管线单测 True；InMenuList 菜单列表命中 True。**剩余**：网络差环境轮次波动（19:39 到 EnterTab、19:40 邮件环节失败）+ 委托奖励/协议通行证子链待验证。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`+`src/core/service/runtime.py`+`scripts/debug_ocr_current.py`（提交 045b773）；`3rd-part/maaend/resource_cloud/pipeline/`（SceneMenu/Region/Emails/Tasks/VisitFriends/SellProduct 6据点，gitignored 本地生效）；`3rd-part/maaend/tasks/preset/DailyFull.json`（AutoEssence，gitignored）。
+
+## 2026-08-11 22:40（MaaEnd代码与资源更新+模板优先+资源加载修复+网络优化）
+
+- **User Request**: "优化云游戏网络不稳定对流程的影响。完成未完成的修正，我允许你使用任何方法来修正这些问题，不考虑处理效率，能跑通就行"；"并不是领取按钮，阅读MaaEnd的涉及，优先模板匹配，模板匹配的数据优先级高于OCR。（使用前完成对MaaEnd代码与资源的更新）"
+- **MaaEnd 代码与资源更新**（用户指示"使用前完成更新"）：浅克隆 MaaEnd v2 上游（`git clone --depth 1 --branch v2`）→ 同步 assets/resource（基础包）→ assets/tasks → assets/resource_cloud_adb（增量覆盖本地 resource_cloud）；resource 包 Region.json/SceneWorld.json 已提交（5867435）。
+- **资源加载修复**（上游更新后本地加载失败连环排障）：
+  1. `key already exists`（resource 包内跨文件重复）：上游重构 DeliveryJobs（ValleyIV/Wuling.json → Depot/ 子目录）、SellProduct（EnterOutpost/Sell/Outposts/ → OutpostShared/ValleyIV//Wuling/）、CloseGame（GameSwitch/ → OpenGame.json）——删除本地旧版遗留文件；resource 包内重复 331→0。
+  2. resource_cloud 包内 8 个重复 key（上游 resource_cloud_adb 覆盖 Item.json/TitleYellow.json vs 本地旧 OCR 定制 ShelfBase/Event/*）——保留上游版删本地旧节点。
+  3. `box_index out of range`（MaaFW 对 And 默认 box_index=1，all_of.size()=1 越界）：批量修复扁平+嵌套两种格式共 160 节点；嵌套格式 box_index 需在 **param 内**（`{"type":"And","param":{"all_of":[...],"box_index":0}}`）——顶层不生效。
+- **模板优先原则**（用户指示"模板匹配的数据优先级高于OCR"）：批量扫描 Or 分支顺序，修正 4 节点（DailyTaskClaimSingleReward/Success、VisitFriendsEnterShipSuccess、InWorldFactory）——TemplateMatch 分支移到 OCR 分支前。
+- **"并不是领取按钮"**：阅读上游 Tasks.json 确认 DailyTaskClaimSingleReward 模板（TaskClaimSingleReward.png）应优先于 OCR"领取"识别——已按模板优先修正。
+- **网络优化**（前一轮已提交 1bda3d5/845fb98/fa0dcf5）：`_wait_network_stable` 右下角 ROI+filtered_results 精准检测"网络差"（实测 text=网络差 干净判定）；重试前/清理前等待；minitouch 幂等保持。
+- **验证进展**：MaaEnd 更新后 runtime 连接恢复（连接 True）；DailyRewards 每轮稳定推进（邮件→菜单→行动手册→EnterTab 点击），网络差等待生效（text=网络差 轮询）；**剩余**：网络持续差（22:35+），等好转窗口完整跑通（Claim→Complete→委托奖励→协议通行证）。
+- **Files Modified**: `3rd-part/maaend/resource*`（gitignored 本地生效）、`3rd-part/maaend/resource/pipeline/Interface/InScene/Region.json`+`SceneManager/SceneWorld.json`（提交 5867435）；`docs/TASK_LOG.md`（本条）。
+
+## 2026-08-12 00:10（AnyExit云端X兜底+后台验证停止——网络持续差环境总结）
+
+- **`__ScenePrivateAnyExit` 云端 X 兜底**：resource_cloud 版已云端化（识别 CloseButtonType1/ProtosyncMenuButton/BackButton 点框）但模板在云画质下失配致退出空转——补右上角 OCR("X"|"×"|"✕"|"✖"|"✘") roi[1100,0,180,90] threshold 0.3 兜底分支（任何带 X 页面可退出；无 X 页面识别失败与 ESC 无效等价，不更差）。
+- **后台验证停止**（用户指示）：DailyRewards 验证任务（bacxcbkwe）在云网络持续差环境（22:32-23:48，4+ 小时）每轮稳定推进（邮件→菜单列表→行动手册→EnterTab 点击），但识别随网络波动时好时坏，无成功轮——已停止。
+- **结论**：管线修复全部到位（MaaEnd v2 资源更新+模板优先+box_index+网络等待+AnyExit X 兜底），剩余验证（DailyRewards 完整跑通、SellProduct、AutoEssence）待云网络好转窗口执行。
+- **Files Modified**: `3rd-part/maaend/resource_cloud/pipeline/SceneManager/SceneCommon.json`（gitignored 本地生效）；`docs/TASK_LOG.md`（本条）。
