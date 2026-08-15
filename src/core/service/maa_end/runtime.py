@@ -642,6 +642,17 @@ class MaaEndRuntime:
             "VisitFriendsClueExchangeFull",
             "VisitFriendsMenuScanFriendsFull",
         ),
+        # DijiangRewards：收取（生产/线索）额度已满时本轮无 FastCollect 点击，
+        # 但若真实进入过帝江子任务（会客室/制造舱/培养舱/情绪恢复入口节点命中），
+        # 证明管线完整执行而非 ControlNexus→Finish 空转（2026-08-15 实测：
+        # 前轮已收完，本轮真实执行 ReceptionRoomMain/Exit、GrowthChamberMain/Exit
+        # 却被证据检查误判未完成，无限重试）。命中任一子任务入口即豁免。
+        "DijiangRewards": (
+            "ReceptionRoomMain",
+            "MFGCabinMain",
+            "GrowthChamberMain",
+            "RecoveryEmotionMain",
+        ),
     }
 
     # 长时间运行任务：好友拜访（53 个好友 × 加载+操作+退出 ≈ 15-25 分钟）、
