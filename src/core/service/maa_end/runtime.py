@@ -1367,6 +1367,27 @@ class MaaEndRuntime:
                     continue
                 value = default_case
             override.update(self._apply_option(opt_def, value, option_defs, options))
+        # SELL-LOCATION-OPTIONS-FIX（2026-08-15 实测修复）：SellProduct 等任务的
+        # task.option 数组仅声明 7 个主选项，但据点激活选项（ValleyIVRefugeeCamp/
+        # InfraStation/ReconstructionHQ/Wuling* 等）定义在 option_defs 中却不在
+        # task_options 里——队列保存的用户选项（ValleyIVRefugeeCamp: Yes 等）
+        # 从未被应用，RegisterLocation 节点保持 active: false → go-service 报
+        # 'active locations are empty' → 全部据点无法售卖（无限重试）。
+        # 遍历 option_defs 中所有非 task_options 声明的选项：
+        # 用户显式提供时按用户选择应用；未提供但定义了 default_case 时
+        # 按默认值应用（与主选项行为一致），保证据点/子任务默认启用。
+        for opt_name, opt_def in option_defs.items():
+            if opt_name in task_options:
+                continue
+            if not isinstance(opt_def, dict) or not opt_def:
+                continue
+            value = options.get(opt_name)
+            if value is None:
+                default_case = opt_def.get("default_case")
+                if default_case is None:
+                    continue
+                value = default_case
+            override.update(self._apply_option(opt_def, value, option_defs, options))
         base_override = task.get("pipeline_override") or {}
         merged = self._merge_overrides(base_override, override)
         return merged
