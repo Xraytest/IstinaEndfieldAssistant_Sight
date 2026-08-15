@@ -1759,6 +1759,26 @@ class MaaEndRuntime:
             self.set_client_version(str(options["ClientVersion"]))
         override = self.build_pipeline_override(task_name, options)
         entry = task.get("entry", task_name)
+        # OPEN-GAME-FAST-PATH（2026-08-15 实测修复）：启动类任务（AndroidOpenGame 等）
+        # 在游戏已在主世界时，OpenGame 链没有任何"已在游戏内"的模板直接判定——
+        # EnterGame 要求"点击任意位置继续"、EnterGameRecognition 要求 News 公告按钮，
+        # 主世界均不命中 → 落到 StartUpGame(monkey 重复启动) → StuckRepairAction(CloseGame)
+        # 把正在运行的游戏强制关闭 → 假阴性纠正 + force-stop 重启再加载，白白浪费 7 分钟。
+        # 此处先用 InWorld 模板匹配（模板权威度高于 OCR，标准客户端画面清晰必命中）
+        # 快速判定：已主世界即直接成功，不进入 OpenGame 链，避免误关游戏。
+        if task_name in self._TASKS_OPEN_GAME:
+            try:
+                in_world = self.run_pipeline("InWorld", {}, timeout_s=15.0)
+            except Exception as exc:
+                in_world = False
+                self.logger.warning(LogCategory.MAIN, "OpenGame 前置 InWorld 判定异常", task=task_name, error=str(exc))
+            if in_world:
+                self.logger.info(
+                    LogCategory.MAIN,
+                    "游戏已在主世界（InWorld 模板命中），OpenGame 快速通过",
+                    task=task_name,
+                )
+                return True
         if task_name not in self._TASKS_SKIP_ENTER_WORLD:
             # 云网络差时先等待稳定再做任务间清理：网络差期间边界 OCR/关闭
             # 覆盖层均不稳定，清理失败会直接 return False（不走重试），
@@ -3398,6 +3418,26 @@ class MaaEndRuntime:
         """
         if not self._connected or self._tasker is None or self._controller is None:
             return False
+        # GAME-PROC-ALIVE-FIX（2026-08-15 实测修复）：游戏 Native crash 后主进程消失
+        # （仅剩 :pushcore 子进程），但桌面截图仍成功——旧逻辑只以"截图失败"为异常，
+        # 崩溃后在桌面空转数分钟。此处先用 pidof 探测主进程，确认已死则直接
+        # force-stop 重启恢复，不再让任务在桌面空转。
+        try:
+            probe = subprocess.run(
+                [self._adb_path, "-s", self._device_address, "shell",
+                 "pidof", self._game_package],
+                text=True, timeout=10, capture_output=True,
+            )
+            main_pids = (probe.stdout or "").strip()
+            if not main_pids:
+                self.logger.warning(
+                    LogCategory.MAIN,
+                    "游戏主进程不存在（可能已崩溃），force-stop 重启恢复",
+                    package=self._game_package,
+                )
+                return self._force_restart_to_world()
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "游戏进程存活探测异常（继续走截图验证）", error=str(exc))
         try:
             # 先尝试截图验证
             job = self._controller.post_screencap()

@@ -22,7 +22,7 @@ from core.service.runtime import IstinaRuntime
 
 def main() -> int:
     runtime = IstinaRuntime()
-    if not runtime.connect(serial="127.0.0.1:16416"):
+    if not runtime.connect(serial="192.168.1.12:16512"):
         print("连接失败")
         return 1
     maaend = runtime.maaend()
