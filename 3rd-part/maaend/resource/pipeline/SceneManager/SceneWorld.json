@@ -60,8 +60,7 @@
         "pre_wait_freezes": 100,
         "pre_delay": 0,
         "action": "Click",
-        "post_delay": 1000 // 点击后弹窗渐变消失，可能会重新识别成剧情跳过入口
-    },
+        "post_delay": 1000     },
     "__ScenePrivateEndVisit": {
         "desc": "识别结束拜访",
         "recognition": {

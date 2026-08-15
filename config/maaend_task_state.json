@@ -332,20 +332,7 @@
       "ClueSetting": "No",
       "SelectToGrow": "Any"
     },
-    "CreditShoppingN2": {
-      "CreditShoppingReserve": {
-        "ReserveCreditThreshold": "300"
-      },
-      "CreditShoppingClueSend": {
-        "MaxClueSendWhenInsufficient": "1"
-      },
-      "CreditShoppingClueStockLimit": "2",
-      "CreditShoppingPriority1": "Yes",
-      "CreditShoppingPriority2": "Yes",
-      "CreditShoppingPriority3": "No",
-      "CreditShoppingForce": "Refresh",
-      "CreditShoppingKeepShelfRecord": "Yes"
-    },
+    "CreditShoppingN2": {},
     "DeliveryJobs": {
       "ValleyIV": "Yes",
       "Wuling": "Yes"
