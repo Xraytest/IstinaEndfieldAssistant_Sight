@@ -30,6 +30,17 @@
                     }
                 },
                 {
+                    "name": "StockBalance",
+                    "option": {
+                        "BalanceThreshold": {
+                            "BalanceThresholdValue": "50"
+                        },
+                        "MaxGrowRounds": {
+                            "MaxGrowRoundsValue": "3"
+                        }
+                    }
+                },
+                {
                     "name": "CreditShoppingN2",
                     "option": {
                         "CreditShoppingForce": "Refresh",
