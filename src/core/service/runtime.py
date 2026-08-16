@@ -392,6 +392,7 @@ class IstinaRuntime:
                         adb_restart_on_timeout=self._config.get("device", {}).get("adb_restart_on_timeout", True),
                         game_package=game_package,
                         client_version=client_version,
+                        dml_device_id=self._config.get("gpu", {}).get("dml_device_id"),
                     )
                     self._maaend_clients[resolved] = runtime
         return runtime

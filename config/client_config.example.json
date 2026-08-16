@@ -1,6 +1,8 @@
 {
   "version": "2.0",
   "gpu": {
+    "_comment": "dml_device_id 为 DirectML 推理设备（DXGI EnumAdapters1 索引），null 表示由 MaaFW 自动选择。本机枚举：0=RTX 5060、1=Intel(R) Graphics、2=RTX 5060 第二条目、3=Microsoft Basic Render Driver。",
+    "dml_device_id": 1,
     "checked": false,
     "cuda_available": false,
     "gpu_count": 0,

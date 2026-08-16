@@ -282,6 +282,7 @@ class MaaEndRuntime:
         adb_restart_on_timeout: bool = True,
         game_package: str = GAME_PACKAGE_ENDFIELD,
         client_version: str = "CN",
+        dml_device_id: Optional[int] = None,
     ):
         self.logger = get_logger()
         self._maaend_root = Path(maaend_root) if maaend_root else self._default_maaend_root()
@@ -290,6 +291,12 @@ class MaaEndRuntime:
         self._adb_restart_on_timeout = bool(adb_restart_on_timeout)
         self._game_package = (game_package or "").strip() or GAME_PACKAGE_ENDFIELD
         self._client_version = (client_version or "CN").strip() or "CN"
+        # DML-DEVICE-SELECT: 显式选择 DirectML 推理设备（DXGI EnumAdapters1 索引，
+        # 与 MaaFW MaaResOption_InferenceDevice 语义一致）。None 表示不设置，
+        # 由 MaaFW 自动选择。本机枚举：0=RTX 5060、1=Intel(R) Graphics、
+        # 2=RTX 5060 第二条目、3=Microsoft Basic Render Driver。
+        # 2026-08-16 用户要求将 DML 运算设备从 5060 切换到 Intel Graphics（=1）。
+        self._dml_device_id = dml_device_id
         self._resource_profile = self._resource_profile_for_version(self._client_version)
         self._resource: Optional[Any] = None
         self._tasker: Optional[Any] = None
@@ -678,6 +685,30 @@ class MaaEndRuntime:
         # user_rotation=1 强制系统横屏，使 screencap 输出与 pipeline 预期一致。
         self._force_landscape_rotation()
         self._resource = Resource()
+        # DML-DEVICE-SELECT: 在资源加载前设置 DirectML 推理设备。
+        # MaaFW 的 InferenceExecutionProvider/InferenceDevice 是 Resource 级 option，
+        # 必须在 post_bundle 之前设置；重连/重建 Resource 时本段会重新执行。
+        if self._dml_device_id is not None:
+            try:
+                if self._resource.use_directml(self._dml_device_id):
+                    self.logger.info(
+                        LogCategory.MAIN,
+                        "DirectML 推理设备已设置",
+                        device_id=self._dml_device_id,
+                    )
+                else:
+                    self.logger.warning(
+                        LogCategory.MAIN,
+                        "DirectML 推理设备设置失败，将使用 MaaFW 自动选择",
+                        device_id=self._dml_device_id,
+                    )
+            except Exception as exc:
+                self.logger.warning(
+                    LogCategory.MAIN,
+                    "DirectML 推理设备设置异常，将使用 MaaFW 自动选择",
+                    device_id=self._dml_device_id,
+                    error=str(exc),
+                )
         # ★ 触控通道：显式 Minitouch（+AdbShell 兜底）。
         # INPUT-CHANNEL-FIX 实证（2026-08-09）：MaaFW 自带 maatouch 包为 APK/ZIP
         # （不可直接执行），Default 优先级 Maatouch 部署失败后自动降级 AdbShell，
@@ -4306,7 +4337,7 @@ class MaaEndRuntime:
 
         def _parse_page(rows: List[Tuple[int, int, int, int, str]]) -> Dict[str, int]:
             names: List[Tuple[int, str]] = []
-            for y, x1, x2, y2, t in rows:
+            for y, x1, _x2, _y2, t in rows:
                 if not (190 <= x1 <= 340):
                     continue
                 for m in self._STOCK_MATERIALS:
@@ -4314,7 +4345,7 @@ class MaaEndRuntime:
                         names.append((y, m))
                         break
             counts: List[Tuple[int, int]] = []
-            for y, x1, x2, y2, t in rows:
+            for y, x1, _x2, _y2, t in rows:
                 mm = re.match(r"拥有(\d+)", t)
                 if mm and 100 <= x1 <= 240:
                     counts.append((y, int(mm.group(1))))
@@ -4346,7 +4377,7 @@ class MaaEndRuntime:
         # 2. 逐屏向上滑收集，连续 3 页无新种停止
         all_data: Dict[str, int] = {}
         no_new = 0
-        for page in range(30):
+        for _page in range(30):
             rows = _ocr_rows()
             page_data = _parse_page(rows)
             new_count = 0

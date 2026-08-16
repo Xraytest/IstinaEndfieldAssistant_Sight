@@ -3677,3 +3677,12 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
 - **后台验证停止**（用户指示）：DailyRewards 验证任务（bacxcbkwe）在云网络持续差环境（22:32-23:48，4+ 小时）每轮稳定推进（邮件→菜单列表→行动手册→EnterTab 点击），但识别随网络波动时好时坏，无成功轮——已停止。
 - **结论**：管线修复全部到位（MaaEnd v2 资源更新+模板优先+box_index+网络等待+AnyExit X 兜底），剩余验证（DailyRewards 完整跑通、SellProduct、AutoEssence）待云网络好转窗口执行。
 - **Files Modified**: `3rd-part/maaend/resource_cloud/pipeline/SceneManager/SceneCommon.json`（gitignored 本地生效）；`docs/TASK_LOG.md`（本条）。
+
+## 2026-08-16 14:30（DML 运算设备从 RTX 5060 切换到 Intel Graphics）
+
+- **User Request**: "将DML运算设备从5060转换到Intel Graphics上"
+- **Outcome**: 完成并验证。
+  1. **DXGI 适配器枚举**（`.tmp/dxgi_enum.py`，ctypes vtable 直调，非临时产物）：本机 4 条目——`adapter[0]=NVIDIA GeForce RTX 5060 Laptop GPU`、`adapter[1]=Intel(R) Graphics`（VEN_8086）、`adapter[2]=RTX 5060 第二条目`、`adapter[3]=Microsoft Basic Render Driver`。**关键排障**：C# ComImport 声明 vtable 槽位错误（IDXGIFactory1 实际含 IUnknown×3 + IDXGIObject×4 + IDXGIFactory×5 前导方法，EnumAdapters1 在槽位 12 而非 4；GetDesc1 在槽位 10 而非 7）→ 改 ctypes 直调正确槽位后枚举成功。
+  2. **实现**：`MaaEndRuntime.__init__` 新增 `dml_device_id: Optional[int] = None` 参数；`_connect_once()` 在 `Resource()` 创建后、资源加载前调用 `self._resource.use_directml(device_id)`（MaaFW 的 InferenceExecutionProvider/InferenceDevice 是 Resource 级 option，须在 post_bundle 前设置；失败仅 warning 不阻断连接）。`IstinaRuntime.maaend()` 从 `config.gpu.dml_device_id` 传入（service/runtime.py 1 行）。`config/client_config.json` + example 新增 `gpu.dml_device_id: 1`（1=Intel；null 可回退 Auto）。GUI/CLI 均走 IstinaRuntime.maaend() 自动生效。
+  3. **验证（A/B 双证据）**：MaaFW 日志 `ONNXResMgr::use_directml [device_id=1]` + `Using DML execution provider with device_id 1`（对比 Auto 组 device_id=0=5060）；同一截图 OCR 直接推理计时——Auto 平均 ~490ms vs Intel=1 平均 ~1230ms（核显约慢 2.5 倍，符合预期，证明推理实际迁移至 Intel）。连接/资源加载/OCR 全链路正常。
+- **Files Modified**: `src/core/service/maa_end/runtime.py`（dml_device_id 参数 + use_directml 调用）、`src/core/service/runtime.py`（config 传递 1 行）、`config/client_config.example.json`（gpu.dml_device_id 注释+默认 1）、`config/client_config.json`（gitignored 本机生效）；`docs/TASK_LOG.md`（本条）。
