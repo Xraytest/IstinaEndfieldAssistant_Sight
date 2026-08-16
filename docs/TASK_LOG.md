@@ -3686,3 +3686,24 @@ eports/incidents/2026-07-12_scrcpy_persistence_preview_status.md（新增）
   2. **实现**：`MaaEndRuntime.__init__` 新增 `dml_device_id: Optional[int] = None` 参数；`_connect_once()` 在 `Resource()` 创建后、资源加载前调用 `self._resource.use_directml(device_id)`（MaaFW 的 InferenceExecutionProvider/InferenceDevice 是 Resource 级 option，须在 post_bundle 前设置；失败仅 warning 不阻断连接）。`IstinaRuntime.maaend()` 从 `config.gpu.dml_device_id` 传入（service/runtime.py 1 行）。`config/client_config.json` + example 新增 `gpu.dml_device_id: 1`（1=Intel；null 可回退 Auto）。GUI/CLI 均走 IstinaRuntime.maaend() 自动生效。
   3. **验证（A/B 双证据）**：MaaFW 日志 `ONNXResMgr::use_directml [device_id=1]` + `Using DML execution provider with device_id 1`（对比 Auto 组 device_id=0=5060）；同一截图 OCR 直接推理计时——Auto 平均 ~490ms vs Intel=1 平均 ~1230ms（核显约慢 2.5 倍，符合预期，证明推理实际迁移至 Intel）。连接/资源加载/OCR 全链路正常。
 - **Files Modified**: `src/core/service/maa_end/runtime.py`（dml_device_id 参数 + use_directml 调用）、`src/core/service/runtime.py`（config 传递 1 行）、`config/client_config.example.json`（gpu.dml_device_id 注释+默认 1）、`config/client_config.json`（gitignored 本机生效）；`docs/TASK_LOG.md`（本条）。
+
+## 2026-08-17 02:30（AutoCollect 作物采集完整链路修复——1a传送+地图缩放+传送确认+导航卡点）
+
+- **User Request**: "当前奖励领取结果判定错误，该任务完全使用MaaEnd内置流。作物采集难以完成，修正该部分直到成功"（设备 192.168.1.12:16512 标准客户端）
+- **根因链（5 个独立问题叠加，逐个实测定位）**：
+  1. **1a 传送点击落空（核心）**：CN 客户端大地图打开时缩放固定在放大态（scale≈4.79，多次实测），传送点/采集点图标被 LOD 过滤不渲染 → BigMapPick 推断坐标点击永远落空 → 信息卡不出现 → TeleportConfirm Secondary 超时（23:57 实测 152.2s）。用 MapTrackerBigMapInfer + 天井院标签反推双验证确认推断准确但图标不存在；slider 轨道点击实测可缩放到标准态（scale≈2.74，图标恢复显示）。
+  2. **TeleportConfirm First 级 Or 的 MaaFW 自动 DirectHit 兜底**：MaaFW 的 Or 识别在子分支失败时自动注入 inline DirectHit（框架级行为，删 resource 分支无效，日志 `Or: run inline sub recognition [inline_sub.type=DirectHit]`），点击全屏框错误位置（(491,428)/(183,45)）→ 信息卡永不处理。改为纯 OCR 识别（expected 传送|前往传送），识别失败节点级重试直到信息卡动画完成。
+  3. **信息卡弹出动画与识别时序**：BigMapPick 点击后信息卡 ~1s 弹出动画，First 级识别过早 → 改为 pre_wait_freezes 检测信息卡按钮区（roi 860,560,420,160）静止 500ms 后再识别。
+  4. **"是否退出游戏？"弹窗残留**：标准客户端野外按 BACK 弹出退出确认，失败清理连按 BACK×3 不处理弹窗 → 残留遮挡地图按钮 → 下轮 1a 点击 (115,115) 无效 60s 超时（01:46/02:12 实测）。失败清理改用 `_close_overlays_return_to_world`（逐次 BACK+OCR 检测"退出游戏"点取消）。
+  5. **Route1Goto 摇杆导航走偏/卡住**：标准客户端拖屏（RotateCamera）只转视角不转角色朝向（rot 恒 120，画面差 25.8% 但 rot 不变），而 rot 只在玩家移动时更新（小地图箭头跟随移动方向）→ 转向判定依赖 rot 导致反复重转/走偏，多个卡点（V83 南侧 3.7 / 5号点北侧 8 map），stuck mitigator（MoveOrDeleteDevice/Jump）无效；NavMesh 路径 14 点全程 ~160s 超过 90s 默认超时。
+- **修复**：
+  1. `pick.go` CN-ZOOM-RESET-FIX：zoom_value=0 时也执行 `doBigMapZoom(ctrl, ca, 0.74)`（slider 轨道点击 y≈392 ↔ scale≈2.74，图标 LOD 恢复显示）+ ZOOM-SETTLE-FIX 1.5s 移至条件外。
+  2. `SceneMap.json`（resource + resource_cloud 双版）：`__ScenePrivateMapTeleportConfirm` First 级从 Or 改纯 OCR（传送|前往传送，roi 860,560,420,160），First/Secondary 加 pre_wait_freezes 检测信息卡区（time 500ms, timeout 15s）。
+  3. `runtime.py`：失败清理 BACK×3 → `_close_overlays_return_to_world`（处理退出对话框）；fallback pipeline 超时 90→200s（NAV-TIMEOUT-FIX）。
+  4. `move.go` STUCK-SKIP-FIX：stuck 超时（10s 无移动）非最终点跳过继续、最终点强制到达（不再直接 return false）；回滚 ADB-STOP-WHILE-TURNING（rot 只在移动时更新，转向期停止移动导致 rot 永不更新死锁）；RotateCamera 150→400ms（ADB-ROTATE-DURATION-FIX，短 swipe 被客户端忽略）。
+  5. `adaptor_adb.go` RotateCamera swipe 时长 150ms→400ms（与地图拖动同量级，实测 400ms 有效）。
+- **验证**：
+  - 1a 传送单测 3/3 成功（33-36.6s）；完整 e2e 中连续 5 次成功（40-43s）。
+  - 完整 AutoCollect Route1 两次 e2e 成功：182.2s / 168.6s，采集验证 collected=True（OCR"获得 受蚀玉化叶×3"），overall_ok=True success=1 failed=0。
+  - 弹窗清理验证：e2e 启动检测"退出游戏对话框"并点取消 (548,490)。
+- **Files Modified**：`3rd-part/maaend/agent/go-service/maptracker/bigmap/pick.go`（gitignored 本地生效）、`3rd-part/maaend/agent/go-service/maptracker/default/move.go`（gitignored）、`3rd-part/maaend/agent/go-service/pkg/control/adaptor_adb.go`（gitignored）、`3rd-part/maaend/resource/pipeline/SceneManager/SceneMap.json`+`resource_cloud` 版（gitignored）、`3rd-part/maaend/agent/go-service.exe`（重新编译，gitignored）；`src/core/service/runtime.py`（EXIT-DIALOG-FIX + NAV-TIMEOUT-FIX）；`docs/TASK_LOG.md`（本条）。

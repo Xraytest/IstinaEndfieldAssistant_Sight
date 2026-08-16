@@ -1748,15 +1748,28 @@ class MaaEndRuntime:
         # （如 __ScenePrivateAnyEnterWorldSuccess 判定节点用 5s，避免 60s 等待阻塞队列）
         effective_timeout = timeout_s if timeout_s is not None else self._PIPELINE_NAV_TIMEOUT_S
         self.logger.info(LogCategory.MAIN, "开始执行自定义管道", entry=entry, timeout_s=effective_timeout)
-        # TASKER-READY-FIX: post_stop 后 Tasker 会进入 stopping 状态，必须等待恢复
-        # 否则 post_task/post_recognition 立即返回 task_id=0 报 "runner id not found"。
-        # 必须在 _dismiss_cloud_idle_popup 之前调用，因为后者使用 post_recognition
-        if not self._wait_for_tasker_ready(wait_s=5.0, rebuild_on_stuck=True):
-            self.logger.error(LogCategory.MAIN, "Tasker 未就绪，无法执行管道", entry=entry)
-            return False
-        # 管道执行前检测并关闭云游戏空闲断连弹窗
-        self._dismiss_cloud_idle_popup()
+        # OBSERVER-VS-PIPELINE-FIX (2026-08-16): 输入观测线程（_input_observation_worker）
+        # 在每次输入后调用 post_screencap+OCR。MaaFW 为单任务队列模型，观测线程的
+        # 截图 job 与 pipeline 的识别/截图 job 互相排队：端到端 AutoCollect 中
+        # _ensure_game_in_world 的输入操作激活观测线程后，其截图 job 卡在队列，
+        # pipeline 全部识别等待 → 90s 超时（单独运行无输入事件，观测线程休眠，
+        # pipeline 35.7s 成功）。管道执行期间暂停观测线程，执行结束恢复。
+        observer_was_running = (
+            self._input_observation_thread is not None
+            and self._input_observation_thread.is_alive()
+        )
+        if observer_was_running:
+            self.logger.debug(LogCategory.MAIN, "管道执行期间暂停输入观测线程", entry=entry)
+            self._stop_input_observer()
         try:
+            # TASKER-READY-FIX: post_stop 后 Tasker 会进入 stopping 状态，必须等待恢复
+            # 否则 post_task/post_recognition 立即返回 task_id=0 报 "runner id not found"。
+            # 必须在 _dismiss_cloud_idle_popup 之前调用，因为后者使用 post_recognition
+            if not self._wait_for_tasker_ready(wait_s=5.0, rebuild_on_stuck=True):
+                self.logger.error(LogCategory.MAIN, "Tasker 未就绪，无法执行管道", entry=entry)
+                return False
+            # 管道执行前检测并关闭云游戏空闲断连弹窗
+            self._dismiss_cloud_idle_popup()
             # NODE-REG-FIX: 同 _run_task_once，用 resource.override_pipeline 注册再执行
             if pipeline_override:
                 try:
@@ -1788,6 +1801,10 @@ class MaaEndRuntime:
             self._connected = False
             self.logger.exception(LogCategory.MAIN, "自定义管道执行异常", entry=entry, error=str(e))
             return False
+        finally:
+            if observer_was_running:
+                self.logger.debug(LogCategory.MAIN, "管道执行结束，恢复输入观测线程", entry=entry)
+                self._start_input_observer()
         if succeeded:
             self.logger.info(LogCategory.MAIN, "自定义管道执行成功", entry=entry)
             return True

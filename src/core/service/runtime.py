@@ -438,11 +438,44 @@ class IstinaRuntime:
         return version
 
     def scene(self) -> Any:
-        if self._scene_svc is None:
+        # SCENE-TASKER-FIX: scene 服务绑定当前已连接的 runtime; 若绑定过期
+        # (幽灵 runtime 无 tasker / 连接已断开) 则重建服务。
+        bound = getattr(self._scene_svc, "recognizer", None) if self._scene_svc else None
+        bound_runtime = getattr(bound, "_maaend_runtime", None) if bound else None
+        target = self._pick_connected_maaend()
+        need_rebuild = self._scene_svc is None
+        if bound_runtime is not None and target is not None:
+            if bound_runtime is not target:
+                need_rebuild = True
+        elif bound_runtime is None and target is not None:
+            need_rebuild = True
+        if need_rebuild:
             self._scene_svc = _get_scene_understanding_service()(
-                maaend_runtime=self.maaend(),
+                maaend_runtime=target,
             )
         return self._scene_svc
+
+    def _pick_connected_maaend(self) -> Any:
+        """选择当前已连接的 MaaEnd runtime 供 scene 服务绑定。
+
+        SCENE-TASKER-FIX (2026-08-16): scene() 原先用 self.maaend()(无 serial)
+        解析——它会回落到 config 的 last_connected(可能是 127.0.0.1:16416
+        本地 MuMu), 从而新建一个未连接的幽灵 runtime, 其 _tasker 为 None,
+        OCRBackend 拿不到 tasker → scene.elements OCR 恒返回空 → 所有依赖
+        scene.elements 的判定(_is_in_big_world/_verify_in_world_by_ocr 等)
+        全部失效(AutoCollect 端到端失败链根因)。应优先使用 _maaend_clients
+        中已连接的实例, 其次 legacy _maaend。
+        """
+        # 1. 已连接的客户端实例
+        for runtime in list(self._maaend_clients.values()):
+            if runtime is not None and getattr(runtime, "connected", False):
+                return runtime
+        # 2. legacy 单实例
+        legacy = getattr(self, "_maaend", None)
+        if legacy is not None and getattr(legacy, "connected", False):
+            return legacy
+        # 3. 兜底: 任意已连接/默认解析
+        return self.maaend()
 
     def navigator(self) -> Any:
         # SCRCPY-RECOVERY: 优先使用 maaend.screenshot()（MaaFramework screencap）
@@ -985,6 +1018,21 @@ class IstinaRuntime:
             if self._verify_in_world_by_ocr(serial):
                 self._logger.info(LogCategory.MAIN, "OCR 确认已在大世界")
                 return True
+            # MAPVIEW-CLEANUP-FIX (2026-08-16): 游戏运行中但 OCR 未确认大世界时,
+            # 若画面是地图视图/协议传送点卡(// 武陵/武陵城 + 协议传送点 + 传送按钮),
+            # 先关闭地图视图再验证, 而非直接重启游戏。
+            # 端到端 AutoCollect 实证: 上一轮传送残留的协议传送点卡导致
+            # _ensure_game_in_world 误判"游戏未确认大世界"→ force-stop 重启游戏,
+            # 重启后传送链全废(90s 超时)。
+            if self._is_in_map_view(serial):
+                self._logger.warning(
+                    LogCategory.MAIN, "游戏运行中但在地图视图, 关闭地图后重验",
+                )
+                self._close_map_view(serial)
+                time.sleep(2.0)
+                if self._verify_in_world_by_ocr(serial):
+                    self._logger.info(LogCategory.MAIN, "关闭地图后 OCR 确认已在大世界")
+                    return True
             # DJK-SCENE-FIX: 游戏运行中但角色在帝江号（O.M.V.帝江号 舰桥/
             # 总控中枢/基建区/生活区/中央环厅 特征，OCR 主世界判据必假阴）。
             # 帝江号是合法游戏场景，不应重启游戏（重启后仍在帝江号），
@@ -1155,6 +1203,126 @@ class IstinaRuntime:
         text = "".join(labels)
         djk_kws = ("O.M.V.帝江号", "总控中枢", "中央环厅", "基建区", "生活区", "舰桥")
         return any(kw in text for kw in djk_kws)
+
+    def _is_in_map_view(self, serial: Optional[str]) -> bool:
+        """检测当前是否在地图视图（含协议传送点确认卡/标记管理模式）。
+
+        MAPVIEW-CLEANUP-FIX (2026-08-16): 端到端 AutoCollect 中, 上一轮传送
+        残留的协议传送点确认卡(// 武陵/武陵城 + 协议传送点 + 传送按钮)导致
+        _ensure_game_in_world 的 OCR 大世界判据失败 → 误判"游戏未确认大世界"
+        → force-stop 重启游戏 → 传送链全废。本方法识别地图视图/传送确认卡
+        特征, 供 _ensure_game_in_world 在重启前先关闭地图视图再验证。
+        """
+        try:
+            ocr_result = self.execute(
+                "scene.elements",
+                {"serial": serial, "enable_ocr": True,
+                 "enable_template": False, "enable_color": False},
+            )
+        except Exception:
+            return False
+        if not isinstance(ocr_result, dict) or ocr_result.get("status") != "success":
+            return False
+        labels = [
+            str(e.get("label", "")).strip()
+            for e in ocr_result.get("elements", [])
+            if isinstance(e, dict)
+        ]
+        text = "".join(labels)
+        # 地图视图/协议传送点确认卡/标记管理模式特征词
+        map_kws = (
+            "//武陵", "//四号谷地", "// 武陵", "标记显示管理", "地区总览",
+            "取消追踪", "自定义标记点上限", "协议传送点",
+        )
+        if any(kw in text for kw in map_kws):
+            return True
+        # WILDLAND-MAPVIEW-FIX (2026-08-16): 野外大地图视图（玩家停在打开的世界
+        # 地图，AutoCollect 传送失败残留的典型状态）无 协议传送点/标记显示管理
+        # 等 UI 词，仅剩各地名标签 + UID。实测 OCR：城外荒地/警戒区/天井院/
+        # 岸边石窟/集中矿点/息壤中继器。判据：有 "UID:" + 无 "探索"（大世界
+        # HUD 特征，地图视图必消失）+ ≥3 个 4-6 字中文地名标签（不含数字/
+        # 标点/主城菜单词），视为地图视图，由 _close_map_view 点右上 X 关闭，
+        # 避免 _ensure_game_in_world 误判"未进大世界"→ 反复重启游戏死循环。
+        if "UID:" in text and "探索" not in text:
+            _MAIN_MENU_KWS = ("地区建设", "干员", "采购中心", "行动手册", "通行证", "好友", "装备加工", "编队", "百科", "档案库")
+            geo_labels = [
+                lb for lb in labels
+                if 4 <= len(lb) <= 6
+                and not any(ch.isdigit() for ch in lb)
+                and not any(sym in lb for sym in ("·", "/", ":", "!", ".", "+", "×"))
+                and not any(kw in lb for kw in _MAIN_MENU_KWS)
+            ]
+            if len(geo_labels) >= 3:
+                self._logger.info(
+                    LogCategory.MAIN, "检测到野外大地图视图",
+                    geo_labels=geo_labels[:10],
+                )
+                return True
+        return False
+
+    def _close_map_view(self, serial: Optional[str]) -> bool:
+        """关闭地图视图/协议传送点确认卡, 回到大世界。
+
+        处理策略:
+        1. 标记管理模式(自定义标记点上限/标记N) → 点"取消"按钮
+        2. 协议传送点确认卡(协议传送点 + 传送/取消追踪) → 点 X (1200,15)
+           或按 BACK
+        3. 地图视图(标记显示管理/地区总览) → 点右上 X (1220,35)
+        """
+        try:
+            ocr_result = self.execute(
+                "scene.elements",
+                {"serial": serial, "enable_ocr": True,
+                 "enable_template": False, "enable_color": False},
+            )
+        except Exception:
+            ocr_result = {}
+        elements: List[Dict[str, Any]] = []
+        if isinstance(ocr_result, dict) and ocr_result.get("status") == "success":
+            elements = ocr_result.get("elements", [])
+        labels = [
+            str(e.get("label", "")).strip()
+            for e in elements if isinstance(e, dict)
+        ]
+        text = "".join(labels)
+        android = self.android(serial)
+        try:
+            if "自定义标记点上限" in text or any(
+                "标记" in lb and lb.strip().isdigit() is False and len(lb) <= 4
+                for lb in labels if lb.startswith("标记")
+            ):
+                # 标记管理模式: 点"取消"按钮
+                cancel_elem = next(
+                    (e for e in elements if str(e.get("label", "")).strip() == "取消"),
+                    None,
+                )
+                if cancel_elem is not None:
+                    ccx, ccy = self._norm_to_screen(
+                        cancel_elem.get("center", [0.5, 0.65]),
+                        self._get_screen_size(serial),
+                    )
+                    self._tap_effective(serial, ccx, ccy)
+                else:
+                    android.keyevent("KEYCODE_BACK")
+            elif "协议传送点" in text:
+                # 协议传送点确认卡: 点右上 X (1200,15) 或 BACK
+                self._tap_effective(serial, 1200, 15)
+                time.sleep(0.8)
+                if self._is_in_map_view(serial):
+                    android.keyevent("KEYCODE_BACK")
+            else:
+                # 地图视图: 点右上 X (1220,35)
+                self._tap_effective(serial, 1220, 35)
+                time.sleep(0.8)
+                if self._is_in_map_view(serial):
+                    android.keyevent("KEYCODE_BACK")
+        except Exception as exc:
+            self._logger.warning(LogCategory.MAIN, "关闭地图视图异常", error=str(exc))
+            try:
+                android.keyevent("KEYCODE_BACK")
+            except Exception:
+                pass
+        return not self._is_in_map_view(serial)
 
     def _tap_effective(self, serial: Optional[str], x: int, y: int) -> None:
         """有效触控通道：优先 MaaFW controller（Minitouch，云客户端真实接收），
@@ -2374,7 +2542,7 @@ class IstinaRuntime:
                             route=route, node=teleport_node,
                         )
                         ok_direct = self._run_pipeline_with_timeout(
-                            runtime, teleport_node, {}, timeout=30.0,
+                            runtime, teleport_node, {}, timeout=60.0,
                         )
                         time.sleep(3.5)  # 等待传送加载完成
                         if ok_direct and self._is_in_big_world(serial):
@@ -2398,7 +2566,6 @@ class IstinaRuntime:
                             android, serial, target_area, runtime=runtime,
                         )
                         teleport_ok = tp_result.get("ok", False)
-                        tp_reason = tp_result.get("reason", "area_fallback")
                         self._logger.info(
                             LogCategory.MAIN, "VLM 传送执行结束（回退）",
                             route=route, attempt=attempt_idx,
@@ -2425,10 +2592,23 @@ class IstinaRuntime:
                             # 云端：BACK 对地图视图/标记模式无效，针对性清理回大世界
                             self._cloud_cleanup_to_world(serial)
                         else:
-                            # 多次 BACK 确保关闭地图界面、弹窗、任务追踪提示
-                            for back_idx in range(3):
-                                self.android(serial).keyevent("KEYCODE_BACK")
-                                time.sleep(0.8)
+                            # EXIT-DIALOG-FIX (2026-08-17): 标准客户端野外按 BACK
+                            # 会弹"是否退出游戏？"对话框, 原逻辑连按 BACK 不处理弹窗,
+                            # 对话框残留到下一轮 → 1a 传送的地图按钮(115,115)被遮挡,
+                            # 点击无效 → SceneEnterMap 60s 超时(01:46 e2e 实证: 画面
+                            # 持续显示"是否退出游戏？"+取消+确认, 三次 AutoAltClick 全落空)。
+                            # 复用 _close_overlays_return_to_world: 逐次 BACK + OCR 检测
+                            # "退出游戏"文字 → 点击"取消"关闭, 再继续关闭地图等覆盖层。
+                            try:
+                                self._close_overlays_return_to_world(android, serial, max_back_presses=3)
+                            except Exception as exc:
+                                self._logger.warning(
+                                    LogCategory.MAIN, "覆盖层清理异常, 回退连按 BACK",
+                                    error=str(exc),
+                                )
+                                for back_idx in range(3):
+                                    self.android(serial).keyevent("KEYCODE_BACK")
+                                    time.sleep(0.8)
                         # 额外等待界面稳定
                         time.sleep(1.5)
                     except Exception:
@@ -2477,11 +2657,35 @@ class IstinaRuntime:
                         nav_detail = {"status": "error", "message": str(exc)}
                 else:
                     # 无 waypoints 路线回退：执行 pipeline 路线节点链
-                    # Start 节点默认 enabled:false，用 pipeline_override 强制启用
+                    # Start 节点默认 enabled:false，用 pipeline_override 强制启用。
+                    # ROUTE-START-SKIP-TELEPORT-FIX (2026-08-16): Start 节点
+                    # (AutoCollectRouteXStart) 的 SubTask 会再次执行 SceneEnterWorld*
+                    # 传送节点——但 1a/1b 已传送到目标区域, 重复传送在"已在地图视图/
+                    # 已到目标"状态下必失败(90s 超时实证)。用 pipeline_override 把
+                    # Start 节点的 SubTask 覆盖为 DirectHit 直接通过, 让流程直接
+                    # 进入 AssertLocation(位置校验)与采集执行。
                     try:
+                        # NAV-TIMEOUT-FIX (2026-08-17): NavMesh 路径导航在
+                        # AdbShell 通道下每点需 4-10s(转向 2-3s + 移动), Route1
+                        # 的 14 个路径点全程 ~160s, 默认 90s 超时只够走到第 8 个点
+                        # (02:07 实测: 02:05:44 开始, 02:07:13 到 point 8/14,
+                        # 02:07:16 被 90s 超时 post_stop 打断)。延长到 200s。
                         nav_ok = runtime.run_pipeline(
                             fallback_entry,
-                            {fallback_entry: {"enabled": True}},
+                            {
+                                fallback_entry: {
+                                    "enabled": True,
+                                    "recognition": {
+                                        "type": "DirectHit",
+                                        "param": {},
+                                    },
+                                    "action": {
+                                        "type": "DoNothing",
+                                        "param": {},
+                                    },
+                                },
+                            },
+                            timeout_s=200.0,
                         )
                         self._logger.info(
                             LogCategory.MAIN, "pipeline 回退执行结束",
@@ -4110,7 +4314,7 @@ class IstinaRuntime:
         result = {"ok": False}
         def _run():
             try:
-                result["ok"] = runtime.run_pipeline(entry, pipeline_override or {})
+                result["ok"] = runtime.run_pipeline(entry, pipeline_override or {}, timeout_s=timeout)
             except Exception as exc:
                 self._logger.warning(
                     LogCategory.MAIN, "pipeline 执行异常（子线程）",
@@ -4304,7 +4508,7 @@ class IstinaRuntime:
                 area=target_area, world_node=world_node,
             )
             try:
-                ok = self._run_pipeline_with_timeout(runtime, world_node, {}, timeout=30.0)
+                ok = self._run_pipeline_with_timeout(runtime, world_node, {}, timeout=60.0)
             except Exception as exc:
                 self._logger.warning(
                     LogCategory.MAIN, "专用传送节点异常", error=str(exc), node=world_node,
@@ -4355,7 +4559,7 @@ class IstinaRuntime:
             )
         try:
             ok = (
-                self._run_pipeline_with_timeout(runtime, map_node, {}, timeout=30.0)
+                self._run_pipeline_with_timeout(runtime, map_node, {}, timeout=60.0)
                 if runtime and not is_cloud else False
             )
         except Exception as exc:
@@ -4374,7 +4578,7 @@ class IstinaRuntime:
         )
         try:
             ok = (
-                self._run_pipeline_with_timeout(runtime, teleport_node, {}, timeout=30.0)
+                self._run_pipeline_with_timeout(runtime, teleport_node, {}, timeout=60.0)
                 if runtime and not is_cloud else False
             )
         except Exception as exc:
@@ -4421,7 +4625,7 @@ class IstinaRuntime:
                     area=target_area, teleport_node=dedicated_teleport,
                 )
                 try:
-                    ok = self._run_pipeline_with_timeout(runtime, dedicated_teleport, {}, timeout=30.0)
+                    ok = self._run_pipeline_with_timeout(runtime, dedicated_teleport, {}, timeout=60.0)
                 except Exception as exc:
                     self._logger.warning(
                         LogCategory.MAIN, "重试专用 EnterTeleport 异常", error=str(exc),
@@ -4579,6 +4783,9 @@ class IstinaRuntime:
             time.sleep(2.5)
 
             # 检测"传送"确认按钮并点击
+            # CN 标准客户端: 点击传送点后弹出信息卡, 按钮文字为
+            # "前往传送"(稀有采集物区卡)或"传送"(协议传送点确认卡),
+            # 需匹配包含"传送"的标签而非精确匹配。
             try:
                 ocr_result = self.execute(
                     "scene.elements",
@@ -4596,7 +4803,7 @@ class IstinaRuntime:
                         continue
                     label = str(elem.get("label", "")).strip()
                     after_labels.append(label)
-                    if label == "传送":
+                    if "传送" in label:
                         confirm_btn = elem
                         break
 
@@ -4607,6 +4814,7 @@ class IstinaRuntime:
                 self._logger.info(
                     LogCategory.MAIN, "传送：VLM 后点击确认按钮",
                     area=target_area, cx=ccx, cy=ccy,
+                    label=confirm_btn.get("label", ""),
                 )
                 steps.append({"step": 7, "action": "vlm_click_confirm",
                               "cx": ccx, "cy": ccy, "attempt": vlm_attempt})
@@ -4614,6 +4822,39 @@ class IstinaRuntime:
                     self._tap_effective(serial, ccx, ccy)
                 except Exception as exc:
                     self._logger.warning(LogCategory.MAIN, "确认点击异常", error=str(exc))
+                # CN 标准客户端两级确认: 第一级"前往传送"点击后弹出
+                # 协议传送点确认卡, 需再点"传送"才真正传送。
+                time.sleep(2.5)
+                try:
+                    second_ocr = self.execute(
+                        "scene.elements",
+                        {"serial": serial, "enable_ocr": True,
+                         "enable_template": False, "enable_color": False},
+                    )
+                except Exception:
+                    second_ocr = {}
+                second_btn = None
+                if isinstance(second_ocr, dict) and second_ocr.get("status") == "success":
+                    for elem in second_ocr.get("elements", []):
+                        if not isinstance(elem, dict):
+                            continue
+                        label = str(elem.get("label", "")).strip()
+                        if label != confirm_btn.get("label", "") and "传送" in label:
+                            second_btn = elem
+                            break
+                if second_btn is not None:
+                    s2x, s2y = self._norm_to_screen(
+                        second_btn.get("center", [0.5, 0.65]), screen_size
+                    )
+                    self._logger.info(
+                        LogCategory.MAIN, "传送：点击二级确认按钮（协议卡）",
+                        area=target_area, cx=s2x, cy=s2y,
+                        label=second_btn.get("label", ""),
+                    )
+                    try:
+                        self._tap_effective(serial, s2x, s2y)
+                    except Exception as exc:
+                        self._logger.warning(LogCategory.MAIN, "二级确认点击异常", error=str(exc))
                 # 等待传送加载完成（最长 20 秒，每 2 秒检查一次）
                 # 加载期间会出现 "NOW LOADING" 等加载画面，需等待其消失
                 teleport_done = False
@@ -4832,7 +5073,8 @@ class IstinaRuntime:
 
             # 检测信息面板（点击非传送点元素弹出，无"传送"按钮）
             # 特征词：追踪 / 收纳 （且没有"传送"按钮）
-            has_confirm_btn = any(l == "传送" for l in ocr_labels)
+            # CN 标准客户端按钮文字为"前往传送"/"传送"，用包含匹配
+            has_confirm_btn = any("传送" in l for l in ocr_labels)
             in_info_panel = (
                 not has_confirm_btn
                 and any(kw in l for l in ocr_labels for kw in _INFO_PANEL_KEYWORDS)

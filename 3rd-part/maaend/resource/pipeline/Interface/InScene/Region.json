@@ -14,8 +14,7 @@
                 "template": [
                     "SceneManager/MapMind.png"
                 ],
-                "method": 10001 // 默认5时，当弹出右侧面板，此图片依然能匹配上
-            },
+                "method": 10001             },
             {
                 "recognition": "TemplateMatch",
                 "roi": [
