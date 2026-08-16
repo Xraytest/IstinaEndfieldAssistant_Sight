@@ -1,0 +1,51 @@
+{
+    "task": [
+        {
+            "name": "StockBalance",
+            "label": "$task.StockBalance.label",
+            "entry": "StockBalanceMain",
+            "description": "$task.StockBalance.description",
+            "option": [
+                "BalanceThreshold",
+                "MaxGrowRounds"
+            ],
+            "group": [
+                "dijiang_ship"
+            ]
+        }
+    ],
+    "option": {
+        "BalanceThreshold": {
+            "type": "input",
+            "label": "$option.BalanceThreshold.label",
+            "description": "$option.BalanceThreshold.description",
+            "inputs": [
+                {
+                    "name": "BalanceThresholdValue",
+                    "label": "$option.BalanceThreshold.label",
+                    "description": "$option.BalanceThreshold.description",
+                    "pipeline_type": "int",
+                    "verify": "^(?:[1-9]|[1-9]\\d|[1-9]\\d{2}|[1-9]\\d{3})$",
+                    "pattern_msg": "$option.BalanceThreshold.inputs.BalanceThresholdValue.pattern_msg",
+                    "default": "50"
+                }
+            ]
+        },
+        "MaxGrowRounds": {
+            "type": "input",
+            "label": "$option.MaxGrowRounds.label",
+            "description": "$option.MaxGrowRounds.description",
+            "inputs": [
+                {
+                    "name": "MaxGrowRoundsValue",
+                    "label": "$option.MaxGrowRounds.label",
+                    "description": "$option.MaxGrowRounds.description",
+                    "pipeline_type": "int",
+                    "verify": "^(?:[1-9]|[1-9]\\d)$",
+                    "pattern_msg": "$option.MaxGrowRounds.inputs.MaxGrowRoundsValue.pattern_msg",
+                    "default": "3"
+                }
+            ]
+        }
+    }
+}

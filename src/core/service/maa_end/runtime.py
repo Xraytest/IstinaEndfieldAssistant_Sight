@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -1819,7 +1820,14 @@ class MaaEndRuntime:
             if not self._ensure_in_world_before_task(task_name):
                 self.logger.error(LogCategory.MAIN, "任务前未确认主世界", task=task_name)
                 return False
-        ok = self._run_task_with_retry(task_name, options, entry, override)
+        # STOCK-BALANCE-PY-ONLY（2026-08-16）：自动库存平衡是纯 Python 决策任务
+        #（OCR 读取培养舱材料计数 → 找最少 → GrowthChamber pipeline 定向培育），
+        # 无对应 MaaFW pipeline 入口节点（entry=StockBalanceMain 仅占位），
+        # 不走管线直接调用 Python 处理器；仍保留主世界前置与后置检查。
+        if task_name == "StockBalance":
+            ok = self._python_stock_balance(options)
+        else:
+            ok = self._run_task_with_retry(task_name, options, entry, override)
         # 收取类任务：防"空转通过"假阳性——管线报成功但本次运行无任何收集点击
         #（如 DijiangRewards 奖励已收完时仅 ControlNexus→Finish 零动作返回成功），
         # 无法证明本次运行完成了收取，判为未完成。
@@ -2766,8 +2774,12 @@ class MaaEndRuntime:
                     if any(k in text for k in keywords):
                         box = getattr(result, "box", []) or []
                         if len(box) == 4:
-                            cx = int((box[0] + box[2]) / 2)
-                            cy = int((box[1] + box[3]) / 2)
+                            # OCR-BOX-SEMANTICS（2026-08-16 实测修复）：MaaFW
+                            # RecognitionResult.box 为 [x, y, w, h]（Rect 定义），
+                            # 旧实现按 [x1,y1,x2,y2] 取中心 (x+w)/2，当文本偏右
+                            # （如培养舱 x=877）时中心偏差 400+px 导致点击落空。
+                            cx = int(box[0] + box[2] / 2)
+                            cy = int(box[1] + box[3] / 2)
                             return (cx, cy)
             return None
         except Exception:
@@ -3865,7 +3877,8 @@ class MaaEndRuntime:
                     if any(k in text for k in click_keywords):
                         box = getattr(result, "box", []) or []
                         if len(box) == 4:
-                            candidates.append((int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2)))
+                            # box 语义 [x,y,w,h]（见 _find_ocr_text_center 注释）
+                            candidates.append((int(box[0] + box[2] / 2), int(box[1] + box[3] / 2)))
             if not candidates:
                 self.logger.warning(LogCategory.MAIN, "OCR 未找到目标文本", click_keywords=click_keywords)
                 return False
@@ -3930,7 +3943,8 @@ class MaaEndRuntime:
                     if hit:
                         box = getattr(result, "box", []) or []
                         if len(box) == 4:
-                            return (int((box[0] + box[2]) / 2), int((box[1] + box[3]) / 2))
+                            # box 语义 [x,y,w,h]（见 _find_ocr_text_center 注释）
+                            return (int(box[0] + box[2] / 2), int(box[1] + box[3] / 2))
             return None
         except Exception:
             return None
@@ -4230,6 +4244,241 @@ class MaaEndRuntime:
             return ok
         except Exception as exc:
             self.logger.warning(LogCategory.MAIN, "Python 后备：AutoCollect 异常", error=str(exc))
+            self._recover_to_world()
+            return False
+
+    # ── 自动库存平衡（StockBalance）──────────────────────────────────
+    # 用户需求（2026-08-16）：完整读取帝江号育种舱室各养成材料背包内计数，
+    # 找出最少的优先培育制种，最终达到平衡库存的效果。
+    # 数据源：培养舱「提取基核」界面左侧列表——每行显示「材料名 + 拥有N」
+    # （背包内计数，实测 720p 布局：材料名 x≈190-340 列，拥有N x≈100-240 列，
+    # 拥有N 位于材料名下方 20-80px 处，行高约 97px，一屏约 4-5 行）。
+    # 读取策略：回顶（向下滑）→ 逐屏向上滑 OCR 配对（材料名↔拥有N 不重复
+    # 使用），连续 3 页无新内容即到底。
+    # 决策：拥有数最少的材料优先培育制种（排除 0：CheckTargetNotEmpty 要求
+    # 基核/本体非空才能点击培育）。
+    # 培育：复用 GrowthChamber pipeline（GrowthChamberGrow 点击「培养」→
+    # 选择界面 → GrowthChamberFindTarget 点击目标 → GrowConfirm 确认），
+    # 通过 pipeline_override 定向 GrowthChamberSelectTarget.expected 为目标材料。
+    _STOCK_MATERIALS: Tuple[str, ...] = (
+        "武陵石", "燎石", "岩天使叶", "受蚀玉化叶", "星门菌", "血菌",
+        "重黯石", "中黯石", "轻黯石",
+        "至晶多齿叶", "纯晶多齿叶", "晶化多齿叶",
+        "重红柱状菌", "中红柱状菌", "轻红柱状菌",
+        "塔罗斯菌", "红矛叶", "协议纹石",
+    )
+
+    def _read_growth_chamber_counts(self) -> Dict[str, int]:
+        """读取培养舱「提取基核」界面全部材料计数：{材料名: 拥有数}。
+
+        前置条件：已进入提取基核界面（'//培养舱/提取基核' 可见）。
+        内部先回顶（向下滑直到首行出现协议纹石/武陵石），再逐屏向上滑
+        配对读取，连续 3 页无新内容停止。
+        """
+        if not self._connected or self._controller is None or self._tasker is None:
+            return {}
+
+        def _ocr_rows() -> List[Tuple[int, int, int, int, str]]:
+            cap_job = self._controller.post_screencap()
+            if not self._wait_job(cap_job, timeout_s=8.0):
+                return []
+            image = self._controller.cached_image
+            if image is None:
+                return []
+            from maa.pipeline import JOCR, JRecognitionType
+            ocr_param = JOCR(
+                expected=[".+"],
+                roi=[0, 0, int(image.shape[1]), int(image.shape[0])],
+                threshold=0.3,
+            )
+            detail = self._tasker.post_recognition(JRecognitionType.OCR, ocr_param, image).wait().get()
+            rows: List[Tuple[int, int, int, int, str]] = []
+            if detail:
+                for node in detail.nodes:
+                    rec = getattr(node, "recognition", None)
+                    for result in (getattr(rec, "all_results", []) if rec else []):
+                        text = str(getattr(result, "text", "") or "").strip()
+                        box = list(getattr(result, "box", []) or [])
+                        if text and len(box) == 4:
+                            rows.append((box[1], box[0], box[2], box[3], text))
+            rows.sort()
+            return rows
+
+        def _parse_page(rows: List[Tuple[int, int, int, int, str]]) -> Dict[str, int]:
+            names: List[Tuple[int, str]] = []
+            for y, x1, x2, y2, t in rows:
+                if not (190 <= x1 <= 340):
+                    continue
+                for m in self._STOCK_MATERIALS:
+                    if m in t:
+                        names.append((y, m))
+                        break
+            counts: List[Tuple[int, int]] = []
+            for y, x1, x2, y2, t in rows:
+                mm = re.match(r"拥有(\d+)", t)
+                if mm and 100 <= x1 <= 240:
+                    counts.append((y, int(mm.group(1))))
+            out: Dict[str, int] = {}
+            used: set = set()
+            for ny, m in sorted(names):
+                best, bestd, besti = None, 999, -1
+                for i, (cy, val) in enumerate(counts):
+                    if i in used:
+                        continue
+                    d = cy - ny  # 正数 = 拥有N 在材料名下方
+                    if 20 <= d <= 80 and d < bestd:
+                        bestd, best, besti = d, val, i
+                if best is not None:
+                    used.add(besti)
+                    out[m] = best
+            return out
+
+        # 1. 回顶：向下滑（内容下移）直到首行出现协议纹石/武陵石
+        for _ in range(8):
+            rows = _ocr_rows()
+            top_names = [t for y, x1, x2, y2, t in rows if y < 200 and 190 <= x1 <= 340]
+            joined = " ".join(top_names)
+            if "协议纹石" in joined or "武陵石" in joined:
+                break
+            self._controller.post_swipe(250, 280, 250, 540, duration=500).wait()
+            time.sleep(1.5)
+
+        # 2. 逐屏向上滑收集，连续 3 页无新种停止
+        all_data: Dict[str, int] = {}
+        no_new = 0
+        for page in range(30):
+            rows = _ocr_rows()
+            page_data = _parse_page(rows)
+            new_count = 0
+            for m, v in page_data.items():
+                if m not in all_data:
+                    new_count += 1
+                all_data[m] = v
+            if new_count == 0:
+                no_new += 1
+                if no_new >= 3:
+                    break
+            else:
+                no_new = 0
+            self._controller.post_swipe(250, 520, 250, 380, duration=400).wait()  # 半屏
+            time.sleep(1.5)
+        return all_data
+
+    def _python_stock_balance(self, options: Dict[str, Any]) -> bool:
+        """自动库存平衡：读取培养舱全部材料计数 → 找最少 → 定向培育制种 → 平衡库存。
+
+        流程：
+        1. 进入帝江号培养舱（不在则从主世界导航）
+        2. 点击「提取基核」进入提取界面，完整读取全部材料背包计数
+        3. 关闭提取界面返回培养舱主界面
+        4. 找拥有数最少的可培育材料（>0）；若已有空槽位（「培养」按钮可见）
+           则定向培育该材料（GrowthChamber pipeline + expected 定向）
+        5. 返回主世界，记录库存分布与培育决策
+        """
+        if not self._connected:
+            return False
+        self.logger.info(LogCategory.MAIN, "自动库存平衡：读取培养舱材料计数")
+        try:
+            # 1. 确保在帝江号培养舱主界面
+            text = self._ocr_screen_text()
+            if "培养舱/提取基核" in text:
+                # 已在提取界面：先关闭返回培养舱主界面
+                self._send_key_back()
+                time.sleep(1.5)
+                text = self._ocr_screen_text()
+            if "//培养舱" not in text:
+                self._recover_to_world()
+                if not self.run_pipeline("SceneEnterMenuDijiangControlNexus", {}, timeout_s=120.0):
+                    self.logger.warning(LogCategory.MAIN, "库存平衡：进入帝江控制中枢失败")
+                    return False
+                time.sleep(1.5)
+                # GROWTH-CHAMBER-MAIN-FIX（2026-08-16 实测）：GrowthChamberMain
+                # pipeline 是"进入培养舱+领奖/培养/退出"全链——槽位满（无培养
+                # 按钮）时走到 GrowthChamberExit 分支自动返回总控中枢，导致
+                # 后续无法停留在培养舱读取计数。改为 OCR 定位培养舱卡片手动
+                # 点击（实测总控中枢'培养舱'文本中心 (910,220) 点击即进入）。
+                pt_chamber = self._find_ocr_text_center(("培养舱",))
+                if pt_chamber:
+                    self._tap(pt_chamber[0], pt_chamber[1])
+                    time.sleep(2.5)
+                else:
+                    self.logger.warning(LogCategory.MAIN, "库存平衡：总控中枢未找到培养舱卡片")
+                    self._recover_to_world()
+                    return False
+                text = self._ocr_screen_text()
+                if "//培养舱" not in text:
+                    self.logger.warning(LogCategory.MAIN, "库存平衡：点击培养舱卡片后未确认进入")
+                    self._recover_to_world()
+                    return False
+                time.sleep(1.0)
+
+            # 2. 点击「提取基核」进入提取界面（主界面按钮实测中心 (1130,585)，
+            #    用 OCR 定位更稳：'提取基核' 文本）
+            text = self._ocr_screen_text()
+            if "培养舱/提取基核" not in text:
+                pt = self._find_ocr_text_center(("提取基核",))
+                if pt:
+                    self._tap(pt[0], pt[1])
+                    time.sleep(2.5)
+                else:
+                    self.logger.warning(LogCategory.MAIN, "库存平衡：未找到提取基核按钮")
+                    self._close_menu_and_world()
+                    return False
+
+            # 3. 完整读取全部材料计数
+            counts = self._read_growth_chamber_counts()
+            if not counts:
+                self.logger.warning(LogCategory.MAIN, "库存平衡：未读到任何材料计数")
+                self._send_key_back()
+                time.sleep(1.5)
+                self._close_menu_and_world()
+                return False
+
+            # 4. 关闭提取界面返回培养舱主界面
+            self._send_key_back()
+            time.sleep(1.5)
+
+            # 5. 找最少的可培育材料（拥有数 > 0，CheckTargetNotEmpty 需基核/本体非空）
+            positive = {m: v for m, v in counts.items() if v > 0}
+            if not positive:
+                self.logger.warning(LogCategory.MAIN, "库存平衡：全部材料持有数为 0，无可培育目标")
+                for m in self._STOCK_MATERIALS:
+                    self.logger.info(LogCategory.MAIN, "库存平衡：计数", material=m, count=counts.get(m, 0))
+                self._close_menu_and_world()
+                return False
+            target = min(positive, key=positive.get)
+            target_count = positive[target]
+            self.logger.info(
+                LogCategory.MAIN,
+                "库存平衡：最少材料",
+                material=target,
+                count=target_count,
+                counts=counts,
+            )
+
+            # 6. 若有「培养」按钮（空槽位）则定向培育；无则仅报告（槽位满/培养中）
+            pt_grow = self._find_ocr_text_center_roi(
+                ("培养",), roi=(484, 213, 726, 283), exact=True,
+            )
+            if pt_grow is None:
+                self.logger.info(LogCategory.MAIN, "库存平衡：培养舱无空槽位（培养中），本次仅记录库存")
+                self._close_menu_and_world()
+                return True
+
+            override = {
+                "GrowthChamberSelectTarget": {"expected": [target]},
+            }
+            ok_grow = self.run_pipeline("GrowthChamberGrow", override, timeout_s=120.0)
+            if not ok_grow:
+                self.logger.warning(LogCategory.MAIN, "库存平衡：定向培育失败", material=target)
+            else:
+                self.logger.info(LogCategory.MAIN, "库存平衡：定向培育成功", material=target)
+
+            # 7. 返回主世界
+            self._close_menu_and_world()
+            return ok_grow
+        except Exception as exc:
+            self.logger.warning(LogCategory.MAIN, "库存平衡异常", error=str(exc))
             self._recover_to_world()
             return False
 
