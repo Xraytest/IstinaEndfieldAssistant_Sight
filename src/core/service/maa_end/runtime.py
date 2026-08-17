@@ -676,6 +676,18 @@ class MaaEndRuntime:
         "AutoStockpile",
         "AutoSell",
         "DailyRewards",
+        # WATCHDOG-LONG-RUNNING-FIX (2026-08-17 07:2x): SellProduct 修复 BetterSliding
+        # 后可真正遍历 6 个据点逐一售卖，单次完整执行需 15-20 分钟。此前不在长任务
+        # 列表 → 按普通任务 300s 看门狗超时被 post_stop 误杀（07:11 实测：6 据点
+        # 售卖动作全部命中后任务被看门狗打断），进而触发连接恢复重跑。加入长任务
+        # 列表使用 1800s 超时，避免在正常售卖中途被误判卡死。
+        "SellProduct",
+        # WATCHDOG-LONG-RUNNING-FIX (2026-08-17 09:0x): EnvironmentMonitoring 正常
+        # 执行需遍历 4 个监测点（郊外/界碑石监测终端），每点都要快速传送+步行+
+        # 相机拍照交互，完整执行可超 300s（08:41-09:01 四轮实测：首轮已执行 24 个
+        # 动作、4 个监测点传送全部命中，仍被 300s 看门狗误杀；恢复重试轮同样每轮
+        # 300s 被打断）。加入长任务列表使用 1800s 超时，避免正常执行中途被误判卡死。
+        "EnvironmentMonitoring",
     })
 
     def _connect_once(self) -> bool:
@@ -1936,10 +1948,20 @@ class MaaEndRuntime:
                                 error=str(py_exc),
                             )
         # 任务返回前排空成功输入日志，避免 CLI 子进程退出时丢失尾部 OCR。
+        # OBSERVATION-FLUSH-FIX (2026-08-17 07:3x)：观测未排空仅属日志完整性
+        # 问题，不应改判任务成败。SellProduct 在 BetterSliding 修复后每个据点
+        # 的连续输入密集（15+ 次 ChangeGoods/SelectNewGoodConfirm + 7 次 Sell），
+        # 输入后 OCR 观测队列积压，15s 未排空被误判失败——但 pipeline 已成功、
+        # 动作证据 69 条充分（07:31:03 任务执行成功 → 07:31:18 被观测检查改判
+        # 失败）。任务成败由 pipeline 结果 + 动作证据判定，观测排空只影响日志
+        # 完整性，失败时降级为警告并继续排空（不阻塞返回）。
         observations_ok = self._flush_input_observations(timeout_s=15.0)
         if not observations_ok:
-            self.logger.error(LogCategory.MAIN, "任务输入后 OCR 未全部完成", task=task_name)
-            ok = False
+            self.logger.warning(
+                LogCategory.MAIN,
+                "任务输入后 OCR 观测未全部排空（仅影响日志完整性，不影响任务结果）",
+                task=task_name,
+            )
         if ok and task_name not in self._TASKS_SKIP_ENTER_WORLD:
             ok = self._verify_in_world_by_ocr()
             if not ok:
@@ -2922,9 +2944,16 @@ class MaaEndRuntime:
             return False
         self.logger.info(LogCategory.MAIN, "任务间清理：先验证当前 UI", before_task=task_name)
         try:
-            # 已在主世界时不发送 BACK，避免把云游戏从主世界退出。
-            if self._verify_in_world_by_ocr():
-                return True
+            # OCR-RETRY-FIX (2026-08-17): 单帧 OCR 可能因网络/渲染波动漏识别
+            # "探索/UID"(05:25 实测: 游戏状态检查严格判定通过后 1s, 任务间清理的
+            # _verify_in_world_by_ocr 单帧失败 → 误判不在主世界 → _recover_to_world
+            # 关闭覆盖层失败 → force-stop 重启游戏 → scrcpy 断连 → 加载 20 分钟 +
+            # "预算耗尽仍未确认主世界"循环, 每日全套中断)。重试 3 次(间隔 1.5s)
+            # 仍失败才判定不在主世界。
+            for _attempt in range(3):
+                if self._verify_in_world_by_ocr():
+                    return True
+                time.sleep(1.5)
             self.logger.info(LogCategory.MAIN, "任务间清理：关闭覆盖层后重试", before_task=task_name)
             return self._recover_to_world()
         except Exception as exc:
