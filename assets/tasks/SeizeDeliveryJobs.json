@@ -157,7 +157,12 @@
                     }
                 },
                 {
-                    "name": "Yes"
+                    "name": "Yes",
+                    "pipeline_override": {
+                        "SeizeDeliveryJobsGuard": {
+                            "enabled": false
+                        }
+                    }
                 }
             ]
         },
