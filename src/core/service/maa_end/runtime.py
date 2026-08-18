@@ -1477,9 +1477,19 @@ class MaaEndRuntime:
                         return result
             return result
         if opt_type == "checkbox":
-            selected = value if isinstance(value, list) else ([value] if value else [])
+            # CHECKBOX-EMPTY-SCALE-FIX (2026-08-18): 显式空列表 [] 必须表示
+            # 「全不选」，否则 AutoCollectCommonRoutes 等无法通过预设收敛默认全开的
+            # 路线/据点，导致每日全套 AutoCollect 实际跑 13 条路线超时。
+            # 未提供（None）由 build_pipeline_override 层已替换为 default_case；
+            # 此处 list 按字面值应用（[] = 不启用任何 case）。
             default_case = opt_def.get("default_case") or []
-            active_cases = selected if selected else default_case
+            if isinstance(value, list):
+                active_cases = value
+            elif value is None:
+                active_cases = default_case
+            else:
+                selected = [value] if value else []
+                active_cases = selected if selected else default_case
             for case in cases:
                 if case.get("name") in active_cases:
                     result = self._merge_overrides(result, case.get("pipeline_override") or {})
